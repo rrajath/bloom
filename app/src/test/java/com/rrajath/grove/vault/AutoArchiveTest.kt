@@ -222,4 +222,85 @@ class AutoArchiveTest {
 
         assertTrue(result is StateChangeResult.Archived)
     }
+
+    // --- applyToEach (bulk state change) ---
+
+    @Test
+    fun `applyToEach sets the keyword on each heading and skips ones already there`() = runTest {
+        tmp.newFile("todo.org").writeText("* TODO One\n* DONE Two\n* Three\n* TODO Untouched\n")
+        val v = vault()
+        val doc = v.open("todo.org")!!
+        val lines = doc.headlines.filter { it.title != "Untouched" }.map { it.lineIndex }.toSet()
+
+        val result = AutoArchive.applyToEach(
+            v, GroveSettings(autoArchiveDoneItems = false), doc, "todo.org", lines, "DONE", now,
+        )!!
+
+        assertEquals(2, result.changed)
+        assertEquals(
+            listOf("DONE", "DONE", "DONE", "TODO"),
+            result.sourceDoc.headlines.map { it.keyword },
+        )
+        assertTrue(result.destWrites.isEmpty())
+        // The CLOSED lines shift the headings below; the remap follows them.
+        val three = doc.headlines.first { it.title == "Three" }.lineIndex
+        assertEquals(result.sourceDoc.headlines.first { it.title == "Three" }.lineIndex, result.remap(three))
+    }
+
+    @Test
+    fun `applyToEach archives every heading that ends up done, in their original order`() = runTest {
+        tmp.newFile("todo.org").writeText("* TODO One\n** TODO Child\n* TODO Keep\n* TODO Two\n")
+        val v = vault()
+        val doc = v.open("todo.org")!!
+        val lines = doc.headlines.filter { it.title in setOf("One", "Two") }.map { it.lineIndex }.toSet()
+        val settings = GroveSettings(autoArchiveDoneItems = true, autoArchiveFile = "archive.org")
+
+        val result = AutoArchive.applyToEach(v, settings, doc, "todo.org", lines, "DONE", now)!!
+
+        assertEquals(listOf("Keep"), result.sourceDoc.headlines.map { it.title })
+        assertEquals(listOf("archive", "archive"), result.archivedTo)
+        val (file, before, after) = result.destWrites.single()
+        assertEquals("archive.org", file)
+        assertEquals("", before)
+        assertTrue("subtrees keep their order", after.indexOf("DONE One") < after.indexOf("DONE Two"))
+        assertTrue("children travel along", after.indexOf("DONE One") < after.indexOf("TODO Child"))
+        // Nothing is written by applyToEach itself.
+        assertEquals("* TODO One\n** TODO Child\n* TODO Keep\n* TODO Two\n", File(tmp.root, "todo.org").readText())
+    }
+
+    @Test
+    fun `applyToEach archives same-file without losing headings in between`() = runTest {
+        tmp.newFile("todo.org").writeText(
+            """
+            #+ARCHIVE: ::* Archive
+            * TODO One
+            * TODO Keep
+            * TODO Two
+            """.trimIndent() + "\n"
+        )
+        val v = vault()
+        val doc = v.open("todo.org")!!
+        val lines = doc.headlines.filter { it.title in setOf("One", "Two") }.map { it.lineIndex }.toSet()
+        val settings = GroveSettings(autoArchiveDoneItems = true)
+
+        val result = AutoArchive.applyToEach(v, settings, doc, "todo.org", lines, "DONE", now)!!
+
+        assertEquals(
+            listOf("* Keep", "* Archive", "** One", "** Two"),
+            result.sourceDoc.headlines.map { "*".repeat(it.level) + " " + it.title },
+        )
+        assertTrue(result.destWrites.isEmpty())
+        assertEquals(listOf("todo › Archive", "todo › Archive"), result.archivedTo)
+    }
+
+    @Test
+    fun `applyToEach returns null when every heading already has the keyword`() = runTest {
+        tmp.newFile("todo.org").writeText("* DONE One\n")
+        val v = vault()
+        val doc = v.open("todo.org")!!
+        val result = AutoArchive.applyToEach(
+            v, GroveSettings(), doc, "todo.org", setOf(doc.headlines.first().lineIndex), "DONE", now,
+        )
+        assertEquals(null, result)
+    }
 }

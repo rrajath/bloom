@@ -693,6 +693,33 @@ object OrgMutations {
     }
 
     /**
+     * Apply [edit] to each heading starting at one of [lines], for edits confined
+     * to a heading's own section that never add or remove headings (keyword,
+     * priority, tags, planning, drawers). They run bottom-up, so each edit leaves
+     * the lines of the headings still to come untouched. [edit] returns null to
+     * leave a heading as it is. [BulkEdit.remap] carries any heading line of
+     * [doc] to that heading's line now; other lines map to null. Returns null
+     * when no heading changed.
+     */
+    fun editEach(doc: OrgDocument, lines: Set<Int>, edit: (OrgDocument, OrgHeadline) -> String?): BulkEdit? {
+        val targets = doc.headlines.filter { it.lineIndex in lines }.sortedByDescending { it.lineIndex }
+        var cur = doc
+        var applied = 0
+        for (target in targets) {
+            val h = cur.headlines.getOrNull(target.index) ?: continue
+            val text = edit(cur, h)?.takeIf { it != cur.text } ?: continue
+            cur = OrgParser.parse(text, doc.keywords)
+            applied++
+        }
+        if (applied == 0) return null
+        val indexByLine = doc.headlines.associate { it.lineIndex to it.index }
+        val final = cur
+        return BulkEdit(cur.text, cur, applied, targets.size) { l ->
+            indexByLine[l]?.let { final.headlines.getOrNull(it)?.lineIndex }
+        }
+    }
+
+    /**
      * [moveSubtree], plus where each line of [doc] lands afterwards. Null at an
      * edge or when the sibling to swap with is in [selected].
      */

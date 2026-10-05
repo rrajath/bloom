@@ -369,6 +369,38 @@ class DocumentViewModelIntegrationTest {
     }
 
     @Test
+    fun `bulk metadata edits every selected heading and undoes in one step`() = runTest {
+        val vm = loaded("projects.org")
+        val before = store.read("projects.org")
+        val lines = setOf(headline(vm, "Ship v2 release").lineIndex, headline(vm, "Backlog").lineIndex)
+        vm.startSelection(lines.first())
+        vm.toggleSelected(lines.last())
+
+        vm.setStateEach(lines, "DONE")
+        advanceUntilIdle()
+        vm.setPriorityEach(vm.selectedLines.value, 'A')
+        advanceUntilIdle()
+
+        val after = OrgParser.parse(store.read("projects.org"))
+        listOf("Ship v2 release", "Backlog").forEach { title ->
+            val h = after.headlines.first { it.title == title }
+            assertEquals("DONE", h.keyword)
+            assertEquals('A', h.priority)
+        }
+        assertEquals("TODO", after.headlines.first { it.title == "Tag the release" }.keyword)
+        // The CLOSED lines shifted Backlog down; the selection followed it.
+        assertEquals(
+            setOf(headline(vm, "Ship v2 release").lineIndex, headline(vm, "Backlog").lineIndex),
+            vm.selectedLines.value,
+        )
+
+        vm.undo()
+        advanceUntilIdle()
+        assertEquals("DONE", OrgParser.parse(store.read("projects.org")).headlines.first { it.title == "Backlog" }.keyword)
+        assertTrue(before != store.read("projects.org"))
+    }
+
+    @Test
     fun `deleteNote removes the subtree and undo restores the file`() = runTest {
         val vm = loaded("projects.org")
         val before = store.read("projects.org")

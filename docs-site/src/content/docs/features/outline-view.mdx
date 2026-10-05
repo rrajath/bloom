@@ -60,7 +60,16 @@ While the bar is showing, tapping other rows adds them to the selection (tap aga
 - Adjacent selected siblings move up or down together as a block, and stop together when the first one hits the edge.
 - A heading the command can't apply to (a top-level heading on promote, say) is skipped, and the snackbar says how many changed.
 
-The whole batch is a single [undo](/features/undo) step. Tap ✓, ✕, or Back to leave focus mode.
+The whole batch is a single [undo](/features/undo) step. Tap ✕ or Back to leave focus mode.
+
+The bar's ☰ button opens the same metadata sheet as [Read mode](/features/metadata-sheet). With one heading selected it behaves exactly as it does there. With several, each change applies to all of them:
+
+- **State** and **Priority** chips highlight a value only when every selected heading shares it. A state change follows the usual done rules (a CLOSED stamp, repeating dates advancing, and auto-archive when that's on).
+- **Tags** lists only the tags every selected heading has. Adding a tag adds it to each one, and removing a tag removes it from each one, without touching their other tags.
+- **Dates** shows a date only when every heading has the same one. Only the dates you change are written, so setting a SCHEDULED date leaves each heading's own DEADLINE alone.
+- **Add note** logs the same note on each heading, and **Generate org-id** gives an `:ID:` to every heading that lacks one. Refile and Favorite are only offered for a single heading.
+
+Each bulk change is its own undo step.
 
 ## Narrowing to a subtree
 

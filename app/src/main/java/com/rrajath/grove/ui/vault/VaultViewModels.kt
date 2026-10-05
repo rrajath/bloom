@@ -1467,6 +1467,108 @@ class DocumentViewModel(
         }
     }
 
+    // --- bulk metadata (outline "Move & indent" selection) ---
+
+    /**
+     * The metadata sheet's state chips for several headings: each gets
+     * [keyword] with the same done/repeat/auto-archive semantics as [setState]
+     * (see [AutoArchive.applyToEach]). One undo step covers the whole batch,
+     * archive destinations included.
+     */
+    fun setStateEach(lines: Set<Int>, keyword: String?) {
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return
+        val vault = vaultFlow.value ?: return
+        viewModelScope.launch {
+            val settings = settingsRepository.settings.first()
+            val result = AutoArchive.applyToEach(
+                vault, settings, loaded.document, loaded.fileName, lines, keyword, LocalDateTime.now(),
+            ) ?: return@launch
+            undoSnapshot = UndoSnapshot(
+                listOf(loaded.fileName to loaded.document.text) +
+                    result.destWrites.map { (file, before, _) -> file to before }
+            )
+            _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
+            _state.value = DocumentUiState.Loaded(loaded.fileName, result.sourceDoc)
+            result.destWrites.forEach { (file, _, after) ->
+                vault.save(file, after)
+                sync.requestReindex(file, after, "state set")
+            }
+            saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc)
+            val stateMessage = "State → ${keyword ?: "none"} on ${notesCount(result.changed)}"
+            val destinations = result.archivedTo.distinct()
+            showSnack(
+                when {
+                    destinations.isEmpty() -> stateMessage
+                    destinations.size == 1 ->
+                        "$stateMessage. Refiled ${result.archivedTo.size} to ${destinations.single()}"
+                    else -> "$stateMessage. Refiled ${result.archivedTo.size}"
+                }
+            )
+        }
+    }
+
+    fun setPriorityEach(lines: Set<Int>, priority: Char?) =
+        editEach(lines, "priority set", { "Priority → ${priority?.let { "#$it" } ?: "none"} on ${notesCount(it)}" }) { d, h ->
+            if (h.priority == priority) null else OrgMutations.setPriority(d, h, priority)
+        }
+
+    /** Adds [add] to and removes [remove] from each heading's own tags, leaving its other tags alone. */
+    fun editTagsEach(lines: Set<Int>, add: Collection<String>, remove: Collection<String>) =
+        editEach(lines, "tags set", { "Tags updated on ${notesCount(it)}" }) { d, h ->
+            val tags = (h.tags - remove.toSet() + add).distinct()
+            if (tags == h.tags) null else OrgMutations.setTags(d, h, tags)
+        }
+
+    fun setPlanningEach(lines: Set<Int>, edit: BulkPlanningEdit) {
+        if (edit.isEmpty) return
+        editEach(lines, "planning edit", { "Dates set on ${notesCount(it)}" }) { d, h ->
+            val (scheduled, deadline, active) = edit.applyTo(h)
+            OrgMutations.setPlanningAndActiveTimestamps(d, h, scheduled, deadline, active)
+        }
+    }
+
+    fun addNoteEach(lines: Set<Int>, note: String) {
+        if (note.isBlank()) return
+        val now = LocalDateTime.now()
+        val stamp = OrgTimestamp(now.toLocalDate(), time = now.toLocalTime().withSecond(0).withNano(0), active = false)
+        editEach(lines, "note added", { "Note added to ${notesCount(it)}" }) { d, h ->
+            OrgMutations.appendLogbookNote(d, h, note.trim(), stamp)
+        }
+    }
+
+    /** A fresh `:ID:` for each heading that has none yet. */
+    fun generateIdEach(lines: Set<Int>) =
+        editEach(lines, "org-id generated", { "org-id generated for ${notesCount(it)}" }) { d, h ->
+            if (h.id != null) null else OrgMutations.upsertProperty(d, h, "ID", newOrgId())
+        }
+
+    /**
+     * Apply a section-local [edit] to each heading at [lines] (see
+     * [OrgMutations.editEach]) as one undoable step; [message] gets the number
+     * of headings that changed.
+     */
+    private fun editEach(
+        lines: Set<Int>,
+        syncReason: String,
+        message: (Int) -> String,
+        edit: (OrgDocument, OrgHeadline) -> String?,
+    ) {
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return
+        vaultFlow.value ?: return
+        viewModelScope.launch {
+            val result = withContext(dispatchers.default) {
+                OrgMutations.editEach(loaded.document, lines, edit)
+            } ?: return@launch
+            undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
+            _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
+            _state.value = DocumentUiState.Loaded(loaded.fileName, result.doc)
+            saveDoc(loaded.fileName, result.text, syncReason, result.doc)
+            showSnack(message(result.applied))
+        }
+    }
+
+    private fun notesCount(n: Int) = if (n == 1) "1 note" else "$n notes"
+
     // --- refile (design spec Gestures screen) ---
 
     fun startRefile(headline: OrgHeadline) {

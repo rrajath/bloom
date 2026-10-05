@@ -1438,4 +1438,26 @@ class OrgMutationsTest {
         assertEquals(r.doc.findByTitle("C")!!.lineIndex, r.remap(line("C")))
         assertEquals(r.doc.findByTitle("A3")!!.lineIndex, r.remap(line("A3")))
     }
+
+    @Test
+    fun `editEach edits each heading bottom-up and remaps the ones whose lines shifted`() {
+        val stamp = OrgTimestamp.parse("<2026-10-05 Mon>")!!
+        val r = OrgMutations.editEach(bulk, setOf(line("A"), line("A1"), line("B"))) { d, h ->
+            OrgMutations.setScheduled(d, h, stamp)
+        }!!
+        assertEquals(3, r.applied)
+        listOf("A", "A1", "B").forEach { title ->
+            val h = r.doc.findByTitle(title)!!
+            assertEquals(stamp, h.planning.scheduled)
+            assertEquals(h.lineIndex, r.remap(line(title)))
+        }
+        assertNull(r.doc.findByTitle("A2")!!.planning.scheduled)
+        assertEquals("bodies stay put", "a1 body", r.doc.lines[r.doc.findByTitle("A1")!!.lineIndex + 2])
+    }
+
+    @Test
+    fun `editEach returns null when nothing changed`() {
+        assertNull(OrgMutations.editEach(bulk, setOf(line("A"))) { _, _ -> null })
+        assertNull(OrgMutations.editEach(bulk, setOf(line("A"))) { d, _ -> d.text })
+    }
 }
