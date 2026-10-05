@@ -50,6 +50,18 @@ Swiping a row left or right reveals quick actions without opening the note:
 - **Add subheading**: inserts a new child heading, nested one level deeper
 - **Refile**: opens the [Refile](/features/refile) picker to move this subtree elsewhere
 
+## Move & indent
+
+Long-press a row to lift it into focus mode: the top bar becomes the **Move & indent** bar, with buttons to move the heading up or down among its siblings, promote or demote it (with its whole subtree), or delete it.
+
+While the bar is showing, tapping other rows adds them to the selection (tap again to drop one), and the bar's title shows how many are selected. Each command then runs on every selected heading in turn:
+
+- A selected heading inside another selected heading's subtree moves with that ancestor and isn't acted on separately.
+- Adjacent selected siblings move up or down together as a block, and stop together when the first one hits the edge.
+- A heading the command can't apply to (a top-level heading on promote, say) is skipped, and the snackbar says how many changed.
+
+The whole batch is a single [undo](/features/undo) step. Tap ✓, ✕, or Back to leave focus mode.
+
 ## Narrowing to a subtree
 
 If you arrive at Outline View from a breadcrumb link inside a note (tapping a parent heading), the view can narrow to just that subtree instead of showing the whole file, useful for focusing on one section of a large notebook.

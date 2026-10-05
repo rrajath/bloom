@@ -677,9 +677,12 @@ class DocumentViewModel(
     private val _snack = MutableStateFlow<OutlineSnack?>(null)
     val snack: StateFlow<OutlineSnack?> = _snack
 
-    /** Headline line the "Move & indent" command bar is acting on; null = not in focus mode. */
-    private val _focusedLine = MutableStateFlow<Int?>(null)
-    val focusedLine: StateFlow<Int?> = _focusedLine
+    /**
+     * Headline lines the "Move & indent" command bar is acting on; empty = not in
+     * focus mode. Each command applies to every selected headline in turn.
+     */
+    private val _selectedLines = MutableStateFlow<Set<Int>>(emptySet())
+    val selectedLines: StateFlow<Set<Int>> = _selectedLines
 
     private val _refile = MutableStateFlow<RefileUiState?>(null)
     val refile: StateFlow<RefileUiState?> = _refile
@@ -729,8 +732,18 @@ class DocumentViewModel(
         }
     }
 
-    fun setFocus(line: Int?) {
-        _focusedLine.value = line
+    /** Enter focus mode with just [line] selected. */
+    fun startSelection(line: Int) {
+        _selectedLines.value = setOf(line)
+    }
+
+    /** Add or remove [line] from the selection; removing the last one leaves focus mode. */
+    fun toggleSelected(line: Int) {
+        _selectedLines.value = _selectedLines.value.let { if (line in it) it - line else it + line }
+    }
+
+    fun clearSelection() {
+        _selectedLines.value = emptySet()
     }
 
     /** The open editor's unsaved buffer for this file, if any; see [setPendingEdit]. */
@@ -975,7 +988,7 @@ class DocumentViewModel(
         _snack.value = null
         // The focused line indexes the pre-undo document; don't let the
         // command bar act on whatever headline lands there after restore.
-        _focusedLine.value = null
+        _selectedLines.value = emptySet()
         // The snapshot predates whatever the editor is holding, so restoring it
         // would put the file back behind an unsaved buffer that could then clobber
         // it again; the editor lets go of the buffer instead.
@@ -1114,61 +1127,68 @@ class DocumentViewModel(
     }
 
     /**
-     * Apply an undoable single-file mutation: snapshot for undo, publish the
-     * in-memory parse immediately, persist and sync in the background.
-     * [newFocus] moves the command-bar focus when the headline's line changed.
+     * Apply an undoable structural edit to each heading at [lines] (see
+     * [OrgMutations.applyToEach]): one undo snapshot for the whole batch, publish
+     * the in-memory parse immediately, persist and sync in the background. The
+     * selection follows the headings to their new lines.
      */
-    private fun applyUndoable(
-        headline: OrgHeadline,
-        snackMessage: String,
+    private fun applyStructure(
+        lines: Set<Int>,
+        op: OrgMutations.StructureOp,
+        verb: String,
         blockedToast: String,
-        newFocus: (Int) -> Int? = { line -> _focusedLine.value?.let { if (it == headline.lineIndex) line else it } },
-        block: (OrgDocument, OrgHeadline) -> Pair<String, Int>?,
+        singleMessage: String = verb,
     ) {
         val loaded = _state.value as? DocumentUiState.Loaded ?: return
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
             val result = withContext(dispatchers.default) {
-                block(loaded.document, headline)
-                    ?.let { (text, line) -> Triple(text, line, OrgParser.parse(text, loaded.document.keywords)) }
+                OrgMutations.applyToEach(loaded.document, lines, op)
             }
             if (result == null) {
                 showToast(blockedToast)
                 return@launch
             }
-            val (newText, newLine, newDoc) = result
+            if (op == OrgMutations.StructureOp.DELETE) {
+                val doc = loaded.document
+                lines.mapNotNull(doc::headlineAtLine).forEach { h ->
+                    dropFavoritesInRange(doc, loaded.fileName, h.lineIndex until doc.subtreeEndLine(h))
+                }
+            }
             undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
-            _focusedLine.value = newFocus(newLine)
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
-            saveDoc(loaded.fileName, newText, "outline edit", newDoc)
-            showSnack(snackMessage)
+            _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
+            _state.value = DocumentUiState.Loaded(loaded.fileName, result.doc)
+            saveDoc(loaded.fileName, result.text, "outline edit", result.doc)
+            showSnack(
+                when {
+                    result.attempted == 1 -> singleMessage
+                    result.applied == result.attempted -> "$verb ${result.applied} notes"
+                    else -> "$verb ${result.applied} of ${result.attempted} notes"
+                }
+            )
         }
     }
 
-    fun moveUp(headline: OrgHeadline) = applyUndoable(headline, "Moved up", "Can't move further") { d, h ->
-        OrgMutations.moveSubtree(d, h, -1)
-    }
+    fun moveUp(headline: OrgHeadline) = moveUp(setOf(headline.lineIndex))
+    fun moveDown(headline: OrgHeadline) = moveDown(setOf(headline.lineIndex))
+    fun promote(headline: OrgHeadline) = promote(setOf(headline.lineIndex))
+    fun demote(headline: OrgHeadline) = demote(setOf(headline.lineIndex))
+    fun deleteNote(headline: OrgHeadline) = deleteNotes(setOf(headline.lineIndex))
 
-    fun moveDown(headline: OrgHeadline) = applyUndoable(headline, "Moved down", "Can't move further") { d, h ->
-        OrgMutations.moveSubtree(d, h, +1)
-    }
+    fun moveUp(lines: Set<Int>) =
+        applyStructure(lines, OrgMutations.StructureOp.MOVE_UP, "Moved up", "Can't move further")
 
-    fun promote(headline: OrgHeadline) = applyUndoable(headline, "Promoted", "Already top level") { d, h ->
-        OrgMutations.promoteSubtree(d, h)?.let { it to h.lineIndex }
-    }
+    fun moveDown(lines: Set<Int>) =
+        applyStructure(lines, OrgMutations.StructureOp.MOVE_DOWN, "Moved down", "Can't move further")
 
-    fun demote(headline: OrgHeadline) = applyUndoable(headline, "Demoted", "Can't demote further") { d, h ->
-        OrgMutations.demoteSubtree(d, h)?.let { it to h.lineIndex }
-    }
+    fun promote(lines: Set<Int>) =
+        applyStructure(lines, OrgMutations.StructureOp.PROMOTE, "Promoted", "Already top level")
 
-    fun deleteNote(headline: OrgHeadline) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val subtreeEnd = loaded.document.subtreeEndLine(headline)
-        applyUndoable(headline, "Note deleted", "", newFocus = { null }) { d, h ->
-            OrgMutations.deleteSubtree(d, h) to h.lineIndex
-        }
-        dropFavoritesInRange(loaded.document, loaded.fileName, headline.lineIndex until subtreeEnd)
-    }
+    fun demote(lines: Set<Int>) =
+        applyStructure(lines, OrgMutations.StructureOp.DEMOTE, "Demoted", "Can't demote further")
+
+    fun deleteNotes(lines: Set<Int>) =
+        applyStructure(lines, OrgMutations.StructureOp.DELETE, "Deleted", "", singleMessage = "Note deleted")
 
     /**
      * Same-session cleanup for an in-app delete/refile: a favorite whose *current* position
@@ -1284,7 +1304,7 @@ class DocumentViewModel(
                             listOf(loaded.fileName to loaded.document.text, result.destFile to result.destTextBefore)
                         }
                     )
-                    _focusedLine.value = null
+                    _selectedLines.value = emptySet()
                     _state.value = DocumentUiState.Loaded(loaded.fileName, result.sourceDoc)
                     if (result.destFile != loaded.fileName) vault.save(result.destFile, result.destText)
                     saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc)
@@ -1573,7 +1593,7 @@ class DocumentViewModel(
                 listOf(loaded.fileName to loaded.document.text, write.destFile to write.destTextBefore)
             }
         )
-        _focusedLine.value = null
+        _selectedLines.value = emptySet()
         val newSourceDoc = OrgParser.parse(write.sourceText, loaded.document.keywords)
         _state.value = DocumentUiState.Loaded(loaded.fileName, newSourceDoc)
         if (write.destFile != loaded.fileName) {
@@ -1607,7 +1627,7 @@ class DocumentViewModel(
                     return@launch
                 }
                 undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
-                _focusedLine.value = null
+                _selectedLines.value = emptySet()
                 _state.value = DocumentUiState.Loaded(loaded.fileName, result.second)
                 saveDoc(loaded.fileName, result.first, "refile", result.second)
                 showSnack("Refiled to $destLabel › ${targetTitle ?: "top level"}")
@@ -1628,7 +1648,7 @@ class DocumentViewModel(
                 undoSnapshot = UndoSnapshot(
                     listOf(loaded.fileName to loaded.document.text, destFile to destDoc.text)
                 )
-                _focusedLine.value = null
+                _selectedLines.value = emptySet()
                 _state.value = DocumentUiState.Loaded(loaded.fileName, newSourceDoc)
                 vault.save(destFile, newDestText)
                 sync.requestReindex(destFile, newDestText, "refile")

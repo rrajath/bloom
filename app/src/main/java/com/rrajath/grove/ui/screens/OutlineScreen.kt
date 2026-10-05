@@ -201,7 +201,7 @@ fun OutlineScreen(
 ) {
     val c = MaterialTheme.grove
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val focusedLine by viewModel.focusedLine.collectAsStateWithLifecycle()
+    val selectedLines by viewModel.selectedLines.collectAsStateWithLifecycle()
     val toast by viewModel.toast.collectAsStateWithLifecycle()
     val snack by viewModel.snack.collectAsStateWithLifecycle()
     val refileState by viewModel.refile.collectAsStateWithLifecycle()
@@ -315,16 +315,15 @@ fun OutlineScreen(
     }
 
     // The command bar takes over the top bar in focus mode; back exits it.
-    BackHandler(enabled = focusedLine != null) { viewModel.setFocus(null) }
+    BackHandler(enabled = selectedLines.isNotEmpty()) { viewModel.clearSelection() }
 
     Scaffold(
         containerColor = c.bg,
         topBar = {
-            val focused = focusedLine
-            if (focused != null) {
+            if (selectedLines.isNotEmpty()) {
                 StructureCommandBar(
-                    onExit = { viewModel.setFocus(null) },
-                    resolve = { (state as? DocumentUiState.Loaded)?.document?.headlineAtLine(focused) },
+                    selectedCount = selectedLines.size,
+                    onExit = { viewModel.clearSelection() },
                     viewModel = viewModel,
                 )
             } else {
@@ -504,7 +503,7 @@ fun OutlineScreen(
             // Backlinks are roam-only: the bar never shows for a file without a
             // file-level :ID:, regardless of the "Show backlinks" toggle.
             val isRoamFile = (state as? DocumentUiState.Loaded)?.document?.fileId != null
-            if (showBacklinks && isRoamFile && focusedLine == null) {
+            if (showBacklinks && isRoamFile && selectedLines.isEmpty()) {
                 LinkedReferencesBar(
                     linkedCount = linkedReferences.linkedCount,
                     unlinkedCount = linkedReferences.unlinkedCount,
@@ -746,22 +745,27 @@ fun OutlineScreen(
                                     },
                                 )
                             }
-                            // derivedStateOf: openRowLine/focusedLine change on every open/focus
+                            // derivedStateOf: openRowLine/selectedLines change on every open/select
                             // toggle, but only the previously- and newly-affected rows actually
-                            // flip these booleans, so only those two rows recompose.
+                            // flip these booleans, so only those rows recompose.
                             val forceCloseRow by remember(h.lineIndex) { derivedStateOf { openRowLine != h.lineIndex } }
-                            val isFocusedRow by remember(h.lineIndex) { derivedStateOf { focusedLine == h.lineIndex } }
+                            val isFocusedRow by remember(h.lineIndex) { derivedStateOf { h.lineIndex in selectedLines } }
                             SwipeRevealRow(
                                 leftActions = leftActions,
                                 rightActions = rightActions,
-                                enabled = focusedLine == null,
+                                enabled = selectedLines.isEmpty(),
                                 forceClose = forceCloseRow,
                                 onOpenChanged = { open ->
                                     if (open) openRowLine = h.lineIndex
                                     else if (openRowLine == h.lineIndex) openRowLine = null
                                 },
-                                onTap = { onOpenNote(NoteRef(notebookId, h.lineIndex)) },
-                                onLongPress = { viewModel.setFocus(h.lineIndex) },
+                                // In focus mode a tap adds/removes the row from the
+                                // bulk selection instead of opening it.
+                                onTap = {
+                                    if (selectedLines.isNotEmpty()) viewModel.toggleSelected(h.lineIndex)
+                                    else onOpenNote(NoteRef(notebookId, h.lineIndex))
+                                },
+                                onLongPress = { viewModel.startSelection(h.lineIndex) },
                                 modifier = if (isFocusedRow) Modifier.zIndex(1f) else Modifier,
                                 // Search's result-row radius, so the action panels get rounded ends too.
                                 shape = RoundedCornerShape(12.dp),
@@ -934,17 +938,19 @@ internal fun NoteDialog(title: String, onDismiss: () -> Unit, onConfirm: (String
 
 /**
  * "Move & indent" bar that replaces the top bar in focus mode (design spec
- * Gestures screen): 56dp, accentSoft bg. Every handler re-resolves the focused
- * headline at click time: headlines are stale after each mutation.
+ * Gestures screen): 56dp, accentSoft bg. Commands act on every selected
+ * headline in turn; each handler reads the selection at click time since
+ * line indices shift after every mutation.
  */
 @Composable
 private fun StructureCommandBar(
+    selectedCount: Int,
     onExit: () -> Unit,
-    resolve: () -> OrgHeadline?,
     viewModel: DocumentViewModel,
 ) {
     val c = MaterialTheme.grove
     var confirmDelete by remember { mutableStateOf(false) }
+    val selected = { viewModel.selectedLines.value }
     // Background first so the accentSoft wash extends behind the status bar,
     // then the inset padding (Scaffold does not pad the topBar slot).
     Column(Modifier.background(c.accentSoft).statusBarsPadding()) {
@@ -966,15 +972,15 @@ private fun StructureCommandBar(
             }
             Spacer(Modifier.width(4.dp))
             Text(
-                "Move & indent",
+                if (selectedCount > 1) "$selectedCount selected" else "Move & indent",
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp, color = c.accent,
                 modifier = Modifier.weight(1f),
             )
-            CommandButton(Icons.Default.KeyboardArrowUp, "Move up", c.ink) { resolve()?.let(viewModel::moveUp) }
-            CommandButton(Icons.Default.KeyboardArrowDown, "Move down", c.ink) { resolve()?.let(viewModel::moveDown) }
-            CommandButton(Icons.AutoMirrored.Filled.FormatIndentDecrease, "Promote", c.ink) { resolve()?.let(viewModel::promote) }
-            CommandButton(Icons.AutoMirrored.Filled.FormatIndentIncrease, "Demote", c.ink) { resolve()?.let(viewModel::demote) }
+            CommandButton(Icons.Default.KeyboardArrowUp, "Move up", c.ink) { viewModel.moveUp(selected()) }
+            CommandButton(Icons.Default.KeyboardArrowDown, "Move down", c.ink) { viewModel.moveDown(selected()) }
+            CommandButton(Icons.AutoMirrored.Filled.FormatIndentDecrease, "Promote", c.ink) { viewModel.promote(selected()) }
+            CommandButton(Icons.AutoMirrored.Filled.FormatIndentIncrease, "Demote", c.ink) { viewModel.demote(selected()) }
             CommandButton(Icons.Default.Delete, "Delete", c.red) { confirmDelete = true }
             Spacer(Modifier.width(2.dp))
             Box(
@@ -1001,20 +1007,21 @@ private fun StructureCommandBar(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Delete this note?",
+                    if (selectedCount > 1) "Delete $selectedCount notes?" else "Delete this note?",
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    "This will delete the heading and everything under it.",
+                    if (selectedCount > 1) "This will delete the headings and everything under them."
+                    else "This will delete the heading and everything under it.",
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
-                    resolve()?.let(viewModel::deleteNote)
+                    viewModel.deleteNotes(selected())
                     confirmDelete = false
                     onExit()
                 }) { Text("Delete", color = c.red, fontWeight = FontWeight.SemiBold) }

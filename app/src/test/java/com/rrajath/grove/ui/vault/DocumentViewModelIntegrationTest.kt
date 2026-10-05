@@ -343,6 +343,32 @@ class DocumentViewModelIntegrationTest {
     }
 
     @Test
+    fun `bulk promote acts on every selected heading, keeps them selected, and undoes in one step`() = runTest {
+        val vm = loaded("projects.org")
+        val before = store.read("projects.org")
+        val tag = headline(vm, "Tag the release")
+        val store2 = headline(vm, "Write the store listing")
+
+        vm.startSelection(tag.lineIndex)
+        vm.toggleSelected(store2.lineIndex)
+        vm.promote(vm.selectedLines.value)
+        advanceUntilIdle()
+
+        val after = OrgParser.parse(store.read("projects.org"))
+        assertEquals(1, after.headlines.first { it.title == "Tag the release" }.level)
+        assertEquals(1, after.headlines.first { it.title == "Write the store listing" }.level)
+        assertEquals(
+            setOf(headline(vm, "Tag the release").lineIndex, headline(vm, "Write the store listing").lineIndex),
+            vm.selectedLines.value,
+        )
+
+        vm.undo()
+        advanceUntilIdle()
+        assertEquals(before, store.read("projects.org"))
+        assertTrue(vm.selectedLines.value.isEmpty())
+    }
+
+    @Test
     fun `deleteNote removes the subtree and undo restores the file`() = runTest {
         val vm = loaded("projects.org")
         val before = store.read("projects.org")
