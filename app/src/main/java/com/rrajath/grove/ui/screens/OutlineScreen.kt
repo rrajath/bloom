@@ -883,7 +883,6 @@ fun OutlineScreen(
                             onGenerateId = { viewModel.generateId(single) },
                             onRefile = {
                                 metadataOpen = false
-                                viewModel.clearSelection()
                                 viewModel.startRefile(single)
                             },
                             showFavorite = true,
@@ -911,8 +910,10 @@ fun OutlineScreen(
                                 },
                                 onAddNote = { note -> viewModel.addNoteEach(lines, note) },
                                 onGenerateId = { viewModel.generateIdEach(lines) },
-                                onRefile = {},
-                                showRefile = false,
+                                onRefile = {
+                                    metadataOpen = false
+                                    viewModel.startRefileEach(lines)
+                                },
                                 stateMixed = summary.stateMixed,
                                 priorityMixed = summary.priorityMixed,
                                 onDismiss = { metadataOpen = false },
@@ -924,6 +925,7 @@ fun OutlineScreen(
                 refileState?.let { refile ->
                     RefileSheet(
                         state = refile,
+                        headerTitle = "Refile ${pluralCount(refile.sourceLines.size, "note")}",
                         currentFileName = notebookId,
                         currentDoc = doc,
                         onPickNotebook = viewModel::refilePickNotebook,
@@ -1041,7 +1043,7 @@ private fun StructureCommandBar(
             }
             Spacer(Modifier.width(4.dp))
             Text(
-                if (selectedCount > 1) "$selectedCount selected" else "Move & indent",
+                "$selectedCount selected",
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp, color = c.accent,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

@@ -52,9 +52,9 @@ Swiping a row left or right reveals quick actions without opening the note:
 
 ## Move & indent
 
-Long-press a row to lift it into focus mode: the top bar becomes the **Move & indent** bar, with buttons to move the heading up or down among its siblings, promote or demote it (with its whole subtree), or delete it.
+Long-press a row to lift it into focus mode: the top bar becomes the **Move & indent** bar, titled with how many headings are selected, with buttons to move the heading up or down among its siblings, promote or demote it (with its whole subtree), or delete it.
 
-While the bar is showing, tapping other rows adds them to the selection (tap again to drop one), and the bar's title shows how many are selected. Each command then runs on every selected heading in turn:
+While the bar is showing, tapping other rows adds them to the selection (tap again to drop one). Each command then runs on every selected heading in turn:
 
 - A selected heading inside another selected heading's subtree moves with that ancestor and isn't acted on separately.
 - Adjacent selected siblings move up or down together as a block, and stop together when the first one hits the edge.
@@ -67,7 +67,8 @@ The bar's ☰ button opens the same metadata sheet as [Read mode](/features/meta
 - **State** and **Priority** chips highlight a value only when every selected heading shares it. A state change follows the usual done rules (a CLOSED stamp, repeating dates advancing, and auto-archive when that's on).
 - **Tags** lists only the tags every selected heading has. Adding a tag adds it to each one, and removing a tag removes it from each one, without touching their other tags.
 - **Dates** shows a date only when every heading has the same one. Only the dates you change are written, so setting a SCHEDULED date leaves each heading's own DEADLINE alone.
-- **Add note** logs the same note on each heading, and **Generate org-id** gives an `:ID:` to every heading that lacks one. Refile and Favorite are only offered for a single heading.
+- **Add note** logs the same note on each heading, and **Generate org-id** gives an `:ID:` to every heading that lacks one. Favorite is only offered for a single heading.
+- **Refile** opens the [Refile](/features/refile) picker for all of them. Their subtrees land under the chosen heading in their original order, and a selected heading inside another selected heading's subtree travels with it. The one-tap Archive row appears when every selected heading archives to the same place.
 
 Each bulk change is its own undo step.
 

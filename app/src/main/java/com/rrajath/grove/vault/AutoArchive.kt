@@ -41,6 +41,16 @@ class BulkStateChange(
     val remap: (Int) -> Int?,
 )
 
+/** Outcome of [AutoArchive.refileEach]. */
+class BulkRefile(
+    val sourceText: String,
+    val sourceDoc: OrgDocument,
+    /** Other destination files: file name, text before, text after. */
+    val destWrites: List<Triple<String, String, String>>,
+    /** Destination label of each heading moved, in original file order; empty when none moved. */
+    val labels: List<String>,
+)
+
 /** Delete-subtree + find-or-create-heading-path + insert, same-file or cross-file. */
 data class RefileWrite(
     val sourceFile: String,
@@ -179,33 +189,72 @@ object AutoArchive {
         val edit = OrgMutations.editEach(doc, lines) { d, h ->
             if (h.keyword == newKeyword) null else OrgMutations.changeKeyword(d, h, newKeyword, d.keywords, now)
         } ?: return null
-        var cur = edit.doc
+        val cur = edit.doc
 
+        val sources = if (!settings.autoArchiveDoneItems) emptyList() else {
+            val fallback = settingsFallback(settings)
+            changedIndices.mapNotNull { index ->
+                val h = cur.headlines.getOrNull(index) ?: return@mapNotNull null
+                // As in [apply]: a repeating task keeps an active keyword, so it never archives.
+                if (h.keyword == null || !doc.keywords.isDone(h.keyword)) return@mapNotNull null
+                ArchiveLocation.resolve(cur, h, fallback, fileName)?.let { h.lineIndex to it }
+            }
+        }
+        val refile = refileEach(vault, cur, fileName, sources, createFileIfMissing = true, archivedAt = now)
+        if (refile.labels.isEmpty()) {
+            return BulkStateChange(cur.text, cur, emptyList(), edit.applied, emptyList(), edit.remap)
+        }
+        return BulkStateChange(
+            sourceText = refile.sourceText,
+            sourceDoc = refile.sourceDoc,
+            destWrites = refile.destWrites,
+            changed = edit.applied,
+            archivedTo = refile.labels,
+            remap = { null },
+        )
+    }
+
+    /**
+     * [refileSubtree] for several headings of one file: each heading at a line
+     * of [sources] goes to its own [ArchiveTarget]. All subtrees are lifted out
+     * bottom-up first, so no removal shifts a heading still to be handled, then
+     * inserted at their destinations in their original order. Every source is
+     * moved on its own, so a source inside another source's subtree comes out
+     * of it; callers wanting it to travel along pass only
+     * [OrgMutations.selectedRoots]. A source whose destination file can't be
+     * opened (or, without [createFileIfMissing], doesn't exist) stays where it
+     * is. With [archivedAt], each moved heading gets Emacs's `ARCHIVE_*`
+     * properties. Nothing is saved; a same-file destination is part of
+     * [BulkRefile.sourceText].
+     */
+    suspend fun refileEach(
+        vault: Vault,
+        doc: OrgDocument,
+        fileName: String,
+        sources: List<Pair<Int, ArchiveTarget>>,
+        createFileIfMissing: Boolean,
+        archivedAt: LocalDateTime? = null,
+    ): BulkRefile {
+        var cur = doc
         val pending = mutableListOf<Pair<ArchiveTarget, String>>()
         // Other destination files: text before, document with the inserts so far.
         val dests = linkedMapOf<String, Pair<String, OrgDocument>>()
-        if (settings.autoArchiveDoneItems) {
-            val fallback = settingsFallback(settings)
-            // Descending: removing a subtree only renumbers headings after it.
-            for (index in changedIndices.sortedDescending()) {
-                val h = cur.headlines.getOrNull(index) ?: continue
-                // As in [apply]: a repeating task keeps an active keyword, so it never archives.
-                if (h.keyword == null || !doc.keywords.isDone(h.keyword)) continue
-                val target = ArchiveLocation.resolve(cur, h, fallback, fileName) ?: continue
-                // Open the destination before lifting the subtree out, so a file
-                // that can't be opened leaves the heading where it is.
-                if (target.fileName != fileName && target.fileName !in dests) {
-                    val destDoc = openOrCreate(vault, target.fileName) ?: continue
-                    dests[target.fileName] = destDoc.text to destDoc
-                }
-                pending += target to stamp(vault, cur, fileName, h, OrgMutations.subtreeText(cur, h), now)
-                cur = OrgParser.parse(OrgMutations.deleteSubtree(cur, h), doc.keywords)
+        // Descending: removing a subtree only renumbers the lines after it.
+        for ((line, target) in sources.sortedByDescending { it.first }) {
+            val h = cur.headlines.firstOrNull { it.lineIndex == line } ?: continue
+            // Open the destination before lifting the subtree out, so a file
+            // that can't be opened leaves the heading where it is.
+            if (target.fileName != fileName && target.fileName !in dests) {
+                val destDoc = (if (createFileIfMissing) openOrCreate(vault, target.fileName) else vault.open(target.fileName))
+                    ?: continue
+                dests[target.fileName] = destDoc.text to destDoc
             }
+            val subtree = OrgMutations.subtreeText(cur, h).let { text ->
+                if (archivedAt == null) text else stamp(vault, cur, fileName, h, text, archivedAt)
+            }
+            pending += target to subtree
+            cur = OrgParser.parse(OrgMutations.deleteSubtree(cur, h), doc.keywords)
         }
-        if (pending.isEmpty()) {
-            return BulkStateChange(cur.text, cur, emptyList(), edit.applied, emptyList(), edit.remap)
-        }
-
         for ((target, subtree) in pending.asReversed()) {
             if (target.fileName == fileName) {
                 cur = insertAtPath(cur, target.headingPath, subtree)
@@ -214,13 +263,11 @@ object AutoArchive {
                 dests[target.fileName] = before to insertAtPath(destDoc, target.headingPath, subtree)
             }
         }
-        return BulkStateChange(
+        return BulkRefile(
             sourceText = cur.text,
             sourceDoc = cur,
             destWrites = dests.map { (file, texts) -> Triple(file, texts.first, texts.second.text) },
-            changed = edit.applied,
-            archivedTo = pending.asReversed().map { label(it.first) },
-            remap = { null },
+            labels = pending.asReversed().map { label(it.first) },
         )
     }
 

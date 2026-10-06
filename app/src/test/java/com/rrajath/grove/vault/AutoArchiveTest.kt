@@ -303,4 +303,37 @@ class AutoArchiveTest {
         )
         assertEquals(null, result)
     }
+
+    @Test
+    fun `refileEach leaves headings whose destination file doesn't exist when not creating it`() = runTest {
+        tmp.newFile("todo.org").writeText("* One\n* Two\n")
+        val v = vault()
+        val doc = v.open("todo.org")!!
+        val target = ArchiveTarget("missing.org", emptyList())
+
+        val result = AutoArchive.refileEach(
+            v, doc, "todo.org", doc.headlines.map { it.lineIndex to target }, createFileIfMissing = false,
+        )
+
+        assertTrue(result.labels.isEmpty())
+        assertEquals(doc.text, result.sourceText)
+        assertFalse(File(tmp.root, "missing.org").exists())
+    }
+
+    @Test
+    fun `refileEach archives several headings to one file in order, stamping each`() = runTest {
+        tmp.newFile("todo.org").writeText("* One\n* Keep\n* Two\n")
+        val v = vault()
+        val doc = v.open("todo.org")!!
+        val target = ArchiveTarget("archive.org", listOf("Done"))
+        val sources = doc.headlines.filter { it.title != "Keep" }.map { it.lineIndex to target }
+
+        val result = AutoArchive.refileEach(v, doc, "todo.org", sources, createFileIfMissing = true, archivedAt = now)
+
+        assertEquals(listOf("Keep"), result.sourceDoc.headlines.map { it.title })
+        assertEquals(listOf("archive › Done", "archive › Done"), result.labels)
+        val after = result.destWrites.single().third
+        assertTrue(after.indexOf("** One") < after.indexOf("** Two"))
+        assertEquals(2, Regex(":ARCHIVE_TIME:").findAll(after).count())
+    }
 }

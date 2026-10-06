@@ -706,4 +706,59 @@ class DocumentViewModelIntegrationTest {
         assertNull(vm.refile.value)
         assertEquals(before, store.snapshot())
     }
+
+    @Test
+    fun `bulk refile moves every selected subtree into another file and undoes in one step`() = runTest {
+        TestVaultSeeder.index(db, store)
+        val vm = loaded("projects.org")
+        val before = store.snapshot()
+        // "Tag the release" sits inside Ship v2's subtree, so it travels along.
+        val lines = setOf(
+            headline(vm, "Ship v2 release").lineIndex,
+            headline(vm, "Tag the release").lineIndex,
+            headline(vm, "Backlog").lineIndex,
+        )
+
+        vm.startRefileEach(lines)
+        advanceUntilIdle()
+        assertEquals(2, vm.refile.value!!.sourceLines.size)
+        vm.refilePickNotebook("reading-list.org")
+        advanceUntilIdle()
+        vm.refileConfirm()
+        advanceUntilIdle()
+
+        assertTrue(OrgParser.parse(store.read("projects.org")).headlines.isEmpty())
+        val dest = store.read("reading-list.org")
+        assertTrue("original order kept", dest.indexOf("Ship v2 release") < dest.indexOf("Backlog"))
+        assertTrue(dest.indexOf("Ship v2 release") < dest.indexOf("Tag the release"))
+        assertTrue(dest.indexOf("Tag the release") < dest.indexOf("Backlog"))
+
+        vm.undo()
+        advanceUntilIdle()
+        assertEquals(before, store.snapshot())
+    }
+
+    @Test
+    fun `bulk refile within the file lands under the picked heading`() = runTest {
+        TestVaultSeeder.index(db, store)
+        val vm = loaded("projects.org")
+        vm.startRefileEach(setOf(headline(vm, "Cut the changelog").lineIndex, headline(vm, "Tag the release").lineIndex))
+        advanceUntilIdle()
+        vm.refilePickNotebook("projects.org")
+        advanceUntilIdle()
+        vm.refileDrillInto(headline(vm, "Backlog").lineIndex)
+        vm.refileConfirm()
+        advanceUntilIdle()
+
+        val doc = OrgParser.parse(store.read("projects.org"))
+        val backlog = doc.headlines.first { it.title == "Backlog" }
+        assertEquals(
+            listOf("Dark mode polish", "Drop the widget rewrite", "Cut the changelog", "Tag the release"),
+            doc.directChildren(backlog).map { it.title },
+        )
+        assertEquals(
+            listOf("Write the store listing"),
+            doc.directChildren(doc.headlines.first { it.title == "Ship v2 release" }).map { it.title },
+        )
+    }
 }

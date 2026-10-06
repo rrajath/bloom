@@ -59,7 +59,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Added
 - Outline's Move & indent bar can act on several headings at once: tap rows to add them to the selection.
-- Its ☰ button opens the metadata sheet to change state, priority, tags, dates, notes, or org-ids on every selected heading.
+- Its ☰ button opens the metadata sheet to change state, priority, tags, dates, notes, or org-ids on every selected heading, or refile them all at once.
 
 ## [1.9.0] - 2026-10-04
 

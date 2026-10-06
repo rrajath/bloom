@@ -1460,4 +1460,30 @@ class OrgMutationsTest {
         assertNull(OrgMutations.editEach(bulk, setOf(line("A"))) { _, _ -> null })
         assertNull(OrgMutations.editEach(bulk, setOf(line("A"))) { d, _ -> d.text })
     }
+
+    @Test
+    fun `liftSubtrees takes out each top-level selected subtree and remaps the rest`() {
+        val lifted = OrgMutations.liftSubtrees(bulk, setOf(line("A"), line("A2"), line("C")))
+        assertEquals(listOf("* B"), outline(lifted.doc))
+        assertEquals(2, lifted.subtrees.size)
+        assertTrue(lifted.subtrees[0].startsWith("* A\na body"))
+        assertTrue("A2 travels inside A", lifted.subtrees[0].contains("** A2"))
+        assertNull(lifted.remap(line("A2")))
+        assertEquals(lifted.doc.findByTitle("B")!!.lineIndex, lifted.remap(line("B")))
+    }
+
+    @Test
+    fun `refileEachWithinFile moves subtrees under the target in their original order`() {
+        val r = OrgMutations.refileEachWithinFile(bulk, setOf(line("A1"), line("C")), line("B"))!!
+        assertEquals(listOf("* A", "** A2", "** A3", "* B", "** A1", "** C"), outline(r))
+        assertTrue("bodies travel with their heading", r.text.contains("** A1\na1 body"))
+        // To the top level: appended at the end.
+        val top = OrgMutations.refileEachWithinFile(bulk, setOf(line("A1"), line("A3")), null)!!
+        assertEquals(listOf("* A", "** A2", "* B", "* C", "* A1", "* A3"), outline(top))
+    }
+
+    @Test
+    fun `refileEachWithinFile refuses a target inside a moved subtree`() {
+        assertNull(OrgMutations.refileEachWithinFile(bulk, setOf(line("A"), line("C")), line("A2")))
+    }
 }

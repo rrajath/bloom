@@ -614,10 +614,7 @@ object OrgMutations {
      * as a block. Returns null when [op] applied to none of them.
      */
     fun applyToEach(doc: OrgDocument, lines: Set<Int>, op: StructureOp): BulkEdit? {
-        val selected = doc.headlines.filter { it.lineIndex in lines }
-        val roots = selected.filter { h ->
-            selected.none { o -> o.lineIndex < h.lineIndex && h.lineIndex < doc.subtreeEndLine(o) }
-        }
+        val roots = selectedRoots(doc, lines)
         val ordered = roots.map { it.lineIndex }.sorted()
             .let { if (op == StructureOp.MOVE_DOWN) it.reversed() else it }
 
@@ -690,6 +687,65 @@ object OrgMutations {
             redoc.headlines.firstOrNull { it.lineIndex == adjusted } ?: return null
         }
         return refileInsert(redoc, target, subtree)
+    }
+
+    /**
+     * The headings at [lines] that aren't inside another one's subtree, in
+     * document order: a selected heading under a selected ancestor travels with
+     * that ancestor's subtree in any subtree operation.
+     */
+    fun selectedRoots(doc: OrgDocument, lines: Set<Int>): List<OrgHeadline> {
+        val selected = doc.headlines.filter { it.lineIndex in lines }
+        return selected.filter { h ->
+            selected.none { o -> o.lineIndex < h.lineIndex && h.lineIndex < doc.subtreeEndLine(o) }
+        }
+    }
+
+    /**
+     * [doc] with the subtrees of [selectedRoots] lifted out: what's left, the
+     * lifted subtree texts in document order, and [remap], which carries a line
+     * of [doc] to its line in what's left (null inside a lifted subtree).
+     */
+    class LiftedSubtrees(val doc: OrgDocument, val subtrees: List<String>, val remap: (Int) -> Int?)
+
+    fun liftSubtrees(doc: OrgDocument, lines: Set<Int>): LiftedSubtrees {
+        val roots = selectedRoots(doc, lines)
+        val ranges = roots.map { it.lineIndex until doc.subtreeEndLine(it) }
+        val kept = doc.lines.filterIndexed { i, _ -> ranges.none { i in it } }
+        return LiftedSubtrees(
+            doc = OrgParser.parse(kept.joinToString("\n"), doc.keywords),
+            subtrees = roots.map { subtreeText(doc, it) },
+            remap = { l ->
+                if (ranges.any { l in it }) null
+                else l - ranges.filter { it.last < l }.sumOf { it.last - it.first + 1 }
+            },
+        )
+    }
+
+    /**
+     * Insert each of [subtrees], in order, as the last children of the heading
+     * at [targetLine] in [doc] (appended at level 1 when null). Every insert
+     * lands below the target, so its line holds throughout. Null when
+     * [targetLine] isn't a heading.
+     */
+    fun insertEach(doc: OrgDocument, targetLine: Int?, subtrees: List<String>): OrgDocument? {
+        var cur = doc
+        for (subtree in subtrees) {
+            val target = targetLine?.let { line -> cur.headlines.firstOrNull { it.lineIndex == line } ?: return null }
+            cur = OrgParser.parse(refileInsert(cur, target, subtree).first, doc.keywords)
+        }
+        return cur
+    }
+
+    /**
+     * [refileWithinFile] for the headings at [lines] at once: their subtrees end
+     * up under the heading at [targetLine] (or the top level) in their original
+     * order. Null when [targetLine] lies inside one of the subtrees being moved.
+     */
+    fun refileEachWithinFile(doc: OrgDocument, lines: Set<Int>, targetLine: Int?): OrgDocument? {
+        val lifted = liftSubtrees(doc, lines)
+        val target = targetLine?.let { lifted.remap(it) ?: return null }
+        return insertEach(lifted.doc, target, lifted.subtrees)
     }
 
     /**

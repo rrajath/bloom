@@ -36,6 +36,7 @@ import com.rrajath.grove.settings.PinnedItem
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.sync.SyncState
 import com.rrajath.grove.sync.SyncTrigger
+import com.rrajath.grove.ui.util.pluralCount
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.Notebook
 import com.rrajath.grove.vault.StateChangeResult
@@ -632,6 +633,11 @@ data class RefileNotebook(val fileName: String, val noteCount: Int)
 data class RefileUiState(
     /** Line index of the headline being refiled (in the current document). */
     val sourceLine: Int,
+    /**
+     * Every headline being refiled, in document order: just [sourceLine], or a
+     * bulk selection's top-level headlines (see [OrgMutations.selectedRoots]).
+     */
+    val sourceLines: List<Int> = listOf(sourceLine),
     /** Null while the notebook list is loading. */
     val notebooks: ImmutableList<RefileNotebook>? = null,
     val pickedFile: String? = null,
@@ -1494,7 +1500,7 @@ class DocumentViewModel(
                 sync.requestReindex(file, after, "state set")
             }
             saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc)
-            val stateMessage = "State → ${keyword ?: "none"} on ${notesCount(result.changed)}"
+            val stateMessage = "State → ${keyword ?: "none"} on ${pluralCount(result.changed, "note")}"
             val destinations = result.archivedTo.distinct()
             showSnack(
                 when {
@@ -1508,20 +1514,20 @@ class DocumentViewModel(
     }
 
     fun setPriorityEach(lines: Set<Int>, priority: Char?) =
-        editEach(lines, "priority set", { "Priority → ${priority?.let { "#$it" } ?: "none"} on ${notesCount(it)}" }) { d, h ->
+        editEach(lines, "priority set", { "Priority → ${priority?.let { "#$it" } ?: "none"} on ${pluralCount(it, "note")}" }) { d, h ->
             if (h.priority == priority) null else OrgMutations.setPriority(d, h, priority)
         }
 
     /** Adds [add] to and removes [remove] from each heading's own tags, leaving its other tags alone. */
     fun editTagsEach(lines: Set<Int>, add: Collection<String>, remove: Collection<String>) =
-        editEach(lines, "tags set", { "Tags updated on ${notesCount(it)}" }) { d, h ->
+        editEach(lines, "tags set", { "Tags updated on ${pluralCount(it, "note")}" }) { d, h ->
             val tags = (h.tags - remove.toSet() + add).distinct()
             if (tags == h.tags) null else OrgMutations.setTags(d, h, tags)
         }
 
     fun setPlanningEach(lines: Set<Int>, edit: BulkPlanningEdit) {
         if (edit.isEmpty) return
-        editEach(lines, "planning edit", { "Dates set on ${notesCount(it)}" }) { d, h ->
+        editEach(lines, "planning edit", { "Dates set on ${pluralCount(it, "note")}" }) { d, h ->
             val (scheduled, deadline, active) = edit.applyTo(h)
             OrgMutations.setPlanningAndActiveTimestamps(d, h, scheduled, deadline, active)
         }
@@ -1531,14 +1537,14 @@ class DocumentViewModel(
         if (note.isBlank()) return
         val now = LocalDateTime.now()
         val stamp = OrgTimestamp(now.toLocalDate(), time = now.toLocalTime().withSecond(0).withNano(0), active = false)
-        editEach(lines, "note added", { "Note added to ${notesCount(it)}" }) { d, h ->
+        editEach(lines, "note added", { "Note added to ${pluralCount(it, "note")}" }) { d, h ->
             OrgMutations.appendLogbookNote(d, h, note.trim(), stamp)
         }
     }
 
     /** A fresh `:ID:` for each heading that has none yet. */
     fun generateIdEach(lines: Set<Int>) =
-        editEach(lines, "org-id generated", { "org-id generated for ${notesCount(it)}" }) { d, h ->
+        editEach(lines, "org-id generated", { "org-id generated for ${pluralCount(it, "note")}" }) { d, h ->
             if (h.id != null) null else OrgMutations.upsertProperty(d, h, "ID", newOrgId())
         }
 
@@ -1567,12 +1573,22 @@ class DocumentViewModel(
         }
     }
 
-    private fun notesCount(n: Int) = if (n == 1) "1 note" else "$n notes"
-
     // --- refile (design spec Gestures screen) ---
 
-    fun startRefile(headline: OrgHeadline) {
-        _refile.value = RefileUiState(sourceLine = headline.lineIndex)
+    fun startRefile(headline: OrgHeadline) = startRefile(listOf(headline))
+
+    /**
+     * Refile several headlines at once; one inside another selected headline's
+     * subtree travels with it rather than being moved on its own.
+     */
+    fun startRefileEach(lines: Set<Int>) {
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return
+        startRefile(OrgMutations.selectedRoots(loaded.document, lines))
+    }
+
+    private fun startRefile(sources: List<OrgHeadline>) {
+        val headline = sources.firstOrNull() ?: return
+        _refile.value = RefileUiState(sourceLine = headline.lineIndex, sourceLines = sources.map { it.lineIndex })
         viewModelScope.launch {
             // Read file names + note counts from the Room index, not vault.notebooks()
             // (which re-reads and re-parses every .org file just to count level-1
@@ -1582,8 +1598,12 @@ class DocumentViewModel(
                 .map { RefileNotebook(it.fileName, it.noteCount) }
                 .toImmutableList()
             val settings = settingsRepository.settings.first()
-            val archiveTarget = (_state.value as? DocumentUiState.Loaded)?.let {
-                ArchiveLocation.resolve(it.document, headline, AutoArchive.settingsFallback(settings), it.fileName)
+            // Offered for several headlines only when they all archive to the same place.
+            val archiveTarget = (_state.value as? DocumentUiState.Loaded)?.let { loaded ->
+                sources
+                    .map { ArchiveLocation.resolve(loaded.document, it, AutoArchive.settingsFallback(settings), loaded.fileName) }
+                    .distinct()
+                    .singleOrNull()
             }
             val lastUsedTarget = settings.lastRefileFile?.let { fileName ->
                 ArchiveTarget(fileName, settings.lastRefileHeadingPath.split('/').filter { it.isNotEmpty() })
@@ -1627,8 +1647,13 @@ class DocumentViewModel(
         val picker = _refile.value ?: return
         val loaded = _state.value as? DocumentUiState.Loaded ?: return
         val destFile = picker.pickedFile ?: return
-        val source = loaded.document.headlineAtLine(picker.sourceLine) ?: return
         val headingPath = picker.path.mapNotNull { picker.pickedDoc?.headlineAtLine(it)?.title }
+        if (picker.sourceLines.size > 1) {
+            _refile.value = null
+            refileEachTo(picker.sourceLines.toSet(), destFile, picker.path.lastOrNull(), headingPath)
+            return
+        }
+        val source = loaded.document.headlineAtLine(picker.sourceLine) ?: return
         _refile.value = null
         refileTo(source, destFile, picker.path.lastOrNull(), headingPath)
     }
@@ -1639,6 +1664,15 @@ class DocumentViewModel(
         val target = picker.archiveTarget ?: return
         val loaded = _state.value as? DocumentUiState.Loaded ?: return
         val vault = vaultFlow.value ?: return
+        if (picker.sourceLines.size > 1) {
+            _refile.value = null
+            refileEachToResolvedTarget(
+                loaded, vault, picker.sourceLines, target,
+                verb = "Archived", syncReason = "archive", createFileIfMissing = true,
+                archivedAt = LocalDateTime.now(),
+            )
+            return
+        }
         val source = loaded.document.headlineAtLine(picker.sourceLine) ?: return
         _refile.value = null
         val sourceEnd = loaded.document.subtreeEndLine(source)
@@ -1658,6 +1692,14 @@ class DocumentViewModel(
         val target = picker.lastUsedTarget ?: return
         val loaded = _state.value as? DocumentUiState.Loaded ?: return
         val vault = vaultFlow.value ?: return
+        if (picker.sourceLines.size > 1) {
+            _refile.value = null
+            refileEachToResolvedTarget(
+                loaded, vault, picker.sourceLines, target,
+                verb = "Refiled", syncReason = "refile", createFileIfMissing = false,
+            )
+            return
+        }
         val source = loaded.document.headlineAtLine(picker.sourceLine) ?: return
         _refile.value = null
         val sourceEnd = loaded.document.subtreeEndLine(source)
@@ -1704,6 +1746,109 @@ class DocumentViewModel(
         }
         saveDoc(loaded.fileName, write.sourceText, syncReason, newSourceDoc)
         showSnack("$verb to ${write.label}")
+    }
+
+    /** [refileToResolvedTarget] for several headlines, all to [target], as one undo step. */
+    private fun refileEachToResolvedTarget(
+        loaded: DocumentUiState.Loaded,
+        vault: Vault,
+        lines: List<Int>,
+        target: ArchiveTarget,
+        verb: String,
+        syncReason: String,
+        createFileIfMissing: Boolean,
+        archivedAt: LocalDateTime? = null,
+    ) {
+        viewModelScope.launch {
+            val result = AutoArchive.refileEach(
+                vault, loaded.document, loaded.fileName, lines.map { it to target }, createFileIfMissing, archivedAt,
+            )
+            if (result.labels.isEmpty()) {
+                showToast("Couldn't open ${target.fileName.removeSuffix(".org")}")
+                return@launch
+            }
+            commitBulkRefile(
+                loaded, vault, lines, result.sourceText, result.sourceDoc, result.destWrites, syncReason,
+                "$verb ${pluralCount(result.labels.size, "note")} to ${result.labels.first()}",
+            )
+        }
+    }
+
+    /** [refileTo] for several headlines: all go under the picked heading, in their original order. */
+    private fun refileEachTo(lines: Set<Int>, destFile: String, targetLine: Int?, headingPath: List<String>) {
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return
+        val vault = vaultFlow.value ?: return
+        val roots = OrgMutations.selectedRoots(loaded.document, lines)
+        viewModelScope.launch {
+            val destLabel = destFile.removeSuffix(".org")
+            if (destFile == loaded.fileName) {
+                val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
+                val newDoc = withContext(dispatchers.default) {
+                    OrgMutations.refileEachWithinFile(loaded.document, lines, targetLine)
+                }
+                if (newDoc == null) {
+                    showToast("Can't refile into its own subtree")
+                    return@launch
+                }
+                commitBulkRefile(
+                    loaded, vault, roots.map { it.lineIndex }, newDoc.text, newDoc, emptyList(), "refile",
+                    "Refiled ${pluralCount(roots.size, "note")} to $destLabel › ${targetTitle ?: "top level"}",
+                )
+            } else {
+                val destDoc = vault.open(destFile)
+                if (destDoc == null) {
+                    showToast("Couldn't open $destLabel")
+                    return@launch
+                }
+                val target = targetLine?.let { destDoc.headlineAtLine(it) }
+                val result = withContext(dispatchers.default) {
+                    val lifted = OrgMutations.liftSubtrees(loaded.document, lines)
+                    OrgMutations.insertEach(destDoc, targetLine, lifted.subtrees)?.let { lifted.doc to it }
+                }
+                if (result == null) {
+                    showToast("Couldn't find the destination heading")
+                    return@launch
+                }
+                val (newSourceDoc, newDestDoc) = result
+                commitBulkRefile(
+                    loaded, vault, roots.map { it.lineIndex }, newSourceDoc.text, newSourceDoc,
+                    listOf(Triple(destFile, destDoc.text, newDestDoc.text)), "refile",
+                    "Refiled ${pluralCount(roots.size, "note")} to $destLabel › ${target?.title ?: "top level"}",
+                )
+            }
+            rememberRefileTarget(destFile, headingPath)
+        }
+    }
+
+    /**
+     * Publish and persist a bulk refile of the headlines at [lines] as one undo
+     * step: the source file plus each of [destWrites] (file, before, after).
+     */
+    private suspend fun commitBulkRefile(
+        loaded: DocumentUiState.Loaded,
+        vault: Vault,
+        lines: List<Int>,
+        sourceText: String,
+        sourceDoc: OrgDocument,
+        destWrites: List<Triple<String, String, String>>,
+        syncReason: String,
+        message: String,
+    ) {
+        undoSnapshot = UndoSnapshot(
+            listOf(loaded.fileName to loaded.document.text) + destWrites.map { (file, before, _) -> file to before }
+        )
+        _selectedLines.value = emptySet()
+        _state.value = DocumentUiState.Loaded(loaded.fileName, sourceDoc)
+        destWrites.forEach { (file, _, after) ->
+            vault.save(file, after)
+            sync.requestReindex(file, after, syncReason)
+        }
+        saveDoc(loaded.fileName, sourceText, syncReason, sourceDoc)
+        showSnack(message)
+        val doc = loaded.document
+        lines.mapNotNull(doc::headlineAtLine).forEach { h ->
+            dropFavoritesInRange(doc, loaded.fileName, h.lineIndex until doc.subtreeEndLine(h))
+        }
     }
 
     private fun rememberRefileTarget(fileName: String, headingPath: List<String>) {
