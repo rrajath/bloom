@@ -27,6 +27,30 @@ sealed class StateChangeResult {
     ) : StateChangeResult()
 }
 
+/** Outcome of [AutoArchive.applyToEach]. */
+class BulkStateChange(
+    val sourceText: String,
+    val sourceDoc: OrgDocument,
+    /** Other files archived subtrees went to: file name, text before, text after. */
+    val destWrites: List<Triple<String, String, String>>,
+    /** Headings whose keyword changed. */
+    val changed: Int,
+    /** Archive destination label of each heading that was refiled, in file order. */
+    val archivedTo: List<String>,
+    /** A heading line of the original document to that heading's line now; null once anything was archived. */
+    val remap: (Int) -> Int?,
+)
+
+/** Outcome of [AutoArchive.refileEach]. */
+class BulkRefile(
+    val sourceText: String,
+    val sourceDoc: OrgDocument,
+    /** Other destination files: file name, text before, text after. */
+    val destWrites: List<Triple<String, String, String>>,
+    /** Destination label of each heading moved, in original file order; empty when none moved. */
+    val labels: List<String>,
+)
+
 /** Delete-subtree + find-or-create-heading-path + insert, same-file or cross-file. */
 data class RefileWrite(
     val sourceFile: String,
@@ -115,14 +139,9 @@ object AutoArchive {
         createFileIfMissing: Boolean = true,
         archivedAt: LocalDateTime? = null,
     ): RefileWrite? {
-        val label = (listOf(target.fileName.removeSuffix(".org")) + target.headingPath).joinToString(" › ")
+        val label = label(target)
         val subtree = OrgMutations.subtreeText(sourceDoc, source).let { text ->
-            if (archivedAt == null) text
-            else ArchiveProperties.stamp(
-                text,
-                sourceDoc.keywords,
-                ArchiveProperties.of(sourceDoc, source, sourceFile, vault.absolutePath(sourceFile), archivedAt),
-            )
+            if (archivedAt == null) text else stamp(vault, sourceDoc, sourceFile, source, text, archivedAt)
         }
 
         if (target.fileName == sourceFile) {
@@ -144,4 +163,141 @@ object AutoArchive {
         val (dstText, insertAt) = OrgMutations.refileInsert(docAfterPath, destHeadline, subtree)
         return RefileWrite(sourceFile, srcText, target.fileName, dstText, destTextBefore, insertAt, label)
     }
+
+    /**
+     * [apply] for several headings of one file at once: set [newKeyword] on each
+     * heading at [lines] (one already there is skipped), then, with auto-archive
+     * on, refile each one that ended up done-type, exactly as [apply] would one
+     * at a time. All archived subtrees are lifted out bottom-up first, so no
+     * removal shifts a heading still to be handled, and only then inserted at
+     * their destinations, in their original order. Returns null when no keyword
+     * changed. Nothing is saved; a same-file destination is part of
+     * [BulkStateChange.sourceText].
+     */
+    suspend fun applyToEach(
+        vault: Vault,
+        settings: GroveSettings,
+        doc: OrgDocument,
+        fileName: String,
+        lines: Set<Int>,
+        newKeyword: String?,
+        now: LocalDateTime,
+    ): BulkStateChange? {
+        val changedIndices = doc.headlines
+            .filter { it.lineIndex in lines && it.keyword != newKeyword }
+            .map { it.index }
+        val edit = OrgMutations.editEach(doc, lines) { d, h ->
+            if (h.keyword == newKeyword) null else OrgMutations.changeKeyword(d, h, newKeyword, d.keywords, now)
+        } ?: return null
+        val cur = edit.doc
+
+        val sources = if (!settings.autoArchiveDoneItems) emptyList() else {
+            val fallback = settingsFallback(settings)
+            changedIndices.mapNotNull { index ->
+                val h = cur.headlines.getOrNull(index) ?: return@mapNotNull null
+                // As in [apply]: a repeating task keeps an active keyword, so it never archives.
+                if (h.keyword == null || !doc.keywords.isDone(h.keyword)) return@mapNotNull null
+                ArchiveLocation.resolve(cur, h, fallback, fileName)?.let { h.lineIndex to it }
+            }
+        }
+        val refile = refileEach(vault, cur, fileName, sources, createFileIfMissing = true, archivedAt = now)
+        if (refile.labels.isEmpty()) {
+            return BulkStateChange(cur.text, cur, emptyList(), edit.applied, emptyList(), edit.remap)
+        }
+        return BulkStateChange(
+            sourceText = refile.sourceText,
+            sourceDoc = refile.sourceDoc,
+            destWrites = refile.destWrites,
+            changed = edit.applied,
+            archivedTo = refile.labels,
+            remap = { null },
+        )
+    }
+
+    /**
+     * [refileSubtree] for several headings of one file: each heading at a line
+     * of [sources] goes to its own [ArchiveTarget]. All subtrees are lifted out
+     * bottom-up first, so no removal shifts a heading still to be handled, then
+     * inserted at their destinations in their original order. Every source is
+     * moved on its own, so a source inside another source's subtree comes out
+     * of it; callers wanting it to travel along pass only
+     * [OrgMutations.selectedRoots]. A source whose destination file can't be
+     * opened (or, without [createFileIfMissing], doesn't exist) stays where it
+     * is. With [archivedAt], each moved heading gets Emacs's `ARCHIVE_*`
+     * properties. Nothing is saved; a same-file destination is part of
+     * [BulkRefile.sourceText].
+     */
+    suspend fun refileEach(
+        vault: Vault,
+        doc: OrgDocument,
+        fileName: String,
+        sources: List<Pair<Int, ArchiveTarget>>,
+        createFileIfMissing: Boolean,
+        archivedAt: LocalDateTime? = null,
+    ): BulkRefile {
+        var cur = doc
+        val pending = mutableListOf<Pair<ArchiveTarget, String>>()
+        // Other destination files: text before, document with the inserts so far.
+        val dests = linkedMapOf<String, Pair<String, OrgDocument>>()
+        // Descending: removing a subtree only renumbers the lines after it.
+        for ((line, target) in sources.sortedByDescending { it.first }) {
+            val h = cur.headlines.firstOrNull { it.lineIndex == line } ?: continue
+            // Open the destination before lifting the subtree out, so a file
+            // that can't be opened leaves the heading where it is.
+            if (target.fileName != fileName && target.fileName !in dests) {
+                val destDoc = (if (createFileIfMissing) openOrCreate(vault, target.fileName) else vault.open(target.fileName))
+                    ?: continue
+                dests[target.fileName] = destDoc.text to destDoc
+            }
+            val subtree = OrgMutations.subtreeText(cur, h).let { text ->
+                if (archivedAt == null) text else stamp(vault, cur, fileName, h, text, archivedAt)
+            }
+            pending += target to subtree
+            cur = OrgParser.parse(OrgMutations.deleteSubtree(cur, h), doc.keywords)
+        }
+        for ((target, subtree) in pending.asReversed()) {
+            if (target.fileName == fileName) {
+                cur = insertAtPath(cur, target.headingPath, subtree)
+            } else {
+                val (before, destDoc) = dests.getValue(target.fileName)
+                dests[target.fileName] = before to insertAtPath(destDoc, target.headingPath, subtree)
+            }
+        }
+        return BulkRefile(
+            sourceText = cur.text,
+            sourceDoc = cur,
+            destWrites = dests.map { (file, texts) -> Triple(file, texts.first, texts.second.text) },
+            labels = pending.asReversed().map { label(it.first) },
+        )
+    }
+
+    private fun label(target: ArchiveTarget): String =
+        (listOf(target.fileName.removeSuffix(".org")) + target.headingPath).joinToString(" › ")
+
+    /** Emacs's `ARCHIVE_*` context properties, stamped into [subtree]'s `:PROPERTIES:` drawer. */
+    private fun stamp(
+        vault: Vault,
+        sourceDoc: OrgDocument,
+        sourceFile: String,
+        source: OrgHeadline,
+        subtree: String,
+        archivedAt: LocalDateTime,
+    ): String = ArchiveProperties.stamp(
+        subtree,
+        sourceDoc.keywords,
+        ArchiveProperties.of(sourceDoc, source, sourceFile, vault.absolutePath(sourceFile), archivedAt),
+    )
+
+    /** [subtree] as the last child of [path] in [doc], creating any missing heading on the way. */
+    private fun insertAtPath(doc: OrgDocument, path: List<String>, subtree: String): OrgDocument {
+        val (docAfterPath, destHeadline) = ArchiveLocation.findOrCreateHeadingPath(doc, path)
+        val (text, _) = OrgMutations.refileInsert(docAfterPath, destHeadline, subtree)
+        return OrgParser.parse(text, doc.keywords)
+    }
+
+    private suspend fun openOrCreate(vault: Vault, fileName: String): OrgDocument? =
+        vault.open(fileName) ?: run {
+            vault.createFile(fileName)
+            vault.open(fileName)
+        }
 }

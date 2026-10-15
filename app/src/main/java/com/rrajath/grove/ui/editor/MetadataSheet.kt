@@ -86,6 +86,10 @@ fun MetadataSheet(
     /** Whether the note shown is already a favorite; flips the action's label to "Favorited". */
     isFavorite: Boolean = false,
     onToggleFavorite: () -> Unit = {},
+    /** Several headings with differing keywords: no state chip is current. */
+    stateMixed: Boolean = false,
+    /** Several headings with differing priorities: no priority chip is current. */
+    priorityMixed: Boolean = false,
 ) {
     val c = MaterialTheme.grove
     var planningOpen by remember { mutableStateOf(false) }
@@ -124,14 +128,14 @@ fun MetadataSheet(
                 val current = headline?.keyword
                 StateChip(
                     label = "none",
-                    active = current == null,
+                    active = !stateMixed && current == null,
                     fg = c.ink2, bg = c.surface2,
                 ) { onChangeKeyword(null) }
                 keywords.all.forEach { kw ->
                     val done = keywords.isDone(kw)
                     StateChip(
                         label = kw,
-                        active = current == kw,
+                        active = !stateMixed && current == kw,
                         fg = if (done) c.green else c.amber,
                         bg = if (done) c.greenSoft else c.amberSoft,
                     ) {
@@ -148,7 +152,7 @@ fun MetadataSheet(
                 listOf<Char?>(null, 'A', 'B', 'C').forEach { p ->
                     StateChip(
                         label = p?.let { "#$it" } ?: "none",
-                        active = headline?.priority == p,
+                        active = !priorityMixed && headline?.priority == p,
                         fg = p?.let { c.priorityColor(it) } ?: c.ink2,
                         bg = p?.let { c.prioritySoftColor(it) } ?: c.surface2,
                     ) { onSetPriority(p) }

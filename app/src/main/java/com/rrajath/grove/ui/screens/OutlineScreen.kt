@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Circle
@@ -36,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.FormatIndentDecrease
 import androidx.compose.material.icons.automirrored.filled.FormatIndentIncrease
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -119,10 +119,13 @@ import com.rrajath.grove.ui.theme.priorityColor
 import com.rrajath.grove.ui.theme.starColor
 import com.rrajath.grove.ui.util.IntSetSaver
 import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.editor.MetadataSheet
+import com.rrajath.grove.ui.vault.BulkPlanningEdit
 import com.rrajath.grove.ui.vault.DocumentUiState
 import com.rrajath.grove.ui.vault.DocumentViewModel
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.WHOLE_FILE_LINE_LIMIT
+import com.rrajath.grove.ui.vault.bulkMetadataSummary
 import com.rrajath.grove.ui.vault.breadcrumbFileLabel
 import com.rrajath.grove.ui.vault.fitsWholeFileView
 import com.rrajath.grove.ui.vault.headlineAtLine
@@ -201,7 +204,8 @@ fun OutlineScreen(
 ) {
     val c = MaterialTheme.grove
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val focusedLine by viewModel.focusedLine.collectAsStateWithLifecycle()
+    val selectedLines by viewModel.selectedLines.collectAsStateWithLifecycle()
+    val allTags by viewModel.allTags.collectAsStateWithLifecycle()
     val toast by viewModel.toast.collectAsStateWithLifecycle()
     val snack by viewModel.snack.collectAsStateWithLifecycle()
     val refileState by viewModel.refile.collectAsStateWithLifecycle()
@@ -299,6 +303,10 @@ fun OutlineScreen(
     var statePickerFor by remember { mutableStateOf<Int?>(null) }
     // Line index whose swipe panel "Note" action opened the note-input dialog.
     var noteDialogFor by remember { mutableStateOf<Int?>(null) }
+    // The command bar's metadata sheet, acting on every selected headline.
+    var metadataOpen by remember { mutableStateOf(false) }
+    val selectionEmpty = selectedLines.isEmpty()
+    LaunchedEffect(selectionEmpty) { if (selectionEmpty) metadataOpen = false }
 
     // Hoisted to screen scope so every row's swipe panel shares one call instead of
     // one per row per recomposition (vectorResource can't be called inside remember{}
@@ -313,18 +321,30 @@ fun OutlineScreen(
     val favoriteLineIndices = remember(favorites) {
         favorites.filter { it.customId == null }.map { it.lineIndex }.toSet()
     }
+    fun toggleFavoriteOf(h: OrgHeadline, isFavorite: Boolean) {
+        if (isFavorite) {
+            val existing = favorites.firstOrNull { it.matches(h) }
+            onUnfavorite(notebookId, h.lineIndex, existing?.customId)
+            viewModel.showToast("Removed favorite")
+        } else {
+            viewModel.ensureStableId(h) { customId ->
+                onFavorite(notebookId, h.lineIndex, h.title, customId)
+            }
+            viewModel.showToast("★ Added to favorites")
+        }
+    }
 
     // The command bar takes over the top bar in focus mode; back exits it.
-    BackHandler(enabled = focusedLine != null) { viewModel.setFocus(null) }
+    BackHandler(enabled = selectedLines.isNotEmpty()) { viewModel.clearSelection() }
 
     Scaffold(
         containerColor = c.bg,
         topBar = {
-            val focused = focusedLine
-            if (focused != null) {
+            if (selectedLines.isNotEmpty()) {
                 StructureCommandBar(
-                    onExit = { viewModel.setFocus(null) },
-                    resolve = { (state as? DocumentUiState.Loaded)?.document?.headlineAtLine(focused) },
+                    selectedCount = selectedLines.size,
+                    onExit = { viewModel.clearSelection() },
+                    onMetadata = { metadataOpen = true },
                     viewModel = viewModel,
                 )
             } else {
@@ -504,7 +524,7 @@ fun OutlineScreen(
             // Backlinks are roam-only: the bar never shows for a file without a
             // file-level :ID:, regardless of the "Show backlinks" toggle.
             val isRoamFile = (state as? DocumentUiState.Loaded)?.document?.fileId != null
-            if (showBacklinks && isRoamFile && focusedLine == null) {
+            if (showBacklinks && isRoamFile && selectedLines.isEmpty()) {
                 LinkedReferencesBar(
                     linkedCount = linkedReferences.linkedCount,
                     unlinkedCount = linkedReferences.unlinkedCount,
@@ -676,18 +696,7 @@ fun OutlineScreen(
                             val isFavorite = remember(h.lineIndex, h.customId, h.id, favoriteCustomIds, favoriteLineIndices) {
                                 favoriteCustomIds.containsIdOf(h) || h.lineIndex in favoriteLineIndices
                             }
-                            val toggleFavorite = {
-                                if (isFavorite) {
-                                    val existing = favorites.firstOrNull { it.matches(h) }
-                                    onUnfavorite(notebookId, h.lineIndex, existing?.customId)
-                                    viewModel.showToast("Removed favorite")
-                                } else {
-                                    viewModel.ensureStableId(h) { customId ->
-                                        onFavorite(notebookId, h.lineIndex, h.title, customId)
-                                    }
-                                    viewModel.showToast("★ Added to favorites")
-                                }
-                            }
+                            val toggleFavorite = { toggleFavoriteOf(h, isFavorite) }
                             // Right-swipe panel: state / schedule / note / favorite.
                             val leftActions = remember(h.lineIndex, isFavorite, c) {
                                 listOf(
@@ -746,22 +755,27 @@ fun OutlineScreen(
                                     },
                                 )
                             }
-                            // derivedStateOf: openRowLine/focusedLine change on every open/focus
+                            // derivedStateOf: openRowLine/selectedLines change on every open/select
                             // toggle, but only the previously- and newly-affected rows actually
-                            // flip these booleans, so only those two rows recompose.
+                            // flip these booleans, so only those rows recompose.
                             val forceCloseRow by remember(h.lineIndex) { derivedStateOf { openRowLine != h.lineIndex } }
-                            val isFocusedRow by remember(h.lineIndex) { derivedStateOf { focusedLine == h.lineIndex } }
+                            val isFocusedRow by remember(h.lineIndex) { derivedStateOf { h.lineIndex in selectedLines } }
                             SwipeRevealRow(
                                 leftActions = leftActions,
                                 rightActions = rightActions,
-                                enabled = focusedLine == null,
+                                enabled = selectedLines.isEmpty(),
                                 forceClose = forceCloseRow,
                                 onOpenChanged = { open ->
                                     if (open) openRowLine = h.lineIndex
                                     else if (openRowLine == h.lineIndex) openRowLine = null
                                 },
-                                onTap = { onOpenNote(NoteRef(notebookId, h.lineIndex)) },
-                                onLongPress = { viewModel.setFocus(h.lineIndex) },
+                                // In focus mode a tap adds/removes the row from the
+                                // bulk selection instead of opening it.
+                                onTap = {
+                                    if (selectedLines.isNotEmpty()) viewModel.toggleSelected(h.lineIndex)
+                                    else onOpenNote(NoteRef(notebookId, h.lineIndex))
+                                },
+                                onLongPress = { viewModel.startSelection(h.lineIndex) },
                                 modifier = if (isFocusedRow) Modifier.zIndex(1f) else Modifier,
                                 // Search's result-row radius, so the action panels get rounded ends too.
                                 shape = RoundedCornerShape(12.dp),
@@ -849,9 +863,69 @@ fun OutlineScreen(
                     }
                 }
 
+                if (metadataOpen && !selectionEmpty) {
+                    val selected = doc.headlines.filter { it.lineIndex in selectedLines }
+                    val single = selected.singleOrNull()
+                    if (single != null) {
+                        // One headline: exactly read mode's sheet.
+                        val isFavorite = favorites.any { it.matches(single) }
+                        MetadataSheet(
+                            headline = single,
+                            keywords = doc.keywords,
+                            allTags = allTags,
+                            onChangeKeyword = { kw -> viewModel.setState(single, kw) },
+                            onSetPriority = { p -> viewModel.setPriority(single, p) },
+                            onSetTags = { tags -> viewModel.setTags(single, tags) },
+                            onSetPlanningDates = { sched, dead, active ->
+                                viewModel.setPlanningDates(single, sched, dead, active)
+                            },
+                            onAddNote = { note -> viewModel.addNote(single, note) },
+                            onGenerateId = { viewModel.generateId(single) },
+                            onRefile = {
+                                metadataOpen = false
+                                viewModel.startRefile(single)
+                            },
+                            showFavorite = true,
+                            isFavorite = isFavorite,
+                            onToggleFavorite = { toggleFavoriteOf(single, isFavorite) },
+                            onDismiss = { metadataOpen = false },
+                        )
+                    } else {
+                        bulkMetadataSummary(selected)?.let { summary ->
+                            val shown = summary.headline
+                            val lines = selected.map { it.lineIndex }.toSet()
+                            MetadataSheet(
+                                headline = shown,
+                                keywords = doc.keywords,
+                                allTags = allTags,
+                                onChangeKeyword = { kw -> viewModel.setStateEach(lines, kw) },
+                                onSetPriority = { p -> viewModel.setPriorityEach(lines, p) },
+                                // The sheet edits the tags every heading shares; apply
+                                // just what was added or removed to each one.
+                                onSetTags = { tags ->
+                                    viewModel.editTagsEach(lines, add = tags - shown.tags, remove = shown.tags - tags)
+                                },
+                                onSetPlanningDates = { sched, dead, active ->
+                                    viewModel.setPlanningEach(lines, BulkPlanningEdit.between(shown, sched, dead, active))
+                                },
+                                onAddNote = { note -> viewModel.addNoteEach(lines, note) },
+                                onGenerateId = { viewModel.generateIdEach(lines) },
+                                onRefile = {
+                                    metadataOpen = false
+                                    viewModel.startRefileEach(lines)
+                                },
+                                stateMixed = summary.stateMixed,
+                                priorityMixed = summary.priorityMixed,
+                                onDismiss = { metadataOpen = false },
+                            )
+                        }
+                    }
+                }
+
                 refileState?.let { refile ->
                     RefileSheet(
                         state = refile,
+                        headerTitle = "Refile ${pluralCount(refile.sourceLines.size, "note")}",
                         currentFileName = notebookId,
                         currentDoc = doc,
                         onPickNotebook = viewModel::refilePickNotebook,
@@ -934,17 +1008,20 @@ internal fun NoteDialog(title: String, onDismiss: () -> Unit, onConfirm: (String
 
 /**
  * "Move & indent" bar that replaces the top bar in focus mode (design spec
- * Gestures screen): 56dp, accentSoft bg. Every handler re-resolves the focused
- * headline at click time: headlines are stale after each mutation.
+ * Gestures screen): 56dp, accentSoft bg. Commands act on every selected
+ * headline in turn; each handler reads the selection at click time since
+ * line indices shift after every mutation.
  */
 @Composable
 private fun StructureCommandBar(
+    selectedCount: Int,
     onExit: () -> Unit,
-    resolve: () -> OrgHeadline?,
+    onMetadata: () -> Unit,
     viewModel: DocumentViewModel,
 ) {
     val c = MaterialTheme.grove
     var confirmDelete by remember { mutableStateOf(false) }
+    val selected = { viewModel.selectedLines.value }
     // Background first so the accentSoft wash extends behind the status bar,
     // then the inset padding (Scaffold does not pad the topBar slot).
     Column(Modifier.background(c.accentSoft).statusBarsPadding()) {
@@ -966,32 +1043,19 @@ private fun StructureCommandBar(
             }
             Spacer(Modifier.width(4.dp))
             Text(
-                "Move & indent",
+                "$selectedCount selected",
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp, color = c.accent,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            CommandButton(Icons.Default.KeyboardArrowUp, "Move up", c.ink) { resolve()?.let(viewModel::moveUp) }
-            CommandButton(Icons.Default.KeyboardArrowDown, "Move down", c.ink) { resolve()?.let(viewModel::moveDown) }
-            CommandButton(Icons.AutoMirrored.Filled.FormatIndentDecrease, "Promote", c.ink) { resolve()?.let(viewModel::promote) }
-            CommandButton(Icons.AutoMirrored.Filled.FormatIndentIncrease, "Demote", c.ink) { resolve()?.let(viewModel::demote) }
+            CommandButton(Icons.Default.KeyboardArrowUp, "Move up", c.ink) { viewModel.moveUp(selected()) }
+            CommandButton(Icons.Default.KeyboardArrowDown, "Move down", c.ink) { viewModel.moveDown(selected()) }
+            CommandButton(Icons.AutoMirrored.Filled.FormatIndentDecrease, "Promote", c.ink) { viewModel.promote(selected()) }
+            CommandButton(Icons.AutoMirrored.Filled.FormatIndentIncrease, "Demote", c.ink) { viewModel.demote(selected()) }
+            // ☰, like read mode's metadata button: state, priority, tags, dates.
+            CommandButton(Icons.Default.Menu, "Metadata", c.ink, onClick = onMetadata)
             CommandButton(Icons.Default.Delete, "Delete", c.red) { confirmDelete = true }
-            Spacer(Modifier.width(2.dp))
-            Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(c.accent)
-                    .clickable(onClick = onExit),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Default.Check,
-                    contentDescription = "Done",
-                    tint = c.accentInk,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
     }
@@ -1001,20 +1065,21 @@ private fun StructureCommandBar(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Delete this note?",
+                    if (selectedCount > 1) "Delete $selectedCount notes?" else "Delete this note?",
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    "This will delete the heading and everything under it.",
+                    if (selectedCount > 1) "This will delete the headings and everything under them."
+                    else "This will delete the heading and everything under it.",
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
-                    resolve()?.let(viewModel::deleteNote)
+                    viewModel.deleteNotes(selected())
                     confirmDelete = false
                     onExit()
                 }) { Text("Delete", color = c.red, fontWeight = FontWeight.SemiBold) }

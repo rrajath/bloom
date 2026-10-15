@@ -1363,4 +1363,127 @@ class OrgMutationsTest {
         val result = OrgMutations.upsertProperty(d, d.headlines.first(), "CUSTOM_ID", "x")
         assertEquals("* Note\n  :PROPERTIES:\n  :ID: abc\n  :CUSTOM_ID: x\n  :END:\nbody\n", result)
     }
+
+    // --- applyToEach (bulk Move & indent) ---
+
+    private val bulk = OrgParser.parse(
+        """
+        * A
+        a body
+        ** A1
+        a1 body
+        ** A2
+        ** A3
+        * B
+        b body
+        * C
+        """.trimIndent() + "\n"
+    )
+
+    private fun line(title: String) = bulk.headlines.first { it.title == title }.lineIndex
+
+    private fun outline(d: OrgDocument) = d.headlines.map { "*".repeat(it.level) + " " + it.title }
+
+    @Test
+    fun `applyToEach moves adjacent selected siblings down as a block`() {
+        val r = OrgMutations.applyToEach(bulk, setOf(line("A1"), line("A2")), OrgMutations.StructureOp.MOVE_DOWN)!!
+        assertEquals(listOf("* A", "** A3", "** A1", "** A2", "* B", "* C"), outline(r.doc))
+        assertEquals(2, r.applied)
+        // The selection follows the headings to their new lines.
+        assertEquals(r.doc.findByTitle("A1")!!.lineIndex, r.remap(line("A1")))
+        assertEquals(r.doc.findByTitle("A2")!!.lineIndex, r.remap(line("A2")))
+        assertEquals(r.doc.findByTitle("A3")!!.lineIndex, r.remap(line("A3")))
+        assertTrue("bodies travel with their heading", r.text.contains("** A1\na1 body"))
+    }
+
+    @Test
+    fun `applyToEach never swaps two selected siblings with each other`() {
+        // A1 is already first, so A2 must not leapfrog it either.
+        assertNull(OrgMutations.applyToEach(bulk, setOf(line("A1"), line("A2")), OrgMutations.StructureOp.MOVE_UP))
+        val r = OrgMutations.applyToEach(bulk, setOf(line("A2"), line("A3")), OrgMutations.StructureOp.MOVE_UP)!!
+        assertEquals(listOf("* A", "** A2", "** A3", "** A1", "* B", "* C"), outline(r.doc))
+    }
+
+    @Test
+    fun `applyToEach promotes and demotes each heading, keeping their order`() {
+        val promoted = OrgMutations.applyToEach(bulk, setOf(line("A2"), line("A3")), OrgMutations.StructureOp.PROMOTE)!!
+        assertEquals(listOf("* A", "** A1", "* A2", "* A3", "* B", "* C"), outline(promoted.doc))
+
+        val demoted = OrgMutations.applyToEach(bulk, setOf(line("A2"), line("A3")), OrgMutations.StructureOp.DEMOTE)!!
+        assertEquals(listOf("* A", "** A1", "*** A2", "*** A3", "* B", "* C"), outline(demoted.doc))
+    }
+
+    @Test
+    fun `applyToEach lets a selected descendant ride along with its selected ancestor`() {
+        val r = OrgMutations.applyToEach(bulk, setOf(line("A"), line("A2")), OrgMutations.StructureOp.MOVE_DOWN)!!
+        assertEquals(listOf("* B", "* A", "** A1", "** A2", "** A3", "* C"), outline(r.doc))
+        assertEquals(1, r.attempted)
+        assertEquals(r.doc.findByTitle("A2")!!.lineIndex, r.remap(line("A2")))
+    }
+
+    @Test
+    fun `applyToEach reports a partial batch and skips headings it can't apply to`() {
+        val r = OrgMutations.applyToEach(bulk, setOf(line("A1"), line("B")), OrgMutations.StructureOp.PROMOTE)!!
+        assertEquals(listOf("* A", "* A1", "** A2", "** A3", "* B", "* C"), outline(r.doc))
+        assertEquals(1, r.applied)
+        assertEquals(2, r.attempted)
+    }
+
+    @Test
+    fun `applyToEach deletes every selected subtree and remaps the survivors`() {
+        val r = OrgMutations.applyToEach(bulk, setOf(line("A1"), line("B")), OrgMutations.StructureOp.DELETE)!!
+        assertEquals(listOf("* A", "** A2", "** A3", "* C"), outline(r.doc))
+        assertNull(r.remap(line("A1")))
+        assertNull(r.remap(line("B")))
+        assertEquals(r.doc.findByTitle("C")!!.lineIndex, r.remap(line("C")))
+        assertEquals(r.doc.findByTitle("A3")!!.lineIndex, r.remap(line("A3")))
+    }
+
+    @Test
+    fun `editEach edits each heading bottom-up and remaps the ones whose lines shifted`() {
+        val stamp = OrgTimestamp.parse("<2026-10-05 Mon>")!!
+        val r = OrgMutations.editEach(bulk, setOf(line("A"), line("A1"), line("B"))) { d, h ->
+            OrgMutations.setScheduled(d, h, stamp)
+        }!!
+        assertEquals(3, r.applied)
+        listOf("A", "A1", "B").forEach { title ->
+            val h = r.doc.findByTitle(title)!!
+            assertEquals(stamp, h.planning.scheduled)
+            assertEquals(h.lineIndex, r.remap(line(title)))
+        }
+        assertNull(r.doc.findByTitle("A2")!!.planning.scheduled)
+        assertEquals("bodies stay put", "a1 body", r.doc.lines[r.doc.findByTitle("A1")!!.lineIndex + 2])
+    }
+
+    @Test
+    fun `editEach returns null when nothing changed`() {
+        assertNull(OrgMutations.editEach(bulk, setOf(line("A"))) { _, _ -> null })
+        assertNull(OrgMutations.editEach(bulk, setOf(line("A"))) { d, _ -> d.text })
+    }
+
+    @Test
+    fun `liftSubtrees takes out each top-level selected subtree and remaps the rest`() {
+        val lifted = OrgMutations.liftSubtrees(bulk, setOf(line("A"), line("A2"), line("C")))
+        assertEquals(listOf("* B"), outline(lifted.doc))
+        assertEquals(2, lifted.subtrees.size)
+        assertTrue(lifted.subtrees[0].startsWith("* A\na body"))
+        assertTrue("A2 travels inside A", lifted.subtrees[0].contains("** A2"))
+        assertNull(lifted.remap(line("A2")))
+        assertEquals(lifted.doc.findByTitle("B")!!.lineIndex, lifted.remap(line("B")))
+    }
+
+    @Test
+    fun `refileEachWithinFile moves subtrees under the target in their original order`() {
+        val r = OrgMutations.refileEachWithinFile(bulk, setOf(line("A1"), line("C")), line("B"))!!
+        assertEquals(listOf("* A", "** A2", "** A3", "* B", "** A1", "** C"), outline(r))
+        assertTrue("bodies travel with their heading", r.text.contains("** A1\na1 body"))
+        // To the top level: appended at the end.
+        val top = OrgMutations.refileEachWithinFile(bulk, setOf(line("A1"), line("A3")), null)!!
+        assertEquals(listOf("* A", "** A2", "* B", "* C", "* A1", "* A3"), outline(top))
+    }
+
+    @Test
+    fun `refileEachWithinFile refuses a target inside a moved subtree`() {
+        assertNull(OrgMutations.refileEachWithinFile(bulk, setOf(line("A"), line("C")), line("A2")))
+    }
 }
