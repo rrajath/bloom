@@ -1030,6 +1030,7 @@ private fun GroveNavigation(
                         onConfirm = viewModel::locationConfirm,
                         onArchive = {},
                         onPickLastUsed = {},
+                        onSelectSearchResult = viewModel::locationSelectSearchResult,
                         headerTitle = "Set archive location",
                         confirmLabel = "Set as archive location",
                     )
@@ -1068,6 +1069,7 @@ private fun GroveNavigation(
                         onConfirm = viewModel::locationConfirm,
                         onArchive = {},
                         onPickLastUsed = {},
+                        onSelectSearchResult = viewModel::locationSelectSearchResult,
                         headerTitle = "Set quick add target",
                         confirmLabel = "Add tasks under this heading",
                         topLevelConfirmLabel = "Add tasks to this file",

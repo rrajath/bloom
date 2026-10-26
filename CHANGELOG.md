@@ -61,12 +61,15 @@ re-uploads the APKs to the existing release instead of failing.
 - Outline's Move & indent bar can act on several headings at once: tap rows to add them to the selection.
 - Its ☰ button opens the metadata sheet to change state, priority, tags, dates, notes, or org-ids on every selected heading, or refile them all at once.
 - Denote links (`[[denote:20240101T120000]]`) open the note with that identifier anywhere in the vault, optionally at a `::*Heading` or `::#custom-id` inside it.
+- The refile picker has a search box to find any file or heading without drilling down.
+- Marking a recurring task done in Read mode flashes the date that moved to its next occurrence.
 
 ### Changed
 - When a heading can't be demoted in Outline, the message now explains why: there's no heading above to go under.
 
 ### Fixed
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.
+- Tapping the target label or empty space in the widget's quick add composer no longer closes it.
 
 ## [1.11.0] - 2026-10-19
 

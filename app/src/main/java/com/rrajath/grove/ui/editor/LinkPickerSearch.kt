@@ -7,7 +7,10 @@ import com.rrajath.grove.org.OrgHeadline
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 
-/** One row of the link picker's live search results: a whole file or a heading inside one. */
+/**
+ * One row of a picker's live search results (the insert-link picker and the
+ * refile picker share this index): a whole file or a heading inside one.
+ */
 sealed interface LinkSearchItem {
     val fileName: String
     val title: String
@@ -88,13 +91,22 @@ sealed interface LinkPickerSearchOutcome {
  * moment [limit] hits are found instead of scanning the rest of the vault.
  * [LinkSearchItem.titleLower] is pre-folded once at index-build time, so this
  * never re-lowercases a title per keystroke.
+ *
+ * Items for which [exclude] returns true are skipped and never count toward
+ * [limit] (the refile picker uses it to drop the subtree being moved; see
+ * `filterRefileSearch`).
  */
-fun filterLinkSearch(index: List<LinkSearchItem>, query: String, limit: Int = 40): List<LinkSearchItem> {
+fun filterLinkSearch(
+    index: List<LinkSearchItem>,
+    query: String,
+    limit: Int = 40,
+    exclude: (LinkSearchItem) -> Boolean = { false },
+): List<LinkSearchItem> {
     if (query.isBlank()) return emptyList()
     val q = query.trim().lowercase()
     val out = ArrayList<LinkSearchItem>(limit.coerceAtMost(index.size))
     for (item in index) {
-        if (item.titleLower.contains(q)) {
+        if (item.titleLower.contains(q) && !exclude(item)) {
             out.add(item)
             if (out.size >= limit) break
         }

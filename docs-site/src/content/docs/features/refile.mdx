@@ -17,6 +17,8 @@ Refile is the same drill-down picker reused in three places:
 
 The picker drills down: pick a notebook, then optionally drill into a specific heading to refile *under*. Confirming moves the subtree's full org text (heading, properties, tags, body, and any nested children) out of its current position and appends it at the chosen destination.
 
+To skip the drill-down, type in the search box at the top of the picker. It matches every file and heading in your vault; tap a result to pick it as the destination, then confirm as usual. The heading being moved and its children never appear as results. Clearing the search returns you to where you were in the drill-down. The quick add target picker in widget settings has the same search box.
+
 Archiving (the manual **Archive** action or auto-archive) also records where the heading came from, as Emacs does. See [Archive properties](/features/notes-behavior#archive-properties). A plain Refile adds nothing.
 
 Like other mutating actions, a Refile is reversible via the [undo snackbar](/features/undo) immediately after.

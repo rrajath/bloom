@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,10 +17,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -34,19 +31,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
-import com.rrajath.grove.ui.components.BrandMarkGlyph
+import com.rrajath.grove.ui.components.PickerRow
+import com.rrajath.grove.ui.components.PickerSearchField
+import com.rrajath.grove.ui.components.PickerSearchHeader
 import com.rrajath.grove.ui.components.notebookIcon
-import com.rrajath.grove.ui.components.searchIcon
+import com.rrajath.grove.ui.components.pickerSearchResults
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -140,102 +134,28 @@ fun LinkPickerSheet(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(c.surface2)
-                    .border(1.dp, c.accent, RoundedCornerShape(11.dp))
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(searchIcon(), contentDescription = null, tint = c.ink3, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(9.dp))
-                Box(Modifier.weight(1f)) {
-                    BasicTextField(
-                        value = state.query,
-                        onValueChange = onQueryChange,
-                        singleLine = true,
-                        textStyle = TextStyle(fontFamily = PlexMono, fontSize = 13.5.sp, color = c.ink),
-                        cursorBrush = SolidColor(c.accent),
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                    )
-                    if (state.query.isEmpty()) {
-                        Text(
-                            "Search files and headings",
-                            fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink3,
-                        )
-                    }
-                }
-                if (state.query.isNotEmpty()) {
-                    Text(
-                        "×", fontFamily = PlexMono, fontSize = 15.sp, color = c.ink3,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onQueryChange("") }
-                            .padding(4.dp),
-                    )
-                }
-            }
+            PickerSearchField(
+                query = state.query,
+                onQueryChange = onQueryChange,
+                focusRequester = focusRequester,
+            )
             Spacer(Modifier.height(10.dp))
 
             val searching = state.query.isNotBlank()
             val results = remember(state.query, state.searchIndex) {
                 if (searching) state.searchIndex?.let { filterLinkSearch(it, state.query) }.orEmpty() else emptyList()
             }
-            if (searching) {
-                Text(
-                    "FILES & HEADINGS",
-                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.5.sp, letterSpacing = 0.09.em, color = c.ink3,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-                )
-            }
+            if (searching) PickerSearchHeader()
 
             LazyColumn(
                 Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (searching) {
-                    if (results.isEmpty()) {
-                        item {
-                            Text(
-                                "No matches",
-                                fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3,
-                                modifier = Modifier.padding(vertical = 12.dp),
-                            )
-                        }
-                    }
-                    items(
-                        results,
-                        key = { hit ->
-                            when (hit) {
-                                is LinkFileHit -> "file:${hit.fileName}"
-                                is LinkHeadingHit -> "heading:${hit.fileName}:${hit.lineIndex}"
-                            }
-                        },
-                    ) { hit ->
-                        when (hit) {
-                            is LinkFileHit -> LinkPickerRow(
-                                icon = notebookIcon(),
-                                title = hit.title,
-                                crumb = "file",
-                                meta = hit.noteCount.takeIf { it > 0 }?.let { pluralCount(it, "heading") },
-                                onClick = { selectSearchResult(hit) },
-                            )
-                            is LinkHeadingHit -> LinkPickerRow(
-                                asterisk = true,
-                                title = hit.title,
-                                crumb = hit.crumb,
-                                meta = "heading",
-                                onClick = { selectSearchResult(hit) },
-                            )
-                        }
-                    }
+                    pickerSearchResults(results, onClick = ::selectSearchResult)
                 } else if (doc == null) {
                     items(state.notebooks.orEmpty(), key = { it.fileName }) { nb ->
-                        LinkPickerRow(
+                        PickerRow(
                             icon = notebookIcon(),
                             title = nb.fileName.removeSuffix(".org"),
                             meta = pluralCount(nb.noteCount, "heading"),
@@ -256,7 +176,7 @@ fun LinkPickerSheet(
                         }
                     }
                     items(rows, key = { it.lineIndex }) { h ->
-                        LinkPickerRow(
+                        PickerRow(
                             asterisk = true,
                             title = h.title,
                             meta = doc.directChildren(h).size.takeIf { it > 0 }?.let { pluralCount(it, "heading") },
@@ -304,47 +224,6 @@ fun LinkPickerSheet(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun LinkPickerRow(
-    asterisk: Boolean = false,
-    icon: ImageVector? = null,
-    title: String,
-    crumb: String? = null,
-    meta: String?,
-    onClick: () -> Unit,
-) {
-    val c = MaterialTheme.grove
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, c.line, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = c.accent, modifier = Modifier.size(15.dp))
-        } else if (asterisk) {
-            BrandMarkGlyph(size = 10.dp, color = c.accent)
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                title, fontFamily = PlexMono, fontWeight = FontWeight.Medium,
-                fontSize = 14.5.sp, color = c.ink,
-            )
-            crumb?.let {
-                Text(it, fontFamily = PlexSans, fontSize = 11.sp, color = c.ink3)
-            }
-        }
-        meta?.let {
-            Spacer(Modifier.width(8.dp))
-            Text(it, fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink3)
         }
     }
 }

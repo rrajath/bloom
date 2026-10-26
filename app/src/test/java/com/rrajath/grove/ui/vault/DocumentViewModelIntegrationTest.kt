@@ -18,6 +18,7 @@ import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
+import com.rrajath.grove.ui.editor.filterLinkSearch
 import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -558,6 +559,37 @@ class DocumentViewModelIntegrationTest {
     }
 
     @Test
+    fun `setState done on a recurring task publishes which repeating dates advanced`() = runTest {
+        store.write(
+            "recurring.org",
+            "* TODO Water plants\nSCHEDULED: <2026-10-01 Thu +1w> DEADLINE: <2026-10-02 Fri>\n",
+        )
+        val vm = loaded("recurring.org")
+        val h = headline(vm, "Water plants")
+
+        vm.setState(h, "DONE")
+        advanceUntilIdle()
+
+        val advance = requireNotNull(vm.repeatAdvanced.value)
+        assertEquals(h.lineIndex, advance.lineIndex)
+        assertTrue(advance.planning.scheduled)
+        assertFalse(advance.planning.deadline)
+
+        vm.clearRepeatAdvanced(advance.id)
+        assertNull(vm.repeatAdvanced.value)
+    }
+
+    @Test
+    fun `setState done on a plain task publishes no repeat advance`() = runTest {
+        val vm = loaded("projects.org")
+
+        vm.setState(headline(vm, "Ship v2 release"), "DONE")
+        advanceUntilIdle()
+
+        assertNull(vm.repeatAdvanced.value)
+    }
+
+    @Test
     fun `setPriority writes a priority cookie to the heading`() = runTest {
         val vm = loaded("projects.org")
 
@@ -786,6 +818,49 @@ class DocumentViewModelIntegrationTest {
         assertTrue("dest file gains the subtree", dest.contains("Backlog"))
         assertTrue("a child came along", dest.contains("Dark mode polish"))
         assertTrue(sync.reindexCalls.any { it.reason == "refile" })
+    }
+
+    @Test
+    fun `refile search hit selects the heading as the target, then confirms like the drill-down`() = runTest {
+        TestVaultSeeder.index(db, store)
+        val vm = loaded("projects.org")
+
+        vm.startRefile(headline(vm, "Backlog"))
+        advanceUntilIdle()
+        assertNotNull(vm.refile.value!!.searchIndex)
+        val index = vm.refile.value!!.searchIndex!!
+        val hit = filterRefileSearch(index, "rust ownership", "projects.org", emptyList()).single()
+        assertTrue(vm.refileSelectSearchResult(hit))
+        val picker = vm.refile.value!!
+        assertEquals("reading-list.org", picker.pickedFile)
+        assertEquals("Rust ownership, revisited", picker.pickedDoc!!.headlineAtLine(picker.path.last())!!.title)
+        assertEquals("Articles", picker.pickedDoc!!.headlineAtLine(picker.path.first())!!.title)
+
+        vm.refileConfirm()
+        advanceUntilIdle()
+
+        val dest = OrgParser.parse(store.read("reading-list.org"))
+        val backlog = dest.headlines.first { it.title == "Backlog" }
+        assertEquals("Rust ownership, revisited", dest.parent(backlog)?.title)
+    }
+
+    @Test
+    fun `refile search never offers or accepts the moved subtree`() = runTest {
+        TestVaultSeeder.index(db, store)
+        val vm = loaded("projects.org")
+        val before = store.snapshot()
+
+        vm.startRefile(headline(vm, "Backlog"))
+        advanceUntilIdle()
+        val index = vm.refile.value!!.searchIndex!!
+        val excluded = refileExcludedRanges(loadedDoc(vm), vm.refile.value!!.sourceLines)
+        assertTrue(filterRefileSearch(index, "dark mode", "projects.org", excluded).isEmpty())
+
+        // Even a hit that bypassed the filter is refused and leaves the picker as it was.
+        val inside = filterLinkSearch(index, "dark mode").single()
+        assertFalse(vm.refileSelectSearchResult(inside))
+        assertNull(vm.refile.value!!.pickedFile)
+        assertEquals(before, store.snapshot())
     }
 
     @Test

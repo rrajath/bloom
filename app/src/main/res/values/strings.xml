@@ -4,4 +4,11 @@
     <string name="ledger_widget_description">Agenda ledger: overdue and upcoming tasks grouped by day</string>
     <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
     <string name="exact_alarm_prompt_body">Android can delay %1$s\'s reminders by up to an hour unless %1$s is allowed to set alarms. On the next screen, turn on Alarms &amp; reminders for %1$s.</string>
+    <!-- Shared live search in the insert-link and refile pickers (ui/components/PickerSearch.kt). -->
+    <string name="picker_search_placeholder">Search files and headings</string>
+    <string name="picker_search_results_header">FILES &amp; HEADINGS</string>
+    <string name="picker_search_no_matches">No matches</string>
+    <string name="picker_search_file_crumb">file</string>
+    <string name="picker_search_heading_meta">heading</string>
+    <string name="refile_search_stale_heading">That heading no longer exists</string>
 </resources>

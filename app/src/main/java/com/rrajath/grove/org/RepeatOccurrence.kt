@@ -39,3 +39,34 @@ internal fun formatOccurrence(date: LocalDate, today: LocalDate): String {
     val year = if (date.year != today.year) ", ${date.year}" else ""
     return "$month $day$suffix$year"
 }
+
+/** Which planning stamps [advancedRepeatingPlanning] found moved forward. */
+data class AdvancedPlanning(val scheduled: Boolean, val deadline: Boolean) {
+    val any: Boolean get() = scheduled || deadline
+
+    companion object {
+        val NONE = AdvancedPlanning(scheduled = false, deadline = false)
+    }
+}
+
+/**
+ * Which of a heading's repeating SCHEDULED / DEADLINE stamps a state change to
+ * [keyword] just advanced, comparing the heading [before] and [after] it. Only a
+ * done-type [keyword] counts (that is the only change that advances a
+ * repeater), and only a stamp that had a repeater and now differs; CLOSED and
+ * dedicated active timestamps are never reported. [AdvancedPlanning.NONE] for a
+ * non-recurring task or a non-done keyword.
+ */
+fun advancedRepeatingPlanning(
+    before: OrgHeadline,
+    after: OrgHeadline,
+    keyword: String?,
+    keywords: OrgKeywords,
+): AdvancedPlanning {
+    if (keyword == null || !keywords.isDone(keyword)) return AdvancedPlanning.NONE
+    fun moved(was: OrgTimestamp?, now: OrgTimestamp?) = was?.repeater != null && now != null && now != was
+    return AdvancedPlanning(
+        scheduled = moved(before.planning.scheduled, after.planning.scheduled),
+        deadline = moved(before.planning.deadline, after.planning.deadline),
+    )
+}

@@ -30,10 +30,13 @@ import com.rrajath.grove.settings.SyncMode
 import com.rrajath.grove.settings.ThemePreference
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.newbadge.NewBadgeState
+import com.rrajath.grove.ui.editor.LinkSearchItem
 import com.rrajath.grove.ui.vault.NotebookItem
 import com.rrajath.grove.ui.vault.RefileNotebook
 import com.rrajath.grove.ui.vault.RefileUiState
 import com.rrajath.grove.ui.vault.allFolderDirs
+import com.rrajath.grove.ui.vault.loadRefileSearchIndex
+import com.rrajath.grove.ui.vault.withSearchHit
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.vault.Vault
 import kotlinx.collections.immutable.persistentListOf
@@ -419,6 +422,28 @@ class AppViewModel(
                 .toImmutableList()
             _locationPicker.value = _locationPicker.value?.copy(notebooks = notebooks)
         }
+        viewModelScope.launch {
+            val searchIndex = loadRefileSearchIndex(database.indexDao())
+            _locationPicker.value = _locationPicker.value?.copy(searchIndex = searchIndex)
+        }
+    }
+
+    /** A tap on a live-search result: same picker state as picking it in the drill-down (no exclusions here). */
+    suspend fun locationSelectSearchResult(item: LinkSearchItem): Boolean {
+        if (_locationPicker.value == null) return false
+        val doc = vaultFlow.value?.open(item.fileName)
+        if (doc == null) {
+            toast("Couldn't open ${item.fileName.removeSuffix(".org")}")
+            return false
+        }
+        val picker = _locationPicker.value ?: return false
+        val next = picker.withSearchHit(item, doc, excluded = emptyList())
+        if (next == null) {
+            toast(app.getString(R.string.refile_search_stale_heading))
+            return false
+        }
+        _locationPicker.value = next
+        return true
     }
 
     fun locationPickNotebook(fileName: String) {

@@ -25,7 +25,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,19 +40,33 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.org.ArchiveTarget
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
+import com.rrajath.grove.ui.components.PickerSearchField
+import com.rrajath.grove.ui.components.PickerSearchHeader
 import com.rrajath.grove.ui.components.notebookIcon
+import com.rrajath.grove.ui.components.pickerSearchResults
+import com.rrajath.grove.ui.editor.LinkSearchItem
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.util.pluralCount
 import com.rrajath.grove.ui.vault.RefileUiState
+import com.rrajath.grove.ui.vault.filterRefileSearch
 import com.rrajath.grove.ui.vault.headlineAtLine
+import com.rrajath.grove.ui.vault.refileExcludedRanges
+import kotlinx.coroutines.launch
 
 /**
  * Two-step refile destination picker (design spec Gestures screen): choose a
  * notebook, then drill down per level: tapping a heading both selects it and
  * shows its children. "Refile here" targets the crumb's last heading (or the
  * file's top level).
+ *
+ * A live search field (shared with the insert-link picker) searches every file
+ * and heading in the vault over [RefileUiState.searchIndex]; a non-empty query
+ * swaps the drill-down list for results, and tapping one hands it to
+ * [onSelectSearchResult], which leaves the picker where picking that target in
+ * the drill-down would. The query is sheet-local: clearing it shows the
+ * drill-down exactly where it was.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +81,8 @@ fun RefileSheet(
     onConfirm: () -> Unit,
     onArchive: () -> Unit,
     onPickLastUsed: () -> Unit,
+    /** Applies a tapped search hit to the picker state; true once it is the selected target. */
+    onSelectSearchResult: suspend (LinkSearchItem) -> Boolean,
     headerTitle: String = "Refile 1 note",
     confirmLabel: String = "Refile here",
     /** Shown in place of [confirmLabel] while sitting at a file's top level (no heading drilled into). */
@@ -70,14 +91,27 @@ fun RefileSheet(
     val c = MaterialTheme.grove
     val doc = state.pickedDoc
 
-    // For a same-file refile, rows inside a source's own subtree are invalid targets.
+    val scope = rememberCoroutineScope()
+    var query by rememberSaveable { mutableStateOf("") }
+
+    // Rows inside a source's own subtree are invalid targets: in the drill-down only
+    // while browsing the source file, in search for that file's heading hits.
     // No exclusion at all when there's no active note (e.g. Settings' archive-location picker).
-    val excluded: List<IntRange> = remember(state.pickedFile, state.sourceLines, currentDoc) {
-        if (currentDoc != null && state.pickedFile == currentFileName) {
-            state.sourceLines.mapNotNull { line ->
-                currentDoc.headlineAtLine(line)?.let { it.lineIndex until currentDoc.subtreeEndLine(it) }
-            }
+    val sourceRanges: List<IntRange> = remember(state.sourceLines, currentDoc) {
+        refileExcludedRanges(currentDoc, state.sourceLines)
+    }
+    val excluded: List<IntRange> =
+        if (state.pickedFile != null && state.pickedFile == currentFileName) sourceRanges else emptyList()
+
+    val searching = query.isNotBlank()
+    val results = remember(query, state.searchIndex, currentFileName, sourceRanges) {
+        if (searching) {
+            state.searchIndex?.let { filterRefileSearch(it, query, currentFileName, sourceRanges) }.orEmpty()
         } else emptyList()
+    }
+
+    fun selectSearchResult(item: LinkSearchItem) {
+        scope.launch { if (onSelectSearchResult(item)) query = "" }
     }
 
     val crumb = when {
@@ -126,13 +160,18 @@ fun RefileSheet(
                 }
             }
             Spacer(Modifier.height(12.dp))
+            PickerSearchField(query = query, onQueryChange = { query = it })
+            Spacer(Modifier.height(10.dp))
+            if (searching) PickerSearchHeader()
             val listState = remember(state.pickedFile, state.path) { LazyListState() }
             LazyColumn(
                 Modifier.heightIn(max = 380.dp),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (doc == null) {
+                if (searching) {
+                    pickerSearchResults(results, onClick = ::selectSearchResult)
+                } else if (doc == null) {
                     items(state.notebooks.orEmpty(), key = { it.fileName }) { nb ->
                         RefileRow(
                             icon = notebookIcon(),

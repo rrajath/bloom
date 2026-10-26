@@ -780,6 +780,7 @@ fun EditNoteScreen(
             onConfirm = { refileAwaitingLeave = true; refileViewModel.refileConfirm() },
             onArchive = { refileAwaitingLeave = true; refileViewModel.refileToArchive() },
             onPickLastUsed = { refileAwaitingLeave = true; refileViewModel.refileToLastUsed() },
+            onSelectSearchResult = refileViewModel::refileSelectSearchResult,
         )
     }
 

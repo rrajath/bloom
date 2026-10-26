@@ -10,11 +10,13 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.R
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.FavoritesRepository
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.data.NoteKey
 import com.rrajath.grove.data.matches
+import com.rrajath.grove.org.AdvancedPlanning
 import com.rrajath.grove.org.ArchiveLocation
 import com.rrajath.grove.org.ArchiveTarget
 import com.rrajath.grove.org.OrgDocument
@@ -26,6 +28,7 @@ import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.OrgKeywords
+import com.rrajath.grove.org.advancedRepeatingPlanning
 import com.rrajath.grove.org.markedDoneMessage
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.nextRepeatOccurrence
@@ -36,6 +39,7 @@ import com.rrajath.grove.settings.PinnedItem
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.sync.SyncState
 import com.rrajath.grove.sync.SyncTrigger
+import com.rrajath.grove.ui.editor.LinkSearchItem
 import com.rrajath.grove.ui.util.pluralCount
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.Notebook
@@ -649,6 +653,13 @@ data class OutlineToast(val message: String, val id: Long)
 /** Undoable-operation snackbar (design spec: ~4.2s with an UNDO action). */
 data class OutlineSnack(val message: String, val id: Long)
 
+/**
+ * One-shot signal that marking the heading at [lineIndex] done advanced its
+ * repeating SCHEDULED and/or DEADLINE ([planning] says which), so Read mode can
+ * flash the moved date chips. [id] makes each mark-done a distinct event.
+ */
+data class RepeatAdvance(val lineIndex: Int, val planning: AdvancedPlanning, val id: Long)
+
 /** Outcome of resolving a tapped org link; see [DocumentViewModel.openOrgLink]. */
 sealed interface LinkResolution {
     /** Open Read mode of a heading (in this file or another). */
@@ -683,6 +694,8 @@ data class RefileUiState(
     val archiveTarget: ArchiveTarget? = null,
     /** Destination of the most recent successful refile, if any. */
     val lastUsedTarget: ArchiveTarget? = null,
+    /** Vault-wide file + heading index for the sheet's live search; null while loading (see [loadRefileSearchIndex]). */
+    val searchIndex: ImmutableList<LinkSearchItem>? = null,
 )
 
 /**
@@ -752,6 +765,19 @@ class DocumentViewModel(
     val introPromotedLine: StateFlow<Int?> = _introPromotedLine
 
     fun clearIntroPromoted() { _introPromotedLine.value = null }
+
+    /**
+     * Set by [setState] when a done-type keyword advanced a repeating
+     * SCHEDULED/DEADLINE; Read mode flashes those chips, then calls
+     * [clearRepeatAdvanced] so the flash plays once.
+     */
+    private val _repeatAdvanced = MutableStateFlow<RepeatAdvance?>(null)
+    val repeatAdvanced: StateFlow<RepeatAdvance?> = _repeatAdvanced
+
+    /** Consume [repeatAdvanced] event [id]; a newer event is left alone. */
+    fun clearRepeatAdvanced(id: Long) {
+        if (_repeatAdvanced.value?.id == id) _repeatAdvanced.value = null
+    }
 
     private var eventId = 0L
 
@@ -1382,10 +1408,13 @@ class DocumentViewModel(
             ) {
                 is StateChangeResult.Plain -> {
                     _state.value = DocumentUiState.Loaded(loaded.fileName, result.doc)
+                    val after = result.doc.headlines.firstOrNull { it.lineIndex == headline.lineIndex }
+                    after?.let { advancedRepeatingPlanning(headline, it, keyword, loaded.document.keywords) }
+                        ?.takeIf { it.any }
+                        ?.let { _repeatAdvanced.value = RepeatAdvance(headline.lineIndex, it, ++eventId) }
                     saveDoc(loaded.fileName, result.text, "state set", result.doc)
                     // A recurring task keeps its keyword and just moves its date, so say where it went.
-                    val next = result.doc.headlines.firstOrNull { it.lineIndex == headline.lineIndex }
-                        ?.let { nextRepeatOccurrence(headline, it) }
+                    val next = after?.let { nextRepeatOccurrence(headline, it) }
                     if (next != null) {
                         undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
                         showSnack(markedDoneMessage(next, LocalDate.now()))
@@ -1711,6 +1740,39 @@ class DocumentViewModel(
                 notebooks = notebooks, archiveTarget = archiveTarget, lastUsedTarget = lastUsedTarget,
             )
         }
+        // Separate so the notebook list never waits on the vault-wide heading query.
+        viewModelScope.launch {
+            val searchIndex = loadRefileSearchIndex(database.indexDao())
+            _refile.value = _refile.value?.copy(searchIndex = searchIndex)
+        }
+    }
+
+    /**
+     * A tap on a refile live-search result: leaves the picker exactly where
+     * picking that file or heading in the drill-down would (see
+     * [withSearchHit]), ready for the usual confirm. False (with a toast) when
+     * the file can't be opened or the hit is stale or inside the moved subtree.
+     */
+    suspend fun refileSelectSearchResult(item: LinkSearchItem): Boolean {
+        if (_refile.value == null) return false
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return false
+        val sameFile = item.fileName == loaded.fileName
+        val doc = if (sameFile) loaded.document else vaultFlow.value?.open(item.fileName)
+        if (doc == null) {
+            showToast("Couldn't open ${item.fileName.removeSuffix(".org")}")
+            return false
+        }
+        // Re-read after the open: the sheet may have been dismissed, or its
+        // notebook list / index may have landed, while the file was loading.
+        val picker = _refile.value ?: return false
+        val excluded = if (sameFile) refileExcludedRanges(doc, picker.sourceLines) else emptyList()
+        val next = picker.withSearchHit(item, doc, excluded)
+        if (next == null) {
+            showToast(app.getString(R.string.refile_search_stale_heading))
+            return false
+        }
+        _refile.value = next
+        return true
     }
 
     fun refilePickNotebook(fileName: String) {

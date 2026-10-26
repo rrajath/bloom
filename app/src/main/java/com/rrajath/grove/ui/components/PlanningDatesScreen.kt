@@ -1,8 +1,6 @@
 package com.rrajath.grove.ui.components
 
 import android.os.Build
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,7 +42,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -105,7 +102,6 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -116,7 +112,6 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * SCHEDULED, DEADLINE and bare active timestamps on one canvas ("Dates B — tabs"
@@ -717,27 +712,11 @@ fun InsertTimestampScreen(
     var ts by remember { mutableStateOf(initial) }
     var month by remember { mutableStateOf(YearMonth.from(initial.date)) }
 
-    // Flash the preview once per toggle: pop in a background chip behind it,
-    // then fade it back out, as confirmation that the tap registered. `tapId`
-    // keys the revert effect, so a fresh tap restarts (not stacks) the timer
-    // and the chip only ever cycles on-then-off once.
-    var flashOn by remember { mutableStateOf(false) }
-    var tapId by remember { mutableIntStateOf(0) }
-    val previewFlashBg by animateColorAsState(
-        targetValue = if (flashOn) c.surface3 else Color.Transparent,
-        animationSpec = tween(180),
-        label = "timestampPreviewFlash",
-    )
-    LaunchedEffect(tapId) {
-        if (tapId > 0) {
-            delay(260.milliseconds)
-            flashOn = false
-        }
-    }
+    // Flash the preview once per toggle as confirmation that the tap registered.
+    val previewFlash = rememberTapFlash("timestampPreviewFlash")
     fun toggleActive() {
         ts = ts.copy(active = !ts.active)
-        flashOn = true
-        tapId++
+        previewFlash.trigger()
     }
 
     val app = LocalContext.current.applicationContext as GroveApplication
@@ -861,7 +840,7 @@ fun InsertTimestampScreen(
                             color = c.synTs,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(previewFlashBg)
+                                .background(previewFlash.color)
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                         )
                     }

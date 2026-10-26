@@ -99,6 +99,8 @@ import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.ui.components.ReadEditToggle
+import com.rrajath.grove.ui.components.rememberTapFlash
+import com.rrajath.grove.ui.vault.RepeatAdvance
 import com.rrajath.grove.ui.components.CollapsibleBlockSection
 import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.components.CollapsibleLogSection
@@ -208,6 +210,7 @@ fun ReadNoteScreen(
     }
     val snack by viewModel.snack.collectAsStateWithLifecycle()
     val toast by viewModel.toast.collectAsStateWithLifecycle()
+    val repeatAdvance by viewModel.repeatAdvanced.collectAsStateWithLifecycle()
     // Resolves a tapped org link (heading/id: → Read mode, whole file → outline,
     // external scheme → OS, unresolved → toast). See DocumentViewModel.openOrgLink.
     val onOpenLink: (String) -> Unit = remember(viewModel, onOpenNote, onOpenOutline, noteRef.fileName) {
@@ -391,6 +394,8 @@ fun ReadNoteScreen(
                             },
                             showPropertyDrawers = showPropertyDrawers,
                             favorites = favorites,
+                            repeatAdvance = repeatAdvance,
+                            onRepeatAdvanceShown = viewModel::clearRepeatAdvanced,
                         )
                         }
                         Column(
@@ -529,6 +534,7 @@ fun ReadNoteScreen(
             onConfirm = { refileAwaitingLeave = true; viewModel.refileConfirm() },
             onArchive = { refileAwaitingLeave = true; viewModel.refileToArchive() },
             onPickLastUsed = { refileAwaitingLeave = true; viewModel.refileToLastUsed() },
+            onSelectSearchResult = viewModel::refileSelectSearchResult,
         )
     }
 }
@@ -651,8 +657,25 @@ private fun NoteContent(
     modifier: Modifier = Modifier,
     showPropertyDrawers: Boolean = true,
     favorites: List<FavoriteNote> = emptyList(),
+    /** Pending "a repeater just advanced" event; see [DocumentViewModel.repeatAdvanced]. */
+    repeatAdvance: RepeatAdvance? = null,
+    /** [repeatAdvance] has been flashed; the arg is its id. */
+    onRepeatAdvanceShown: (Long) -> Unit = {},
 ) {
     val c = MaterialTheme.grove
+    // Marking a recurring task done keeps its keyword and only moves the date,
+    // so flash just the SCHEDULED/DEADLINE chip(s) that moved, for the user to
+    // notice. Same flash as the timestamp picker's preview.
+    val scheduledFlash = rememberTapFlash("scheduledAdvanceFlash")
+    val deadlineFlash = rememberTapFlash("deadlineAdvanceFlash")
+    LaunchedEffect(repeatAdvance) {
+        val advance = repeatAdvance ?: return@LaunchedEffect
+        if (advance.lineIndex == headline.lineIndex) {
+            if (advance.planning.scheduled) scheduledFlash.trigger()
+            if (advance.planning.deadline) deadlineFlash.trigger()
+        }
+        onRepeatAdvanceShown(advance.id)
+    }
     // Per-section collapse state, reset when the viewed note changes; all
     // sections start collapsed (design/Grove.dc.html lines 499-552).
     val collapsibleExpanded = remember(fileName, headline.lineIndex) { mutableStateMapOf<String, Boolean>() }
@@ -786,10 +809,22 @@ private fun NoteContent(
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                                 headline.planning.scheduled?.let {
-                                    PlanningChip(remember(it) { it.formatHuman() }, icon = Icons.Outlined.CalendarMonth, fg = c.blue, bg = c.blueSoft)
+                                    PlanningChip(
+                                        remember(it) { it.formatHuman() },
+                                        icon = Icons.Outlined.CalendarMonth,
+                                        fg = c.blue,
+                                        bg = c.blueSoft,
+                                        flash = scheduledFlash.color,
+                                    )
                                 }
                                 headline.planning.deadline?.let {
-                                    PlanningChip(remember(it) { it.formatHuman() }, icon = Icons.Filled.Flag, fg = c.red, bg = c.redSoft)
+                                    PlanningChip(
+                                        remember(it) { it.formatHuman() },
+                                        icon = Icons.Filled.Flag,
+                                        fg = c.red,
+                                        bg = c.redSoft,
+                                        flash = deadlineFlash.color,
+                                    )
                                 }
                                 // Bare active timestamps (events): a filled dot in the
                                 // violet event colour. Only the dedicated line after the
@@ -1169,7 +1204,8 @@ internal fun LinkActionMenuItems(target: String, onDismiss: () -> Unit) {
  * A planning date shown as a soft-tinted chip (SCHEDULED blue calendar,
  * DEADLINE red flag, CLOSED muted ink3 check). [text] is the human form (`OrgTimestamp.formatHuman`),
  * not the raw org stamp: Read mode is prose, Edit mode is where the literal
- * `<2026-07-30 Thu>` belongs.
+ * `<2026-07-30 Thu>` belongs. [flash] is painted over [bg] (transparent at
+ * rest; see [rememberTapFlash]) to point out a date that just moved.
  */
 @Composable
 private fun PlanningChip(
@@ -1178,11 +1214,13 @@ private fun PlanningChip(
     fg: Color,
     bg: Color,
     iconSize: Dp = 13.dp,
+    flash: Color = Color.Transparent,
 ) {
     Row(
         Modifier
             .clip(RoundedCornerShape(6.dp))
             .background(bg)
+            .background(flash)
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),

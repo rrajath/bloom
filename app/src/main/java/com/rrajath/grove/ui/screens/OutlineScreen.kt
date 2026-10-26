@@ -951,6 +951,7 @@ fun OutlineScreen(
                         onConfirm = viewModel::refileConfirm,
                         onArchive = viewModel::refileToArchive,
                         onPickLastUsed = viewModel::refileToLastUsed,
+                        onSelectSearchResult = viewModel::refileSelectSearchResult,
                     )
                 }
 
