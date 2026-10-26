@@ -63,9 +63,11 @@ re-uploads the APKs to the existing release instead of failing.
 - Denote links (`[[denote:20240101T120000]]`) open the note with that identifier anywhere in the vault, optionally at a `::*Heading` or `::#custom-id` inside it.
 - The refile picker has a search box to find any file or heading without drilling down.
 - Marking a recurring task done in Read mode flashes the date that moved to its next occurrence.
+- Tap the Agenda widget's title to show a saved search instead; each widget remembers its own choice.
 
 ### Changed
 - When a heading can't be demoted in Outline, the message now explains why: there's no heading above to go under.
+- Tapping the app icon on the Agenda widget now opens the Agenda screen instead of the home page.
 
 ### Fixed
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.

@@ -205,6 +205,25 @@ Agenda ledger, or the reverse).
   resolves falls back to the bottom of the file and a long toast says so,
   rather than creating headings or dropping the typed task.
 
+  **Per-widget views.** The ledger's title opens `WidgetViewPickerActivity`
+  (same overlay pattern as quick add), which lists "Agenda" plus the saved
+  searches (`WidgetViews`, Quick Start override rows hidden). The pick is
+  stored in that widget instance's own Glance state
+  (`PreferencesGlanceStateDefinition`, key `WIDGET_VIEW_KEY`, value = the saved
+  search's id), not in settings, so it isn't part of import/export and two
+  widgets can differ. The composition reads it with `currentState`, resolves it
+  against the live `savedSearches` flow on every recomposition (rename shows the
+  new name, delete falls back to the agenda), and the picker writes it with
+  `updateAppWidgetState` + `LedgerWidget().update(context, glanceId)`. The
+  picker intent carries the appWidgetId in its data URI as well as its extra,
+  because PendingIntents ignore extras when matching. A saved-search view runs
+  `WidgetSearch`: the Search screen's own pipeline
+  (`loadSearchCandidates` + `QueryMatcher.filter`, shared with
+  `SearchViewModel`), flattened by `SearchResultOrder.flatHeadings` into the
+  screen's display order. It re-runs on every `notes` write via the row-free
+  `IndexDao.notesChanged()` signal, the same in-composition collection pattern
+  as the agenda view's `plannedNotes()`.
+
 ## Reminders (`reminders/`)
 
 A system notification fires when a heading's SCHEDULED, DEADLINE, or bare active timestamp arrives. Whether it's worded as a task ("due now") or an event ("starting now"), and which actions it carries, is decided purely by `ReminderEntity.isTask` — true only when the heading carries a live TODO keyword, independent of which timestamp field triggered the reminder. Tapping the notification body instead deep-links into the app (`bloom://reminder/...` → `ReminderResolveScreen` → the note in read mode).

@@ -450,6 +450,18 @@
             android:theme="@style/Theme.Grove.Transparent"
             android:windowSoftInputMode="adjustResize" />
 
+        <!--
+          The Agenda widget's view picker (tap the widget title): same one-shot
+          overlay pattern and flags as WidgetQuickAddActivity above.
+        -->
+        <activity
+            android:name=".widget.WidgetViewPickerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Grove.Transparent" />
+
         <!-- SCHEDULED/DEADLINE reminder notifications. -->
         <receiver android:name=".reminders.ReminderAlarmReceiver" android:exported="false" />
         <receiver android:name=".reminders.ReminderDigestReceiver" android:exported="false" />

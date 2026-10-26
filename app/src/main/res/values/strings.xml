@@ -11,4 +11,17 @@
     <string name="picker_search_file_crumb">file</string>
     <string name="picker_search_heading_meta">heading</string>
     <string name="refile_search_stale_heading">That heading no longer exists</string>
+    <!-- Agenda widget view picker (widget/LedgerWidget.kt, widget/WidgetViewPickerActivity.kt). -->
+    <string name="widget_view_agenda">Agenda</string>
+    <string name="widget_view_caret">▾</string>
+    <string name="widget_view_picker_title">Show in widget</string>
+    <string name="widget_view_change">Change widget view</string>
+    <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
+    <string name="widget_open_agenda">Open Agenda in %1$s</string>
+    <string name="widget_no_results">No results</string>
+    <string name="widget_more_view_all">+%1$d more · view all</string>
+    <plurals name="widget_result_count">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
 </resources>

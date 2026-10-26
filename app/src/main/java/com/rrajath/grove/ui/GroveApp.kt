@@ -911,7 +911,10 @@ private fun GroveNavigation(
             composable(Routes.SYNC_LOG) {
                 SyncLogScreen(onBack = { navController.popBackStack() })
             }
-            composable(Routes.SEARCH) { entry ->
+            composable(
+                Routes.SEARCH,
+                deepLinks = DeepLinks.navDeepLinks(Routes.SEARCH),
+            ) { entry ->
                 SearchScreen(
                     initialQuery = entry.arguments?.getString("q"),
                     initialNotebook = entry.arguments?.getString("notebook"),

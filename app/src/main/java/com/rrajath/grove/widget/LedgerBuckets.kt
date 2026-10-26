@@ -108,7 +108,7 @@ object LedgerBuckets {
      * [activeTs]/[eventDay] mark the row as a bare-timestamp event placed on that
      * day (violet `● <day>` chip, its own time range, no done circle in the widget).
      */
-    private fun widgetRow(
+    internal fun widgetRow(
         m: NoteMeta,
         today: LocalDate,
         showDate: Boolean,

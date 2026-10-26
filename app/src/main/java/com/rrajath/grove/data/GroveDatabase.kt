@@ -216,6 +216,9 @@ data class NotebookSyncState(
 /** Primary key of a `notes` row: what an FTS lookup hands back. */
 data class NoteKey(val fileName: String, val lineIndex: Int)
 
+/** One notebook's most recent note mtime, for recency-ranking filename matches. */
+data class FileRecency(val fileName: String, val lastModified: Long)
+
 /**
  * One heading's outline position + title, for the editor's link-picker search
  * index (see `buildLinkSearchIndex`). No body/tags/planning columns: the index
@@ -361,6 +364,20 @@ abstract class IndexDao {
             "activeTimestamps, lastModified FROM notes"
     )
     abstract fun noteFacets(): Flow<List<NoteFacetRow>>
+
+    /**
+     * A change signal for the `notes` table and nothing more: Room re-runs this
+     * (and emits, even when the count is unchanged) on every write to the
+     * table, so a consumer that only needs "the index changed, re-run my
+     * query" can key off it without holding any row data. The Agenda widget's
+     * saved-search view uses it.
+     */
+    @Query("SELECT COUNT(*) FROM notes")
+    abstract fun notesChanged(): Flow<Int>
+
+    /** Every notebook with indexed notes, plus its latest note mtime (see [FileRecency]). */
+    @Query("SELECT fileName, MAX(lastModified) AS lastModified FROM notes GROUP BY fileName")
+    abstract suspend fun fileRecency(): List<FileRecency>
 
     /**
      * Rows the agenda can possibly show. `QueryMatcher.agenda` buckets notes by

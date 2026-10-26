@@ -1,19 +1,17 @@
 package com.rrajath.grove.ui.search
 
-import android.database.SQLException
-import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.search.SearchRepository
+import com.rrajath.grove.search.loadSearchCandidates
 import com.rrajath.grove.settings.SettingsSource
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.data.NoteEntity
 import com.rrajath.grove.data.NoteFacetRow
-import com.rrajath.grove.data.rawQuery
 import com.rrajath.grove.data.toNoteMeta
 import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.InlineTokenizer
@@ -27,8 +25,6 @@ import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.search.DatePresence
 import com.rrajath.grove.search.FacetNarrowing
 import com.rrajath.grove.search.FilenameMatcher
-import com.rrajath.grove.search.FtsQuery
-import com.rrajath.grove.search.NoteCandidateQuery
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.search.MatchOptions
 import com.rrajath.grove.search.QueryMatcher
@@ -777,13 +773,7 @@ class SearchViewModel(
             val hitByFile = nameHits.associateBy { it.fileName }
             val lastModifiedByFile = facetRows.groupingBy { it.fileName }
                 .fold(Long.MIN_VALUE) { acc, row -> maxOf(acc, row.lastModified) }
-            val nameFiles = nameHits
-                .sortedWith(
-                    compareByDescending<FilenameMatcher.Hit> { it.quality }
-                        .thenByDescending { lastModifiedByFile[it.fileName] ?: Long.MIN_VALUE }
-                        .thenBy { it.fileName.lowercase() },
-                )
-                .map { it.fileName }
+            val nameFiles = SearchResultOrder.nameMatchedFiles(nameHits, lastModifiedByFile)
 
             val orderedFiles = (nameFiles + byFile.keys.filterNot { it in hitByFile }).distinct()
             val groups = orderedFiles.map { file ->
@@ -817,20 +807,7 @@ class SearchViewModel(
      * the visible behaviour is identical to scanning the whole vault.
      */
     private suspend fun loadCandidates(textQuery: SearchQuery?, filters: SearchFilters): List<NoteMeta> {
-        val dao = database.indexDao()
-        val match = textQuery
-            ?.takeIf { database.ftsAvailable }
-            ?.let { FtsQuery.matchExpression(it) }
-        val candidate = NoteCandidateQuery.build(match, textQuery, filters.toNarrowing())
-        val rows = try {
-            dao.notesMatching(rawQuery(candidate.sql, candidate.args))
-        } catch (e: SQLException) {
-            // A search must never fail because of the index: fall back to the
-            // whole table and let the Kotlin matcher do all the work, exactly as
-            // it did before this table existed.
-            Log.w(TAG, "candidate query failed, falling back to a full scan: ${candidate.sql}", e)
-            dao.notesMatching(rawQuery("SELECT * FROM notes ORDER BY fileName, lineIndex"))
-        }
+        val rows = loadSearchCandidates(database, textQuery, filters.toNarrowing())
         return withContext(dispatchers.default) { rows.map { it.toNoteMeta() } }
     }
 
@@ -1103,8 +1080,6 @@ class SearchViewModel(
                 it.keywords, it.settingsRepository, it.dispatchers,
             )
         }
-
-        private const val TAG = "SearchViewModel"
 
         private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
         private val CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)

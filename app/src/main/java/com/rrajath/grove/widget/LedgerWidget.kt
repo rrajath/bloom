@@ -12,6 +12,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.currentState
+import androidx.glance.semantics.contentDescription
+import androidx.glance.semantics.semantics
+import androidx.glance.state.GlanceStateDefinition
+import androidx.glance.state.PreferencesGlanceStateDefinition
+import com.rrajath.grove.data.PlannedNoteRow
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
@@ -146,46 +156,44 @@ private data class WidgetPrefs(
     )
 }
 
+/**
+ * Per-widget view selection (see [WidgetViews]): the selected saved search's id,
+ * absent for the agenda. Lives in this widget instance's own Glance state, keyed
+ * by its [GlanceId], so two Agenda widgets can show different views; it's not a
+ * setting and isn't part of settings import/export. Written by
+ * [WidgetViewPickerActivity].
+ */
+internal val WIDGET_VIEW_KEY = stringPreferencesKey("view_saved_search_id")
+
 class LedgerWidget : GlanceAppWidget() {
+
+    override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val app = context.applicationContext as GroveApplication
         val initialSettings = app.settingsRepository.settings.first()
         val initialNotes = app.database.indexDao().plannedNotes().first()
+        val initialSaved = app.searchRepository.savedSearches.first()
+        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+        // Same first-frame reasoning as initialNotes: a widget left on a saved
+        // search shouldn't open its session on an empty list.
+        val initialSelection = WidgetViews.resolve(
+            getAppWidgetState<Preferences>(context, id)[WIDGET_VIEW_KEY],
+            initialSaved,
+        )
+        val initialResults = initialSelection?.let { WidgetSearch.runSafely(app, it.query, initialSettings.defaultPriority) }
 
         provideContent {
             val settings by app.settingsRepository.settings
                 .distinctUntilChangedBy { WidgetPrefs(it) }
                 .collectAsState(initial = initialSettings)
-            val notes by app.database.indexDao().plannedNotes().collectAsState(initial = initialNotes)
+            val saved by app.searchRepository.savedSearches.collectAsState(initial = initialSaved)
+            // Re-resolved on every recomposition, so a deleted search falls
+            // back to the agenda and a renamed one shows its new name.
+            val selected = WidgetViews.resolve(currentState(WIDGET_VIEW_KEY), saved)
 
             val colors = groveColorsFor(settings.theme)
             val today = LocalDate.now()
-            val windowDays = settings.agendaWidgetDaysAhead
-            // Bucketing walks every planned note's SCHEDULED/DEADLINE timestamp
-            // (OrgTimestamp.parse). A single unparseable one used to take the
-            // whole composition down with it: Glance has no per-widget crash UI
-            // of its own, so the AppWidgetHost fell back to its generic "Can't
-            // show content" placeholder, and it stayed that way on every
-            // subsequent redraw (delete/re-add doesn't touch the vault data that
-            // triggered it). Degrade to an empty ledger instead of taking the
-            // whole widget down with it — the in-app Agenda screen already
-            // guides the user to the underlying data problem.
-            // Memoized on the actual inputs: distinctUntilChangedBy above already
-            // keeps an unrelated settings write from reaching this composition,
-            // but this also skips the O(notes) re-bucket on a recomposition that
-            // touches neither notes nor these fields.
-            val sections = remember(notes, WidgetPrefs(settings), today) {
-                try {
-                    val openNotes = notes.map { it.toNoteMeta() }.filter { !it.isDoneKeyword }
-                    LedgerBuckets.build(openNotes, today, windowDays, settings)
-                } catch (e: Exception) {
-                    Log.e(TAG, "failed to build ledger sections; showing empty widget", e)
-                    emptyList()
-                }
-            }
-            val todayCount = sections.firstOrNull { it.key.startsWith("Today") }?.count ?: 0
-            val totalCount = sections.sumOf { it.count }
             // Themed mipmaps only exist as <adaptive-icon> (API 26+); below that
             // there is only the default fallback icon.
             val iconRes = AppIconManager.mipmapRes(
@@ -194,8 +202,27 @@ class LedgerWidget : GlanceAppWidget() {
             )
             val backgroundColor = colors.surface.copy(alpha = 1f - settings.agendaWidgetTransparency)
             val fontScale = settings.agendaWidgetFontSize.scale
+            val chrome = WidgetChrome(context, colors, backgroundColor, iconRes, fontScale, appWidgetId)
 
-            LedgerContent(context, colors, backgroundColor, sections, todayCount, totalCount, windowDays, iconRes, fontScale)
+            if (selected == null) {
+                AgendaView(app, chrome, settings, initialNotes, today)
+            } else {
+                // Keyed on the query (not the search's id or name) so a rename
+                // keeps the running collection, while an edited query restarts it.
+                val results by remember(selected.query) { WidgetSearch.results(app, selected.query) }
+                    .collectAsState(initial = initialResults.takeIf { selected.query == initialSelection?.query })
+                val rows = remember(results, WidgetPrefs(settings), today) {
+                    results?.let { headings ->
+                        try {
+                            WidgetViews.searchRows(headings, today, settings)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "failed to build saved-search rows; showing no results", e)
+                            emptyList()
+                        }
+                    }
+                }
+                SavedSearchView(chrome, selected.name, selected.query, rows)
+            }
         }
     }
 }
@@ -204,35 +231,61 @@ class LedgerWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = LedgerWidget()
 }
 
+/** What every view's frame and header need, resolved once per render. */
+private class WidgetChrome(
+    val context: Context,
+    val colors: GroveColors,
+    val backgroundColor: Color,
+    val iconRes: Int,
+    val fontScale: Float,
+    val appWidgetId: Int,
+)
+
 @Composable
-private fun LedgerContent(
-    context: Context,
-    colors: GroveColors,
-    backgroundColor: Color,
-    sections: List<LedgerBuckets.Section>,
-    todayCount: Int,
-    totalCount: Int,
-    windowDays: Int,
-    iconRes: Int,
-    fontScale: Float,
+private fun AgendaView(
+    app: GroveApplication,
+    chrome: WidgetChrome,
+    settings: GroveSettings,
+    initialNotes: List<PlannedNoteRow>,
+    today: LocalDate,
 ) {
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .cornerRadius(22.dp)
-            .background(ColorProvider(backgroundColor)),
+    val notes by app.database.indexDao().plannedNotes().collectAsState(initial = initialNotes)
+    val windowDays = settings.agendaWidgetDaysAhead
+    // Bucketing walks every planned note's SCHEDULED/DEADLINE timestamp
+    // (OrgTimestamp.parse). A single unparseable one used to take the
+    // whole composition down with it: Glance has no per-widget crash UI
+    // of its own, so the AppWidgetHost fell back to its generic "Can't
+    // show content" placeholder, and it stayed that way on every
+    // subsequent redraw (delete/re-add doesn't touch the vault data that
+    // triggered it). Degrade to an empty ledger instead of taking the
+    // whole widget down with it; the in-app Agenda screen already
+    // guides the user to the underlying data problem.
+    // Memoized on the actual inputs: provideGlance's distinctUntilChangedBy already
+    // keeps an unrelated settings write from reaching this composition,
+    // but this also skips the O(notes) re-bucket on a recomposition that
+    // touches neither notes nor these fields.
+    val sections = remember(notes, WidgetPrefs(settings), today) {
+        try {
+            val openNotes = notes.map { it.toNoteMeta() }.filter { !it.isDoneKeyword }
+            LedgerBuckets.build(openNotes, today, windowDays, settings)
+        } catch (e: Exception) {
+            Log.e(TAG, "failed to build ledger sections; showing empty widget", e)
+            emptyList()
+        }
+    }
+    val todayCount = sections.firstOrNull { it.key.startsWith("Today") }?.count ?: 0
+    val totalCount = sections.sumOf { it.count }
+    val context = chrome.context
+    val colors = chrome.colors
+    val fontScale = chrome.fontScale
+
+    WidgetFrame(
+        chrome,
+        title = context.getString(R.string.widget_view_agenda),
+        subtitle = "$todayCount today · $totalCount in $windowDays days",
     ) {
-        HeaderRow(context, colors, todayCount, totalCount, windowDays, iconRes, fontScale)
         if (sections.isEmpty()) {
-            Box(
-                modifier = GlanceModifier.fillMaxSize().padding(24.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "Nothing scheduled",
-                    style = TextStyle(color = ColorProvider(colors.ink3), fontSize = sp(12f, fontScale)),
-                )
-            }
+            EmptyBody(colors, "Nothing scheduled", fontScale)
         } else {
             LazyColumn(modifier = GlanceModifier.fillMaxSize().padding(bottom = 10.dp)) {
                 sections.forEach { section ->
@@ -245,7 +298,7 @@ private fun LedgerContent(
                     }
                     if (hidden > 0) {
                         item(itemId = ("more-" + section.key).hashCode().toLong()) {
-                            MoreRow(context, colors, hidden, fontScale)
+                            MoreRow(context, colors, hidden, agendaIntent(context), fontScale)
                         }
                     }
                 }
@@ -254,55 +307,128 @@ private fun LedgerContent(
     }
 }
 
+/**
+ * One saved search's results: a single flat list (no day sections) in the
+ * Search screen's own order, capped at [MAX_ROWS_PER_SECTION] for the same
+ * binder-size reason as each agenda section. [rows] null means the first
+ * results haven't arrived yet, which renders as an empty body rather than a
+ * premature "No results".
+ */
+@Composable
+private fun SavedSearchView(chrome: WidgetChrome, name: String, query: String, rows: List<AgendaRow>?) {
+    val context = chrome.context
+    val colors = chrome.colors
+    val fontScale = chrome.fontScale
+    WidgetFrame(
+        chrome,
+        title = name,
+        // No-break space while loading, so the header keeps its height.
+        subtitle = rows?.let { context.resources.getQuantityString(R.plurals.widget_result_count, it.size, it.size) } ?: "\u00A0",
+    ) {
+        when {
+            rows == null -> Box(modifier = GlanceModifier.fillMaxSize()) {}
+            rows.isEmpty() -> EmptyBody(colors, context.getString(R.string.widget_no_results), fontScale)
+            else -> {
+                val (visibleRows, hidden) = LedgerBuckets.truncate(rows, MAX_ROWS_PER_SECTION)
+                LazyColumn(modifier = GlanceModifier.fillMaxSize().padding(top = 4.dp, bottom = 10.dp)) {
+                    items(visibleRows, itemId = { it.fileName.hashCode() * 31L + it.lineIndex }) { row ->
+                        LedgerRow(context, colors, row, fontScale)
+                    }
+                    if (hidden > 0) {
+                        item(itemId = "more-search".hashCode().toLong()) {
+                            MoreRow(context, colors, hidden, searchIntent(context, query), fontScale)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WidgetFrame(chrome: WidgetChrome, title: String, subtitle: String, body: @Composable () -> Unit) {
+    Column(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .cornerRadius(22.dp)
+            .background(ColorProvider(chrome.backgroundColor)),
+    ) {
+        HeaderRow(chrome, title, subtitle)
+        body()
+    }
+}
+
+@Composable
+private fun EmptyBody(colors: GroveColors, text: String, fontScale: Float) {
+    Box(
+        modifier = GlanceModifier.fillMaxSize().padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            style = TextStyle(color = ColorProvider(colors.ink3), fontSize = sp(12f, fontScale)),
+        )
+    }
+}
+
 /** Deep link to the in-app Agenda screen. */
 private fun agendaIntent(context: Context) =
     Intent(Intent.ACTION_VIEW, AGENDA_URI).setClass(context, MainActivity::class.java)
+
+/** Deep link to the in-app Search screen with [query] already run. */
+private fun searchIntent(context: Context, query: String) =
+    Intent(Intent.ACTION_VIEW, DeepLinks.search(query).toUri()).setClass(context, MainActivity::class.java)
 
 /** Scales a base widget text size (sp) by the user's Font size lever (Settings § Agenda › Widget). */
 private fun sp(base: Float, scale: Float) = (base * scale).sp
 
 @Composable
-private fun HeaderRow(
-    context: Context,
-    colors: GroveColors,
-    todayCount: Int,
-    totalCount: Int,
-    windowDays: Int,
-    iconRes: Int,
-    fontScale: Float,
-) {
+private fun HeaderRow(chrome: WidgetChrome, title: String, subtitle: String) {
+    val context = chrome.context
+    val colors = chrome.colors
+    val fontScale = chrome.fontScale
     Row(
         modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The app icon opens the app as-is; the title block deep-links to the
-        // Agenda screen, like [MoreRow].
+        // The app icon deep-links to the Agenda screen whichever view this
+        // widget shows; the title block opens the view picker.
         Row(
             modifier = GlanceModifier.defaultWeight(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(
-                provider = ImageProvider(iconRes),
-                contentDescription = "Open ${context.getString(R.string.app_name)}",
+                provider = ImageProvider(chrome.iconRes),
+                contentDescription = context.getString(R.string.widget_open_agenda, context.getString(R.string.app_name)),
                 modifier = GlanceModifier
                     .size(22.dp)
                     .cornerRadius(7.dp)
-                    .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
+                    .clickable(actionStartActivity(agendaIntent(context))),
             )
             // Start padding instead of a Spacer so the 10dp gap is part of the
             // title's tap target rather than a dead zone.
+            val changeView = context.getString(R.string.widget_view_change)
             Column(
                 modifier = GlanceModifier
                     .defaultWeight()
                     .padding(start = 10.dp)
-                    .clickable(actionStartActivity(agendaIntent(context))),
+                    .semantics { contentDescription = "$title, $changeView" }
+                    .clickable(actionStartActivity(WidgetViewPickerActivity.intent(context, chrome.appWidgetId))),
             ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        title,
+                        maxLines = 1,
+                        style = TextStyle(color = ColorProvider(colors.ink), fontSize = sp(13.5f, fontScale), fontWeight = FontWeight.Medium),
+                    )
+                    Spacer(modifier = GlanceModifier.width(4.dp))
+                    Text(
+                        context.getString(R.string.widget_view_caret),
+                        style = TextStyle(color = ColorProvider(colors.ink3), fontSize = sp(11f, fontScale)),
+                    )
+                }
                 Text(
-                    "Agenda",
-                    style = TextStyle(color = ColorProvider(colors.ink), fontSize = sp(13.5f, fontScale), fontWeight = FontWeight.Medium),
-                )
-                Text(
-                    "$todayCount today · $totalCount in $windowDays days",
+                    subtitle,
                     style = TextStyle(
                         color = ColorProvider(colors.ink2),
                         fontSize = sp(10.5f, fontScale),
@@ -352,23 +478,24 @@ private fun SectionHeader(colors: GroveColors, section: LedgerBuckets.Section, f
 }
 
 /**
- * Terminates a section truncated at [MAX_ROWS_PER_SECTION]: the section header
- * above still shows the true, untruncated count, so this is what makes the gap
- * between that number and the visible rows legible instead of the list just
- * quietly stopping short. Taps deep-link to the in-app Agenda screen, which
- * renders the same rows with no cap.
+ * Terminates a list truncated at [MAX_ROWS_PER_SECTION]: the count above (an
+ * agenda section header, or a saved search's "N results") still shows the true,
+ * untruncated number, so this is what makes the gap between that number and the
+ * visible rows legible instead of the list just quietly stopping short. Taps
+ * open [intent]: the in-app Agenda screen or Search screen, which render the
+ * same rows with no cap.
  */
 @Composable
-private fun MoreRow(context: Context, colors: GroveColors, hidden: Int, fontScale: Float) {
+private fun MoreRow(context: Context, colors: GroveColors, hidden: Int, intent: Intent, fontScale: Float) {
     Box(
         modifier = GlanceModifier
             .fillMaxWidth()
             .padding(horizontal = 13.dp, vertical = 9.dp)
-            .clickable(actionStartActivity(agendaIntent(context))),
+            .clickable(actionStartActivity(intent)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            "+$hidden more · view all",
+            context.getString(R.string.widget_more_view_all, hidden),
             style = TextStyle(color = ColorProvider(colors.accent), fontSize = sp(12f, fontScale), fontWeight = FontWeight.Medium),
         )
     }
@@ -399,7 +526,9 @@ private fun LedgerRow(context: Context, colors: GroveColors, row: AgendaRow, fon
             modifier = GlanceModifier.height(LEDGER_LINE_HEIGHT).width(14.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (row.hasDoneAffordance) {
+            // A saved search can list headings that are already done; they get
+            // no circle (there's nothing left to mark), just the keyword pill.
+            if (row.hasDoneAffordance && !row.isDone) {
                 // No border() modifier in Glance 1.1.1: the "hollow ring" is faked
                 // by centering a smaller surface-colored circle over a light-grey one.
                 // The clickable + cornerRadius(7dp) live on this 14dp square so the

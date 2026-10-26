@@ -30,6 +30,9 @@ object DeepLinks {
 
     fun agenda(): String = "$SCHEME://${Routes.AGENDA}"
 
+    /** The Search screen with [query] already run (the Agenda widget's saved-search view). */
+    fun search(query: String): String = "$SCHEME://${Routes.search(query)}"
+
     /** [encodedNoteId] is already [Routes.encode]d. */
     fun note(encodedNoteId: String, mode: String, isNew: Boolean): String =
         "$SCHEME://note/$encodedNoteId?mode=$mode&isNew=$isNew"
