@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -177,6 +178,9 @@ private fun QuickAddSheet(onDismiss: () -> Unit) {
                 .padding(bottom = 14.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(MaterialTheme.grove.surface)
+                // Swallow taps on the sheet's own empty space so they don't fall
+                // through to the scrim and dismiss; children consume their own taps first.
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
                 .padding(13.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
