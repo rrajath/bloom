@@ -132,6 +132,12 @@ import kotlin.time.Duration.Companion.milliseconds
  * Confirming commits all three at once — [onConfirm] takes the triple — so the
  * [focus] tab only decides where you start, not what gets written.
  *
+ * For several notes at once (outline bulk edit), [mixed] names the kinds whose
+ * dates differ between them. Such a tab starts empty and offers "Remove from
+ * all"; [onConfirmBulk], when set, replaces [onConfirm] and also receives the
+ * kinds the user removed, since an empty mixed field and a removed one look the
+ * same by value.
+ *
  * The dedicated active-timestamp line is the only one this editor manages;
  * active stamps a note carries inline in its prose are shown as read-mode chips
  * but are edited in the raw editor, so the caller passes in only
@@ -179,6 +185,10 @@ fun PlanningDatesScreen(
     focus: PlanningKind,
     onDismiss: () -> Unit,
     onConfirm: (scheduled: OrgTimestamp?, deadline: OrgTimestamp?, active: List<OrgTimestamp>) -> Unit,
+    mixed: Set<PlanningKind> = emptySet(),
+    onConfirmBulk: (
+        (scheduled: OrgTimestamp?, deadline: OrgTimestamp?, active: List<OrgTimestamp>, removed: Set<PlanningKind>) -> Unit
+    )? = null,
 ) {
     val c = MaterialTheme.grove
     val today = remember { LocalDate.now() }
@@ -197,6 +207,8 @@ fun PlanningDatesScreen(
     var shorthand by remember { mutableStateOf("") }
     // Transient one-liner under the calendar ("Removed …", "Cleared …").
     var note by remember { mutableStateOf("") }
+    // Mixed kinds the user chose to remove from every selected note.
+    var removed by remember { mutableStateOf(emptySet<PlanningKind>()) }
 
     val startDate = when (focus) {
         PlanningKind.SCHEDULED -> scheduled?.date
@@ -428,6 +440,7 @@ fun PlanningDatesScreen(
                                 acts.clear()
                                 actI = 0
                                 note = ""
+                                removed = mixed
                             }
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                     )
@@ -534,6 +547,28 @@ fun PlanningDatesScreen(
                         fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2, lineHeight = 16.sp,
                         modifier = Modifier.padding(horizontal = 3.dp).padding(top = 10.dp),
                     )
+
+                    if (count == 0 && tab in mixed && tab !in removed) {
+                        Text(
+                            "Selected notes have different ${tab.name} dates.",
+                            fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2, lineHeight = 16.sp,
+                            modifier = Modifier.padding(horizontal = 3.dp).padding(top = 14.dp),
+                        )
+                        // Same chrome as the header's Clear action.
+                        Text(
+                            "Remove from all",
+                            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.5.sp, color = c.ink2,
+                            modifier = Modifier
+                                .padding(top = 2.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .clickable {
+                                    removed = removed + tab
+                                    note = "${tab.name} will be removed from every selected note."
+                                }
+                                .padding(horizontal = 3.dp, vertical = 8.dp),
+                        )
+                    }
 
                     if (count > 0) {
                         Text(
@@ -642,7 +677,10 @@ fun PlanningDatesScreen(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(13.dp))
                             .background(c.accent)
-                            .clickable { onConfirm(sched, dead, acts.toList()) }
+                            .clickable {
+                                onConfirmBulk?.invoke(sched, dead, acts.toList(), removed)
+                                    ?: onConfirm(sched, dead, acts.toList())
+                            }
                             .padding(vertical = 13.dp),
                     )
                 }

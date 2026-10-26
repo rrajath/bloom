@@ -585,6 +585,81 @@ object OrgMutations {
         return shiftSubtreeLevels(doc, h, +1)
     }
 
+    /** A structural outline edit that [applyToEach] can run on several headings at once. */
+    enum class StructureOp { MOVE_UP, MOVE_DOWN, PROMOTE, DEMOTE, DELETE }
+
+    /**
+     * Result of [applyToEach]: the final text and parse, how many headings the op
+     * was [applied] to out of [attempted], and [remap], which carries a line index
+     * of the original document to where that line sits now (null once deleted).
+     */
+    class BulkEdit(
+        val text: String,
+        val doc: OrgDocument,
+        val applied: Int,
+        val attempted: Int,
+        val remap: (Int) -> Int?,
+    )
+
+    /**
+     * Run [op] on each heading starting at one of [lines], one heading at a time,
+     * re-parsing in between so every step sees the previous step's result.
+     *
+     * A selected heading inside another selected heading's subtree rides along
+     * with that ancestor rather than being acted on again (a promote would
+     * otherwise shift it twice). Moves go in the direction of travel (top-down
+     * for up, bottom-up for down) and never swap two selected siblings with each
+     * other, so a run of adjacent selected siblings moves as a block and stops
+     * as a block. Demote likewise never nests a selected heading under a selected
+     * previous sibling, so a block whose first heading can't demote stays put
+     * whole. Returns null when [op] applied to none of them.
+     */
+    fun applyToEach(doc: OrgDocument, lines: Set<Int>, op: StructureOp): BulkEdit? {
+        val roots = selectedRoots(doc, lines)
+        val ordered = roots.map { it.lineIndex }.sorted()
+            .let { if (op == StructureOp.MOVE_DOWN) it.reversed() else it }
+
+        var cur = doc
+        var remap: (Int) -> Int? = { it }
+        var applied = 0
+        for (original in ordered) {
+            val line = remap(original) ?: continue
+            val h = cur.headlines.firstOrNull { it.lineIndex == line } ?: continue
+            val step: Pair<String, (Int) -> Int?> = when (op) {
+                StructureOp.PROMOTE -> promoteSubtree(cur, h)?.let { it to { l: Int -> l } }
+                StructureOp.DEMOTE -> {
+                    val siblings = siblingsOf(cur, h)
+                    val previous = siblings.getOrNull(siblings.indexOfFirst { it.lineIndex == h.lineIndex } - 1)
+                    val selectedNow = ordered.mapNotNull(remap).toSet()
+                    if (previous != null && previous.lineIndex in selectedNow) null
+                    else demoteSubtree(cur, h)?.let { it to { l: Int -> l } }
+                }
+                StructureOp.DELETE -> {
+                    val start = h.lineIndex
+                    val end = cur.subtreeEndLine(h)
+                    deleteSubtree(cur, h) to { l: Int ->
+                        when {
+                            l < start -> l
+                            l < end -> null
+                            else -> l - (end - start)
+                        }
+                    }
+                }
+                StructureOp.MOVE_UP, StructureOp.MOVE_DOWN -> {
+                    val delta = if (op == StructureOp.MOVE_UP) -1 else +1
+                    val selectedNow = ordered.mapNotNull(remap).toSet()
+                    moveTracked(cur, h, delta, selectedNow)
+                }
+            } ?: continue
+            cur = OrgParser.parse(step.first, doc.keywords)
+            val previous = remap
+            remap = { l -> previous(l)?.let(step.second) }
+            applied++
+        }
+        if (applied == 0) return null
+        return BulkEdit(cur.text, cur, applied, roots.size, remap)
+    }
+
     /**
      * Insert [subtree] into [doc], releveled: as the last child of [target],
      * or appended at the end of the file at level 1 when [target] is null.
@@ -619,6 +694,123 @@ object OrgMutations {
             redoc.headlines.firstOrNull { it.lineIndex == adjusted } ?: return null
         }
         return refileInsert(redoc, target, subtree)
+    }
+
+    /**
+     * The headings at [lines] that aren't inside another one's subtree, in
+     * document order: a selected heading under a selected ancestor travels with
+     * that ancestor's subtree in any subtree operation.
+     */
+    fun selectedRoots(doc: OrgDocument, lines: Set<Int>): List<OrgHeadline> {
+        val selected = doc.headlines.filter { it.lineIndex in lines }
+        return selected.filter { h ->
+            selected.none { o -> o.lineIndex < h.lineIndex && h.lineIndex < doc.subtreeEndLine(o) }
+        }
+    }
+
+    /**
+     * [doc] with the subtrees of [selectedRoots] lifted out: what's left, the
+     * lifted subtree texts in document order, and [remap], which carries a line
+     * of [doc] to its line in what's left (null inside a lifted subtree).
+     */
+    class LiftedSubtrees(val doc: OrgDocument, val subtrees: List<String>, val remap: (Int) -> Int?)
+
+    fun liftSubtrees(doc: OrgDocument, lines: Set<Int>): LiftedSubtrees {
+        val roots = selectedRoots(doc, lines)
+        val ranges = roots.map { it.lineIndex until doc.subtreeEndLine(it) }
+        val kept = doc.lines.filterIndexed { i, _ -> ranges.none { i in it } }
+        return LiftedSubtrees(
+            doc = OrgParser.parse(kept.joinToString("\n"), doc.keywords),
+            subtrees = roots.map { subtreeText(doc, it) },
+            remap = { l ->
+                if (ranges.any { l in it }) null
+                else l - ranges.filter { it.last < l }.sumOf { it.last - it.first + 1 }
+            },
+        )
+    }
+
+    /**
+     * Insert each of [subtrees], in order, as the last children of the heading
+     * at [targetLine] in [doc] (appended at level 1 when null). Every insert
+     * lands below the target, so its line holds throughout. Null when
+     * [targetLine] isn't a heading.
+     */
+    fun insertEach(doc: OrgDocument, targetLine: Int?, subtrees: List<String>): OrgDocument? {
+        var cur = doc
+        for (subtree in subtrees) {
+            val target = targetLine?.let { line -> cur.headlines.firstOrNull { it.lineIndex == line } ?: return null }
+            cur = OrgParser.parse(refileInsert(cur, target, subtree).first, doc.keywords)
+        }
+        return cur
+    }
+
+    /**
+     * [refileWithinFile] for the headings at [lines] at once: their subtrees end
+     * up under the heading at [targetLine] (or the top level) in their original
+     * order. Null when [targetLine] lies inside one of the subtrees being moved.
+     */
+    fun refileEachWithinFile(doc: OrgDocument, lines: Set<Int>, targetLine: Int?): OrgDocument? {
+        val lifted = liftSubtrees(doc, lines)
+        val target = targetLine?.let { lifted.remap(it) ?: return null }
+        return insertEach(lifted.doc, target, lifted.subtrees)
+    }
+
+    /**
+     * Apply [edit] to each heading starting at one of [lines], for edits confined
+     * to a heading's own section that never add or remove headings (keyword,
+     * priority, tags, planning, drawers). They run bottom-up, so each edit leaves
+     * the lines of the headings still to come untouched. [edit] returns null to
+     * leave a heading as it is. [BulkEdit.remap] carries any heading line of
+     * [doc] to that heading's line now; other lines map to null. Returns null
+     * when no heading changed.
+     */
+    fun editEach(doc: OrgDocument, lines: Set<Int>, edit: (OrgDocument, OrgHeadline) -> String?): BulkEdit? {
+        val targets = doc.headlines.filter { it.lineIndex in lines }.sortedByDescending { it.lineIndex }
+        var cur = doc
+        var applied = 0
+        for (target in targets) {
+            val h = cur.headlines.getOrNull(target.index) ?: continue
+            val text = edit(cur, h)?.takeIf { it != cur.text } ?: continue
+            cur = OrgParser.parse(text, doc.keywords)
+            applied++
+        }
+        if (applied == 0) return null
+        val indexByLine = doc.headlines.associate { it.lineIndex to it.index }
+        val final = cur
+        return BulkEdit(cur.text, cur, applied, targets.size) { l ->
+            indexByLine[l]?.let { final.headlines.getOrNull(it)?.lineIndex }
+        }
+    }
+
+    /**
+     * [moveSubtree], plus where each line of [doc] lands afterwards. Null at an
+     * edge or when the sibling to swap with is in [selected].
+     */
+    private fun moveTracked(
+        doc: OrgDocument,
+        h: OrgHeadline,
+        delta: Int,
+        selected: Set<Int>,
+    ): Pair<String, (Int) -> Int?>? {
+        val siblings = siblingsOf(doc, h)
+        val other = siblings.getOrNull(siblings.indexOfFirst { it.lineIndex == h.lineIndex } + delta) ?: return null
+        if (other.lineIndex in selected) return null
+        val first = if (other.lineIndex < h.lineIndex) other else h
+        val second = if (other.lineIndex < h.lineIndex) h else other
+        val f = first.lineIndex
+        val fe = doc.subtreeEndLine(first)
+        val s = second.lineIndex
+        val se = doc.subtreeEndLine(second)
+        val (text, _) = moveSubtree(doc, h, delta) ?: return null
+        // The swap rebuilds [f, se) as second ++ gap ++ first.
+        return text to { l: Int ->
+            when (l) {
+                in s until se -> f + (l - s)
+                in fe until s -> f + (se - s) + (l - fe)
+                in f until fe -> f + (se - fe) + (l - f)
+                else -> l
+            }
+        }
     }
 
     private fun siblingsOf(doc: OrgDocument, h: OrgHeadline): List<OrgHeadline> =

@@ -70,14 +70,14 @@ fun RefileSheet(
     val c = MaterialTheme.grove
     val doc = state.pickedDoc
 
-    // For a same-file refile, rows inside the source's own subtree are invalid targets.
+    // For a same-file refile, rows inside a source's own subtree are invalid targets.
     // No exclusion at all when there's no active note (e.g. Settings' archive-location picker).
-    val excluded: IntRange = remember(state.pickedFile, state.sourceLine, currentDoc) {
+    val excluded: List<IntRange> = remember(state.pickedFile, state.sourceLines, currentDoc) {
         if (currentDoc != null && state.pickedFile == currentFileName) {
-            currentDoc.headlineAtLine(state.sourceLine)
-                ?.let { it.lineIndex until currentDoc.subtreeEndLine(it) }
-                ?: IntRange.EMPTY
-        } else IntRange.EMPTY
+            state.sourceLines.mapNotNull { line ->
+                currentDoc.headlineAtLine(line)?.let { it.lineIndex until currentDoc.subtreeEndLine(it) }
+            }
+        } else emptyList()
     }
 
     val crumb = when {
@@ -145,7 +145,7 @@ fun RefileSheet(
                     val level = state.path.lastOrNull()?.let { doc.headlineAtLine(it) }
                     val rows = (level?.let { doc.directChildren(it) }
                         ?: doc.headlines.filter { doc.parent(it) == null })
-                        .filter { it.lineIndex !in excluded }
+                        .filter { h -> excluded.none { h.lineIndex in it } }
                     if (rows.isEmpty()) {
                         item {
                             Text(
