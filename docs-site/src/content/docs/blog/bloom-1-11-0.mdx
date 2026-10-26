@@ -5,22 +5,49 @@ date: 2026-10-19T12:00:00Z
 authors: rrajath
 tags:
   - release
-excerpt: Grove has a new name. 1.11.0 renames the app to Bloom, adds the Bloom Light and Bloom Dark themes, and introduces bloom:// deep links.
+excerpt: Grove has a new name. 1.11.0 renames the app to Bloom, adds the Bloom Light and Bloom Dark themes, introduces bloom:// deep links, and gives the default icon and widgets a new coat of color.
 ---
 
-Grove has a new name: **Bloom**. It's the same app with the same notes and settings, and there's nothing to migrate. Update as usual from F-Droid, Google Play, or GitHub Releases and you'll keep everything you had.
+1.11.0 is a release about identity more than features. The app you've been using to carry your org files around has a new name, a new pair of themes built around it, and a new look for the icon you tap to open it. Under all of that, nothing about your notes has changed: your `.org` files, your settings and your shortcuts all carry over exactly as they were.
 
-## Bloom Light and Bloom Dark
+## Grove is now Bloom
 
-1.11.0 adds two new themes, Bloom Light and Bloom Dark. Each one has a matching launcher icon, so with **Sync App Icon with Theme** on, your home-screen icon changes along with the theme. New installs start on Bloom Light, and the Grove Light and Grove Dark themes are still there under their old names.
+Grove is now called **Bloom**. It's the same app with the same notes and the same settings, and there's nothing to migrate. The app's package ID hasn't changed, so F-Droid, Google Play and GitHub Releases all update it in place, just like any other release.
 
-The default app icon, the Agenda widget's icon, and the Capture widget now use Bloom Light colors too.
+The new name shows up everywhere you see the app: the launcher label, the app's own screens, and the store listings, which end with a "Formerly known as Grove" line so anyone searching for the old name still finds it. A few smaller things follow the name too:
 
-See [Themes & Appearance](/features/themes-appearance) for the full list of themes.
+- Settings exports are now saved as `bloom-settings.json` by default. Older `grove-settings.json` backups still import as before.
+- The bug-report link in the app points at the renamed repository, [rrajath/bloom](https://github.com/rrajath/bloom).
+- If you download APKs from GitHub Releases, the files are now named `bloom-v<version>-release.apk`.
+- The documentation and project site has moved to the Bloom name too, at [bloom.rrajath.com](https://bloom.rrajath.com).
+
+One thing deliberately keeps the old name: the Grove Light and Grove Dark themes. They're theme names rather than the app's name, so if you use one of them, it's still there under the name you know.
+
+## Meet Bloom Light and Bloom Dark
+
+A new name deserved its own colors, so 1.11.0 adds two new themes: **Bloom Light** and **Bloom Dark**. They're a matched "Rosewater" pair. Bloom Light sets dusky violet ink on a warm, rosy paper with a dusty-rose accent, and Bloom Dark carries the same palette onto a deep plum night background with a soft coral accent.
+
+Like every other theme in Bloom, each one comes with a matching launcher icon. With **Sync App Icon with Theme** turned on, your home-screen icon switches to the Bloom Light or Bloom Dark variant along with the theme. Both themes have their own swatches in the theme picker, which wears a small NEW badge until you've visited it.
+
+New installs now start on Bloom Light. If you've been using the app already, your theme stays exactly where you left it. Bloom won't re-theme an existing install just because a new default arrived.
+
+See [Themes & Appearance](/features/themes-appearance) for the full list of themes and how icon syncing works.
 
 ## New bloom:// deep links
 
-Links into the app now use the `bloom://` scheme. Existing `grove://` links and pinned shortcuts keep working, so anything you set up before the rename doesn't need to change.
+Bloom can be opened at a specific screen through deep links, which are used by the home-screen widgets, notifications, launcher shortcuts and the capture links you can copy from a capture template. Those links now use the new `bloom://` scheme.
+
+If you've wired up automations, pinned a launcher shortcut, or saved a capture link from before the rename, you don't have to touch any of it. `grove://` is a permanent alias: every screen that answers to `bloom://` also answers to `grove://`, so old links keep working indefinitely. The app's own dynamic launcher shortcuts are republished on launch, so they move to `bloom://` by themselves.
+
+## A Bloom-colored default icon and widgets
+
+The default app icon, the one you see when **Sync App Icon with Theme** is off, now uses Bloom Light colors: a dusty-rose asterisk on a pale rose tile, in place of Grove's brown on cream. The same default shows up in a few other places, so they've changed along with it:
+
+- The icon in the Agenda widget's header.
+- The tint of Bloom's notification icon when icon syncing is off.
+- The Capture widget, whose button now uses the Bloom accent color in both light and dark mode.
+
+If you have icon syncing turned on, nothing changes for you here. Your icon still follows your theme.
 
 ## Full changelog
 
