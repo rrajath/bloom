@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 
 import starlight from '@astrojs/starlight';
+import starlightBlog from 'starlight-blog';
 
 import cloudflare from '@astrojs/cloudflare';
 
@@ -10,6 +11,9 @@ const FONTS_LINK =
 
 // https://astro.build/config
 export default defineConfig({
+  // Needed for the blog's RSS feed (/blog/rss.xml) and the sitemap's absolute URLs.
+  site: 'https://bloom.rrajath.com',
+
   server: {
     port: 4321,
   },
@@ -18,6 +22,19 @@ export default defineConfig({
     starlight({
       title: 'Bloom',
       description: 'Feature documentation for Bloom, a native Android org-mode note-taking app.',
+      // Release notes blog: posts live in src/content/docs/blog/, one per release.
+      // Pinned to 0.29.x because 0.30 requires Starlight 0.42. The plugin's
+      // header-end link is rendered by our ThemeSelect override (it skips its
+      // own override when one already exists).
+      plugins: [
+        starlightBlog({
+          title: 'Blog',
+          postCount: 10,
+          authors: {
+            rrajath: { name: 'Rajath Ramakrishna', url: 'https://github.com/rrajath' },
+          },
+        }),
+      ],
       // Theme-aware app-icon mark beside the "Bloom" wordmark (replacesTitle stays
       // off). Same squircle asterisk as the landing page's buffer bar; the source
       // SVGs are shared with public/bloom-icon-*.svg (which the landing <img> tags
@@ -111,6 +128,7 @@ export default defineConfig({
             { label: 'Backup (Export / Import)', link: '/features/backup-export-import' },
           ],
         },
+        { label: 'Blog', link: '/blog/' },
         { label: 'Privacy Policy', link: '/privacy-policy' },
       ],
     }),
@@ -121,7 +139,10 @@ export default defineConfig({
   // and 404s unless that's set up. This is a static site with a fixed set of
   // known screenshots, so optimize them at build time instead; no runtime
   // dependency needed.
-  adapter: cloudflare({ imageService: 'compile' }),
+  // prerenderEnvironment 'node': starlight-blog renders excerpts/RSS through
+  // satteri, whose native binding can't load in workerd (its browser/wasi
+  // fallback fails to resolve), so build the static pages in Node instead.
+  adapter: cloudflare({ imageService: 'compile', prerenderEnvironment: 'node' }),
 
   vite: {
     plugins: [

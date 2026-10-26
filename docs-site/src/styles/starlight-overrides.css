@@ -71,6 +71,13 @@
   font-family: var(--font-mono);
 }
 
+/* starlight-blog's header "Blog" link is UI chrome: mono, like the theme pill
+   beside it (DESIGN.md's No-Substitution Rule). */
+.sl-blog-header-link {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
 /* App screenshots are captured at full device resolution (1280px+ wide);
    cap them at a fixed, readable width rather than a fraction of the content
    column (which shrinks/grows unpredictably with viewport width). Themed

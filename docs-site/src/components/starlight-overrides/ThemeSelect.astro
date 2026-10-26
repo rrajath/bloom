@@ -1,10 +1,14 @@
 ---
 // Full replacement of Starlight's default 3-way (dark/light/auto) <select>
 // picker with the same two-state "M-x bloom-<label>-theme" pill used on the
-// landing page, wired to the same shared theme state.
+// landing page, wired to the same shared theme state. Also renders
+// starlight-blog's header "Blog" link, since the plugin only injects it
+// through its own ThemeSelect override, which this one replaces.
+import StarlightBlogThemeSelect from 'starlight-blog/components/ThemeSelect.astro';
 import '../../styles/theme-pill.css';
 ---
 
+<StarlightBlogThemeSelect />
 <button type="button" class="bloom-theme-pill" data-bloom-theme-toggle>
   M-x <span class="bloom-theme-pill__label" data-bloom-theme-label>bloom-dark-theme</span>
 </button>

@@ -16,7 +16,8 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.1",
     "@astrojs/starlight": "^0.41.6",
-    "astro": "^7.1.6"
+    "astro": "^7.1.6",
+    "starlight-blog": "^0.29.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
