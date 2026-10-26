@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -192,6 +193,7 @@ private fun QuickAddSheet(onDismiss: () -> Unit) {
                     modifier = Modifier.weight(1f).focusRequester(focusRequester),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     textStyle = TextStyle(color = MaterialTheme.grove.ink, fontSize = 15.sp, fontFamily = PlexSans),
+                    cursorBrush = SolidColor(MaterialTheme.grove.accent),
                     decorationBox = { inner ->
                         if (text.isEmpty()) {
                             Text("What needs doing?", color = MaterialTheme.grove.ink3, fontSize = 15.sp, fontFamily = PlexSans)

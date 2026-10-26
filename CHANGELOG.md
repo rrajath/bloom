@@ -70,6 +70,7 @@ re-uploads the APKs to the existing release instead of failing.
 ### Fixed
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.
 - Tapping the target label or empty space in the widget's quick add composer no longer closes it.
+- The quick add composer's text cursor now uses the theme's accent color instead of black.
 
 ## [1.11.0] - 2026-10-19
 
