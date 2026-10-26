@@ -224,6 +224,18 @@ Agenda ledger, or the reverse).
   `IndexDao.notesChanged()` signal, the same in-composition collection pattern
   as the agenda view's `plannedNotes()`.
 
+  The picker also offers the four Quick Starts, keyed by their reserved
+  `QuickStartOverrides` ids. `ui/search/QuickStarts` is the one source for what
+  a card searches: its override row's query, else its built-in (query text for
+  Overdue; a `SearchFilters` preset for the rest, which the Search screen
+  applies as filters and the widget runs as the `FilterExpression.of` mirror of
+  that preset). Long lists page in place: each list (agenda day section, or a
+  search view's results) shows 20 rows and "+N more" runs `LoadMoreAction`,
+  which stores per-list page counts in the widget's Glance state
+  (`EXPANSION_VIEW_KEY`/`EXPANSION_PAGES_KEY`, tied to the view they were made
+  in) and calls `update`. `WidgetPaging.plan` caps rendered rows at 100 across
+  the whole widget for the RemoteViews binder limit.
+
 ## Reminders (`reminders/`)
 
 A system notification fires when a heading's SCHEDULED, DEADLINE, or bare active timestamp arrives. Whether it's worded as a task ("due now") or an event ("starting now"), and which actions it carries, is decided purely by `ReminderEntity.isTask` — true only when the heading carries a live TODO keyword, independent of which timestamp field triggered the reminder. Tapping the notification body instead deep-links into the app (`bloom://reminder/...` → `ReminderResolveScreen` → the note in read mode).

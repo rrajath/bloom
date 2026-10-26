@@ -16,10 +16,25 @@
     <string name="widget_view_caret">▾</string>
     <string name="widget_view_picker_title">Show in widget</string>
     <string name="widget_view_change">Change widget view</string>
+    <string name="widget_view_current">Current view</string>
     <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
     <string name="widget_open_agenda">Open Agenda in %1$s</string>
     <string name="widget_no_results">No results</string>
-    <string name="widget_more_view_all">+%1$d more · view all</string>
+    <!-- "+N more" (load the next page in the widget) and "view all" (open the app) are separate tap targets. -->
+    <string name="widget_load_more">+%1$d more</string>
+    <string name="widget_more_separator">·</string>
+    <string name="widget_view_all">view all</string>
+    <!-- View picker subtitle for the Agenda row; %1$d is Settings › Widget › Days ahead. -->
+    <plurals name="widget_view_agenda_window">
+        <item quantity="one">Overdue + next %1$d day</item>
+        <item quantity="other">Overdue + next %1$d days</item>
+    </plurals>
+    <!-- Search's Quick Start cards (ui/search/QuickStarts.kt), also offered as Agenda widget views.
+         Keep in step with QuickStartOverrides.idForName, which matches these exact names. -->
+    <string name="quick_start_overdue">Overdue</string>
+    <string name="quick_start_today">Today</string>
+    <string name="quick_start_open_tasks">Open tasks</string>
+    <string name="quick_start_unscheduled">Unscheduled</string>
     <plurals name="widget_result_count">
         <item quantity="one">%1$d result</item>
         <item quantity="other">%1$d results</item>

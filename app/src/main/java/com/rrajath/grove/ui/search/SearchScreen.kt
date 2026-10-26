@@ -65,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -679,49 +680,38 @@ private fun BlankState(
 ) {
     val c = MaterialTheme.grove
     // A card whose id has been overwritten (star button, save dropdown) runs its
-    // saved query text via onQuickQuery instead of building one dynamically, so
-    // "overwrite" changes what the card itself searches for. See
-    // [QuickStartOverrides].
-    fun overrideQuery(id: String): String? = savedSearches.firstOrNull { it.id == id }?.query
+    // saved query text via onQuickQuery instead of its built-in search, so
+    // "overwrite" changes what the card itself searches for. A built-in that is
+    // a filter preset goes through onQuick so the Filters chips light up. See
+    // [QuickStarts] (shared with the Agenda widget) and [QuickStartOverrides].
+    fun open(card: QuickStarts.Card) {
+        val override = QuickStarts.overrideQuery(card, savedSearches)
+        val filters = QuickStarts.builtInFilters(card, activeStates)
+        when {
+            override != null -> onQuickQuery(override)
+            filters != null -> onQuick(filters)
+            else -> onQuickQuery(QuickStarts.builtInQuery(card, activeStates))
+        }
+    }
     val cards = listOf(
-        // "Overdue" is open tasks whose scheduled OR deadline date has
-        // passed: an OR across two different fields (and across every active
-        // keyword) that SearchFilters can't express as one facet, so this
-        // drives the query text directly. Equivalent to
-        // "(i.KW1 OR i.KW2 OR …) AND (s.overdue OR d.overdue)", expanded into
-        // the grammar's flat OR-of-AND-groups since it has no parens.
-        QuickCard(Icons.Filled.PriorityHigh, "Overdue", "${quickCounts.overdue} past their date", c.red, c.redSoft) {
-            val expr = overrideQuery(QuickStartOverrides.OVERDUE_ID) ?: if (activeStates.isEmpty()) {
-                "s.overdue OR d.overdue"
-            } else {
-                activeStates.flatMap { kw -> listOf("i.$kw s.overdue", "i.$kw d.overdue") }.joinToString(" OR ")
-            }
-            onQuickQuery(expr)
-        },
-        QuickCard(Icons.Filled.Schedule, "Today", "${quickCounts.today} scheduled or due", c.amber, c.amberSoft) {
-            val override = overrideQuery(QuickStartOverrides.TODAY_ID)
-            if (override != null) onQuickQuery(override) else onQuick(SearchFilters(scheduled = DatePreset.TODAY))
-        },
         QuickCard(
-            Icons.Filled.CheckBoxOutlineBlank, "Open tasks",
+            Icons.Filled.PriorityHigh, stringResource(QuickStarts.Card.OVERDUE.labelRes),
+            "${quickCounts.overdue} past their date", c.red, c.redSoft,
+        ) { open(QuickStarts.Card.OVERDUE) },
+        QuickCard(
+            Icons.Filled.Schedule, stringResource(QuickStarts.Card.TODAY.labelRes),
+            "${quickCounts.today} scheduled or due", c.amber, c.amberSoft,
+        ) { open(QuickStarts.Card.TODAY) },
+        QuickCard(
+            Icons.Filled.CheckBoxOutlineBlank, stringResource(QuickStarts.Card.OPEN_TASKS.labelRes),
             "${quickCounts.openTasks} ${if (quickCounts.openTasks == 1) "TODO item" else "TODO items"}",
             c.blue, c.blueSoft,
-        ) {
-            val override = overrideQuery(QuickStartOverrides.OPEN_TASKS_ID)
-            if (override != null) onQuickQuery(override) else onQuick(SearchFilters(states = activeStates.toSet()))
-        },
+        ) { open(QuickStarts.Card.OPEN_TASKS) },
         QuickCard(
-            Icons.Filled.EventBusy, "Unscheduled",
+            Icons.Filled.EventBusy, stringResource(QuickStarts.Card.UNSCHEDULED.labelRes),
             "${quickCounts.unscheduled} without a date",
             c.synTag, c.accentSoft,
-        ) {
-            val override = overrideQuery(QuickStartOverrides.UNSCHEDULED_ID)
-            if (override != null) {
-                onQuickQuery(override)
-            } else {
-                onQuick(SearchFilters(states = activeStates.toSet(), scheduled = DatePreset.NO_DATE, deadline = DatePreset.NO_DATE))
-            }
-        },
+        ) { open(QuickStarts.Card.UNSCHEDULED) },
     )
     // Override rows are surfaced only through their Quick Start card above, not
     // as a second entry in the list below.

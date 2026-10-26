@@ -39,7 +39,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -107,6 +106,7 @@ import com.rrajath.grove.ui.components.monogramLetter
 import com.rrajath.grove.ui.components.monogramPalette
 import com.rrajath.grove.ui.components.nameHashPaletteKey
 import com.rrajath.grove.ui.components.searchIcon
+import com.rrajath.grove.ui.components.SyncedCheckIcon
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDotBadge
 import com.rrajath.grove.ui.theme.PlexMono
@@ -857,7 +857,7 @@ private fun SyncStatusIcon(state: NotebooksUiState.Loaded, context: android.cont
                 IconButton(
                     onClick = { Toast.makeText(context, syncedMessage, Toast.LENGTH_SHORT).show() },
                 ) {
-                    Icon(Icons.Default.Check, contentDescription = "Synced", tint = c.green)
+                    SyncedCheckIcon(contentDescription = "Synced")
                 }
             }
         }

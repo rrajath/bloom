@@ -54,6 +54,8 @@ import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.theme.GroveTheme
+import com.rrajath.grove.ui.components.SyncedCheckIcon
+import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import kotlinx.coroutines.flow.first
@@ -123,8 +125,16 @@ private fun ViewPickerSheet(appWidgetId: Int, onDismiss: () -> Unit) {
             return@LaunchedEffect
         }
         val selectedId = LedgerWidget().getAppWidgetState<Preferences>(app, id)[WIDGET_VIEW_KEY]
+        val settings = app.settingsRepository.settings.first()
         glanceId = id
-        items = WidgetViews.pickerItems(agendaLabel, app.searchRepository.savedSearches.first(), selectedId)
+        items = WidgetViews.pickerItems(
+            agendaLabel = agendaLabel,
+            agendaSubtitle = agendaWindowSubtitle(context.resources, settings.agendaWidgetDaysAhead),
+            saved = app.searchRepository.savedSearches.first(),
+            activeStates = app.keywords.value.active,
+            names = quickStartNames(context),
+            selectedId = selectedId,
+        )
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -167,6 +177,11 @@ private fun ViewPickerSheet(appWidgetId: Int, onDismiss: () -> Unit) {
                             updateAppWidgetState(app, id) { prefs ->
                                 if (item.searchId == null) prefs.remove(WIDGET_VIEW_KEY)
                                 else prefs[WIDGET_VIEW_KEY] = item.searchId
+                                // A view change starts every list back at one page.
+                                if (!item.selected) {
+                                    prefs.remove(EXPANSION_VIEW_KEY)
+                                    prefs.remove(EXPANSION_PAGES_KEY)
+                                }
                             }
                             LedgerWidget().update(app, id)
                         }
@@ -179,9 +194,10 @@ private fun ViewPickerSheet(appWidgetId: Int, onDismiss: () -> Unit) {
 }
 
 /**
- * One picker item. The current view gets the active-chip treatment the
- * quick-add composer's chips use (`accentSoft` fill, `accent` text) plus a
- * trailing check, so the selection reads at a glance.
+ * One picker item: its name over its subtitle (the search expression, or the
+ * agenda's window summary). The current view gets the active-chip treatment the
+ * quick-add composer's chips use (`accentSoft` fill, `accent` name) plus the
+ * Notebooks top bar's green synced check ([SyncedCheckIcon]).
  */
 @Composable
 private fun PickerRow(item: WidgetViews.PickerItem, onClick: () -> Unit) {
@@ -193,28 +209,32 @@ private fun PickerRow(item: WidgetViews.PickerItem, onClick: () -> Unit) {
             .background(if (item.selected) c.accentSoft else Color.Transparent)
             .semantics { selected = item.selected }
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            item.label,
-            color = if (item.selected) c.accent else c.ink,
-            fontSize = 15.sp,
-            fontWeight = if (item.selected) FontWeight.SemiBold else FontWeight.Normal,
-            fontFamily = PlexSans,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.label,
+                color = if (item.selected) c.accent else c.ink,
+                fontSize = 15.sp,
+                fontWeight = if (item.selected) FontWeight.SemiBold else FontWeight.Normal,
+                fontFamily = PlexSans,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                item.subtitle,
+                color = c.ink3,
+                fontSize = 11.sp,
+                fontFamily = PlexMono,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
         if (item.selected) {
             Spacer(Modifier.width(8.dp))
-            Text(
-                "✓",
-                color = c.accent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = PlexSans,
-            )
+            SyncedCheckIcon(contentDescription = stringResource(R.string.widget_view_current))
         }
     }
 }

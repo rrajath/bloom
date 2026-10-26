@@ -16,6 +16,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.currentState
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
@@ -111,19 +112,18 @@ import java.time.LocalDateTime
  */
 private const val TAG = "GroveWidget"
 
-/**
- * Rows rendered per section before truncating with a "+N more" row. Glance's
- * `LazyColumn` ships every item inline in the RemoteViews update over a single
- * binder call (there's no out-of-process adapter like classic AppWidget
- * ListViews), which Android caps around 1MB; an unbounded section (e.g. a
- * corrupted index misclassifying hundreds of notes as overdue, see
- * `GroveApplication.keywords`'s cold-start race) can blow past that and the
+/*
+ * Row caps (see [WidgetPaging]): each list shows [WidgetPaging.PAGE] rows, then
+ * "+N more" pages it, up to [WidgetPaging.MAX_TOTAL_ROWS] across the whole
+ * widget. Glance's `LazyColumn` ships every item inline in the RemoteViews
+ * update over a single binder call (there's no out-of-process adapter like
+ * classic AppWidget ListViews), which Android caps around 1MB; an unbounded
+ * section (e.g. a corrupted index misclassifying hundreds of notes as overdue,
+ * see `GroveApplication.keywords`'s cold-start race) can blow past that and the
  * whole widget falls back to the host's generic "Can't show content"
  * placeholder with nothing logged, since the failure happens in Glance's send,
- * not in this composition. 20 rows is comfortably under that limit even
- * accounting for icon/text/click-action overhead per row.
+ * not in this composition.
  */
-private const val MAX_ROWS_PER_SECTION = 20
 
 private val AGENDA_URI = DeepLinks.agenda().toUri()
 
@@ -157,13 +157,25 @@ private data class WidgetPrefs(
 }
 
 /**
- * Per-widget view selection (see [WidgetViews]): the selected saved search's id,
- * absent for the agenda. Lives in this widget instance's own Glance state, keyed
- * by its [GlanceId], so two Agenda widgets can show different views; it's not a
- * setting and isn't part of settings import/export. Written by
- * [WidgetViewPickerActivity].
+ * Per-widget view selection (see [WidgetViews]): a Quick Start's reserved id or
+ * a saved search's id, absent for the agenda. Lives in this widget instance's
+ * own Glance state, keyed by its [GlanceId], so two Agenda widgets can show
+ * different views; it's not a setting and isn't part of settings import/export.
+ * Written by [WidgetViewPickerActivity].
  */
 internal val WIDGET_VIEW_KEY = stringPreferencesKey("view_saved_search_id")
+
+/**
+ * "+N more" expansion (see [WidgetPaging]), per widget like [WIDGET_VIEW_KEY]:
+ * the view the expansion was made in ("" for the agenda) and the encoded
+ * per-list page counts. Expansion for any other view reads as nothing expanded,
+ * and the picker clears both keys on a view change. Written by [LoadMoreAction].
+ */
+internal val EXPANSION_VIEW_KEY = stringPreferencesKey("expansion_view")
+internal val EXPANSION_PAGES_KEY = stringPreferencesKey("expansion_pages")
+
+/** [EXPANSION_VIEW_KEY]'s value for a view: its search id, or "" for the agenda. */
+private fun viewKeyOf(view: WidgetViews.SearchView?) = view?.id ?: ""
 
 class LedgerWidget : GlanceAppWidget() {
 
@@ -175,11 +187,14 @@ class LedgerWidget : GlanceAppWidget() {
         val initialNotes = app.database.indexDao().plannedNotes().first()
         val initialSaved = app.searchRepository.savedSearches.first()
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
-        // Same first-frame reasoning as initialNotes: a widget left on a saved
-        // search shouldn't open its session on an empty list.
+        val names = quickStartNames(context)
+        // Same first-frame reasoning as initialNotes: a widget left on a search
+        // view shouldn't open its session on an empty list.
         val initialSelection = WidgetViews.resolve(
             getAppWidgetState<Preferences>(context, id)[WIDGET_VIEW_KEY],
             initialSaved,
+            app.keywords.value.active,
+            names,
         )
         val initialResults = initialSelection?.let { WidgetSearch.runSafely(app, it.query, initialSettings.defaultPriority) }
 
@@ -188,9 +203,16 @@ class LedgerWidget : GlanceAppWidget() {
                 .distinctUntilChangedBy { WidgetPrefs(it) }
                 .collectAsState(initial = initialSettings)
             val saved by app.searchRepository.savedSearches.collectAsState(initial = initialSaved)
+            val keywords by app.keywords.collectAsState()
             // Re-resolved on every recomposition, so a deleted search falls
-            // back to the agenda and a renamed one shows its new name.
-            val selected = WidgetViews.resolve(currentState(WIDGET_VIEW_KEY), saved)
+            // back to the agenda, a renamed one shows its new name, and a Quick
+            // Start follows its override and the vault's keywords.
+            val selected = WidgetViews.resolve(currentState(WIDGET_VIEW_KEY), saved, keywords.active, names)
+            val pages = WidgetPaging.pagesFor(
+                viewKeyOf(selected),
+                currentState(EXPANSION_VIEW_KEY),
+                currentState(EXPANSION_PAGES_KEY),
+            )
 
             val colors = groveColorsFor(settings.theme)
             val today = LocalDate.now()
@@ -205,9 +227,9 @@ class LedgerWidget : GlanceAppWidget() {
             val chrome = WidgetChrome(context, colors, backgroundColor, iconRes, fontScale, appWidgetId)
 
             if (selected == null) {
-                AgendaView(app, chrome, settings, initialNotes, today)
+                AgendaView(app, chrome, settings, initialNotes, today, pages)
             } else {
-                // Keyed on the query (not the search's id or name) so a rename
+                // Keyed on the query (not the view's id or name) so a rename
                 // keeps the running collection, while an edited query restarts it.
                 val results by remember(selected.query) { WidgetSearch.results(app, selected.query) }
                     .collectAsState(initial = initialResults.takeIf { selected.query == initialSelection?.query })
@@ -216,12 +238,12 @@ class LedgerWidget : GlanceAppWidget() {
                         try {
                             WidgetViews.searchRows(headings, today, settings)
                         } catch (e: Exception) {
-                            Log.e(TAG, "failed to build saved-search rows; showing no results", e)
+                            Log.e(TAG, "failed to build search rows; showing no results", e)
                             emptyList()
                         }
                     }
                 }
-                SavedSearchView(chrome, selected.name, selected.query, rows)
+                SearchResultsView(chrome, selected, rows, pages)
             }
         }
     }
@@ -230,6 +252,9 @@ class LedgerWidget : GlanceAppWidget() {
 class LedgerWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = LedgerWidget()
 }
+
+/** Quick Start names from resources (see [WidgetViews.QuickStartName]). */
+internal fun quickStartNames(context: Context) = WidgetViews.QuickStartName { context.getString(it.labelRes) }
 
 /** What every view's frame and header need, resolved once per render. */
 private class WidgetChrome(
@@ -248,6 +273,7 @@ private fun AgendaView(
     settings: GroveSettings,
     initialNotes: List<PlannedNoteRow>,
     today: LocalDate,
+    pages: Map<String, Int>,
 ) {
     val notes by app.database.indexDao().plannedNotes().collectAsState(initial = initialNotes)
     val windowDays = settings.agendaWidgetDaysAhead
@@ -275,6 +301,7 @@ private fun AgendaView(
     }
     val todayCount = sections.firstOrNull { it.key.startsWith("Today") }?.count ?: 0
     val totalCount = sections.sumOf { it.count }
+    val plans = WidgetPaging.plan(sections.map { it.key to it.rows.size }, pages)
     val context = chrome.context
     val colors = chrome.colors
     val fontScale = chrome.fontScale
@@ -288,17 +315,16 @@ private fun AgendaView(
             EmptyBody(colors, "Nothing scheduled", fontScale)
         } else {
             LazyColumn(modifier = GlanceModifier.fillMaxSize().padding(bottom = 10.dp)) {
-                sections.forEach { section ->
+                sections.zip(plans).forEach { (section, plan) ->
                     item(itemId = section.key.hashCode().toLong()) {
                         SectionHeader(colors, section, fontScale)
                     }
-                    val (visibleRows, hidden) = LedgerBuckets.truncate(section.rows, MAX_ROWS_PER_SECTION)
-                    items(visibleRows, itemId = { it.fileName.hashCode() * 31L + it.lineIndex }) { row ->
+                    items(section.rows.take(plan.visible), itemId = { it.fileName.hashCode() * 31L + it.lineIndex }) { row ->
                         LedgerRow(context, colors, row, fontScale)
                     }
-                    if (hidden > 0) {
+                    if (plan.remaining > 0) {
                         item(itemId = ("more-" + section.key).hashCode().toLong()) {
-                            MoreRow(context, colors, hidden, agendaIntent(context), fontScale)
+                            MoreRow(context, colors, plan, viewKey = "", agendaIntent(context), fontScale)
                         }
                     }
                 }
@@ -308,20 +334,25 @@ private fun AgendaView(
 }
 
 /**
- * One saved search's results: a single flat list (no day sections) in the
- * Search screen's own order, capped at [MAX_ROWS_PER_SECTION] for the same
- * binder-size reason as each agenda section. [rows] null means the first
- * results haven't arrived yet, which renders as an empty body rather than a
- * premature "No results".
+ * One search view's results (a Quick Start or a saved search): a single flat
+ * list (no day sections) in the Search screen's own order, paged by
+ * [WidgetPaging] like each agenda section. [rows] null means the first results
+ * haven't arrived yet, which renders as an empty body rather than a premature
+ * "No results".
  */
 @Composable
-private fun SavedSearchView(chrome: WidgetChrome, name: String, query: String, rows: List<AgendaRow>?) {
+private fun SearchResultsView(
+    chrome: WidgetChrome,
+    view: WidgetViews.SearchView,
+    rows: List<AgendaRow>?,
+    pages: Map<String, Int>,
+) {
     val context = chrome.context
     val colors = chrome.colors
     val fontScale = chrome.fontScale
     WidgetFrame(
         chrome,
-        title = name,
+        title = view.name,
         // No-break space while loading, so the header keeps its height.
         subtitle = rows?.let { context.resources.getQuantityString(R.plurals.widget_result_count, it.size, it.size) } ?: "\u00A0",
     ) {
@@ -329,14 +360,14 @@ private fun SavedSearchView(chrome: WidgetChrome, name: String, query: String, r
             rows == null -> Box(modifier = GlanceModifier.fillMaxSize()) {}
             rows.isEmpty() -> EmptyBody(colors, context.getString(R.string.widget_no_results), fontScale)
             else -> {
-                val (visibleRows, hidden) = LedgerBuckets.truncate(rows, MAX_ROWS_PER_SECTION)
+                val plan = WidgetPaging.plan(listOf(WidgetPaging.SEARCH_LIST_KEY to rows.size), pages).single()
                 LazyColumn(modifier = GlanceModifier.fillMaxSize().padding(top = 4.dp, bottom = 10.dp)) {
-                    items(visibleRows, itemId = { it.fileName.hashCode() * 31L + it.lineIndex }) { row ->
+                    items(rows.take(plan.visible), itemId = { it.fileName.hashCode() * 31L + it.lineIndex }) { row ->
                         LedgerRow(context, colors, row, fontScale)
                     }
-                    if (hidden > 0) {
+                    if (plan.remaining > 0) {
                         item(itemId = "more-search".hashCode().toLong()) {
-                            MoreRow(context, colors, hidden, searchIntent(context, query), fontScale)
+                            MoreRow(context, colors, plan, viewKey = view.id, searchIntent(context, view.query), fontScale)
                         }
                     }
                 }
@@ -478,26 +509,75 @@ private fun SectionHeader(colors: GroveColors, section: LedgerBuckets.Section, f
 }
 
 /**
- * Terminates a list truncated at [MAX_ROWS_PER_SECTION]: the count above (an
- * agenda section header, or a saved search's "N results") still shows the true,
- * untruncated number, so this is what makes the gap between that number and the
- * visible rows legible instead of the list just quietly stopping short. Taps
- * open [intent]: the in-app Agenda screen or Search screen, which render the
- * same rows with no cap.
+ * Terminates a truncated list (see [WidgetPaging.Plan]) with two tap targets:
+ * "+N more" grows that list by one page in place ([LoadMoreAction]; N counts
+ * the rows still left out), and "view all" opens [viewAll], the in-app Agenda
+ * or Search screen, which shows the same rows with no cap. Once the
+ * widget-wide row budget is spent, only "view all" remains.
  */
 @Composable
-private fun MoreRow(context: Context, colors: GroveColors, hidden: Int, intent: Intent, fontScale: Float) {
-    Box(
-        modifier = GlanceModifier
-            .fillMaxWidth()
-            .padding(horizontal = 13.dp, vertical = 9.dp)
-            .clickable(actionStartActivity(intent)),
-        contentAlignment = Alignment.Center,
+private fun MoreRow(
+    context: Context,
+    colors: GroveColors,
+    plan: WidgetPaging.Plan,
+    viewKey: String,
+    viewAll: Intent,
+    fontScale: Float,
+) {
+    val linkStyle = TextStyle(color = ColorProvider(colors.accent), fontSize = sp(12f, fontScale), fontWeight = FontWeight.Medium)
+    Row(
+        modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 13.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            context.getString(R.string.widget_more_view_all, hidden),
-            style = TextStyle(color = ColorProvider(colors.accent), fontSize = sp(12f, fontScale), fontWeight = FontWeight.Medium),
-        )
+        if (plan.canLoadMore) {
+            Box(
+                modifier = GlanceModifier
+                    .padding(horizontal = 8.dp, vertical = 9.dp)
+                    .clickable(
+                        actionRunCallback<LoadMoreAction>(
+                            actionParametersOf(VIEW_KEY_PARAM to viewKey, LIST_KEY_PARAM to plan.key),
+                        ),
+                    ),
+            ) {
+                Text(context.getString(R.string.widget_load_more, plan.remaining), style = linkStyle)
+            }
+            Text(
+                context.getString(R.string.widget_more_separator),
+                style = TextStyle(color = ColorProvider(colors.ink3), fontSize = sp(12f, fontScale)),
+            )
+        }
+        Box(
+            modifier = GlanceModifier
+                .padding(horizontal = 8.dp, vertical = 9.dp)
+                .clickable(actionStartActivity(viewAll)),
+        ) {
+            Text(context.getString(R.string.widget_view_all), style = linkStyle)
+        }
+    }
+}
+
+/** [LoadMoreAction]'s view key ([EXPANSION_VIEW_KEY]'s format) and list key. */
+private val VIEW_KEY_PARAM = ActionParameters.Key<String>("viewKey")
+private val LIST_KEY_PARAM = ActionParameters.Key<String>("listKey")
+
+/**
+ * The "+N more" tap: one more page of [LIST_KEY_PARAM]'s list, stored in this
+ * widget's Glance state, then a redraw of just this widget. The list's rows keep
+ * their item ids, so the new page is appended to the same `LazyColumn` rather
+ * than a rebuilt one. Kept by proguard-rules.pro's ActionCallback rule (R8
+ * would otherwise strip the no-arg constructor Glance calls reflectively).
+ */
+class LoadMoreAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val viewKey = parameters[VIEW_KEY_PARAM] ?: return run { Log.w(TAG, "no viewKey parameter") }
+        val listKey = parameters[LIST_KEY_PARAM] ?: return run { Log.w(TAG, "no listKey parameter") }
+        updateAppWidgetState(context, glanceId) { prefs ->
+            val pages = WidgetPaging.pagesFor(viewKey, prefs[EXPANSION_VIEW_KEY], prefs[EXPANSION_PAGES_KEY])
+            prefs[EXPANSION_VIEW_KEY] = viewKey
+            prefs[EXPANSION_PAGES_KEY] = WidgetPaging.encode(WidgetPaging.expand(pages, listKey))
+        }
+        LedgerWidget().update(context, glanceId)
     }
 }
 
