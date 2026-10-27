@@ -70,6 +70,7 @@ re-uploads the APKs to the existing release instead of failing.
 ### Changed
 - When a heading can't be demoted in Outline, the message now explains why: there's no heading above to go under.
 - Tapping the app icon on the Agenda widget now opens the Agenda screen instead of the home page.
+- Capture placeholders %t, %T, %u, %U now match org-mode: lowercase is date only, u/U are inactive.
 
 ### Fixed
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.

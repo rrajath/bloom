@@ -46,7 +46,7 @@ class SharedPayloadTest {
             ),
         )
         assertEquals(
-            "* [[https://blog.example/post][Great Post]]\n<2025-06-11 Wed 08:00>\n",
+            "* [[https://blog.example/post][Great Post]]\n[2025-06-11 Wed 08:00]\n",
             result.text,
         )
     }

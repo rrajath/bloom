@@ -14,8 +14,8 @@ data class CaptureContext(
     /** Answers for `%^{prompt}` placeholders, keyed by prompt text. */
     val promptValues: Map<String, String> = emptyMap(),
     /**
-     * Date-granularity target (e.g. datetree by date): `%U`/`%u` expand without
-     * a time-of-day, same as `%T`/`%t`.
+     * Date-granularity target (e.g. datetree by date): `%T`/`%U` expand without
+     * a time-of-day, same as `%t`/`%u`.
      */
     val dateOnly: Boolean = false,
     /** `%(id)` value — generated once per capture, not regenerated per [PlaceholderExpander.expand] call. */
@@ -73,10 +73,12 @@ object PlaceholderExpander {
             "%time" to { timeText },
             "%year" to { date.year.toString() },
             "%day" to { date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH) },
-            "%t" to { dateStamp.copy(active = false).format() },
-            "%T" to { dateStamp.format() },
-            "%u" to { dateTimeStamp.copy(active = false).format() },
-            "%U" to { dateTimeStamp.format() },
+            // Org manual: lowercase = date only, uppercase = date + time;
+            // t/T are active <...>, u/U inactive [...].
+            "%t" to { dateStamp.format() },
+            "%T" to { dateTimeStamp.format() },
+            "%u" to { dateStamp.copy(active = false).format() },
+            "%U" to { dateTimeStamp.copy(active = false).format() },
             "%?" to null,
             "%(id)" to { ctx.id },
         )

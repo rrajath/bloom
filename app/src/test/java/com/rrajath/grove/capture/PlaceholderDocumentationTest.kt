@@ -20,20 +20,20 @@ class PlaceholderDocumentationTest {
 
     private fun expand(key: String) = PlaceholderExpander.expand(key, ctx).text
 
-    @Test fun `percent-U expands to active datetime stamp`() {
-        assertEquals("<2025-06-11 Wed 14:32>", expand("%U"))
+    @Test fun `percent-T expands to active datetime stamp`() {
+        assertEquals("<2025-06-11 Wed 14:32>", expand("%T"))
     }
 
-    @Test fun `percent-u expands to inactive datetime stamp`() {
-        assertEquals("[2025-06-11 Wed 14:32]", expand("%u"))
+    @Test fun `percent-U expands to inactive datetime stamp`() {
+        assertEquals("[2025-06-11 Wed 14:32]", expand("%U"))
     }
 
-    @Test fun `percent-T expands to active date stamp`() {
-        assertEquals("<2025-06-11 Wed>", expand("%T"))
+    @Test fun `percent-t expands to active date stamp`() {
+        assertEquals("<2025-06-11 Wed>", expand("%t"))
     }
 
-    @Test fun `percent-t expands to inactive date stamp`() {
-        assertEquals("[2025-06-11 Wed]", expand("%t"))
+    @Test fun `percent-u expands to inactive date stamp`() {
+        assertEquals("[2025-06-11 Wed]", expand("%u"))
     }
 
     @Test fun `percent-date expands to ISO date`() {

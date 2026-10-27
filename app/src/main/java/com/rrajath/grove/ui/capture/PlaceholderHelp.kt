@@ -22,10 +22,10 @@ import com.rrajath.grove.ui.theme.grove
 
 /** Every capture-template placeholder with a one-line explanation (design spec §7.6/§8). */
 val PLACEHOLDER_DOCS = listOf(
-    "%U" to "Active datetime stamp: <date time>",
-    "%u" to "Inactive datetime stamp: [date time]",
-    "%T" to "Active date stamp: <date>",
-    "%t" to "Inactive date stamp: [date]",
+    "%T" to "Active datetime stamp: <date time>",
+    "%U" to "Inactive datetime stamp: [date time]",
+    "%t" to "Active date stamp: <date>",
+    "%u" to "Inactive date stamp: [date]",
     "%date" to "ISO date: YYYY-MM-DD",
     "%time" to "Current time: HH:MM",
     "%day" to "Day of week: Monday, …",

@@ -19,10 +19,12 @@ class PlaceholderExpanderTest {
 
     @Test
     fun `timestamp placeholders`() {
-        assertEquals("[2025-06-11 Wed]", expand("%t").text)
-        assertEquals("<2025-06-11 Wed>", expand("%T").text)
-        assertEquals("[2025-06-11 Wed 14:32]", expand("%u").text)
-        assertEquals("<2025-06-11 Wed 14:32>", expand("%U").text)
+        // Org manual: lowercase = date only, uppercase = date + time;
+        // t/T active <...>, u/U inactive [...].
+        assertEquals("<2025-06-11 Wed>", expand("%t").text)
+        assertEquals("<2025-06-11 Wed 14:32>", expand("%T").text)
+        assertEquals("[2025-06-11 Wed]", expand("%u").text)
+        assertEquals("[2025-06-11 Wed 14:32]", expand("%U").text)
     }
 
     @Test
@@ -37,7 +39,7 @@ class PlaceholderExpanderTest {
     @Test
     fun `longest placeholder wins`() {
         // %time must not parse as %t + "ime"
-        assertEquals("14:32 [2025-06-11 Wed]", expand("%time %t").text)
+        assertEquals("14:32 <2025-06-11 Wed>", expand("%time %t").text)
     }
 
     @Test
@@ -85,23 +87,24 @@ class PlaceholderExpanderTest {
     @Test
     fun `journal default template expands`() {
         val result = expand("%U\n%cursor")
-        assertEquals("<2025-06-11 Wed 14:32>\n", result.text)
+        assertEquals("[2025-06-11 Wed 14:32]\n", result.text)
         assertEquals(result.text.length, result.cursorOffset)
     }
 
     @Test
     fun `dateOnly context drops the time from datetime stamps`() {
         val dateCtx = ctx.copy(dateOnly = true)
-        assertEquals("<2025-06-11 Wed>", PlaceholderExpander.expand("%U", dateCtx).text)
-        assertEquals("[2025-06-11 Wed]", PlaceholderExpander.expand("%u", dateCtx).text)
-        // %T/%t are unchanged either way
         assertEquals("<2025-06-11 Wed>", PlaceholderExpander.expand("%T", dateCtx).text)
+        assertEquals("[2025-06-11 Wed]", PlaceholderExpander.expand("%U", dateCtx).text)
+        // %t/%u are date-only either way
+        assertEquals("<2025-06-11 Wed>", PlaceholderExpander.expand("%t", dateCtx).text)
+        assertEquals("[2025-06-11 Wed]", PlaceholderExpander.expand("%u", dateCtx).text)
     }
 
     @Test
     fun `journal template puts the cursor on the heading line`() {
         val result = expand("%U %cursor")
-        assertEquals("<2025-06-11 Wed 14:32> ", result.text)
+        assertEquals("[2025-06-11 Wed 14:32] ", result.text)
         assertEquals(result.text.length, result.cursorOffset)
     }
 
