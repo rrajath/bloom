@@ -258,6 +258,66 @@ class DocumentViewModelIntegrationTest {
         assertTrue(spy.notes.isEmpty())
     }
 
+    private val denoteFile = "journal/2024/20240101T120000--trip-plan__travel.org"
+
+    private suspend fun seedDenoteNote() {
+        store.write(
+            denoteFile,
+            """
+                #+title: Trip plan
+                #+identifier: 20240101T120000
+
+                * Day one
+                * Day two
+                :PROPERTIES:
+                :CUSTOM_ID: day-two
+                :END:
+            """.trimIndent() + "\n",
+        )
+        TestVaultSeeder.index(db, store)
+    }
+
+    @Test
+    fun `a denote link opens the note with that identifier from another folder`() = runTest {
+        seedDenoteNote()
+        val vm = loaded("links-hub.org")
+        val spy = LinkSpy()
+
+        vm.follow("denote:20240101T120000", "links-hub.org", spy)
+        advanceUntilIdle()
+
+        assertEquals(listOf(denoteFile), spy.outlines)
+    }
+
+    @Test
+    fun `a denote link with a heading or custom-id search resolves to that heading`() = runTest {
+        seedDenoteNote()
+        val vm = loaded("links-hub.org")
+        val spy = LinkSpy()
+
+        vm.follow("denote:20240101T120000::*Day one", "links-hub.org", spy)
+        vm.follow("denote:20240101T120000::#day-two", "links-hub.org", spy)
+        advanceUntilIdle()
+
+        assertEquals(listOf(denoteFile, denoteFile), spy.notes.map { it.fileName })
+        assertEquals(listOf(3, 4), spy.notes.map { it.lineIndex })
+    }
+
+    @Test
+    fun `an unknown denote identifier shows a toast and navigates nowhere`() = runTest {
+        seedDenoteNote()
+        val vm = loaded("links-hub.org")
+        val spy = LinkSpy()
+        val toasts = mutableListOf<OutlineToast?>()
+        backgroundScope.launch { vm.toast.toList(toasts) }
+
+        vm.follow("denote:19990101T000000", "links-hub.org", spy)
+        advanceUntilIdle()
+
+        assertTrue(spy.notes.isEmpty() && spy.outlines.isEmpty())
+        assertTrue(toasts.any { it?.message?.contains("denote:19990101T000000") == true })
+    }
+
     @Test
     fun `an external link is handed to the OS`() = runTest {
         val vm = loaded("links-hub.org")

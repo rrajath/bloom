@@ -107,6 +107,39 @@ class OrgLinkParserTest {
     }
 
     @Test
+    fun `denote link is a vault-wide note identifier`() {
+        assertEquals(
+            OrgLinkTarget.Denote("20240101T120000"),
+            parse("denote:20240101T120000", currentFile = "work/x.org"),
+        )
+    }
+
+    @Test
+    fun `denote link with a heading search option`() {
+        assertEquals(
+            OrgLinkTarget.DenoteHeading("20240101T120000", "Design"),
+            parse("denote:20240101T120000::*Design"),
+        )
+        assertEquals(
+            OrgLinkTarget.DenoteHeading("20240101T120000", "Some target"),
+            parse("denote:20240101T120000::Some target"),
+        )
+    }
+
+    @Test
+    fun `denote link with a custom-id search option`() {
+        assertEquals(
+            OrgLinkTarget.DenoteCustomId("20240101T120000", "design"),
+            parse("denote:20240101T120000::#design"),
+        )
+    }
+
+    @Test
+    fun `denote link with an empty search option is the whole note`() {
+        assertEquals(OrgLinkTarget.Denote("20240101T120000"), parse("denote:20240101T120000::"))
+    }
+
+    @Test
     fun `plain text with no scheme is fuzzy`() {
         assertEquals(OrgLinkTarget.Fuzzy("Meeting notes"), parse("Meeting notes"))
     }

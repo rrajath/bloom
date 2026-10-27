@@ -25,6 +25,18 @@ sealed interface OrgLinkTarget {
     /** `[[file:foo.org::#custom-id]]` — a `:CUSTOM_ID:` in another file. */
     data class FileCustomId(val path: String, val customId: String) : OrgLinkTarget
 
+    /**
+     * `[[denote:20240101T120000]]` — a Denote note anywhere in the vault, matched
+     * by the identifier in its file name (→ its outline).
+     */
+    data class Denote(val identifier: String) : OrgLinkTarget
+
+    /** `[[denote:20240101T120000::*Heading]]` — a headline in a Denote note, matched by title. */
+    data class DenoteHeading(val identifier: String, val text: String) : OrgLinkTarget
+
+    /** `[[denote:20240101T120000::#custom-id]]` — a `:CUSTOM_ID:` in a Denote note. */
+    data class DenoteCustomId(val identifier: String, val customId: String) : OrgLinkTarget
+
     /** `http(s)://…`, `mailto:`, `tel:`, … — hand off to the OS. */
     data class External(val uri: String) : OrgLinkTarget
 
@@ -44,6 +56,8 @@ object OrgLinkParser {
         when {
             target.startsWith("id:") ->
                 return OrgLinkTarget.Id(target.removePrefix("id:").trim())
+            target.startsWith("denote:") ->
+                return parseDenote(target.removePrefix("denote:"))
             EXTERNAL_SCHEME.containsMatchIn(target) ->
                 return OrgLinkTarget.External(target)
             target.startsWith("#") ->
@@ -84,6 +98,22 @@ object OrgLinkParser {
         }
 
         return OrgLinkTarget.Fuzzy(target)
+    }
+
+    /**
+     * The part after `denote:` is the note's identifier, optionally followed by
+     * a `::` search option, classified the same way as for a `file:` link.
+     */
+    private fun parseDenote(rest: String): OrgLinkTarget {
+        val sep = rest.indexOf("::")
+        val identifier = (if (sep >= 0) rest.substring(0, sep) else rest).trim()
+        val s = if (sep >= 0) rest.substring(sep + 2).trim() else null
+        return when {
+            s.isNullOrEmpty() -> OrgLinkTarget.Denote(identifier)
+            s.startsWith("#") -> OrgLinkTarget.DenoteCustomId(identifier, s.removePrefix("#").trim())
+            s.startsWith("*") -> OrgLinkTarget.DenoteHeading(identifier, s.trimStart('*').trim())
+            else -> OrgLinkTarget.DenoteHeading(identifier, s)
+        }
     }
 
     private fun looksLikePath(head: String): Boolean =
