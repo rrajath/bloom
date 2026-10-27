@@ -285,17 +285,15 @@ fun PlanningDatesScreen(
         note = ""
         when (tab) {
             PlanningKind.ACTIVE -> {
-                val i = acts.indexOfFirst { it.covers(day) }
-                if (i >= 0) {
-                    val removed = acts.removeAt(i)
-                    actI = actI.coerceIn(0, maxOf(0, acts.lastIndex))
-                    note = "Removed ${removed.formatHuman(today)}"
-                } else {
-                    acts.add(OrgTimestamp(day))
-                    acts.sortBy { it.date }
-                    actI = acts.indexOfFirst { it.date == day && it.rangeEnd == null }.coerceAtLeast(0)
-                    month = YearMonth.from(day)
-                }
+                // Always adds, even on a day that already has entries (same-day
+                // reminders at different times); removal is the chip's `×` only.
+                val sameDay = acts.filter { it.date == day && it.rangeEnd == null }
+                val time = sameDay.mapNotNull { it.time }.maxOrNull()?.plusMinutes(15)
+                acts.add(OrgTimestamp(day, time = time))
+                acts.sortWith(compareBy({ it.date }, { it.time ?: LocalTime.MIN }))
+                actI = acts.indexOfLast { it.date == day && it.rangeEnd == null && it.time == time }
+                    .coerceAtLeast(0)
+                month = YearMonth.from(day)
             }
             PlanningKind.SCHEDULED ->
                 if (sched?.covers(day) == true) {
@@ -536,7 +534,7 @@ fun PlanningDatesScreen(
 
                     Text(
                         if (isActiveTab)
-                            "Long-press and drag for a range · tap days for separate timestamps · tap one again to remove it"
+                            "Long-press and drag for a range · tap a day to add a timestamp, even one it already has · remove one with × below"
                         else
                             "One day only. Tapping another day moves it; tapping it again clears it.",
                         fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2, lineHeight = 16.sp,
