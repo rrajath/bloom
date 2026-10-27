@@ -59,12 +59,11 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Added
 - Outline's Move & indent bar can act on several headings at once: tap rows to add them to the selection.
-- Its ☰ button opens the metadata sheet to change state, priority, tags, dates, notes, or org-ids on every selected heading, or refile them all at once.
 - Denote links (`[[denote:20240101T120000]]`) open the note with that identifier anywhere in the vault, optionally at a `::*Heading` or `::#custom-id` inside it.
 - The refile picker has a search box to find any file or heading without drilling down.
 - Marking a recurring task done in Read mode flashes the date that moved to its next occurrence.
 - Tap the Agenda widget's title to show a saved search instead; each widget remembers its own choice.
-- The Agenda widget can also show a Quick Start search: Overdue, Today, Open tasks, or Unscheduled.
+- The Agenda widget also shows a Quick Start search: Overdue, Today, Open tasks, or Unscheduled.
 - Long Agenda widget lists have "+N more" to show 20 more rows in place, next to "view all".
 
 ### Changed
