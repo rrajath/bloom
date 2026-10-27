@@ -44,6 +44,7 @@ Tap a `[[target][description]]` link to jump to what it points at:
 - A heading link (`[[id:...]]`, `[[#custom-id]]`, `[[*Heading]]`, `[[file:other.org::*Heading]]`) opens that heading in Read mode.
 - A whole-file link opens that file's [Outline View](/features/outline-view). This includes an `[[id:...]]` link whose id matches a file-level `:ID:` (one in the property drawer above the first heading), not a heading.
 - An external link (`https:`, `mailto:`, `tel:`, ...) is handed to the system.
+- A [Denote](https://protesilaos.com/emacs/denote) link (`[[denote:20240101T120000]]`) opens the outline of the file whose name carries that identifier, wherever it is in the vault. Add `::*Heading` or `::#custom-id` to open a heading inside it.
 
 Id and custom-id links resolve across the whole vault from the rebuildable index, so they keep working after the target file is renamed or moved. If nothing matches, Bloom shows a brief "Couldn't find" message instead of navigating.
 

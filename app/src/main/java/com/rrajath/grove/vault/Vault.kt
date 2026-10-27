@@ -53,6 +53,44 @@ fun matchOpenedFileToNotebook(requestedFileName: String, notebooks: List<Noteboo
     }
 }
 
+/** Separators between the components of a Denote file name. */
+private val DENOTE_COMPONENT_PREFIXES = listOf("@@", "==", "--", "__")
+
+/**
+ * The Denote identifier in [fileName], or null when it has none. Denote names a
+ * note `IDENTIFIER==SIGNATURE--TITLE__KEYWORDS.org` (all but the identifier
+ * optional), e.g. `20240101T120000--trip-plan__travel.org`. When the
+ * components are reordered (`denote-file-name-components-order`), the
+ * identifier is marked with a `@@` prefix instead of leading the name.
+ */
+fun denoteIdentifier(fileName: String): String? {
+    val stem = fileName.substringAfterLast('/').substringBefore('.')
+    val marked = stem.indexOf("@@")
+    val start = when {
+        marked >= 0 -> marked + 2
+        DENOTE_COMPONENT_PREFIXES.any { stem.startsWith(it) } -> return null
+        else -> 0
+    }
+    val end = DENOTE_COMPONENT_PREFIXES
+        .map { stem.indexOf(it, start) }
+        .filter { it >= 0 }
+        .minOrNull() ?: stem.length
+    return stem.substring(start, end).ifEmpty { null }
+}
+
+/**
+ * The notebook whose Denote [identifier] (see [denoteIdentifier]) matches, from
+ * anywhere in the vault. Denote identifiers are unique, but if a copy of a note
+ * leaves two files with the same one, a file in [preferredDir] (the linking
+ * file's directory) wins, then the first in list order.
+ */
+fun matchDenoteNotebook(identifier: String, notebooks: List<Notebook>, preferredDir: String = ""): Notebook? {
+    val wanted = identifier.trim()
+    if (wanted.isEmpty()) return null
+    val matches = notebooks.filter { denoteIdentifier(it.fileName) == wanted }
+    return matches.firstOrNull { it.dir == preferredDir } ?: matches.firstOrNull()
+}
+
 /**
  * Vault facade over a [FileStore]: lists notebooks (applying ignore rules),
  * parses documents, creates new notebooks. Pure Kotlin; android code supplies

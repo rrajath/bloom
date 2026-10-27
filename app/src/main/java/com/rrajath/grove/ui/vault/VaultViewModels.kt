@@ -41,6 +41,7 @@ import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.Notebook
 import com.rrajath.grove.vault.StateChangeResult
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.vault.matchDenoteNotebook
 import com.rrajath.grove.vault.matchOpenedFileToNotebook
 import com.rrajath.grove.vault.vaultPath
 import java.time.LocalDate
@@ -965,6 +966,17 @@ class DocumentViewModel(
         // by id even if the indexed line has drifted (see OrgDocument.headlineFor).
         fun noteAt(key: NoteKey, id: String? = null) =
             LinkResolution.Note(NoteRef(key.fileName, key.lineIndex, id))
+        // A `::*heading` / `::#custom-id` search inside a [file] that resolved.
+        // If the heading is gone, the file's outline is the best graceful
+        // landing rather than a dead end.
+        suspend fun headingIn(file: String, text: String): LinkResolution {
+            val headline = vault?.open(file)?.let { findHeadlineByTitle(it, text) }
+            return if (headline != null) noteIn(file, headline) else LinkResolution.Outline(file)
+        }
+        suspend fun customIdIn(file: String, customId: String): LinkResolution {
+            val headline = vault?.open(file)?.findByCustomId(customId)
+            return if (headline != null) noteIn(file, headline) else LinkResolution.Outline(file)
+        }
 
         return when (val t = OrgLinkParser.parse(rawTarget, currentFile)) {
             is OrgLinkTarget.External -> LinkResolution.External(t.uri)
@@ -996,16 +1008,28 @@ class DocumentViewModel(
 
             is OrgLinkTarget.FileHeading -> {
                 val file = resolveNotebook(t.path, dao) ?: return LinkResolution.NotFound(t.path)
-                val headline = vault?.open(file)?.let { findHeadlineByTitle(it, t.text) }
-                // The file resolved; if the heading is gone, its outline is the
-                // best graceful landing rather than a dead end.
-                if (headline != null) noteIn(file, headline) else LinkResolution.Outline(file)
+                headingIn(file, t.text)
             }
 
             is OrgLinkTarget.FileCustomId -> {
                 val file = resolveNotebook(t.path, dao) ?: return LinkResolution.NotFound(t.path)
-                val headline = vault?.open(file)?.findByCustomId(t.customId)
-                if (headline != null) noteIn(file, headline) else LinkResolution.Outline(file)
+                customIdIn(file, t.customId)
+            }
+
+            is OrgLinkTarget.Denote ->
+                resolveDenote(t.identifier, currentFile, dao)?.let { LinkResolution.Outline(it) }
+                    ?: LinkResolution.NotFound("denote:${t.identifier}")
+
+            is OrgLinkTarget.DenoteHeading -> {
+                val file = resolveDenote(t.identifier, currentFile, dao)
+                    ?: return LinkResolution.NotFound("denote:${t.identifier}")
+                headingIn(file, t.text)
+            }
+
+            is OrgLinkTarget.DenoteCustomId -> {
+                val file = resolveDenote(t.identifier, currentFile, dao)
+                    ?: return LinkResolution.NotFound("denote:${t.identifier}")
+                customIdIn(file, t.customId)
             }
 
             is OrgLinkTarget.Fuzzy -> {
@@ -1027,6 +1051,19 @@ class DocumentViewModel(
     private suspend fun resolveNotebook(path: String, dao: com.rrajath.grove.data.IndexDao): String? {
         val known = dao.notebooks().map { Notebook(it.fileName, it.noteCount, it.lastModified) }
         return matchOpenedFileToNotebook(path, known)?.fileName
+    }
+
+    /**
+     * Match a Denote identifier to the indexed notebook carrying it in its file
+     * name, anywhere in the vault (a tie goes to [currentFile]'s directory).
+     */
+    private suspend fun resolveDenote(
+        identifier: String,
+        currentFile: String,
+        dao: com.rrajath.grove.data.IndexDao,
+    ): String? {
+        val known = dao.notebooks().map { Notebook(it.fileName, it.noteCount, it.lastModified) }
+        return matchDenoteNotebook(identifier, known, currentFile.substringBeforeLast('/', ""))?.fileName
     }
 
     // --- structural outline operations (PRD §5.3) ---
