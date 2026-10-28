@@ -229,9 +229,9 @@ class NotebooksViewModelIntegrationTest {
         val inbox = PinnedItem(PinKind.FILE, "inbox.org")
         val stale = PinnedItem(PinKind.FILE, "gone.org")
         val work = PinnedItem(PinKind.FOLDER, "work")
-        settingsRepository.pinNotebook("inbox.org")
-        settingsRepository.pinNotebook("gone.org")
-        settingsRepository.pinFolder("work")
+        vm.pinNotebook("inbox.org")
+        vm.pinNotebook("gone.org")
+        vm.pinFolder("work")
         settleUntil { (vm.state.value as? NotebooksUiState.Loaded)?.livePins == listOf(inbox, work) }
 
         vm.movePin(work, -1)
@@ -240,7 +240,6 @@ class NotebooksViewModelIntegrationTest {
         // Already at the top: no-op.
         settleUntil { (vm.state.value as? NotebooksUiState.Loaded)?.livePins == listOf(work, inbox) }
         vm.movePin(work, -1)
-        advanceUntilIdle()
-        assertEquals(listOf(work, stale, inbox), settingsRepository.settings.first().pinnedItems)
+        settleUntil { settingsRepository.settings.first().pinnedItems == listOf(work, stale, inbox) }
     }
 }
