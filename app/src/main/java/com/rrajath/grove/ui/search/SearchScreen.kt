@@ -111,9 +111,8 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.vault.NoteRef
+import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 private val OPERATOR_CHIPS = listOf(
     "t.TAG", "i.STATE", "s.PERIOD", "d.PERIOD", "a.PERIOD", "c.PERIOD", "cr.PERIOD", "b.NOTEBOOK", "p.PRIORITY",
@@ -1493,7 +1492,7 @@ private fun FilterPanel(
 
 private fun customRangeLabel(range: DateRange?): String {
     if (range == null) return "Custom range"
-    val fmt = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
+    val fmt = LocalDates.formatter("dMMM", "d MMM")
     return "${range.start.format(fmt)} – ${range.end.format(fmt)}"
 }
 

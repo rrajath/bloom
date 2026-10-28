@@ -84,8 +84,8 @@ import com.rrajath.grove.ui.vault.DocumentUiState
 import com.rrajath.grove.ui.vault.DocumentViewModel
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.PendingEdit
+import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -282,7 +282,7 @@ fun DailyNoteScreen(
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
                         Text(
-                            date.format(DateTimeFormatter.ofPattern("EEE, MMM d")),
+                            LocalDates.format(date, "EEEMMMd", "EEE, MMM d"),
                             fontFamily = PlexSans, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                             fontSize = 17.sp, color = c.ink,
                             maxLines = 1,
@@ -628,7 +628,7 @@ fun DailyNoteScreen(
                     }
                     if (timestampPickerOpen) {
                         InsertTimestampScreen(
-                            title = date.format(DateTimeFormatter.ofPattern("EEE, MMM d")),
+                            title = LocalDates.format(date, "EEEMMMd", "EEE, MMM d"),
                             initial = remember {
                                 val now = java.time.LocalDateTime.now()
                                 OrgTimestamp(now.toLocalDate(), time = now.toLocalTime().withSecond(0).withNano(0), active = false)
@@ -737,7 +737,7 @@ private fun DailyEmptyState(fileName: String, onStartTyping: () -> Unit) {
 }
 
 private fun shortLabel(date: LocalDate): String =
-    date.format(DateTimeFormatter.ofPattern("EEE d"))
+    LocalDates.format(date, "EEEd", "EEE d")
 
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.DateNavPills(n: DailiesNavState, onNavigate: (LocalDate) -> Unit) {

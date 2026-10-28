@@ -34,10 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.format.TextStyle
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +59,7 @@ fun DailyDatePickerSheet(
             ) {
                 MonthArrow("‹", "Previous month") { month = month.minusMonths(1) }
                 Text(
-                    month.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH) + " " + month.year,
+                    LocalDates.format(month, "yMMMM", "MMMM yyyy"),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink,
                 )
                 MonthArrow("›", "Next month") { month = month.plusMonths(1) }

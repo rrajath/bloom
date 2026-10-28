@@ -5,10 +5,8 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 
 enum class RepeaterType(val marker: String) {
     /** `+`: shift by exactly one interval from the old date. */
@@ -90,8 +88,7 @@ data class OrgTimestamp(
      */
     fun formatHuman(today: LocalDate = LocalDate.now()): String {
         val sb = StringBuilder()
-        sb.append(HUMAN_DATE.format(date))
-        if (date.year != today.year) sb.append(", ").append(date.year)
+        sb.append(humanDate(date, today))
         if (time != null) {
             sb.append(' ').append(formatTime(time))
             // A same-day time range stays joined (`09:00-12:00`); a cross-day
@@ -99,8 +96,7 @@ data class OrgTimestamp(
             if (endTime != null && rangeEnd == null) sb.append('-').append(formatTime(endTime))
         }
         if (rangeEnd != null) {
-            sb.append(" – ").append(HUMAN_DATE.format(rangeEnd))
-            if (rangeEnd.year != today.year) sb.append(", ").append(rangeEnd.year)
+            sb.append(" – ").append(humanDate(rangeEnd, today))
             if (endTime != null) sb.append(' ').append(formatTime(endTime))
         }
         if (repeater != null) sb.append(' ').append(repeater)
@@ -116,9 +112,13 @@ data class OrgTimestamp(
 
         private val REPEATER = Regex("""([.+]?\+)(\d+)([hdwmy])""")
 
-        /** `Jul 30`: the reader-facing date, see [formatHuman]. */
-        private val HUMAN_DATE: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH)
+        /**
+         * `Jul 30` (`30. Juli` in German): the reader-facing date, see
+         * [formatHuman]. The year is added only outside [today]'s year.
+         */
+        private fun humanDate(d: LocalDate, today: LocalDate): String =
+            if (d.year == today.year) LocalDates.format(d, "MMMd", "MMM d")
+            else LocalDates.format(d, "yMMMd", "MMM d, yyyy")
 
         private fun formatTime(t: LocalTime): String {
             val sb = StringBuilder(5)
@@ -129,8 +129,18 @@ data class OrgTimestamp(
             return sb.toString()
         }
 
-        fun dayAbbrev(date: LocalDate): String =
-            date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+        /**
+         * The day name inside a written timestamp, in [orgLocale] as Emacs
+         * writes it (`Mon`, `Mo`, `lun.`). The stand-alone form matches glibc's
+         * `%a` where the in-sentence form differs (German `Mo` vs `Mo.`); a
+         * provider without stand-alone names returns a digit, so fall back.
+         */
+        fun dayAbbrev(date: LocalDate): String {
+            val locale = orgLocale()
+            val standalone = date.dayOfWeek.getDisplayName(TextStyle.SHORT_STANDALONE, locale)
+            return if (standalone.any { it.isDigit() }) date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
+            else standalone
+        }
 
         /** Parse the first timestamp in [text], or null. */
         fun parse(text: String): OrgTimestamp? = parseWithRange(text)?.first

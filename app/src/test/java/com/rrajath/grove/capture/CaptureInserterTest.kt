@@ -6,6 +6,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.util.Locale
 
 class CaptureInserterTest {
 
@@ -257,6 +258,57 @@ class CaptureInserterTest {
             Ferry back
         """.trimIndent() + "\n"
         assertEquals(expected, result.newText)
+    }
+
+    @Test
+    fun `datetree names follow the device locale`() = withLocale(Locale.GERMANY) {
+        val result = insert("", TargetLocation.Datetree(), "entry")
+        val expected = """
+            * 2025
+            ** 2025-06 Juni
+            *** 2025-06-11 Mittwoch
+            **** entry
+        """.trimIndent() + "\n"
+        assertEquals(expected, result.newText)
+    }
+
+    @Test
+    fun `datetree reuses nodes named in another language`() {
+        // Written by Emacs in German; inserting from an English device must not
+        // add a second "2025-06 June" branch above them.
+        val doc = """
+            * 2025
+            ** 2025-05 Mai
+            ** 2025-06 Juni
+            *** 2025-06-10 Dienstag
+            **** old entry
+            *** 2025-06-11 Mittwoch
+            **** morning
+            ** 2025-07 Juli
+        """.trimIndent() + "\n"
+        val result = insert(doc, TargetLocation.Datetree(), "afternoon")
+        val expected = """
+            * 2025
+            ** 2025-05 Mai
+            ** 2025-06 Juni
+            *** 2025-06-10 Dienstag
+            **** old entry
+            *** 2025-06-11 Mittwoch
+            **** morning
+            **** afternoon
+            ** 2025-07 Juli
+        """.trimIndent() + "\n"
+        assertEquals(expected, result.newText)
+    }
+
+    @Test
+    fun `datetree places a new day before a later day named in another language`() {
+        val doc = "* 2025\n** 2025-06 Juni\n*** 2025-06-12 Donnerstag\n"
+        val result = insert(doc, TargetLocation.Datetree(), "entry")
+        assertEquals(
+            "* 2025\n** 2025-06 Juni\n*** 2025-06-11 Wednesday\n**** entry\n*** 2025-06-12 Donnerstag\n",
+            result.newText,
+        )
     }
 
     @Test
@@ -572,5 +624,15 @@ class CaptureInserterTest {
         val doc = "* Work\n** Inbox\n"
         assertEquals(null, CaptureInserter.insertUnderPath(doc, listOf("Work", "Someday"), "TODO new"))
         assertEquals(null, CaptureInserter.insertUnderPath(doc, listOf("Inbox"), "TODO new"))
+    }
+
+    private fun <T> withLocale(locale: Locale, block: () -> T): T {
+        val saved = Locale.getDefault()
+        Locale.setDefault(locale)
+        try {
+            return block()
+        } finally {
+            Locale.setDefault(saved)
+        }
     }
 }

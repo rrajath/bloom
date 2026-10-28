@@ -101,6 +101,8 @@ import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.org.LocalDates
+import com.rrajath.grove.org.orgLocale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -954,7 +956,9 @@ private fun AccentCalendar(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            listOf("S", "M", "T", "W", "T", "F", "S").forEach { d ->
+            // Sunday-first, matching the grid below; letters in the device language.
+            (listOf(java.time.DayOfWeek.SUNDAY) + java.time.DayOfWeek.entries.dropLast(1)).forEach { dow ->
+                val d = dow.getDisplayName(java.time.format.TextStyle.NARROW_STANDALONE, orgLocale())
                 Text(
                     d,
                     fontFamily = PlexSans, fontSize = 10.sp, color = c.ink3,
@@ -1678,9 +1682,9 @@ private fun Modifier.dashedBorder(color: Color, radius: Dp) = drawBehind {
 
 // ---- formatting helpers -----------------------------------------------------
 
-private val HumanDate: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
-private val ShortDate: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d")
-private val MonthLabel: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM yyyy")
+private val HumanDate: DateTimeFormatter get() = LocalDates.formatter("EEEMMMd", "EEE, MMM d")
+private val ShortDate: DateTimeFormatter get() = LocalDates.formatter("MMMd", "MMM d")
+private val MonthLabel: DateTimeFormatter get() = LocalDates.formatter("yMMM", "MMM yyyy")
 private val ClockTime: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun plural(n: Int) = if (n == 1) "" else "s"

@@ -27,6 +27,8 @@ import com.rrajath.grove.ui.vault.factory
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.StateChangeResult
+import com.rrajath.grove.org.LocalDates
+import com.rrajath.grove.org.orgLocale
 import androidx.compose.runtime.Immutable
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -353,7 +355,7 @@ class AgendaViewModel(
         }
 
         return AgendaUiState(
-            headerDay = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH),
+            headerDay = today.dayOfWeek.getDisplayName(TextStyle.FULL, orgLocale()),
             headerDate = today.format(HEADER_DATE),
             todayCount = todayItems.size + todayEvents.size,
             tab = tab,
@@ -676,7 +678,7 @@ class AgendaViewModel(
         // scrolls through a long stretch with nothing scheduled.
         private const val MAX_WINDOW_DAYS = 366
 
-        private val HEADER_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("MMMM d", Locale.ENGLISH)
+        private val HEADER_DATE: DateTimeFormatter get() = LocalDates.formatter("MMMMd", "MMMM d")
         private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
 
         /**

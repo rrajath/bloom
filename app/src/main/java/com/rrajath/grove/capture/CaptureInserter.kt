@@ -4,6 +4,7 @@ import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
+import com.rrajath.grove.org.orgLocale
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.time.temporal.IsoFields
@@ -226,16 +227,17 @@ object CaptureInserter {
 
     fun yearTitle(d: LocalDate) = d.year.toString()
     fun monthTitle(d: LocalDate): String =
-        "%04d-%02d %s".format(d.year, d.monthValue, d.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
+        "%04d-%02d %s".format(Locale.ROOT, d.year, d.monthValue, d.month.getDisplayName(TextStyle.FULL, orgLocale()))
     fun dayTitle(d: LocalDate): String =
         "%04d-%02d-%02d %s".format(
+            Locale.ROOT,
             d.year, d.monthValue, d.dayOfMonth,
-            d.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH),
+            d.dayOfWeek.getDisplayName(TextStyle.FULL, orgLocale()),
         )
 
     /** ISO week node title, e.g. `2026-W41` (org's week tree). */
     fun weekTitle(d: LocalDate): String =
-        "%04d-W%02d".format(d.get(IsoFields.WEEK_BASED_YEAR), d.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR))
+        "%04d-W%02d".format(Locale.ROOT, d.get(IsoFields.WEEK_BASED_YEAR), d.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR))
 
     /**
      * The node titles of [today]'s branch of a [type] date tree, outermost
@@ -267,7 +269,7 @@ object CaptureInserter {
         var level = parent?.level ?: 0
         for (title in datetreeTitles(today, type)) {
             level++
-            // A node's sort prefix is its title up to the first space ("2026-10").
+            // A node's numeric prefix is its title up to the first space ("2026-10").
             val node = ensureDateChild(text, keywords, parentLine, level, title, prefix = title.substringBefore(' '))
             text = node.first
             parentLine = node.second
@@ -297,11 +299,13 @@ object CaptureInserter {
             doc.directChildren(p)
         }
 
-        siblings.firstOrNull { it.title == title }?.let { return text to it.lineIndex }
+        // Matched and ordered on the numeric part only, like org-datetree, so a
+        // node whose name is in another language ("2026-10 Oktober") is reused.
+        val dateSiblings = siblings.filter { looksLikeDate(it.title) }
+        dateSiblings.firstOrNull { datePart(it.title) == prefix }?.let { return text to it.lineIndex }
 
         // Chronological position among date-shaped siblings; others left in place.
-        val dateSiblings = siblings.filter { looksLikeDate(it.title) }
-        val insertBefore = dateSiblings.firstOrNull { it.title > prefix }
+        val insertBefore = dateSiblings.firstOrNull { datePart(it.title) > prefix }
         val insertLine = when {
             insertBefore != null -> insertBefore.lineIndex
             dateSiblings.isNotEmpty() -> subtreeEnd(doc, dateSiblings.last())
@@ -312,6 +316,9 @@ object CaptureInserter {
         val spliced = spliceEntry(text, insertLine, listOf(headlineLine))
         return spliced.newText to spliced.insertedAtLine
     }
+
+    /** A date-tree title's numeric part: `2026-10` of `2026-10 October`. */
+    private fun datePart(title: String): String = title.substringBefore(' ').substringBefore('\t')
 
     private fun looksLikeDate(title: String): Boolean =
         Regex("""^\d{4}(-W?\d{2}){0,2}([ \t].*)?$""").matches(title)

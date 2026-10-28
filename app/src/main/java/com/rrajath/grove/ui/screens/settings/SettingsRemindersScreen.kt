@@ -1,11 +1,13 @@
 package com.rrajath.grove.ui.screens.settings
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,9 +26,8 @@ import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.org.LocalDates
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** Settings § Reminders. */
 @Composable
@@ -102,7 +103,7 @@ fun SettingsRemindersScreen(
                     onClick = { showReminderTimePicker = true },
                 ) {
                     Text(
-                        settings.defaultReminderTime.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)),
+                        settings.defaultReminderTime.format(LocalDates.clock(DateFormat.is24HourFormat(LocalContext.current))),
                         fontFamily = PlexMono, fontSize = 13.sp, color = c.accent,
                     )
                 }

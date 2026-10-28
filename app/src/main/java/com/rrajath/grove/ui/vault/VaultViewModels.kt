@@ -48,6 +48,7 @@ import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.vault.matchDenoteNotebook
 import com.rrajath.grove.vault.matchOpenedFileToNotebook
 import com.rrajath.grove.vault.vaultPath
+import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
@@ -78,7 +79,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 /**
  * The vault folder's own name, from its SAF tree URI — e.g. a URI whose tree
@@ -1522,7 +1522,7 @@ class DocumentViewModel(
             }
             _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
             saveDoc(loaded.fileName, newText, "planning edit", newDoc)
-            val fmt = DateTimeFormatter.ofPattern("EEE, MMM d")
+            val fmt = LocalDates.formatter("EEEMMMd", "EEE, MMM d")
             val parts = listOfNotNull(
                 scheduled?.let { "Scheduled · ${it.date.format(fmt)}" },
                 deadline?.let { "Deadline · ${it.date.format(fmt)}" },
@@ -1551,7 +1551,7 @@ class DocumentViewModel(
             saveDoc(loaded.fileName, newText, "planning edit", newDoc)
             showToast(
                 if (ts == null) "$label cleared"
-                else "$label · ${ts.date.format(DateTimeFormatter.ofPattern("EEE, MMM d"))}"
+                else "$label · ${LocalDates.format(ts.date, "EEEMMMd", "EEE, MMM d")}"
             )
         }
     }

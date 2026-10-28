@@ -93,6 +93,7 @@ import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.newOrgId
+import com.rrajath.grove.org.orgLocale
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.Pill
@@ -1234,7 +1235,7 @@ private fun DatetreeBreadcrumb(
     }
     // Year, then month or ISO week; the last node (day, or month for a month
     // tree) is the highlighted chip.
-    val month = today.month.name.lowercase().replaceFirstChar { it.uppercase() }
+    val month = today.month.getDisplayName(java.time.format.TextStyle.FULL, orgLocale())
     val (branch, leaf) = when (location.treeType) {
         DatetreeType.DAY -> listOf(CaptureInserter.yearTitle(today), month) to
             "${OrgTimestamp.dayAbbrev(today)} ${today.dayOfMonth}"

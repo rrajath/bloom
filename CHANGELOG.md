@@ -75,9 +75,11 @@ re-uploads the APKs to the existing release instead of failing.
 - Headings in the refile and link pickers now show the app's five-spoke asterisk.
 - Capture templates have one "Datetree" option; former Datetree (date) templates are converted automatically and capture the same text.
 - Tapping a day with an active timestamp already on it in Planning Dates adds another instead of removing it; use × to remove.
+- Day and month names, in written timestamps, date trees, and on screen, now follow the phone's language.
 
 ### Fixed
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.
+- Date trees reuse existing month and day headings written in another language instead of adding duplicates.
 - Tapping the target label or empty space in the widget's quick add composer no longer closes it.
 - The quick add composer's text cursor now uses the theme's accent color instead of black.
 

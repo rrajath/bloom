@@ -240,6 +240,12 @@ android {
             // non-throwing stubs for un-shadowed android.* calls.
             isIncludeAndroidResources = true
             isReturnDefaultValues = true
+            // Day/month names follow the device locale (orgLocale()); pin it so
+            // tests asserting "Mon"/"October" pass on any developer machine.
+            all {
+                it.systemProperty("user.language", "en")
+                it.systemProperty("user.country", "US")
+            }
         }
         // Run each instrumented test in an isolated process via AndroidX Test
         // Orchestrator — the Layer-2 Compose UI suite otherwise flakes on a

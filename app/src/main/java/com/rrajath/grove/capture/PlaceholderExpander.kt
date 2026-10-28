@@ -1,6 +1,7 @@
 package com.rrajath.grove.capture
 
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.orgLocale
 import java.time.LocalDateTime
 import java.time.format.TextStyle
 import java.util.Locale
@@ -54,18 +55,18 @@ object PlaceholderExpander {
         val time = ctx.now.toLocalTime()
         val dateStamp = OrgTimestamp(date)
         val dateTimeStamp = OrgTimestamp(date, time = time.withSecond(0).withNano(0))
-        val timeText = "%d:%02d".format(time.hour, time.minute)
+        val timeText = "%d:%02d".format(Locale.ROOT, time.hour, time.minute)
 
         val values: Map<String, (() -> String)?> = mapOf(
             "%shared_text" to { ctx.sharedText },
             "%shared_url" to { ctx.sharedUrl },
             "%clipboard" to { ctx.clipboard },
             "%cursor" to null,
-            "%month" to { date.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH) },
+            "%month" to { date.month.getDisplayName(TextStyle.FULL, orgLocale()) },
             "%date" to { date.toString() },
             "%time" to { timeText },
             "%year" to { date.year.toString() },
-            "%day" to { date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH) },
+            "%day" to { date.dayOfWeek.getDisplayName(TextStyle.FULL, orgLocale()) },
             // Org manual: lowercase = date only, uppercase = date + time;
             // t/T are active <...>, u/U inactive [...].
             "%t" to { dateStamp.format() },

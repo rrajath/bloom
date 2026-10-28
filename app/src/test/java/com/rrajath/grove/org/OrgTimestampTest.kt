@@ -9,6 +9,7 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.Locale
 
 class OrgTimestampTest {
 
@@ -304,5 +305,25 @@ class OrgTimestampTest {
         val advanced = ts.advanceRepeater(now = LocalDate.of(2026, 9, 1).atStartOfDay())
         assertEquals(LocalDate.of(2026, 9, 15), advanced.date)
         assertEquals(LocalDate.of(2026, 9, 17), advanced.rangeEnd)
+    }
+
+    @Test
+    fun `written day name follows the device locale like Emacs`() {
+        val saved = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            // Stand-alone form: glibc's %a writes "Mi", not CLDR's in-sentence "Mi.".
+            assertEquals("<2025-06-11 Mi>", OrgTimestamp(LocalDate.of(2025, 6, 11)).format())
+            Locale.setDefault(Locale.FRANCE)
+            assertEquals("<2025-06-11 mer.>", OrgTimestamp(LocalDate.of(2025, 6, 11)).format())
+        } finally {
+            Locale.setDefault(saved)
+        }
+    }
+
+    @Test
+    fun `parses timestamps whose day name is in another language`() {
+        assertEquals(LocalDate.of(2025, 6, 11), OrgTimestamp.parse("<2025-06-11 Mi 14:00>")!!.date)
+        assertEquals(LocalTime.of(14, 0), OrgTimestamp.parse("<2025-06-11 mer. 14:00>")!!.time)
     }
 }

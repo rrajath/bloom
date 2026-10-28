@@ -36,6 +36,7 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.whatsnew.ChangelogVersion
+import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -175,7 +176,7 @@ private fun CategoryTag(heading: String) {
 }
 
 private val ISO = DateTimeFormatter.ISO_LOCAL_DATE
-private val DISPLAY = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US)
+private val DISPLAY: DateTimeFormatter get() = LocalDates.formatter("yMMMd", "d MMM yyyy")
 
 /** "2026-09-09" -> "9 Sep 2026"; anything that isn't a plain ISO date is shown verbatim. */
 private fun formatIsoDate(raw: String): String =

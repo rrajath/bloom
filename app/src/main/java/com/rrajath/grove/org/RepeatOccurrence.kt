@@ -27,7 +27,13 @@ fun markedDoneMessage(next: LocalDate?, today: LocalDate): String =
     if (next == null) "Marked done" else "Marked done. Next occurrence ${formatOccurrence(next, today)}"
 
 internal fun formatOccurrence(date: LocalDate, today: LocalDate): String {
-    val month = date.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+    val locale = orgLocale()
+    // Ordinal suffixes are English-only; other languages get their own date form.
+    if (locale.language != Locale.ENGLISH.language) {
+        return if (date.year == today.year) LocalDates.format(date, "MMMd", "MMM d")
+        else LocalDates.format(date, "yMMMd", "MMM d, yyyy")
+    }
+    val month = date.month.getDisplayName(TextStyle.SHORT, locale)
     val day = date.dayOfMonth
     val suffix = when {
         day in 11..13 -> "th"

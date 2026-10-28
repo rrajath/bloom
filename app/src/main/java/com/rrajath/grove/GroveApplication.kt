@@ -1,6 +1,7 @@
 package com.rrajath.grove
 
 import android.app.Application
+import android.text.format.DateFormat
 import androidx.core.net.toUri
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -13,6 +14,7 @@ import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.data.RoomNoteIndex
 import com.rrajath.grove.icon.AppIconManager
 import com.rrajath.grove.icon.NotificationAppearance
+import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.reminders.AlarmScheduler
 import com.rrajath.grove.reminders.ExactAlarmAccessWatcher
@@ -252,6 +254,9 @@ open class GroveApplication : Application() {
 
         // Warm the notification tint before anything can post a notification.
         notificationMarkColor
+
+        // Reader-facing dates follow the device locale's word order.
+        LocalDates.bestPattern = { locale, skeleton -> DateFormat.getBestDateTimePattern(locale, skeleton) }
 
         appScope.launch { collectWidgetRefreshRequests() }
 

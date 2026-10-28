@@ -100,6 +100,7 @@ import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.vault.Notebook
 import com.rrajath.grove.vault.TestVaultHook
 import com.rrajath.grove.vault.matchOpenedFileToNotebook
+import com.rrajath.grove.org.LocalDates
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -372,7 +373,7 @@ private fun GroveNavigation(
                     logoFollowsTheme = settings.syncAppIconWithTheme,
                     roamFeaturesEnabled = settings.roamFeaturesEnabled,
                     todayShortLabel = remember {
-                        java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEE d"))
+                        LocalDates.format(java.time.LocalDate.now(), "EEEd", "EEE d")
                     },
                     onNavigate = { route -> closeDrawerAnd { navController.navigate(route) } },
                     onDeleteSavedSearch = { viewModel.deleteSavedSearch(it.id) },

@@ -40,6 +40,7 @@ import com.rrajath.grove.ui.vault.factory
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.StateChangeResult
+import com.rrajath.grove.org.LocalDates
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -1023,7 +1024,7 @@ class SearchViewModel(
             )
         }
 
-        private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
+        private val DAY_FORMAT: DateTimeFormatter get() = LocalDates.formatter("EEEdMMM", "EEE d MMM")
         private val CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
     }
 }

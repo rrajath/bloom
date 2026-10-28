@@ -4,12 +4,13 @@ import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.settings.AgendaGrouping
 import com.rrajath.grove.settings.AgendaStateFilter
+import com.rrajath.grove.org.LocalDates
+import com.rrajath.grove.org.orgLocale
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 import kotlin.math.abs
 
 /**
@@ -131,8 +132,8 @@ internal object AgendaBuckets {
         if (n == 0L) return "Today"
         if (n == 1L) return "Tomorrow"
         if (n == -1L) return "Yesterday"
-        val dow = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
-        return if (abs(n) > 6) "$dow, ${date.format(SHORT_DATE)}" else dow
+        return if (abs(n) > 6) LocalDates.format(date, "EEEEMMMd", "EEEE, MMM d")
+        else date.dayOfWeek.getDisplayName(TextStyle.FULL, orgLocale())
     }
 
     /** Time on whichever timestamp [whenDate] chose; untimed rows sort last. */
@@ -147,7 +148,7 @@ internal object AgendaBuckets {
             .thenBy { timeOf(it) }
             .thenBy { it.title.lowercase() }
 
-    val SHORT_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH)
+    val SHORT_DATE: DateTimeFormatter get() = LocalDates.formatter("MMMd", "MMM d")
 
     /** Sorts after "A"/"B"/"C", so unprioritised rows land at the bottom of a bucket. */
     private const val NO_PRIORITY_SORT_KEY = "Z"

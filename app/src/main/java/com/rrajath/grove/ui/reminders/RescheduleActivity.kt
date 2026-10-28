@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.reminders
 
+import android.text.format.DateFormat
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -24,11 +25,11 @@ import com.rrajath.grove.reminders.ReminderNotification
 import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.theme.ContentFontScale
 import com.rrajath.grove.ui.theme.GroveTheme
+import com.rrajath.grove.org.LocalDates
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * Host for a reminder notification's "Reschedule" action.
@@ -135,7 +136,7 @@ private fun RescheduleFlow(reminderKey: String, onDone: () -> Unit) {
             Toast.makeText(
                 context,
                 if (reported == null) "Task rescheduled"
-                else "Task rescheduled to ${formatRescheduled(reported)}",
+                else "Task rescheduled to ${formatRescheduled(reported, DateFormat.is24HourFormat(context))}",
                 Toast.LENGTH_SHORT,
             ).show()
             // Toasts are owned by the system, so this one outlives the window;
@@ -173,11 +174,10 @@ private suspend fun writePlanning(
     ReminderNotification.cancel(app, reminder.notificationId)
 }
 
-private val RESCHEDULED_DATE = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.ENGLISH)
-private val RESCHEDULED_TIME = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
+private val RESCHEDULED_DATE: DateTimeFormatter get() = LocalDates.formatter("EEEMMMd", "EEE, MMM d")
 
 /** "Task rescheduled to <date[, time]>": matches the app's "EEE, MMM d" convention. */
-private fun formatRescheduled(ts: OrgTimestamp): String {
+private fun formatRescheduled(ts: OrgTimestamp, is24Hour: Boolean): String {
     val date = ts.date.format(RESCHEDULED_DATE)
-    return if (ts.time != null) "$date at ${ts.time.format(RESCHEDULED_TIME)}" else date
+    return if (ts.time != null) "$date at ${ts.time.format(LocalDates.clock(is24Hour))}" else date
 }
