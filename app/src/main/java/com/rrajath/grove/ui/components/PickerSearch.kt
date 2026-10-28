@@ -207,9 +207,9 @@ fun PickerRow(
                 Text(
                     title, fontFamily = PlexMono, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
                 )
-                titleTag?.let { HeadingTag(it, Modifier.padding(start = 7.dp)) }
+                titleTag?.let { HeadingTag(it, Modifier.padding(start = 7.dp).alignByBaseline()) }
             }
             crumb?.let {
                 Text(it, fontFamily = PlexSans, fontSize = 11.sp, color = c.ink3)
@@ -225,7 +225,8 @@ fun PickerRow(
 /**
  * A small muted tag after a heading's title, e.g. "ID" on a heading that has an
  * `:ID:` / `:CUSTOM_ID:` (capture template heading picker): PlexMono 10.5sp
- * SemiBold `ink3`.
+ * SemiBold `ink3`. Callers baseline-align it with the title (`alignByBaseline`
+ * on both): centered, its caps sit visibly above the title's lowercase.
  */
 @Composable
 fun HeadingTag(text: String, modifier: Modifier = Modifier) {

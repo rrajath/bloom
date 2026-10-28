@@ -342,20 +342,13 @@ fun TemplateEditScreen(
                 } else null
                 fun openPicker(forWhat: HeadingPickerFor) {
                     val doc = targetDoc ?: return
-                    val current = when (forWhat) {
-                        HeadingPickerFor.UNDER_HEADING -> underHeading?.let { CaptureInserter.findTarget(doc, it) }
-                        HeadingPickerFor.DATETREE ->
-                            datetree.takeIf { it.hasHeading }?.let { CaptureInserter.findTarget(doc, it) }
-                    }
+                    // Always opens at the file's top level, whatever was picked before.
                     pickerState = RefileUiState(
                         sourceLine = -1,
                         sourceLines = emptyList(),
                         pickedFile = fileName,
                         pickedDoc = doc,
-                        // Opens drilled down to the current pick, so its siblings are in view.
-                        path = current?.let { h ->
-                            generateSequence(h, doc::parent).toList().asReversed().map { it.lineIndex }.toImmutableList()
-                        } ?: persistentListOf(),
+                        path = persistentListOf(),
                         searchIndex = fileHeadingSearchIndex(fileName, doc),
                     )
                     pickerFor = forWhat
@@ -418,14 +411,17 @@ fun TemplateEditScreen(
                                     onSelect = { datetree = datetree.copy(treeType = DatetreeType.entries[it]) },
                                 )
                             }
-                            DatetreeOutlinePreview(
-                                path = if (datetree.hasHeading) {
-                                    resolved?.let { h -> targetDoc?.let { CaptureInserter.outlinePath(it, h) } }
-                                        ?: datetree.path
-                                } else emptyList(),
-                                type = datetree.treeType,
-                                today = previewDate,
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SubOptionLabel("Preview")
+                                DatetreeOutlinePreview(
+                                    path = if (datetree.hasHeading) {
+                                        resolved?.let { h -> targetDoc?.let { CaptureInserter.outlinePath(it, h) } }
+                                            ?: datetree.path
+                                    } else emptyList(),
+                                    type = datetree.treeType,
+                                    today = previewDate,
+                                )
+                            }
                         }
                     }
                     Text(
@@ -649,6 +645,7 @@ fun TemplateEditScreen(
             searchPlaceholder = stringResource(R.string.picker_search_headings_placeholder),
             searchHeader = stringResource(R.string.picker_search_headings_header),
             headingTag = { h -> idTag.takeIf { h.id != null || h.customId != null } },
+            brandMarkHeadings = true,
         )
     }
 
@@ -746,9 +743,9 @@ private fun HeadingPickerField(
                 fontFamily = PlexSans, fontSize = 14.5.sp,
                 color = if (text != null) c.ink else c.ink3,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
             )
-            if (text != null && tag != null) HeadingTag(tag, Modifier.padding(start = 8.dp))
+            if (text != null && tag != null) HeadingTag(tag, Modifier.padding(start = 8.dp).alignByBaseline())
         }
         Spacer(Modifier.width(8.dp))
         Text("▾", fontFamily = PlexSans, fontSize = 14.5.sp, color = c.ink3)

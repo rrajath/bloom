@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.org.ArchiveTarget
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
+import com.rrajath.grove.ui.components.BrandMarkGlyph
 import com.rrajath.grove.ui.components.HeadingTag
 import com.rrajath.grove.ui.components.PickerSearchField
 import com.rrajath.grove.ui.components.PickerSearchHeader
@@ -103,6 +104,8 @@ fun RefileSheet(
     searchHeader: String? = null,
     /** A small muted tag after a heading row's title (e.g. "ID"), or null for none. */
     headingTag: (OrgHeadline) -> String? = { null },
+    /** Heading rows lead with the five-spoke brand asterisk (as search hits do) instead of `✳`. */
+    brandMarkHeadings: Boolean = false,
 ) {
     val c = MaterialTheme.grove
     val doc = state.pickedDoc
@@ -220,6 +223,7 @@ fun RefileSheet(
                     items(rows, key = { it.lineIndex }) { h ->
                         RefileRow(
                             glyph = "✳",
+                            brandMark = brandMarkHeadings,
                             label = h.title,
                             labelTag = headingTag(h),
                             sub = headingCountLabel(doc, h),
@@ -340,6 +344,7 @@ private fun LastUsedRow(sub: String, onClick: () -> Unit) {
 @Composable
 private fun RefileRow(
     glyph: String? = null,
+    brandMark: Boolean = false,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     label: String,
     labelTag: String? = null,
@@ -363,18 +368,21 @@ private fun RefileRow(
                 tint = c.accent,
                 modifier = Modifier.size(15.dp),
             )
+        } else if (brandMark) {
+            BrandMarkGlyph(size = 10.dp, color = c.accent)
         } else {
             Text(glyph.orEmpty(), fontFamily = PlexMono, fontSize = 15.sp, color = c.accent)
         }
         Spacer(Modifier.width(10.dp))
+        // The tag sits on the title's baseline, so its caps line up with the title's lowercase.
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 label,
                 fontFamily = PlexMono, fontWeight = FontWeight.Medium,
                 fontSize = 14.5.sp, color = c.ink,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
             )
-            labelTag?.let { HeadingTag(it, Modifier.padding(start = 7.dp)) }
+            labelTag?.let { HeadingTag(it, Modifier.padding(start = 7.dp).alignByBaseline()) }
         }
         sub?.let {
             Spacer(Modifier.width(8.dp))
