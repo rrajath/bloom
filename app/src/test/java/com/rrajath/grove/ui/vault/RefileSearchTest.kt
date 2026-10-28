@@ -161,4 +161,19 @@ class RefileSearchTest {
         val hit = LinkHeadingHit("inbox.org", 99, "Gone", "inbox")
         assertNull(picker.withSearchHit(hit, inbox, emptyList()))
     }
+
+    @Test
+    fun `file heading index covers only that file, with crumbs from the file name`() {
+        val doc = OrgParser.parse("* Work\n** Meetings\n*** Standup\n* Home\n")
+        val index = fileHeadingSearchIndex("journal.org", doc)
+        assertEquals(
+            listOf(
+                LinkHeadingHit("journal.org", 0, "Work", "journal"),
+                LinkHeadingHit("journal.org", 1, "Meetings", "journal › Work"),
+                LinkHeadingHit("journal.org", 2, "Standup", "journal › Work › Meetings"),
+                LinkHeadingHit("journal.org", 3, "Home", "journal"),
+            ),
+            index,
+        )
+    }
 }

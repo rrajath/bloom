@@ -248,7 +248,7 @@ class CaptureInserterTest {
 
     @Test
     fun `datetree creates full hierarchy in empty file`() {
-        val result = insert("", TargetLocation.Datetree, "<2025-06-11 Wed 14:32>\nFerry back")
+        val result = insert("", TargetLocation.Datetree(), "<2025-06-11 Wed 14:32>\nFerry back")
         val expected = """
             * 2025
             ** 2025-06 June
@@ -268,7 +268,7 @@ class CaptureInserterTest {
             **** 09:00 Morning entry
             text
         """.trimIndent() + "\n"
-        val result = insert(doc, TargetLocation.Datetree, "14:32 Afternoon")
+        val result = insert(doc, TargetLocation.Datetree(), "14:32 Afternoon")
         val expected = doc + "**** 14:32 Afternoon\n"
         assertEquals(expected.trimEnd('\n') + "\n", result.newText)
     }
@@ -281,7 +281,7 @@ class CaptureInserterTest {
             *** 2025-06-10 Tuesday
             **** old entry
         """.trimIndent() + "\n"
-        val result = insert(doc, TargetLocation.Datetree, "new entry")
+        val result = insert(doc, TargetLocation.Datetree(), "new entry")
         val expected = """
             * 2025
             ** 2025-06 June
@@ -301,7 +301,7 @@ class CaptureInserterTest {
             *** 2025-06-10 Tuesday
             *** 2025-06-14 Saturday
         """.trimIndent() + "\n"
-        val result = insert(doc, TargetLocation.Datetree, "entry")
+        val result = insert(doc, TargetLocation.Datetree(), "entry")
         val expected = """
             * 2025
             ** 2025-06 June
@@ -321,7 +321,7 @@ class CaptureInserterTest {
             * 2024
             ** 2024-12 December
         """.trimIndent() + "\n"
-        val result = insert(doc, TargetLocation.Datetree, "entry")
+        val result = insert(doc, TargetLocation.Datetree(), "entry")
         assertTrue(result.newText.startsWith("* Inbox\nstuff\n"))
         assertTrue(result.newText.contains("* 2024\n** 2024-12 December\n* 2025\n** 2025-06 June\n*** 2025-06-11 Wednesday\n**** entry"))
     }
@@ -329,10 +329,125 @@ class CaptureInserterTest {
     @Test
     fun `datetree year inserted before later year`() {
         val doc = "* 2026\n** 2026-01 January\n"
-        val result = insert(doc, TargetLocation.Datetree, "entry")
+        val result = insert(doc, TargetLocation.Datetree(), "entry")
         assertTrue(
             result.newText.indexOf("* 2025") < result.newText.indexOf("* 2026")
         )
+    }
+
+    // --- outline path / datetree inside a heading / tree types ---
+
+    private val nestedDoc = """
+        * Inbox
+        ** Tasks
+        * Work
+        :PROPERTIES:
+        :ID: WORK-1
+        :END:
+        ** Tasks
+        *** existing
+    """.trimIndent() + "\n"
+
+    @Test
+    fun `under heading by outline path picks the nested heading, not the first same-named one`() {
+        val result = insert(nestedDoc, TargetLocation.UnderHeading(path = listOf("Work", "Tasks")), "* new")
+        assertTrue(result.newText, result.newText.endsWith("** Tasks\n*** existing\n*** new\n"))
+        assertTrue(result.newText.startsWith("* Inbox\n** Tasks\n* Work\n"))
+    }
+
+    @Test
+    fun `under heading id wins over a stale outline path`() {
+        val result = insert(nestedDoc, TargetLocation.UnderHeading(id = "WORK-1", path = listOf("Gone")), "* new")
+        assertTrue(result.newText, result.newText.endsWith("*** existing\n** new\n"))
+    }
+
+    @Test
+    fun `under heading with a missing outline path throws`() {
+        assertThrows(CaptureInserter.CaptureTargetNotFound::class.java) {
+            insert(nestedDoc, TargetLocation.UnderHeading(path = listOf("Work", "Nope")), "x")
+        }
+    }
+
+    @Test
+    fun `datetree inside a heading nests the tree one level below it`() {
+        val doc = "* Journal\n* Other\n"
+        val result = insert(doc, TargetLocation.Datetree(path = listOf("Journal")), "entry")
+        val expected = """
+            * Journal
+            ** 2025
+            *** 2025-06 June
+            **** 2025-06-11 Wednesday
+            ***** entry
+            * Other
+        """.trimIndent() + "\n"
+        assertEquals(expected, result.newText)
+    }
+
+    @Test
+    fun `datetree inside a heading found by id reuses its existing tree`() {
+        val doc = """
+            * Work
+            :PROPERTIES:
+            :ID: WORK-1
+            :END:
+            ** 2025
+            *** 2025-06 June
+            **** 2025-06-11 Wednesday
+            ***** first
+        """.trimIndent() + "\n"
+        val result = insert(doc, TargetLocation.Datetree(id = "WORK-1", path = listOf("Renamed")), "second")
+        assertEquals(doc + "***** second\n", result.newText)
+    }
+
+    @Test
+    fun `datetree inside a missing heading throws`() {
+        assertThrows(CaptureInserter.CaptureTargetNotFound::class.java) {
+            insert("* Journal\n", TargetLocation.Datetree(path = listOf("Nope")), "x")
+        }
+    }
+
+    @Test
+    fun `week tree groups days under the ISO week`() {
+        val result = insert("", TargetLocation.Datetree(treeType = DatetreeType.WEEK), "entry")
+        val expected = """
+            * 2025
+            ** 2025-W24
+            *** 2025-06-11 Wednesday
+            **** entry
+        """.trimIndent() + "\n"
+        assertEquals(expected, result.newText)
+    }
+
+    @Test
+    fun `week tree uses the ISO week-based year at a year boundary`() {
+        // 2027-01-01 is a Friday in ISO week 53 of 2026.
+        val result = CaptureInserter.insert(
+            "", TargetLocation.Datetree(treeType = DatetreeType.WEEK), "entry", LocalDate.of(2027, 1, 1),
+        )
+        assertEquals("* 2026\n** 2026-W53\n*** 2027-01-01 Friday\n**** entry\n", result.newText)
+    }
+
+    @Test
+    fun `month tree puts entries under the month`() {
+        val doc = "* 2025\n** 2025-05 May\n*** may entry\n"
+        val result = insert(doc, TargetLocation.Datetree(treeType = DatetreeType.MONTH), "entry")
+        assertEquals("* 2025\n** 2025-05 May\n*** may entry\n** 2025-06 June\n*** entry\n", result.newText)
+    }
+
+    @Test
+    fun `month tree entry is prefilled with month-level stars`() {
+        val result = CaptureInserter.withHeadingStars(
+            ExpandedTemplate("", 0), TargetLocation.Datetree(treeType = DatetreeType.MONTH),
+        )
+        assertEquals("*** ", result.text)
+    }
+
+    @Test
+    fun `datetree inside a heading has no static entry level`() {
+        val result = CaptureInserter.withHeadingStars(
+            ExpandedTemplate("", 0), TargetLocation.Datetree(path = listOf("Journal")),
+        )
+        assertEquals("", result.text)
     }
 
     // --- editor star prefill ---
@@ -340,7 +455,7 @@ class CaptureInserterTest {
     @Test
     fun `datetree entry is prefilled with day-level stars`() {
         val result = CaptureInserter.withHeadingStars(
-            ExpandedTemplate("", 0), TargetLocation.Datetree,
+            ExpandedTemplate("", 0), TargetLocation.Datetree(),
         )
         assertEquals("**** ", result.text)
         assertEquals(5, result.cursorOffset)
@@ -349,7 +464,7 @@ class CaptureInserterTest {
     @Test
     fun `star prefill keeps the cursor in place relative to the template`() {
         val result = CaptureInserter.withHeadingStars(
-            ExpandedTemplate("<2025-06-11 Wed> \nbody", 17), TargetLocation.Datetree,
+            ExpandedTemplate("<2025-06-11 Wed> \nbody", 17), TargetLocation.Datetree(),
         )
         assertEquals("**** <2025-06-11 Wed> \nbody", result.text)
         assertEquals(22, result.cursorOffset)
@@ -381,7 +496,7 @@ class CaptureInserterTest {
     @Test
     fun `prefilled stars round-trip through datetree insertion unchanged`() {
         val typed = "**** My day\nIt went well"
-        val result = insert("", TargetLocation.Datetree, typed)
+        val result = insert("", TargetLocation.Datetree(), typed)
         assertTrue(result.newText.contains("*** 2025-06-11 Wednesday\n**** My day\nIt went well"))
     }
 
@@ -427,7 +542,7 @@ class CaptureInserterTest {
         var previous: CaptureInserter.Insertion? = null
         for (draftText in listOf("14:00 Draft one", "14:00 Draft one updated")) {
             val base = previous?.let { CaptureInserter.removeInsertion(current, it) } ?: current
-            val result = insert(base, TargetLocation.Datetree, draftText)
+            val result = insert(base, TargetLocation.Datetree(), draftText)
             current = result.newText
             previous = result
         }

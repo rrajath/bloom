@@ -58,6 +58,7 @@ re-uploads the APKs to the existing release instead of failing.
 ## [Unreleased]
 
 ### Added
+- Date tree templates can grow inside a heading and group entries by day, week, or month.
 - Outline's Move & indent bar can act on several headings at once: tap rows to add them to the selection.
 - Denote links (`[[denote:20240101T120000]]`) open the note with that identifier anywhere in the vault, optionally at a `::*Heading` or `::#custom-id` inside it.
 - The refile picker has a search box to find any file or heading without drilling down.
@@ -70,6 +71,7 @@ re-uploads the APKs to the existing release instead of failing.
 - When a heading can't be demoted in Outline, the message now explains why: there's no heading above to go under.
 - Tapping the app icon on the Agenda widget now opens the Agenda screen instead of the home page.
 - Capture placeholders %t, %T, %u, %U now match org-mode: lowercase is date only, u/U are inactive.
+- Capture templates: pick the target heading from a searchable list instead of typing its name or ID.
 - Capture templates have one "Datetree" option; former Datetree (date) templates are converted automatically and capture the same text.
 - Tapping a day with an active timestamp already on it in Planning Dates adds another instead of removing it; use × to remove.
 

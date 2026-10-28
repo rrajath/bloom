@@ -31,10 +31,10 @@ class CaptureTemplateTest {
             """"template":"%U %cursor"}]}"""
         val decoded = TemplateSerializer.decode(stored)
         assertEquals(2, decoded.size)
-        assertEquals(TargetLocation.Datetree, decoded[0].location)
+        assertEquals(TargetLocation.Datetree(), decoded[0].location)
         assertEquals("%u %^{Mood}\n%t %cursor", decoded[0].template)
         // Datetime templates are untouched: same location, same text.
-        assertEquals(TargetLocation.Datetree, decoded[1].location)
+        assertEquals(TargetLocation.Datetree(), decoded[1].location)
         assertEquals("%U %cursor", decoded[1].template)
     }
 
@@ -102,6 +102,20 @@ class CaptureTemplateTest {
     }
 
     @Test
+    fun `a plain Datetree encodes exactly as before, new fields round-trip`() {
+        val plain = CaptureTemplate(id = "j", name = "J", targetFile = "j.org", location = TargetLocation.Datetree(), template = "x")
+        assertTrue(
+            TemplateSerializer.encode(listOf(plain)),
+            TemplateSerializer.encode(listOf(plain)).contains("""{"type":"datetree_datetime"}"""),
+        )
+        val nested = listOf(
+            plain.copy(location = TargetLocation.Datetree(id = "A", path = listOf("Work", "Meetings"), treeType = DatetreeType.WEEK)),
+            plain.copy(id = "u", location = TargetLocation.UnderHeading(id = "B", path = listOf("Tasks"))),
+        )
+        assertEquals(nested, TemplateSerializer.decode(TemplateSerializer.encode(nested)))
+    }
+
+    @Test
     fun `built-in ids are stable for launcher shortcuts`() {
         // ShortcutSyncer keys each dynamic launcher shortcut by template id and
         // deep-links to bloom://capture/<id>. Renaming a built-in id would silently
@@ -114,9 +128,11 @@ class CaptureTemplateTest {
     @Test
     fun `location descriptions for the picker`() {
         assertEquals("bottom of file", TargetLocation.BottomOfFile.describe())
-        assertEquals("datetree", TargetLocation.Datetree.describe())
+        assertEquals("datetree", TargetLocation.Datetree().describe())
         assertEquals("under #x", TargetLocation.UnderHeading(customId = "x").describe())
         assertEquals("under #y", TargetLocation.UnderHeading(customId = "x", id = "y").describe())
         assertEquals("under Projects", TargetLocation.UnderHeading(title = "Projects").describe())
+        assertEquals("under Tasks", TargetLocation.UnderHeading(id = "x", path = listOf("Work", "Tasks")).describe())
+        assertEquals("datetree in Meetings", TargetLocation.Datetree(path = listOf("Work", "Meetings")).describe())
     }
 }

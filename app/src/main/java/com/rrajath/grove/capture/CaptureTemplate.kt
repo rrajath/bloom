@@ -23,10 +23,13 @@ sealed class TargetLocation {
     data object BottomOfFile : TargetLocation()
 
     /**
-     * Insert as child of a heading, found by [id] (recommended, robust) or by
-     * exact [title]. [id] matches a heading's `:ID:` first, then its
+     * Insert as child of a heading, found by [id] first (robust to renames),
+     * then by outline [path] (titles, outermost first, like org's `file+olp`),
+     * then by exact [title]. [id] matches a heading's `:ID:` first, then its
      * `:CUSTOM_ID:`. [customId] is the legacy field older templates saved;
      * it's still honored (via [headingKey]) but the editor now writes [id].
+     * [title] is likewise only written by older editors; the heading picker
+     * writes [path] (plus [id] when the heading has one).
      * [appendLast] = insert after the last existing child.
      */
     @Serializable
@@ -36,29 +39,53 @@ sealed class TargetLocation {
         val customId: String? = null,
         val appendLast: Boolean = true,
         val id: String? = null,
+        val path: List<String> = emptyList(),
     ) : TargetLocation() {
         /** The id to resolve the heading by: [id], else the legacy [customId]. */
         val headingKey: String? get() = id ?: customId
+
+        /** The heading's name for labels: its title, else `#id`; null when nothing is set. */
+        val headingLabel: String? get() = path.lastOrNull() ?: title ?: headingKey?.let { "#$it" }
     }
 
     /**
-     * Year → Month → Day tree; entry under the day heading. Keeps the serial
-     * name of the old "Datetree (datetime)" location so existing templates and
-     * older builds read it unchanged; the retired "datetree_date" location is
-     * migrated in [TemplateSerializer.decode].
+     * A date tree (Year → Month → Day by default; see [DatetreeType]), with the
+     * entry under its last node. The tree sits at the file's top level, or
+     * inside the heading found by [id] then [path] (org's `file+olp+datetree`).
+     * Keeps the serial name of the old "Datetree (datetime)" location so
+     * existing templates and older builds read it unchanged; the retired
+     * "datetree_date" location is migrated in [TemplateSerializer.decode].
      */
     @Serializable
     @SerialName("datetree_datetime")
-    data object Datetree : TargetLocation()
+    data class Datetree(
+        val id: String? = null,
+        val path: List<String> = emptyList(),
+        val treeType: DatetreeType = DatetreeType.DAY,
+    ) : TargetLocation() {
+        /** True when the tree goes inside a heading rather than at the top level. */
+        val hasHeading: Boolean get() = id != null || path.isNotEmpty()
+    }
 
     val isDatetree: Boolean get() = this is Datetree
 
     fun describe(): String = when (this) {
         is TopOfFile -> "top of file"
         is BottomOfFile -> "bottom of file"
-        is UnderHeading -> "under " + (headingKey?.let { "#$it" } ?: title ?: "heading")
-        is Datetree -> "datetree"
+        is UnderHeading -> "under " + (headingLabel ?: "heading")
+        is Datetree -> path.lastOrNull()?.let { "datetree in $it" } ?: "datetree"
     }
+}
+
+/** How a [TargetLocation.Datetree] groups entries: org's `:tree-type`. */
+@Serializable
+enum class DatetreeType {
+    /** Year → Month → Day (org's default). */
+    @SerialName("day") DAY,
+    /** Year → ISO week → Day. */
+    @SerialName("week") WEEK,
+    /** Year → Month. */
+    @SerialName("month") MONTH,
 }
 
 /** Dash-separated form of a template name for its bloom://capture/{slug} deep link. */
@@ -148,7 +175,7 @@ object DefaultTemplates {
             id = "builtin-journal",
             name = "Journal Entry",
             targetFile = "journal.org",
-            location = TargetLocation.Datetree,
+            location = TargetLocation.Datetree(),
             // First line of the entry is its heading; the cursor lands right
             // after the stamp, on the heading, ready for input.
             template = "%U %cursor",

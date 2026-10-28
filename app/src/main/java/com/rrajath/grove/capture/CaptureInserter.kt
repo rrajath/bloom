@@ -6,6 +6,7 @@ import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
 import java.time.LocalDate
 import java.time.format.TextStyle
+import java.time.temporal.IsoFields
 import java.util.Locale
 
 /**
@@ -46,6 +47,8 @@ object CaptureInserter {
                 val target = findTarget(doc, location)
                     ?: throw CaptureTargetNotFound(
                         location.headingKey?.let { "No heading with ID or CUSTOM_ID \"$it\"" }
+                            ?: location.path.takeIf { it.isNotEmpty() }
+                                ?.let { "No heading at \"${it.joinToString(" / ")}\"" }
                             ?: "No heading titled \"${location.title}\""
                     )
                 if (bodyOnly) {
@@ -59,8 +62,16 @@ object CaptureInserter {
                 }
             }
 
-            is TargetLocation.Datetree ->
-                insertDatetree(docText, entry, today, keywords)
+            is TargetLocation.Datetree -> {
+                val parent = if (location.hasHeading) {
+                    findTarget(OrgParser.parse(docText, keywords), location)
+                        ?: throw CaptureTargetNotFound(
+                            location.id?.let { "No heading with ID or CUSTOM_ID \"$it\"" }
+                                ?: "No heading at \"${location.path.joinToString(" / ")}\""
+                        )
+                } else null
+                insertDatetree(docText, entry, today, keywords, parent, location.treeType)
+            }
         }
     }
 
@@ -81,27 +92,41 @@ object CaptureInserter {
     ): Insertion? {
         if (headingPath.isEmpty()) return spliceEntry(docText, endOfFileLine(docText), normalizeEntry(entry, 1))
         val doc = OrgParser.parse(docText, keywords)
+        val heading = findByPath(doc, headingPath) ?: return null
+        return spliceEntry(docText, subtreeEnd(doc, heading), normalizeEntry(entry, heading.level + 1))
+    }
+
+    /**
+     * The heading at [path] (exact titles, outermost first, each a direct
+     * child of the one before), or null when any step is missing.
+     */
+    fun findByPath(doc: OrgDocument, path: List<String>): OrgHeadline? {
+        if (path.isEmpty()) return null
         var target: OrgHeadline? = null
-        for (title in headingPath) {
+        for (title in path) {
             val siblings = target?.let { doc.directChildren(it) }
                 ?: doc.headlines.filter { doc.parent(it) == null }
             target = siblings.firstOrNull { it.title == title } ?: return null
         }
-        val heading = target ?: return null
-        return spliceEntry(docText, subtreeEnd(doc, heading), normalizeEntry(entry, heading.level + 1))
+        return target
     }
 
     /**
      * The heading an [TargetLocation.UnderHeading] capture lands under. One id
      * field matches either property, so legacy templates that saved a
-     * CUSTOM_ID keep resolving after the switch to ID; the exact title is the
-     * fallback.
+     * CUSTOM_ID keep resolving after the switch to ID; the outline path, then
+     * the exact title, are the fallbacks.
      */
-    fun findTarget(doc: OrgDocument, location: TargetLocation.UnderHeading): OrgHeadline? {
-        val key = location.headingKey
-        return key?.let { doc.findById(it) ?: doc.findByCustomId(it) }
+    fun findTarget(doc: OrgDocument, location: TargetLocation.UnderHeading): OrgHeadline? =
+        findHeading(doc, location.headingKey, location.path)
             ?: location.title?.let { doc.findByTitle(it) }
-    }
+
+    /** The heading a [TargetLocation.Datetree] grows inside, or null for the top level / not found. */
+    fun findTarget(doc: OrgDocument, location: TargetLocation.Datetree): OrgHeadline? =
+        findHeading(doc, location.id, location.path)
+
+    private fun findHeading(doc: OrgDocument, key: String?, path: List<String>): OrgHeadline? =
+        key?.let { doc.findById(it) ?: doc.findByCustomId(it) } ?: findByPath(doc, path)
 
     /**
      * [target]'s outline path: the titles of its ancestors, outermost first,
@@ -177,9 +202,12 @@ object CaptureInserter {
         is TargetLocation.TopOfFile, is TargetLocation.BottomOfFile -> 1
         // Depends on the target heading's depth in the file; not known here.
         is TargetLocation.UnderHeading -> null
-        // Year → month → day tree; entries sit under the day heading.
-        is TargetLocation.Datetree -> 4
+        // Inside a heading, the tree's depth depends on that heading's level.
+        is TargetLocation.Datetree -> if (location.hasHeading) null else datetreeDepth(location.treeType) + 1
     }
+
+    /** Number of date levels a [type] tree has: year, month/week, day. */
+    fun datetreeDepth(type: DatetreeType): Int = if (type == DatetreeType.MONTH) 2 else 3
 
     /**
      * Make the capture editor WYSIWYG: prefix the expanded entry with the
@@ -205,23 +233,48 @@ object CaptureInserter {
             d.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH),
         )
 
+    /** ISO week node title, e.g. `2026-W41` (org's week tree). */
+    fun weekTitle(d: LocalDate): String =
+        "%04d-W%02d".format(d.get(IsoFields.WEEK_BASED_YEAR), d.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR))
+
+    /**
+     * The node titles of [today]'s branch of a [type] date tree, outermost
+     * first. A week tree's year is the ISO week-based year, as in org, so the
+     * first days of January can still sit under the previous year's last week.
+     */
+    fun datetreeTitles(today: LocalDate, type: DatetreeType): List<String> = when (type) {
+        DatetreeType.DAY -> listOf(yearTitle(today), monthTitle(today), dayTitle(today))
+        DatetreeType.WEEK ->
+            listOf(today.get(IsoFields.WEEK_BASED_YEAR).toString(), weekTitle(today), dayTitle(today))
+        DatetreeType.MONTH -> listOf(yearTitle(today), monthTitle(today))
+    }
+
+    /**
+     * Finds or creates [today]'s branch of a [type] date tree, at the top level
+     * or inside [parent], then appends [entry] as the last child of its last node.
+     */
     private fun insertDatetree(
         docText: String,
         entry: String,
         today: LocalDate,
         keywords: OrgKeywords,
+        parent: OrgHeadline?,
+        type: DatetreeType,
     ): Insertion {
         var text = docText
-        var year = ensureDateChild(text, keywords, parent = null, level = 1, title = yearTitle(today), prefix = yearTitle(today))
-        text = year.first
-        var month = ensureDateChild(text, keywords, parent = year.second, level = 2, title = monthTitle(today), prefix = "%04d-%02d".format(today.year, today.monthValue))
-        text = month.first
-        val day = ensureDateChild(text, keywords, parent = month.second, level = 3, title = dayTitle(today), prefix = "%04d-%02d-%02d".format(today.year, today.monthValue, today.dayOfMonth))
-        text = day.first
-
+        // Nodes are only ever spliced in below [parent], so its line index holds.
+        var parentLine = parent?.lineIndex
+        var level = parent?.level ?: 0
+        for (title in datetreeTitles(today, type)) {
+            level++
+            // A node's sort prefix is its title up to the first space ("2026-10").
+            val node = ensureDateChild(text, keywords, parentLine, level, title, prefix = title.substringBefore(' '))
+            text = node.first
+            parentLine = node.second
+        }
         val doc = OrgParser.parse(text, keywords)
-        val dayHeadline = doc.headlines.first { it.lineIndex == day.second }
-        return spliceEntry(text, subtreeEnd(doc, dayHeadline), normalizeEntry(entry, 4))
+        val leaf = doc.headlines.first { it.lineIndex == parentLine }
+        return spliceEntry(text, subtreeEnd(doc, leaf), normalizeEntry(entry, level + 1))
     }
 
     /**
@@ -261,7 +314,7 @@ object CaptureInserter {
     }
 
     private fun looksLikeDate(title: String): Boolean =
-        Regex("""^\d{4}(-\d{2}){0,2}([ \t].*)?$""").matches(title)
+        Regex("""^\d{4}(-W?\d{2}){0,2}([ \t].*)?$""").matches(title)
 
     // --- splicing helpers ---
 

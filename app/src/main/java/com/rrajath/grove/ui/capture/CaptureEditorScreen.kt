@@ -76,6 +76,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureInserter
 import com.rrajath.grove.capture.CaptureTemplate
+import com.rrajath.grove.capture.DatetreeType
 import com.rrajath.grove.capture.FilenamePattern
 import com.rrajath.grove.capture.ExpandedTemplate
 import com.rrajath.grove.capture.PlaceholderExpander
@@ -136,6 +137,7 @@ import com.rrajath.grove.ui.theme.priorityColor
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.temporal.IsoFields
 
 /**
  * Whether a Roam capture is a brand-new node or a continuation of a file that
@@ -305,7 +307,10 @@ fun CaptureEditorScreen(
     var targetOutline by remember(template) { mutableStateOf<List<String>?>(null) }
     var targetHeadingMissing by remember(template) { mutableStateOf(false) }
     LaunchedEffect(template) {
-        if (template.kind != TemplateKind.PLAIN || template.location !is TargetLocation.UnderHeading) return@LaunchedEffect
+        val location = template.location
+        val hasHeading = location is TargetLocation.UnderHeading ||
+            (location is TargetLocation.Datetree && location.hasHeading)
+        if (template.kind != TemplateKind.PLAIN || !hasHeading) return@LaunchedEffect
         val outline = viewModel.loadTargetOutline(template)
         targetOutline = outline
         targetHeadingMissing = outline == null
@@ -1143,8 +1148,8 @@ private fun CaptureTargetBar(
 ) {
     val c = MaterialTheme.grove
     val location = template.location
-    if (template.kind == TemplateKind.PLAIN && location.isDatetree) {
-        DatetreeBreadcrumb(template, today)
+    if (template.kind == TemplateKind.PLAIN && location is TargetLocation.Datetree) {
+        DatetreeBreadcrumb(template, location, today, targetOutline, targetHeadingMissing)
         return
     }
     val label = buildAnnotatedString {
@@ -1164,7 +1169,7 @@ private fun CaptureTargetBar(
                 val headings = when {
                     targetOutline != null -> targetOutline
                     targetHeadingMissing && location is TargetLocation.UnderHeading ->
-                        listOf(location.headingKey?.let { "#$it" } ?: location.title.orEmpty())
+                        listOf(location.headingLabel.orEmpty())
                     else -> emptyList()
                 }
                 headings.forEach { append(" › "); append(it) }
@@ -1213,11 +1218,35 @@ private fun CaptureTargetBarFrame(content: @Composable RowScope.() -> Unit) {
 }
 
 @Composable
-private fun DatetreeBreadcrumb(template: CaptureTemplate, today: LocalDate) {
+private fun DatetreeBreadcrumb(
+    template: CaptureTemplate,
+    location: TargetLocation.Datetree,
+    today: LocalDate,
+    /** The "Inside heading" outline, ancestors first; null while loading or missing. */
+    targetOutline: List<String>?,
+    targetHeadingMissing: Boolean,
+) {
     val c = MaterialTheme.grove
+    val headings = when {
+        !location.hasHeading -> emptyList()
+        targetOutline != null -> targetOutline
+        else -> listOfNotNull(location.path.lastOrNull() ?: location.id?.let { "#$it" })
+    }
+    // Year, then month or ISO week; the last node (day, or month for a month
+    // tree) is the highlighted chip.
+    val month = today.month.name.lowercase().replaceFirstChar { it.uppercase() }
+    val (branch, leaf) = when (location.treeType) {
+        DatetreeType.DAY -> listOf(CaptureInserter.yearTitle(today), month) to
+            "${OrgTimestamp.dayAbbrev(today)} ${today.dayOfMonth}"
+        DatetreeType.WEEK -> listOf(
+            today.get(IsoFields.WEEK_BASED_YEAR).toString(),
+            "W%02d".format(today.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)),
+        ) to "${OrgTimestamp.dayAbbrev(today)} ${today.dayOfMonth}"
+        DatetreeType.MONTH -> listOf(CaptureInserter.yearTitle(today)) to month
+    }
     CaptureTargetBarFrame {
         // The  t breadcrumb shares the row with the trailing pill; only the file
-        // name may shrink (ellipsized), so nothing ever wraps vertically.
+        // name and heading path may shrink (ellipsized), so nothing ever wraps vertically.
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 template.targetFile,
@@ -1227,8 +1256,17 @@ private fun DatetreeBreadcrumb(template: CaptureTemplate, today: LocalDate) {
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
+            if (headings.isNotEmpty()) {
+                Text(
+                    headings.joinToString(separator = " › ", prefix = " › "),
+                    fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink2,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
             Text(
-                " › ${CaptureInserter.yearTitle(today)} › ${today.month.name.lowercase().replaceFirstChar { it.uppercase() }} › ",
+                branch.joinToString(separator = " › ", prefix = " › ", postfix = " › "),
                 fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink2,
                 maxLines = 1,
             )
@@ -1239,14 +1277,15 @@ private fun DatetreeBreadcrumb(template: CaptureTemplate, today: LocalDate) {
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             ) {
                 Text(
-                    "${OrgTimestamp.dayAbbrev(today)} ${today.dayOfMonth}",
+                    leaf,
                     fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink,
                     maxLines = 1,
                 )
             }
         }
         Spacer(Modifier.width(8.dp))
-        Pill("auto-created", fg = c.green, bg = c.greenSoft)
+        if (targetHeadingMissing) Pill("not found", fg = c.red, bg = c.redSoft)
+        else Pill("auto-created", fg = c.green, bg = c.greenSoft)
     }
 }
 

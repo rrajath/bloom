@@ -17,6 +17,7 @@ import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplatesRepository
 import com.rrajath.grove.capture.hasUserDefinedTitle
 import com.rrajath.grove.data.GroveDatabase
+import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.settings.SettingsSource
@@ -402,15 +403,24 @@ class CaptureViewModel(
      * doesn't exist. Shown read-only above a body-only capture's field.
      */
     /**
-     * An "under heading" template's target heading path (ancestors first, the
-     * target heading last), or null when the file or heading doesn't exist.
+     * The target heading path (ancestors first, the target heading last) of an
+     * "under heading" template, or of a date tree that grows inside a heading;
+     * null when the file or heading doesn't exist, or the target has no heading.
      */
     suspend fun loadTargetOutline(template: CaptureTemplate): List<String>? {
-        val location = template.location as? TargetLocation.UnderHeading ?: return null
+        val location = template.location
+        if (location !is TargetLocation.UnderHeading &&
+            !(location is TargetLocation.Datetree && location.hasHeading)
+        ) return null
         val vault = vaultFlow.filterNotNull().first()
         return withContext(dispatchers.default) {
             val doc = vault.open(template.targetFile) ?: return@withContext null
-            CaptureInserter.findTarget(doc, location)?.let { CaptureInserter.outlinePath(doc, it) }
+            val target = when (location) {
+                is TargetLocation.UnderHeading -> CaptureInserter.findTarget(doc, location)
+                is TargetLocation.Datetree -> CaptureInserter.findTarget(doc, location)
+                else -> null
+            }
+            target?.let { CaptureInserter.outlinePath(doc, it) }
         }
     }
 
@@ -442,7 +452,21 @@ class CaptureViewModel(
 class TemplatesViewModel(
     private val templatesRepository: TemplatesRepository,
     database: GroveDatabase,
+    private val vaultFlow: StateFlow<Vault?>,
+    private val dispatchers: AppDispatchers,
 ) : ViewModel() {
+
+    /**
+     * [fileName] parsed, for the editor's heading picker; null when there's
+     * no vault yet or the file doesn't exist (a template may target a file
+     * its first capture will create).
+     */
+    suspend fun loadDoc(fileName: String): OrgDocument? {
+        if (fileName.isBlank()) return null
+        val vault = vaultFlow.value ?: return null
+        // A half-typed name can be invalid; that just means "no file" here.
+        return withContext(dispatchers.default) { runCatching { vault.open(fileName) }.getOrNull() }
+    }
 
     val templates: StateFlow<List<CaptureTemplate>> = templatesRepository.templates
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -475,7 +499,7 @@ class TemplatesViewModel(
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val app = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                         as GroveApplication
-                return TemplatesViewModel(app.templatesRepository, app.database) as T
+                return TemplatesViewModel(app.templatesRepository, app.database, app.vault, app.dispatchers) as T
             }
         }
     }

@@ -10,6 +10,9 @@
     <string name="picker_search_no_matches">No matches</string>
     <string name="picker_search_file_crumb">file</string>
     <string name="picker_search_heading_meta">heading</string>
+    <string name="picker_search_headings_placeholder">Search headings</string>
+    <string name="picker_search_headings_header">HEADINGS</string>
+    <string name="heading_id_tag">ID</string>
     <string name="refile_search_stale_heading">That heading no longer exists</string>
     <!-- Agenda widget view picker (widget/LedgerWidget.kt, widget/WidgetViewPickerActivity.kt). -->
     <string name="widget_view_agenda">Agenda</string>

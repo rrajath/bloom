@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.org.ArchiveTarget
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
+import com.rrajath.grove.ui.components.HeadingTag
 import com.rrajath.grove.ui.components.PickerSearchField
 import com.rrajath.grove.ui.components.PickerSearchHeader
 import com.rrajath.grove.ui.components.notebookIcon
@@ -67,6 +68,11 @@ import kotlinx.coroutines.launch
  * [onSelectSearchResult], which leaves the picker where picking that target in
  * the drill-down would. The query is sheet-local: clearing it shows the
  * drill-down exactly where it was.
+ *
+ * File-scoped use (the capture template editor's heading picker): the caller
+ * pre-picks one file and a search index of only its headings, and passes
+ * [showBackAtTopLevel] = false so the sheet never returns to the notebook list,
+ * plus the "Search headings" [searchPlaceholder] / [searchHeader].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +93,16 @@ fun RefileSheet(
     confirmLabel: String = "Refile here",
     /** Shown in place of [confirmLabel] while sitting at a file's top level (no heading drilled into). */
     topLevelConfirmLabel: String? = null,
+    /** False disables confirm at a file's top level, so a heading must be picked. */
+    topLevelConfirmEnabled: Boolean = true,
+    /** Crumb suffix after the file name while at its top level. */
+    topLevelCrumbHint: String = "top level · or pick a heading",
+    /** False hides the back button at a file's top level (a sheet scoped to one file). */
+    showBackAtTopLevel: Boolean = true,
+    searchPlaceholder: String? = null,
+    searchHeader: String? = null,
+    /** A small muted tag after a heading row's title (e.g. "ID"), or null for none. */
+    headingTag: (OrgHeadline) -> String? = { null },
 ) {
     val c = MaterialTheme.grove
     val doc = state.pickedDoc
@@ -116,7 +132,7 @@ fun RefileSheet(
 
     val crumb = when {
         doc == null -> "Choose a destination notebook"
-        state.path.isEmpty() -> "${state.pickedFile?.removeSuffix(".org")} › top level · or pick a heading"
+        state.path.isEmpty() -> "${state.pickedFile?.removeSuffix(".org")} › $topLevelCrumbHint"
         else -> (listOf(state.pickedFile?.removeSuffix(".org")) +
                 state.path.map { doc.headlineAtLine(it)?.title ?: "?" })
             .joinToString(" › ")
@@ -137,7 +153,7 @@ fun RefileSheet(
                 Spacer(Modifier.height(10.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (doc != null) {
+                if (doc != null && (showBackAtTopLevel || state.path.isNotEmpty())) {
                     Box(
                         Modifier
                             .size(36.dp)
@@ -160,9 +176,9 @@ fun RefileSheet(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            PickerSearchField(query = query, onQueryChange = { query = it })
+            PickerSearchField(query = query, onQueryChange = { query = it }, placeholder = searchPlaceholder)
             Spacer(Modifier.height(10.dp))
-            if (searching) PickerSearchHeader()
+            if (searching) PickerSearchHeader(searchHeader)
             val listState = remember(state.pickedFile, state.path) { LazyListState() }
             LazyColumn(
                 Modifier.heightIn(max = 380.dp),
@@ -170,7 +186,14 @@ fun RefileSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (searching) {
-                    pickerSearchResults(results, onClick = ::selectSearchResult)
+                    pickerSearchResults(
+                        results,
+                        onClick = ::selectSearchResult,
+                        headingTag = { hit ->
+                            state.pickedDoc?.takeIf { hit.fileName == state.pickedFile }
+                                ?.headlineAtLine(hit.lineIndex)?.let(headingTag)
+                        },
+                    )
                 } else if (doc == null) {
                     items(state.notebooks.orEmpty(), key = { it.fileName }) { nb ->
                         RefileRow(
@@ -198,6 +221,7 @@ fun RefileSheet(
                         RefileRow(
                             glyph = "✳",
                             label = h.title,
+                            labelTag = headingTag(h),
                             sub = headingCountLabel(doc, h),
                             onClick = { onDrillInto(h.lineIndex) },
                         )
@@ -210,7 +234,8 @@ fun RefileSheet(
                 Modifier.padding(vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                val enabled = state.pickedFile != null
+                val enabled = state.pickedFile != null &&
+                    (topLevelConfirmEnabled || state.path.isNotEmpty())
                 val label = topLevelConfirmLabel?.takeIf { state.path.isEmpty() && doc != null }
                     ?: confirmLabel
                 Box(
@@ -317,6 +342,7 @@ private fun RefileRow(
     glyph: String? = null,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     label: String,
+    labelTag: String? = null,
     sub: String?,
     onClick: () -> Unit,
 ) {
@@ -341,12 +367,15 @@ private fun RefileRow(
             Text(glyph.orEmpty(), fontFamily = PlexMono, fontSize = 15.sp, color = c.accent)
         }
         Spacer(Modifier.width(10.dp))
-        Text(
-            label,
-            fontFamily = PlexMono, fontWeight = FontWeight.Medium,
-            fontSize = 14.5.sp, color = c.ink,
-            modifier = Modifier.weight(1f),
-        )
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                label,
+                fontFamily = PlexMono, fontWeight = FontWeight.Medium,
+                fontSize = 14.5.sp, color = c.ink,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            labelTag?.let { HeadingTag(it, Modifier.padding(start = 7.dp)) }
+        }
         sub?.let {
             Spacer(Modifier.width(8.dp))
             Text(it, fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink3)

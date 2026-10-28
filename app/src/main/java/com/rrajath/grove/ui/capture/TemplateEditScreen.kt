@@ -3,11 +3,13 @@ package com.rrajath.grove.ui.capture
 import android.content.ClipData
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -31,7 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,20 +43,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.R
+import com.rrajath.grove.capture.CaptureInserter
 import com.rrajath.grove.capture.CaptureTemplate
+import com.rrajath.grove.capture.DatetreeType
 import com.rrajath.grove.capture.FilenamePattern
 import com.rrajath.grove.capture.FilenameValidation
 import com.rrajath.grove.capture.PlaceholderExpander
@@ -62,10 +75,13 @@ import com.rrajath.grove.capture.RoamFileId
 import com.rrajath.grove.capture.ShortcutSyncer
 import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplateKind
+import com.rrajath.grove.capture.orgCaptureTarget
 import com.rrajath.grove.capture.templateSlug
+import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.ui.components.ChangeIconColorDialog
 import com.rrajath.grove.ui.components.DirectoryField
 import com.rrajath.grove.ui.components.GroveTopBar
+import com.rrajath.grove.ui.components.HeadingTag
 import com.rrajath.grove.ui.components.MonogramTile
 import com.rrajath.grove.ui.components.NotebookFileField
 import com.rrajath.grove.ui.components.SegmentedControl
@@ -75,15 +91,27 @@ import com.rrajath.grove.ui.nav.DeepLinks
 import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDot
+import com.rrajath.grove.ui.screens.RefileSheet
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.vault.RefileUiState
+import com.rrajath.grove.ui.vault.fileHeadingSearchIndex
+import com.rrajath.grove.ui.vault.headlineAtLine
+import com.rrajath.grove.ui.vault.withSearchHit
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 private val LOCATION_OPTIONS = listOf(
-    "Top of file", "Bottom of file", "Under heading", "Datetree",
+    "Top of file", "Bottom of file", "Under heading", "Date tree",
 )
+
+/** Which "Insert at" field the file-scoped heading picker sheet is filling. */
+private enum class HeadingPickerFor { UNDER_HEADING, DATETREE }
 
 private fun locationIndex(location: TargetLocation): Int = when (location) {
     is TargetLocation.TopOfFile -> 0
@@ -142,14 +170,30 @@ fun TemplateEditScreen(
     var locationIdx by remember(existing) {
         mutableIntStateOf(existing?.location?.let { locationIndex(it) } ?: 1)
     }
-    var headingTitle by remember(existing) {
-        mutableStateOf((existing?.location as? TargetLocation.UnderHeading)?.title ?: "")
+    // The picked "Under heading" target: the heading's ID (when it has one) plus
+    // its outline path. Null until a heading is picked. An older template's
+    // title / CUSTOM_ID target is kept as it was until a heading is re-picked.
+    var underHeading by remember(existing) {
+        mutableStateOf((existing?.location as? TargetLocation.UnderHeading)?.takeIf { it.headingLabel != null })
     }
-    // Seeded from a legacy customId too; saving writes it back as `id`, which
-    // still matches a CUSTOM_ID heading, so older templates keep working.
-    var headingId by remember(existing) {
-        mutableStateOf((existing?.location as? TargetLocation.UnderHeading)?.headingKey ?: "")
+    // Date tree settings, kept while another "Insert at" option is selected.
+    var datetree by remember(existing) {
+        mutableStateOf(existing?.location as? TargetLocation.Datetree ?: TargetLocation.Datetree())
     }
+    // targetFile parsed, for the heading pickers. Reloaded as the file name is
+    // typed (debounced); null while loading or when the file doesn't exist yet.
+    var targetDoc by remember { mutableStateOf<OrgDocument?>(null) }
+    var targetDocLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(targetFile) {
+        targetDoc = null
+        targetDocLoaded = false
+        delay(250)
+        targetDoc = viewModel.loadDoc(targetFile.trim())
+        targetDocLoaded = true
+    }
+    var pickerFor by remember { mutableStateOf<HeadingPickerFor?>(null) }
+    var pickerState by remember { mutableStateOf<RefileUiState?>(null) }
+    val previewDate = remember { LocalDate.now() }
     var templateText by remember(existing) { mutableStateOf(existing?.template ?: "* %^{Title}\n%cursor") }
     val invalidPlaceholders = remember(templateText) {
         PlaceholderExpander.findInvalid(templateText).map { it.token }.distinct()
@@ -173,11 +217,8 @@ fun TemplateEditScreen(
     fun buildLocation(): TargetLocation = when (locationIdx) {
         0 -> TargetLocation.TopOfFile
         1 -> TargetLocation.BottomOfFile
-        2 -> TargetLocation.UnderHeading(
-            title = headingTitle.takeIf { it.isNotBlank() },
-            id = headingId.trim().takeIf { it.isNotBlank() },
-        )
-        else -> TargetLocation.Datetree
+        2 -> underHeading ?: TargetLocation.UnderHeading()
+        else -> datetree
     }
 
     fun currentTemplate() = CaptureTemplate(
@@ -193,7 +234,7 @@ fun TemplateEditScreen(
         newFileTemplate = newFileTemplate.text,
     )
     val canSave = name.isNotBlank() && when (kind) {
-        TemplateKind.PLAIN -> targetFileError == null
+        TemplateKind.PLAIN -> targetFileError == null && (locationIdx != 2 || underHeading != null)
         TemplateKind.ROAM_NODE -> directoryError == null && filenamePatternError == null
     }
 
@@ -282,53 +323,115 @@ fun TemplateEditScreen(
                 FieldLabel("Target file")
                 NotebookFileField(
                     value = targetFile,
-                    onValueChange = { targetFile = it },
+                    onValueChange = {
+                        targetFile = it
+                        // A picked heading belongs to the old file.
+                        underHeading = null
+                        datetree = datetree.copy(id = null, path = emptyList())
+                    },
                     notebooks = notebooks,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
                 FieldLabel("Insert at")
-                Column {
+                val fileName = targetFile.trim()
+                val idTag = stringResource(R.string.heading_id_tag)
+                // Shown in place of a heading picker's helper text when the file isn't in the vault.
+                val noFileHint = if (targetDocLoaded && targetDoc == null && fileName.isNotEmpty()) {
+                    "$fileName isn't in your vault yet, so there are no headings to pick."
+                } else null
+                fun openPicker(forWhat: HeadingPickerFor) {
+                    val doc = targetDoc ?: return
+                    val current = when (forWhat) {
+                        HeadingPickerFor.UNDER_HEADING -> underHeading?.let { CaptureInserter.findTarget(doc, it) }
+                        HeadingPickerFor.DATETREE ->
+                            datetree.takeIf { it.hasHeading }?.let { CaptureInserter.findTarget(doc, it) }
+                    }
+                    pickerState = RefileUiState(
+                        sourceLine = -1,
+                        sourceLines = emptyList(),
+                        pickedFile = fileName,
+                        pickedDoc = doc,
+                        // Opens drilled down to the current pick, so its siblings are in view.
+                        path = current?.let { h ->
+                            generateSequence(h, doc::parent).toList().asReversed().map { it.lineIndex }.toImmutableList()
+                        } ?: persistentListOf(),
+                        searchIndex = fileHeadingSearchIndex(fileName, doc),
+                    )
+                    pickerFor = forWhat
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     LOCATION_OPTIONS.forEachIndexed { i, label ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(if (i == locationIdx) c.accentSoft else c.surface)
-                                .clickable { locationIdx = i }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                        ) {
-                            Text(
-                                label,
-                                fontFamily = PlexSans,
-                                fontWeight = if (i == locationIdx) FontWeight.SemiBold else FontWeight.Normal,
-                                fontSize = 14.sp,
-                                color = if (i == locationIdx) c.accent else c.ink,
+                        InsertAtRow(label, selected = i == locationIdx) { locationIdx = i }
+                    }
+                    if (locationIdx == 2) {
+                        val resolved = targetDoc?.let { doc -> underHeading?.let { CaptureInserter.findTarget(doc, it) } }
+                        SubOptionPanel(gap = 8.dp) {
+                            SubOptionLabel("Heading")
+                            HeadingPickerField(
+                                text = resolved?.title ?: underHeading?.headingLabel,
+                                placeholder = "Choose a heading",
+                                tag = idTag.takeIf {
+                                    resolved?.let { it.id != null || it.customId != null }
+                                        ?: (underHeading?.headingKey != null)
+                                },
+                                onClick = { openPicker(HeadingPickerFor.UNDER_HEADING) },
+                                modifier = Modifier.testTag("template_heading_field"),
+                            )
+                            when {
+                                noFileHint != null -> SubOptionHelp(noFileHint)
+                                targetDocLoaded && underHeading != null && resolved == null ->
+                                    SubOptionHelp("This heading isn't in $fileName anymore. Choose another.", error = true)
+                            }
+                        }
+                    }
+                    if (locationIdx == 3) {
+                        val resolved = targetDoc?.let { doc ->
+                            datetree.takeIf { it.hasHeading }?.let { CaptureInserter.findTarget(doc, it) }
+                        }
+                        SubOptionPanel(gap = 14.dp) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SubOptionLabel("Inside heading")
+                                HeadingPickerField(
+                                    text = if (datetree.hasHeading) {
+                                        resolved?.title ?: datetree.path.lastOrNull() ?: datetree.id?.let { "#$it" }
+                                    } else null,
+                                    placeholder = "None (top level)",
+                                    tag = idTag.takeIf {
+                                        resolved?.let { it.id != null || it.customId != null } ?: (datetree.id != null)
+                                    },
+                                    onClick = { openPicker(HeadingPickerFor.DATETREE) },
+                                    modifier = Modifier.testTag("template_datetree_heading_field"),
+                                )
+                                when {
+                                    noFileHint != null -> SubOptionHelp(noFileHint)
+                                    targetDocLoaded && datetree.hasHeading && resolved == null ->
+                                        SubOptionHelp("This heading isn't in $fileName anymore. Choose another.", error = true)
+                                    else -> SubOptionHelp("Leave empty to put the date tree at the top level of the file.")
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SubOptionLabel("Group entries by")
+                                GroupBySegments(
+                                    options = listOf("Day", "Week", "Month"),
+                                    selectedIndex = datetree.treeType.ordinal,
+                                    onSelect = { datetree = datetree.copy(treeType = DatetreeType.entries[it]) },
+                                )
+                            }
+                            DatetreeOutlinePreview(
+                                path = if (datetree.hasHeading) {
+                                    resolved?.let { h -> targetDoc?.let { CaptureInserter.outlinePath(it, h) } }
+                                        ?: datetree.path
+                                } else emptyList(),
+                                type = datetree.treeType,
+                                today = previewDate,
                             )
                         }
-                        Spacer(Modifier.height(4.dp))
                     }
-                }
-
-                if (locationIdx == 2) {
-                    FieldLabel("Heading: ID (recommended) or exact name")
                     Text(
-                        "ID keeps working if the heading is renamed; exact name is simpler but fragile. A CUSTOM_ID also works.",
-                        fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
-                        modifier = Modifier.padding(bottom = 6.dp),
-                    )
-                    OutlinedTextField(
-                        value = headingId, onValueChange = { headingId = it },
-                        singleLine = true, modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(fontFamily = PlexMono),
-                        placeholder = { Text("heading ID (recommended)", fontFamily = PlexMono, color = c.ink3) },
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = headingTitle, onValueChange = { headingTitle = it },
-                        singleLine = true, modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(fontFamily = PlexSans),
-                        placeholder = { Text("…or exact heading name", fontFamily = PlexSans, color = c.ink3) },
+                        orgCaptureTarget(fileName, buildLocation()),
+                        fontFamily = PlexMono, fontSize = 12.sp, color = c.ink3,
+                        modifier = Modifier.padding(top = 2.dp).testTag("template_org_target"),
                     )
                 }
 
@@ -502,6 +605,53 @@ fun TemplateEditScreen(
         PlaceholderInfoDialog(onDismiss = { showPlaceholderHelp = false })
     }
 
+    val sheetState = pickerState
+    val sheetFor = pickerFor
+    if (sheetState != null && sheetFor != null) {
+        val close = { pickerState = null; pickerFor = null }
+        val idTag = stringResource(R.string.heading_id_tag)
+        RefileSheet(
+            state = sheetState,
+            currentFileName = null,
+            currentDoc = null,
+            onPickNotebook = {},
+            onDrillInto = { line -> pickerState = sheetState.copy(path = (sheetState.path + line).toImmutableList()) },
+            onBack = { pickerState = sheetState.copy(path = sheetState.path.dropLast(1).toImmutableList()) },
+            onCancel = close,
+            onConfirm = {
+                val doc = sheetState.pickedDoc
+                val picked = sheetState.path.lastOrNull()?.let { doc?.headlineAtLine(it) }
+                val id = picked?.let { it.id ?: it.customId }
+                val path = if (doc != null && picked != null) CaptureInserter.outlinePath(doc, picked) else emptyList()
+                when (sheetFor) {
+                    HeadingPickerFor.UNDER_HEADING -> if (picked != null) {
+                        underHeading = TargetLocation.UnderHeading(
+                            id = id, path = path, appendLast = underHeading?.appendLast ?: true,
+                        )
+                    }
+                    HeadingPickerFor.DATETREE -> datetree = datetree.copy(id = id, path = path)
+                }
+                close()
+            },
+            onArchive = {},
+            onPickLastUsed = {},
+            onSelectSearchResult = { item ->
+                val next = sheetState.pickedDoc?.let { sheetState.withSearchHit(item, it, emptyList()) }
+                if (next != null) pickerState = next
+                next != null
+            },
+            headerTitle = if (sheetFor == HeadingPickerFor.UNDER_HEADING) "Choose a heading" else "Inside heading",
+            confirmLabel = "Use this heading",
+            topLevelConfirmLabel = if (sheetFor == HeadingPickerFor.DATETREE) "Use top level" else null,
+            topLevelConfirmEnabled = sheetFor == HeadingPickerFor.DATETREE,
+            topLevelCrumbHint = if (sheetFor == HeadingPickerFor.DATETREE) "top level · or pick a heading" else "pick a heading",
+            showBackAtTopLevel = false,
+            searchPlaceholder = stringResource(R.string.picker_search_headings_placeholder),
+            searchHeader = stringResource(R.string.picker_search_headings_header),
+            headingTag = { h -> idTag.takeIf { h.id != null || h.customId != null } },
+        )
+    }
+
     if (showColorDialog) {
         ChangeIconColorDialog(
             name = name.ifBlank { "New template" },
@@ -513,6 +663,172 @@ fun TemplateEditScreen(
             templateIcon = true,
         )
     }
+}
+
+/** One "Insert at" option row: `accentSoft` + `accent` SemiBold when selected, `surface` + `ink` otherwise. */
+@Composable
+private fun InsertAtRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.grove
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) c.accentSoft else c.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 15.dp),
+    ) {
+        Text(
+            label,
+            fontFamily = PlexSans,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            fontSize = 15.sp,
+            color = if (selected) c.accent else c.ink,
+        )
+    }
+}
+
+/** The selected "Insert at" option's own settings, set off by a 2dp `accentSoft` bar on the left. */
+@Composable
+private fun SubOptionPanel(gap: Dp, content: @Composable ColumnScope.() -> Unit) {
+    val bar = MaterialTheme.grove.accentSoft
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .drawBehind { drawRect(bar, size = Size(2.dp.toPx(), size.height)) }
+            .padding(start = 14.dp, top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(gap),
+        content = content,
+    )
+}
+
+@Composable
+private fun SubOptionLabel(text: String) {
+    Text(text, fontFamily = PlexSans, fontSize = 13.sp, color = MaterialTheme.grove.ink2)
+}
+
+@Composable
+private fun SubOptionHelp(text: String, error: Boolean = false) {
+    val c = MaterialTheme.grove
+    Text(
+        text,
+        fontFamily = PlexSans, fontSize = 12.sp, lineHeight = 18.sp,
+        color = if (error) c.red else c.ink3,
+    )
+}
+
+/**
+ * A tap-to-pick field for a heading in the target file: 52dp, 1dp `line2` border,
+ * 12dp radius. Shows [text] (or [placeholder] in `ink3`), a muted [tag] after it
+ * (the "ID" mark), and a trailing `▾`.
+ */
+@Composable
+private fun HeadingPickerField(
+    text: String?,
+    placeholder: String,
+    tag: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = MaterialTheme.grove
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, c.line2, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text ?: placeholder,
+                fontFamily = PlexSans, fontSize = 14.5.sp,
+                color = if (text != null) c.ink else c.ink3,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (text != null && tag != null) HeadingTag(tag, Modifier.padding(start = 8.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Text("▾", fontFamily = PlexSans, fontSize = 14.5.sp, color = c.ink3)
+    }
+}
+
+/** Day / Week / Month switch for a date tree: `surface` track, `accent` selected segment. */
+@Composable
+private fun GroupBySegments(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit) {
+    val c = MaterialTheme.grove
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(c.surface)
+            .padding(4.dp),
+    ) {
+        options.forEachIndexed { i, label ->
+            val on = i == selectedIndex
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (on) c.accent else Color.Transparent)
+                    .clickable { onSelect(i) }
+                    .padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp, color = if (on) c.accentInk else c.ink2,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Where a date-tree capture lands, as org outline lines: the "Inside heading"
+ * [path], [today]'s branch of a [type] tree, then the entry itself, highlighted.
+ */
+@Composable
+private fun DatetreeOutlinePreview(path: List<String>, type: DatetreeType, today: LocalDate) {
+    val c = MaterialTheme.grove
+    val nodes = path + CaptureInserter.datetreeTitles(today, type)
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(c.surface2)
+            .border(1.dp, c.line, shape)
+            .padding(vertical = 10.dp),
+    ) {
+        nodes.forEachIndexed { i, title -> OutlinePreviewLine("*".repeat(i + 1) + " " + title, highlighted = false) }
+        OutlinePreviewLine("*".repeat(nodes.size + 1) + " your entry", highlighted = true)
+    }
+}
+
+@Composable
+private fun OutlinePreviewLine(text: String, highlighted: Boolean) {
+    val c = MaterialTheme.grove
+    val bar = c.accent
+    Text(
+        text,
+        fontFamily = PlexMono, fontSize = 12.5.sp, lineHeight = 22.sp,
+        color = if (highlighted) c.ink else c.ink2,
+        maxLines = 1, overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (highlighted) {
+                    Modifier
+                        .background(c.accentSoft)
+                        .drawBehind { drawRect(bar, size = Size(3.dp.toPx(), size.height)) }
+                } else Modifier
+            )
+            .padding(horizontal = 12.dp),
+    )
 }
 
 /** A row of tappable chips that append their insert text to a field, mirroring the

@@ -2,6 +2,7 @@ package com.rrajath.grove.ui.vault
 
 import com.rrajath.grove.data.IndexDao
 import com.rrajath.grove.org.OrgDocument
+import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.ui.editor.LinkFileHit
 import com.rrajath.grove.ui.editor.LinkHeadingHit
 import com.rrajath.grove.ui.editor.LinkSearchItem
@@ -78,3 +79,19 @@ fun RefileUiState.withSearchHit(item: LinkSearchItem, doc: OrgDocument, excluded
             )
         }
     }
+
+/**
+ * A search index of just [doc]'s headings, for a picker scoped to one file
+ * (the capture template editor's heading picker). Breadcrumbs run from the
+ * file name down to each heading's parent, as in the vault-wide index.
+ */
+fun fileHeadingSearchIndex(fileName: String, doc: OrgDocument): ImmutableList<LinkSearchItem> {
+    val label = fileName.removeSuffix(".org")
+    val stack = ArrayDeque<OrgHeadline>()
+    return doc.headlines.map { h ->
+        while (stack.isNotEmpty() && stack.last().level >= h.level) stack.removeLast()
+        val crumb = (listOf(label) + stack.map { it.title }).joinToString(" › ")
+        stack.addLast(h)
+        LinkHeadingHit(fileName, h.lineIndex, h.title, crumb)
+    }.toImmutableList()
+}
