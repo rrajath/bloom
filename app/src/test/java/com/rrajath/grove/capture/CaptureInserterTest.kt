@@ -248,7 +248,7 @@ class CaptureInserterTest {
 
     @Test
     fun `datetree creates full hierarchy in empty file`() {
-        val result = insert("", TargetLocation.DatetreeDatetime, "<2025-06-11 Wed 14:32>\nFerry back")
+        val result = insert("", TargetLocation.Datetree, "<2025-06-11 Wed 14:32>\nFerry back")
         val expected = """
             * 2025
             ** 2025-06 June
@@ -268,7 +268,7 @@ class CaptureInserterTest {
             **** 09:00 Morning entry
             text
         """.trimIndent() + "\n"
-        val result = insert(doc, TargetLocation.DatetreeDatetime, "14:32 Afternoon")
+        val result = insert(doc, TargetLocation.Datetree, "14:32 Afternoon")
         val expected = doc + "**** 14:32 Afternoon\n"
         assertEquals(expected.trimEnd('\n') + "\n", result.newText)
     }
@@ -281,7 +281,7 @@ class CaptureInserterTest {
             *** 2025-06-10 Tuesday
             **** old entry
         """.trimIndent() + "\n"
-        val result = insert(doc, TargetLocation.DatetreeDate, "new entry")
+        val result = insert(doc, TargetLocation.Datetree, "new entry")
         val expected = """
             * 2025
             ** 2025-06 June
@@ -301,7 +301,7 @@ class CaptureInserterTest {
             *** 2025-06-10 Tuesday
             *** 2025-06-14 Saturday
         """.trimIndent() + "\n"
-        val result = insert(doc, TargetLocation.DatetreeDate, "entry")
+        val result = insert(doc, TargetLocation.Datetree, "entry")
         val expected = """
             * 2025
             ** 2025-06 June
@@ -321,7 +321,7 @@ class CaptureInserterTest {
             * 2024
             ** 2024-12 December
         """.trimIndent() + "\n"
-        val result = insert(doc, TargetLocation.DatetreeDate, "entry")
+        val result = insert(doc, TargetLocation.Datetree, "entry")
         assertTrue(result.newText.startsWith("* Inbox\nstuff\n"))
         assertTrue(result.newText.contains("* 2024\n** 2024-12 December\n* 2025\n** 2025-06 June\n*** 2025-06-11 Wednesday\n**** entry"))
     }
@@ -329,7 +329,7 @@ class CaptureInserterTest {
     @Test
     fun `datetree year inserted before later year`() {
         val doc = "* 2026\n** 2026-01 January\n"
-        val result = insert(doc, TargetLocation.DatetreeDate, "entry")
+        val result = insert(doc, TargetLocation.Datetree, "entry")
         assertTrue(
             result.newText.indexOf("* 2025") < result.newText.indexOf("* 2026")
         )
@@ -340,7 +340,7 @@ class CaptureInserterTest {
     @Test
     fun `datetree entry is prefilled with day-level stars`() {
         val result = CaptureInserter.withHeadingStars(
-            ExpandedTemplate("", 0), TargetLocation.DatetreeDate,
+            ExpandedTemplate("", 0), TargetLocation.Datetree,
         )
         assertEquals("**** ", result.text)
         assertEquals(5, result.cursorOffset)
@@ -349,7 +349,7 @@ class CaptureInserterTest {
     @Test
     fun `star prefill keeps the cursor in place relative to the template`() {
         val result = CaptureInserter.withHeadingStars(
-            ExpandedTemplate("<2025-06-11 Wed> \nbody", 17), TargetLocation.DatetreeDatetime,
+            ExpandedTemplate("<2025-06-11 Wed> \nbody", 17), TargetLocation.Datetree,
         )
         assertEquals("**** <2025-06-11 Wed> \nbody", result.text)
         assertEquals(22, result.cursorOffset)
@@ -381,7 +381,7 @@ class CaptureInserterTest {
     @Test
     fun `prefilled stars round-trip through datetree insertion unchanged`() {
         val typed = "**** My day\nIt went well"
-        val result = insert("", TargetLocation.DatetreeDate, typed)
+        val result = insert("", TargetLocation.Datetree, typed)
         assertTrue(result.newText.contains("*** 2025-06-11 Wednesday\n**** My day\nIt went well"))
     }
 
@@ -427,7 +427,7 @@ class CaptureInserterTest {
         var previous: CaptureInserter.Insertion? = null
         for (draftText in listOf("14:00 Draft one", "14:00 Draft one updated")) {
             val base = previous?.let { CaptureInserter.removeInsertion(current, it) } ?: current
-            val result = insert(base, TargetLocation.DatetreeDatetime, draftText)
+            val result = insert(base, TargetLocation.Datetree, draftText)
             current = result.newText
             previous = result
         }

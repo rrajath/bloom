@@ -22,6 +22,42 @@ class CaptureTemplateTest {
     }
 
     @Test
+    fun `legacy date-only datetree templates migrate to Datetree with date-only stamps`() {
+        // Stored by builds that had separate Datetree (date) / (datetime) locations.
+        val stored = """{"templates":[""" +
+            """{"id":"d","name":"Daily","targetFile":"log.org","location":{"type":"datetree_date"},""" +
+            """"template":"%U %^{Mood}\n%T %cursor"},""" +
+            """{"id":"j","name":"Journal","targetFile":"journal.org","location":{"type":"datetree_datetime"},""" +
+            """"template":"%U %cursor"}]}"""
+        val decoded = TemplateSerializer.decode(stored)
+        assertEquals(2, decoded.size)
+        assertEquals(TargetLocation.Datetree, decoded[0].location)
+        assertEquals("%u %^{Mood}\n%t %cursor", decoded[0].template)
+        // Datetime templates are untouched: same location, same text.
+        assertEquals(TargetLocation.Datetree, decoded[1].location)
+        assertEquals("%U %cursor", decoded[1].template)
+    }
+
+    @Test
+    fun `migrated date-only template expands exactly as it did before`() {
+        val stored = """{"templates":[{"id":"d","name":"Daily","targetFile":"log.org",""" +
+            """"location":{"type":"datetree_date"},"template":"%U %T %cursor"}]}"""
+        val template = TemplateSerializer.decode(stored).single()
+        val now = java.time.LocalDateTime.of(2025, 6, 11, 14, 32)
+        // What Datetree (date) produced: %U/%T with the time stripped.
+        assertEquals(
+            "[2025-06-11 Wed] <2025-06-11 Wed> ",
+            PlaceholderExpander.expand(template.template, CaptureContext(now = now)).text,
+        )
+    }
+
+    @Test
+    fun `merged Datetree keeps the datetree_datetime serial name`() {
+        val encoded = TemplateSerializer.encode(DefaultTemplates.all.filter { it.location.isDatetree })
+        assertTrue(encoded, encoded.contains("\"datetree_datetime\""))
+    }
+
+    @Test
     fun `roam node templates round-trip through json`() {
         val templates = listOf(
             CaptureTemplate(
@@ -78,7 +114,7 @@ class CaptureTemplateTest {
     @Test
     fun `location descriptions for the picker`() {
         assertEquals("bottom of file", TargetLocation.BottomOfFile.describe())
-        assertEquals("datetree", TargetLocation.DatetreeDatetime.describe())
+        assertEquals("datetree", TargetLocation.Datetree.describe())
         assertEquals("under #x", TargetLocation.UnderHeading(customId = "x").describe())
         assertEquals("under #y", TargetLocation.UnderHeading(customId = "x", id = "y").describe())
         assertEquals("under Projects", TargetLocation.UnderHeading(title = "Projects").describe())

@@ -4,6 +4,12 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 
 /** Where a capture template inserts its entry (PRD §7.4). */
 @Serializable
@@ -35,23 +41,23 @@ sealed class TargetLocation {
         val headingKey: String? get() = id ?: customId
     }
 
-    /** Year → Month → Day tree; entry under the day heading. */
-    @Serializable
-    @SerialName("datetree_date")
-    data object DatetreeDate : TargetLocation()
-
-    /** Same tree; by convention the template leads with a `%U`-style time. */
+    /**
+     * Year → Month → Day tree; entry under the day heading. Keeps the serial
+     * name of the old "Datetree (datetime)" location so existing templates and
+     * older builds read it unchanged; the retired "datetree_date" location is
+     * migrated in [TemplateSerializer.decode].
+     */
     @Serializable
     @SerialName("datetree_datetime")
-    data object DatetreeDatetime : TargetLocation()
+    data object Datetree : TargetLocation()
 
-    val isDatetree: Boolean get() = this is DatetreeDate || this is DatetreeDatetime
+    val isDatetree: Boolean get() = this is Datetree
 
     fun describe(): String = when (this) {
         is TopOfFile -> "top of file"
         is BottomOfFile -> "bottom of file"
         is UnderHeading -> "under " + (headingKey?.let { "#$it" } ?: title ?: "heading")
-        is DatetreeDate, is DatetreeDatetime -> "datetree"
+        is Datetree -> "datetree"
     }
 }
 
@@ -94,8 +100,42 @@ object TemplateSerializer {
         json.encodeToString(TemplateListSurrogate(templates))
 
     fun decode(text: String): List<CaptureTemplate> =
-        runCatching { json.decodeFromString<TemplateListSurrogate>(text).templates }
-            .getOrDefault(emptyList())
+        runCatching {
+            json.decodeFromJsonElement<TemplateListSurrogate>(migrate(json.parseToJsonElement(text))).templates
+        }.getOrDefault(emptyList())
+
+    /**
+     * Rewrites templates saved with the retired "Datetree (date)" location
+     * (`datetree_date`) to [TargetLocation.Datetree]. That location expanded
+     * `%T`/`%U` without a time, so their bodies swap to `%t`/`%u` to keep
+     * every capture identical. Must run before decoding: an unknown location
+     * type would fail the whole list, and decode falls back to no templates.
+     */
+    private fun migrate(root: JsonElement): JsonElement {
+        val obj = root as? JsonObject ?: return root
+        val templates = obj["templates"] as? JsonArray ?: return root
+        val migrated = templates.map { t ->
+            val template = t as? JsonObject ?: return@map t
+            val location = template["location"] as? JsonObject ?: return@map t
+            if ((location["type"] as? JsonPrimitive)?.contentOrNull != LEGACY_DATETREE_DATE) return@map t
+            JsonObject(
+                template.mapValues { (key, value) ->
+                    when (key) {
+                        "location" -> JsonObject(location + ("type" to JsonPrimitive(DATETREE_SERIAL_NAME)))
+                        "template", "newFileTemplate" ->
+                            (value as? JsonPrimitive)?.contentOrNull
+                                ?.let { JsonPrimitive(PlaceholderExpander.dateOnlyStamps(it)) }
+                                ?: value
+                        else -> value
+                    }
+                }
+            )
+        }
+        return JsonObject(obj + ("templates" to JsonArray(migrated)))
+    }
+
+    private const val LEGACY_DATETREE_DATE = "datetree_date"
+    private const val DATETREE_SERIAL_NAME = "datetree_datetime"
 
     @Serializable
     private data class TemplateListSurrogate(val templates: List<CaptureTemplate>)
@@ -108,7 +148,7 @@ object DefaultTemplates {
             id = "builtin-journal",
             name = "Journal Entry",
             targetFile = "journal.org",
-            location = TargetLocation.DatetreeDatetime,
+            location = TargetLocation.Datetree,
             // First line of the entry is its heading; the cursor lands right
             // after the stamp, on the heading, ready for input.
             template = "%U %cursor",

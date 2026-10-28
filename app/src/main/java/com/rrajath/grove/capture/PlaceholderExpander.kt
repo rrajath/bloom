@@ -13,11 +13,6 @@ data class CaptureContext(
     val sharedUrl: String = "",
     /** Answers for `%^{prompt}` placeholders, keyed by prompt text. */
     val promptValues: Map<String, String> = emptyMap(),
-    /**
-     * Date-granularity target (e.g. datetree by date): `%T`/`%U` expand without
-     * a time-of-day, same as `%t`/`%u`.
-     */
-    val dateOnly: Boolean = false,
     /** `%(id)` value — generated once per capture, not regenerated per [PlaceholderExpander.expand] call. */
     val id: String = "",
 )
@@ -58,9 +53,7 @@ object PlaceholderExpander {
         val date = ctx.now.toLocalDate()
         val time = ctx.now.toLocalTime()
         val dateStamp = OrgTimestamp(date)
-        val dateTimeStamp =
-            if (ctx.dateOnly) dateStamp
-            else OrgTimestamp(date, time = time.withSecond(0).withNano(0))
+        val dateTimeStamp = OrgTimestamp(date, time = time.withSecond(0).withNano(0))
         val timeText = "%d:%02d".format(time.hour, time.minute)
 
         val values: Map<String, (() -> String)?> = mapOf(
@@ -114,6 +107,45 @@ object PlaceholderExpander {
             i += key.length
         }
         return ExpandedTemplate(sb.toString(), cursor ?: sb.length)
+    }
+
+    /**
+     * [template] with every `%T`/`%U` placeholder swapped for its date-only
+     * form (`%t`/`%u`), tokenized exactly like [expand] so prompt labels and
+     * longer keys are left alone. Migrates templates saved with the retired
+     * "Datetree (date)" location, which stripped the time from `%T`/`%U`.
+     */
+    fun dateOnlyStamps(template: String): String {
+        val sb = StringBuilder()
+        var i = 0
+        while (i < template.length) {
+            if (template[i] != '%') {
+                sb.append(template[i])
+                i++
+                continue
+            }
+            val promptMatch = PROMPT.matchAt(template, i)
+            if (promptMatch != null) {
+                sb.append(promptMatch.value)
+                i += promptMatch.value.length
+                continue
+            }
+            val key = SIMPLE_KEYS.firstOrNull { template.startsWith(it, i) }
+            if (key == null) {
+                sb.append('%')
+                i++
+                continue
+            }
+            sb.append(
+                when (key) {
+                    "%T" -> "%t"
+                    "%U" -> "%u"
+                    else -> key
+                }
+            )
+            i += key.length
+        }
+        return sb.toString()
     }
 
     /**

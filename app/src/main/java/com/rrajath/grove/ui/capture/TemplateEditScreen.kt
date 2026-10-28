@@ -82,15 +82,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private val LOCATION_OPTIONS = listOf(
-    "Top of file", "Bottom of file", "Under heading", "Datetree (date)", "Datetree (datetime)",
+    "Top of file", "Bottom of file", "Under heading", "Datetree",
 )
 
 private fun locationIndex(location: TargetLocation): Int = when (location) {
     is TargetLocation.TopOfFile -> 0
     is TargetLocation.BottomOfFile -> 1
     is TargetLocation.UnderHeading -> 2
-    is TargetLocation.DatetreeDate -> 3
-    is TargetLocation.DatetreeDatetime -> 4
+    is TargetLocation.Datetree -> 3
 }
 
 /** Chips appended to the "File name pattern" field on tap: (label shown, text inserted). */
@@ -178,8 +177,7 @@ fun TemplateEditScreen(
             title = headingTitle.takeIf { it.isNotBlank() },
             id = headingId.trim().takeIf { it.isNotBlank() },
         )
-        3 -> TargetLocation.DatetreeDate
-        else -> TargetLocation.DatetreeDatetime
+        else -> TargetLocation.Datetree
     }
 
     fun currentTemplate() = CaptureTemplate(

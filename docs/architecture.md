@@ -72,12 +72,12 @@ For the v1 local-folder backend, "sync" means **re-indexing**: the files are alr
 
 ## Capture (`capture/`)
 
-A `CaptureTemplate` is `(name, icon, target file, target location, template text)`, persisted as JSON in DataStore; built-in defaults are seeded until the user first saves. The target file is a vault-relative path (`FilenameValidation` accepts `/`-separated segments, not just a bare name), so a template can capture into a notebook in a subfolder; a missing target file (and its parent folders) is created on first capture.
+A `CaptureTemplate` is `(name, icon, target file, target location, template text)`, persisted as JSON in DataStore; built-in defaults are seeded until the user first saves. `TemplateSerializer.decode` migrates retired formats before decoding: a template saved with the old "Datetree (date)" location (`datetree_date`) becomes `Datetree` (serial name `datetree_datetime`) with `%T`/`%U` rewritten to `%t`/`%u`, so its captures stay identical. The target file is a vault-relative path (`FilenameValidation` accepts `/`-separated segments, not just a bare name), so a template can capture into a notebook in a subfolder; a missing target file (and its parent folders) is created on first capture.
 
 The pipeline at capture time:
 
 1. `PlaceholderExpander.prompts()` finds `%^{prompt}` placeholders; the UI collects answers first.
-2. `PlaceholderExpander.expand()` substitutes placeholders (`%t %T %u %U %date %time %day %year %month %clipboard %shared_text %shared_url` …) and records where `%cursor`/`%?` puts the caret. For date-granularity targets (datetree by date), `%U`/`%u` expand date-only.
+2. `PlaceholderExpander.expand()` substitutes placeholders (`%t %T %u %U %date %time %day %year %month %clipboard %shared_text %shared_url` …) and records where `%cursor`/`%?` puts the caret.
 3. `CaptureInserter.withHeadingStars()` prefixes the entry with the heading stars it will receive on insert (4 for a datetree entry, 1 for top/bottom of file) so the editor is WYSIWYG.
 4. On save, `CaptureInserter.insert()` splices the entry into the target file: at top/bottom, under a heading found by `ID` (falling back to `CUSTOM_ID`, so legacy templates resolve) or exact title (as a child heading, or, for a body-only template whose first line isn't a heading, verbatim into that heading's own body), or into a `year → month → day` datetree whose nodes are created on demand in chronological position. The first line is re-leveled to the insertion depth; body lines are kept verbatim.
 

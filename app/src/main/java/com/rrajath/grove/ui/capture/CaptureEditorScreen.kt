@@ -263,7 +263,6 @@ fun CaptureEditorScreen(
             sharedText = share?.text ?: "",
             sharedUrl = share?.url ?: "",
             promptValues = promptValues ?: emptyMap(),
-            dateOnly = template.location is TargetLocation.DatetreeDate,
             // Generated once per capture, not regenerated on every expand() call.
             id = newOrgId(),
         )

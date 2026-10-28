@@ -59,7 +59,7 @@ object CaptureInserter {
                 }
             }
 
-            is TargetLocation.DatetreeDate, is TargetLocation.DatetreeDatetime ->
+            is TargetLocation.Datetree ->
                 insertDatetree(docText, entry, today, keywords)
         }
     }
@@ -178,7 +178,7 @@ object CaptureInserter {
         // Depends on the target heading's depth in the file; not known here.
         is TargetLocation.UnderHeading -> null
         // Year → month → day tree; entries sit under the day heading.
-        is TargetLocation.DatetreeDate, is TargetLocation.DatetreeDatetime -> 4
+        is TargetLocation.Datetree -> 4
     }
 
     /**

@@ -44,7 +44,7 @@ Terms used throughout the code, the UI, and these docs. Org-mode terms keep thei
 | **Delete** | Permanent. SAF exposes no OS-level trash, so deleting a notebook or folder removes the file(s) outright and prunes any directory left empty. Recovery relies on the sync backend's own history (Syncthing file versioning). A confirmation dialog guards both. |
 | **`.orgzlyignore`** | An optional file of glob patterns (Orgzly convention) naming `.org` files the app should pretend don't exist. |
 | **Capture template** | `(name, icon, target file, target location, template text)`; see [architecture.md](architecture.md#capture-capture). |
-| **Target location** | Where a capture inserts: top of file, bottom of file, under a heading (matched by `CUSTOM_ID`, recommended, or exact title), or a datetree (date or datetime granularity). |
+| **Target location** | Where a capture inserts: top of file, bottom of file, under a heading (matched by `CUSTOM_ID`, recommended, or exact title), or a datetree. |
 | **Placeholder** | A `%`-token in template text expanded at capture time: timestamps (`%t %T %u %U`), date parts (`%date %time %day %year %month`), content (`%clipboard %shared_text %shared_url`), prompts (`%^{Title}`), and cursor position (`%cursor` / `%?`). |
 | **Star prefill** | The capture editor pre-inserts the heading stars an entry will receive on save (e.g. `**** ` for a datetree entry), so what you see is what lands in the file. |
 | **Stale file** | The file changed on disk while a note was being edited (revision mismatch at save). The editor refuses to silently overwrite and offers Overwrite (force save) or Reload. |

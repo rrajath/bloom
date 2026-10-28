@@ -32,7 +32,7 @@ With [Roam Features](/features/settings-overview#roam-features-experimental) on,
     - **Bottom of file**: appended at the end
     - **Under heading**: inserted as a child of a specific heading, matched either by exact heading name or by the heading's `ID` (the recommended match target, since it survives the heading being renamed). A `CUSTOM_ID` typed into the ID field also matches, so older templates keep working
       - If the template body doesn't start with a heading (for example `- [ ] %cursor` under a "Shopping List" heading), the capture adds content to that heading's body instead of creating a new child heading. The capture editor shows the target heading greyed out above the text so you know where it goes, and it can't be edited. "Last" appends to the end of the heading's own text, above any sub-headings; "first" puts it right after the heading's properties. Only a completely blank capture is refused
-    - **Datetree, by date or by date+time**: auto-creates a Year → Month → Day (→ Time) chain of headings if it doesn't already exist, then inserts under today's leaf
+    - **Datetree**: auto-creates a Year → Month → Day chain of headings if it doesn't already exist, then inserts under today's day heading. Use `%U` for a stamp with the time or `%u` for the date only
   - **Template body**: the org text to insert, including any [placeholder](/features/placeholders) tokens
 - **New node file**: see [Roam node templates](#roam-node-templates-experimental) below
 
@@ -46,14 +46,14 @@ Bloom ships with three, all editable or deletable like any other:
 
 | Name | Target file | Location | Body |
 |---|---|---|---|
-| Journal Entry | `journal.org` | Datetree (date + time) | `%U %cursor` |
+| Journal Entry | `journal.org` | Datetree | `%U %cursor` |
 | Quick Note | `inbox.org` | Bottom of file | `* %cursor` |
 | TODO | `tasks.org` | Bottom of file | `* TODO %^{Title}` then `%cursor` |
 
 <ThemeShot
   light={templateEditLight}
   dark={templateEditDark}
-  alt='Edit template screen for "Journal Entry" showing its monogram icon, target file journal.org, Insert at options with Datetree (datetime) selected, and a template body of %U %cursor'
+  alt='Edit template screen for "Journal Entry" showing its monogram icon, target file journal.org, Insert at options with Datetree selected, and a template body of %U %cursor'
   widths={[340, 680]}
   sizes="340px"
 />
