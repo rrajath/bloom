@@ -645,7 +645,6 @@ fun TemplateEditScreen(
             searchPlaceholder = stringResource(R.string.picker_search_headings_placeholder),
             searchHeader = stringResource(R.string.picker_search_headings_header),
             headingTag = { h -> idTag.takeIf { h.id != null || h.customId != null } },
-            brandMarkHeadings = true,
         )
     }
 

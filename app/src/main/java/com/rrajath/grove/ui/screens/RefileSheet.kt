@@ -104,8 +104,6 @@ fun RefileSheet(
     searchHeader: String? = null,
     /** A small muted tag after a heading row's title (e.g. "ID"), or null for none. */
     headingTag: (OrgHeadline) -> String? = { null },
-    /** Heading rows lead with the five-spoke brand asterisk (as search hits do) instead of `✳`. */
-    brandMarkHeadings: Boolean = false,
 ) {
     val c = MaterialTheme.grove
     val doc = state.pickedDoc
@@ -222,8 +220,7 @@ fun RefileSheet(
                     }
                     items(rows, key = { it.lineIndex }) { h ->
                         RefileRow(
-                            glyph = "✳",
-                            brandMark = brandMarkHeadings,
+                            brandMark = true,
                             label = h.title,
                             labelTag = headingTag(h),
                             sub = headingCountLabel(doc, h),

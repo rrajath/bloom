@@ -72,6 +72,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Tapping the app icon on the Agenda widget now opens the Agenda screen instead of the home page.
 - Capture placeholders %t, %T, %u, %U now match org-mode: lowercase is date only, u/U are inactive.
 - Capture templates: pick the target heading from a searchable list instead of typing its name or ID.
+- Headings in the refile and link pickers now show the app's five-spoke asterisk.
 - Capture templates have one "Datetree" option; former Datetree (date) templates are converted automatically and capture the same text.
 - Tapping a day with an active timestamp already on it in Planning Dates adds another instead of removing it; use × to remove.
 
