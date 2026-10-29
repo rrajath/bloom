@@ -77,6 +77,7 @@ import com.rrajath.grove.ui.nav.DeepLinks
 import com.rrajath.grove.ui.nav.Routes
 import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.groveColorsFor
+import com.rrajath.grove.ui.theme.systemDarkThemeSupported
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.vault.AutoArchive
@@ -135,7 +136,7 @@ private val AGENDA_URI = DeepLinks.agenda().toUri()
  * `AgendaPrefs` in `AgendaViewModel`).
  */
 private data class WidgetPrefs(
-    val theme: com.rrajath.grove.settings.ThemePreference,
+    val themeSelection: com.rrajath.grove.settings.ThemeSelection,
     val syncAppIconWithTheme: Boolean,
     val agendaWidgetDaysAhead: Int,
     val agendaWidgetTransparency: Float,
@@ -145,7 +146,7 @@ private data class WidgetPrefs(
     val agendaWidgetShowPriority: Boolean,
 ) {
     constructor(s: GroveSettings) : this(
-        s.theme,
+        s.themeSelection,
         s.syncAppIconWithTheme,
         s.agendaWidgetDaysAhead,
         s.agendaWidgetTransparency,
@@ -204,6 +205,7 @@ class LedgerWidget : GlanceAppWidget() {
                 .collectAsState(initial = initialSettings)
             val saved by app.searchRepository.savedSearches.collectAsState(initial = initialSaved)
             val keywords by app.keywords.collectAsState()
+            val systemIsDark by app.systemNightMode.collectAsState()
             // Re-resolved on every recomposition, so a deleted search falls
             // back to the agenda, a renamed one shows its new name, and a Quick
             // Start follows its override and the vault's keywords.
@@ -214,13 +216,21 @@ class LedgerWidget : GlanceAppWidget() {
                 currentState(EXPANSION_PAGES_KEY),
             )
 
-            val colors = groveColorsFor(settings.theme)
+            // Resolved here, not handed to the launcher as Glance day/night
+            // ColorProviders. On API 31+ those become RemoteViews night colors the
+            // launcher picks when it applies the views, and on device it kept
+            // picking night after the phone switched to light (while the icon,
+            // resolved here, updated). systemIsDark recomposes a live session;
+            // GroveApplication.onConfigurationChanged starts one otherwise, and the
+            // 30-minute widget update covers a switch while the process was dead.
+            val theme = settings.themeSelection.resolve(systemIsDark, systemDarkThemeSupported)
+            val colors = groveColorsFor(theme)
             val today = LocalDate.now()
             // Themed mipmaps only exist as <adaptive-icon> (API 26+); below that
             // there is only the default fallback icon.
             val iconRes = AppIconManager.mipmapRes(
                 settings.syncAppIconWithTheme && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O,
-                settings.theme,
+                theme,
             )
             val backgroundColor = colors.surface.copy(alpha = 1f - settings.agendaWidgetTransparency)
             val fontScale = settings.agendaWidgetFontSize.scale

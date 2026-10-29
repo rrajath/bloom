@@ -2,39 +2,131 @@ package com.rrajath.grove.settings
 
 // Pure-Kotlin preference enums (no android imports) so mapping logic is JVM-testable.
 
-enum class ThemePreference(val storageKey: String) {
-    LIGHT("light"),
-    DARK("dark"),
-    TOKYONIGHT("tokyonight"),
-    TOKYODAY("tokyoday"),
-    CATPPUCCIN("catppuccin"),
-    CATPPUCCINLATTE("catppuccinlatte"),
-    ROSEPINEDAWN("rosepinedawn"),
-    ROSEPINEMOON("rosepinemoon"),
-    CHALK("chalk"),
-    COBALT("cobalt"),
-    DELFT("delft"),
-    SAGE("sage"),
-    ASHROSE("ashrose"),
-    OBSIDIAN("obsidian"),
-    LANTERN("lantern"),
-    LIGHTHOUSE("lighthouse"),
-    MOSS("moss"),
-    WISTERIA("wisteria"),
-    BLOOMLIGHT("bloomlight"),
-    BLOOMDARK("bloomdark");
+/**
+ * A concrete color theme. [isDark] sorts it into the light or dark family: the
+ * Light/Dark/System mode ([ThemeMode]) offers only same-family themes per slot.
+ * Kept in sync with `GroveColors.isDark` (`ThemeTest` checks it).
+ */
+enum class ThemePreference(val storageKey: String, val isDark: Boolean) {
+    LIGHT("light", false),
+    DARK("dark", true),
+    TOKYONIGHT("tokyonight", true),
+    TOKYODAY("tokyoday", false),
+    CATPPUCCIN("catppuccin", true),
+    CATPPUCCINLATTE("catppuccinlatte", false),
+    ROSEPINEDAWN("rosepinedawn", false),
+    ROSEPINEMOON("rosepinemoon", true),
+    CHALK("chalk", false),
+    COBALT("cobalt", false),
+    DELFT("delft", false),
+    SAGE("sage", false),
+    ASHROSE("ashrose", false),
+    OBSIDIAN("obsidian", true),
+    LANTERN("lantern", true),
+    LIGHTHOUSE("lighthouse", true),
+    MOSS("moss", true),
+    WISTERIA("wisteria", true),
+    BLOOMLIGHT("bloomlight", false),
+    BLOOMDARK("bloomdark", true);
 
     companion object {
         fun fromStorage(value: String?): ThemePreference =
-            entries.firstOrNull { it.storageKey == value } ?: LIGHT
+            fromStorageOrNull(value) ?: LIGHT
+
+        fun fromStorageOrNull(value: String?): ThemePreference? =
+            entries.firstOrNull { it.storageKey == value }
+    }
+}
+
+/** Settings § Look and Feel: which theme slot applies. */
+enum class ThemeMode(val storageKey: String) {
+    LIGHT("light"),
+    DARK("dark"),
+
+    /** Follow the phone's dark theme setting (Android 10+ only, see [ThemeSelection.effectiveMode]). */
+    SYSTEM("system");
+
+    companion object {
+        fun fromStorageOrNull(value: String?): ThemeMode? =
+            entries.firstOrNull { it.storageKey == value }
+    }
+}
+
+/**
+ * The user's theme choice: a [mode] plus one theme per family. [light] must be a
+ * light theme and [dark] a dark one ([sanitized] enforces it for stored/imported
+ * values). Which theme is on screen comes from [resolve], never from a field.
+ */
+data class ThemeSelection(
+    val mode: ThemeMode = ThemeMode.SYSTEM,
+    val light: ThemePreference = ThemePreference.BLOOMLIGHT,
+    val dark: ThemePreference = ThemePreference.BLOOMDARK,
+) {
+    /**
+     * Before Android 10 there is no system-wide dark theme, so the System option
+     * is hidden there and a stored SYSTEM (e.g. imported from a newer phone)
+     * behaves as LIGHT. It stays SYSTEM in storage so it round-trips.
+     */
+    fun effectiveMode(systemSupported: Boolean): ThemeMode =
+        if (mode == ThemeMode.SYSTEM && !systemSupported) ThemeMode.LIGHT else mode
+
+    fun resolve(systemIsDark: Boolean, systemSupported: Boolean): ThemePreference =
+        when (effectiveMode(systemSupported)) {
+            ThemeMode.LIGHT -> light
+            ThemeMode.DARK -> dark
+            ThemeMode.SYSTEM -> if (systemIsDark) dark else light
+        }
+
+    /** Replace a slot holding the wrong family with that family's default. */
+    fun sanitized(): ThemeSelection = copy(
+        light = if (light.isDark) ThemePreference.BLOOMLIGHT else light,
+        dark = if (dark.isDark) dark else ThemePreference.BLOOMDARK,
+    )
+
+    companion object {
+        /** Stored form; null when [mode] is missing (nothing stored, or a pre-mode install). */
+        fun fromStorage(mode: String?, light: String?, dark: String?): ThemeSelection? {
+            val m = ThemeMode.fromStorageOrNull(mode) ?: return null
+            val defaults = ThemeSelection()
+            return ThemeSelection(
+                mode = m,
+                light = ThemePreference.fromStorageOrNull(light) ?: defaults.light,
+                dark = ThemePreference.fromStorageOrNull(dark) ?: defaults.dark,
+            ).sanitized()
+        }
 
         /**
-         * Theme for an install that never stored one. Fresh installs start on
-         * Bloom Light; installs that finished onboarding before Bloom Light
-         * existed keep the Grove Light they have always seen.
+         * What an install's stored keys read as: the mode keys when present,
+         * else the retired single [legacyTheme] migrated in place, else the
+         * unset default ([defaultFor]).
          */
-        fun defaultFor(onboardingDone: Boolean): ThemePreference =
-            if (onboardingDone) LIGHT else BLOOMLIGHT
+        fun fromStorage(
+            mode: String?,
+            light: String?,
+            dark: String?,
+            legacyTheme: String?,
+            onboardingDone: Boolean,
+        ): ThemeSelection =
+            fromStorage(mode, light, dark)
+                ?: legacyTheme?.let { fromLegacy(ThemePreference.fromStorage(it)) }
+                ?: defaultFor(onboardingDone)
+
+        /**
+         * Map a pre-mode single theme onto a selection that looks the same: the
+         * mode matching its family, the theme in that slot, the Bloom default in
+         * the other.
+         */
+        fun fromLegacy(theme: ThemePreference): ThemeSelection =
+            if (theme.isDark) ThemeSelection(ThemeMode.DARK, dark = theme)
+            else ThemeSelection(ThemeMode.LIGHT, light = theme)
+
+        /**
+         * Theme for an install that stored nothing yet. Fresh installs follow the
+         * phone with the Bloom pair; installs that finished onboarding before
+         * Bloom Light existed keep the Grove Light they have always seen.
+         */
+        fun defaultFor(onboardingDone: Boolean): ThemeSelection =
+            if (onboardingDone) fromLegacy(ThemePreference.LIGHT) else ThemeSelection()
     }
 }
 

@@ -19,9 +19,78 @@ class PreferencesTest {
     }
 
     @Test
-    fun `unset theme is Bloom Light for fresh installs and Grove Light for onboarded ones`() {
-        assertEquals(ThemePreference.BLOOMLIGHT, ThemePreference.defaultFor(onboardingDone = false))
-        assertEquals(ThemePreference.LIGHT, ThemePreference.defaultFor(onboardingDone = true))
+    fun `unset theme follows the phone with the Bloom pair for fresh installs and stays Grove Light for onboarded ones`() {
+        assertEquals(
+            ThemeSelection(ThemeMode.SYSTEM, ThemePreference.BLOOMLIGHT, ThemePreference.BLOOMDARK),
+            ThemeSelection.defaultFor(onboardingDone = false),
+        )
+        assertEquals(
+            ThemeSelection(ThemeMode.LIGHT, ThemePreference.LIGHT, ThemePreference.BLOOMDARK),
+            ThemeSelection.defaultFor(onboardingDone = true),
+        )
+    }
+
+    @Test
+    fun `resolve picks the slot for the mode and follows the phone only in System`() {
+        val s = ThemeSelection(light = ThemePreference.SAGE, dark = ThemePreference.MOSS)
+        for (night in listOf(false, true)) {
+            assertEquals(ThemePreference.SAGE, s.copy(mode = ThemeMode.LIGHT).resolve(night, systemSupported = true))
+            assertEquals(ThemePreference.MOSS, s.copy(mode = ThemeMode.DARK).resolve(night, systemSupported = true))
+        }
+        assertEquals(ThemePreference.SAGE, s.copy(mode = ThemeMode.SYSTEM).resolve(systemIsDark = false, systemSupported = true))
+        assertEquals(ThemePreference.MOSS, s.copy(mode = ThemeMode.SYSTEM).resolve(systemIsDark = true, systemSupported = true))
+    }
+
+    @Test
+    fun `System behaves as Light where the OS has no dark theme`() {
+        val s = ThemeSelection(ThemeMode.SYSTEM, ThemePreference.SAGE, ThemePreference.MOSS)
+        assertEquals(ThemeMode.LIGHT, s.effectiveMode(systemSupported = false))
+        assertEquals(ThemeMode.SYSTEM, s.effectiveMode(systemSupported = true))
+        assertEquals(ThemePreference.SAGE, s.resolve(systemIsDark = true, systemSupported = false))
+        assertEquals(ThemeMode.DARK, s.copy(mode = ThemeMode.DARK).effectiveMode(systemSupported = false))
+    }
+
+    @Test
+    fun `a legacy single theme keeps its look`() {
+        assertEquals(
+            ThemeSelection(ThemeMode.DARK, ThemePreference.BLOOMLIGHT, ThemePreference.TOKYONIGHT),
+            ThemeSelection.fromLegacy(ThemePreference.TOKYONIGHT),
+        )
+        assertEquals(
+            ThemeSelection(ThemeMode.LIGHT, ThemePreference.CHALK, ThemePreference.BLOOMDARK),
+            ThemeSelection.fromLegacy(ThemePreference.CHALK),
+        )
+    }
+
+    @Test
+    fun `stored keys migrate a legacy theme and win over it once written`() {
+        fun read(mode: String?, legacy: String?, onboarded: Boolean) =
+            ThemeSelection.fromStorage(mode, "chalk", "moss", legacyTheme = legacy, onboardingDone = onboarded)
+        // Mode keys present: the legacy key is ignored.
+        assertEquals(ThemeSelection(ThemeMode.SYSTEM, ThemePreference.CHALK, ThemePreference.MOSS), read("system", "tokyonight", true))
+        // Upgrade from a single theme: same look, Bloom default in the other slot.
+        assertEquals(ThemeSelection.fromLegacy(ThemePreference.TOKYONIGHT), read(null, "tokyonight", true))
+        // Nothing stored.
+        assertEquals(ThemeSelection.defaultFor(onboardingDone = true), read(null, null, true))
+        assertEquals(ThemeSelection.defaultFor(onboardingDone = false), read(null, null, false))
+    }
+
+    @Test
+    fun `stored selection parses, falls back per slot, and rejects wrong-family themes`() {
+        assertEquals(null, ThemeSelection.fromStorage(null, "sage", "moss"))
+        assertEquals(
+            ThemeSelection(ThemeMode.SYSTEM, ThemePreference.SAGE, ThemePreference.MOSS),
+            ThemeSelection.fromStorage("system", "sage", "moss"),
+        )
+        assertEquals(
+            ThemeSelection(ThemeMode.DARK, ThemePreference.BLOOMLIGHT, ThemePreference.BLOOMDARK),
+            ThemeSelection.fromStorage("dark", "sepia", null),
+        )
+        // A dark theme in the light slot (and vice versa) is replaced, not kept.
+        assertEquals(
+            ThemeSelection(ThemeMode.LIGHT, ThemePreference.BLOOMLIGHT, ThemePreference.BLOOMDARK),
+            ThemeSelection.fromStorage("light", "moss", "sage"),
+        )
     }
 
     @Test

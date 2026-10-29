@@ -1,6 +1,7 @@
 package com.rrajath.grove
 
 import android.app.Application
+import android.content.res.Configuration
 import android.text.format.DateFormat
 import androidx.core.net.toUri
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -22,7 +23,10 @@ import com.rrajath.grove.reminders.ReminderDigestScheduler
 import com.rrajath.grove.reminders.ReminderReconciler
 import com.rrajath.grove.search.SearchRepository
 import com.rrajath.grove.settings.SettingsRepository
+import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.ThemePreference
+import com.rrajath.grove.ui.theme.isNightMode
+import com.rrajath.grove.ui.theme.systemDarkThemeSupported
 import com.rrajath.grove.sync.SyncManager
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
@@ -37,7 +41,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -70,6 +76,34 @@ private const val LEGACY_IGNORE_FILE_NAME = ".orgzlyignore"
 open class GroveApplication : Application() {
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Whether the phone is in dark mode, for app-scope code that resolves the
+     * Light/Dark/System theme outside composition. Lazy: resources aren't
+     * attached yet while fields initialize. Kept current by [onConfigurationChanged],
+     * which only fires while the process is alive; consumers that act later
+     * (icon alias at ON_STOP, notifications) read it then.
+     */
+    val systemNightMode: MutableStateFlow<Boolean> by lazy {
+        MutableStateFlow(resources.configuration.isNightMode())
+    }
+
+    /** Theme on screen right now: settings resolved against [systemNightMode]. */
+    val resolvedSettingsTheme: Flow<Pair<GroveSettings, ThemePreference>> by lazy {
+        combine(settingsRepository.settings, systemNightMode) { s, night ->
+            s to s.themeSelection.resolve(night, systemDarkThemeSupported)
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val night = newConfig.isNightMode()
+        if (systemNightMode.value == night) return
+        systemNightMode.value = night
+        // The widget resolves its colors and icon from systemNightMode: a live
+        // session recomposes on its own, this starts one if none is running.
+        appScope.launch { LedgerWidget().updateAll(this@GroveApplication) }
+    }
 
     /** Real dispatchers, injected into ViewModels so tests can swap in a test one. */
     val dispatchers = AppDispatchers()
@@ -110,8 +144,8 @@ open class GroveApplication : Application() {
      * first notification with the default mark regardless of the setting.
      */
     val notificationMarkColor: StateFlow<Int> by lazy {
-        settingsRepository.settings
-            .map { AppIconManager.markColor(it.syncAppIconWithTheme, it.theme) }
+        resolvedSettingsTheme
+            .map { (s, theme) -> AppIconManager.markColor(s.syncAppIconWithTheme, theme) }
             .distinctUntilChanged()
             .stateIn(
                 appScope,
@@ -306,8 +340,8 @@ open class GroveApplication : Application() {
             // notification-eligible asset on every cold start. The settings
             // flow's first emission is genuinely the persisted startup value,
             // which drop(1) here correctly skips.
-            settingsRepository.settings
-                .map { AppIconManager.markColor(it.syncAppIconWithTheme, it.theme) }
+            resolvedSettingsTheme
+                .map { (s, theme) -> AppIconManager.markColor(s.syncAppIconWithTheme, theme) }
                 .distinctUntilChanged()
                 .drop(1)
                 .collect { NotificationAppearance.retintActive(this@GroveApplication) }
@@ -458,8 +492,8 @@ open class GroveApplication : Application() {
             // as the launcher icon itself (AppIconManager), so both stay in sync.
             combine(
                 templatesRepository.templates,
-                settingsRepository.settings
-                    .map { it.theme to it.syncAppIconWithTheme }
+                resolvedSettingsTheme
+                    .map { (s, theme) -> theme to s.syncAppIconWithTheme }
                     .distinctUntilChanged(),
             ) { templates, (theme, iconThemed) -> Triple(templates, theme, iconThemed) }
                 .distinctUntilChanged()

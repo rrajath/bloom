@@ -37,7 +37,15 @@ object SettingsSerialization {
 @Serializable
 data class SettingsExport(
     val version: Int = CURRENT_VERSION,
+    /**
+     * Pre-v11 single theme. Still written (as the theme the selection shows in
+     * light/dark mode) so an older Bloom importing this file gets a sensible
+     * theme; on import it's used only when [themeMode] is absent.
+     */
     val theme: String = ThemePreference.LIGHT.storageKey,
+    val themeMode: String? = null,
+    val lightTheme: String? = null,
+    val darkTheme: String? = null,
     val syncAppIconWithTheme: Boolean = false,
     /**
      * Retired app-wide font-size lever. Kept only so a pre-split export still
@@ -120,9 +128,13 @@ data class SettingsExport(
     val dailiesFilenamePattern: String = "%<%Y-%m-%d>.org",
     val dailiesHeaderTemplate: String = ":PROPERTIES:\n:ID: %(id)\n:END:\n#+title: %date\n%?",
 ) {
+    private fun themeSelection(): ThemeSelection =
+        ThemeSelection.fromStorage(themeMode, lightTheme, darkTheme)
+            ?: ThemeSelection.fromLegacy(ThemePreference.fromStorage(theme))
+
     /** Map back onto [base], using the enums' tolerant `fromStorage` fallbacks. */
     fun applyTo(base: GroveSettings): GroveSettings = base.copy(
-        theme = ThemePreference.fromStorage(theme),
+        themeSelection = themeSelection(),
         syncAppIconWithTheme = syncAppIconWithTheme,
         appFontSize = FontSizePreference.fromStorage(appFontSize),
         // A pre-split export carries only `fontSize`; seed both new fields from it.
@@ -219,10 +231,15 @@ data class SettingsExport(
         // v10: added the widget quick-add target (quickAddTargetFile/
         // quickAddHeadingPath). Additive: older exports omit them and import as
         // null/empty, which keeps quick-add following the share target.
-        const val CURRENT_VERSION = 10
+        // v11: the single `theme` became themeMode/lightTheme/darkTheme. Older
+        // exports carry only `theme`, which maps onto the matching mode + slot.
+        const val CURRENT_VERSION = 11
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
-            theme = s.theme.storageKey,
+            theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,
+            themeMode = s.themeSelection.mode.storageKey,
+            lightTheme = s.themeSelection.light.storageKey,
+            darkTheme = s.themeSelection.dark.storageKey,
             syncAppIconWithTheme = s.syncAppIconWithTheme,
             appFontSize = s.appFontSize.storageKey,
             readModeFontSize = s.readModeFontSize.storageKey,

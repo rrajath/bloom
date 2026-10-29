@@ -66,6 +66,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Tap the Agenda widget's title to show a saved search instead; each widget remembers its own choice.
 - The Agenda widget also shows a Quick Start search: Overdue, Today, Open tasks, or Unscheduled.
 - Long Agenda widget lists have "+N more" to show 20 more rows in place, next to "view all".
+- Light, Dark and System theme modes: System follows your phone, switching between your chosen light and dark themes.
 
 ### Changed
 - When a heading can't be demoted in Outline, the message now explains why: there's no heading above to go under.

@@ -9,7 +9,7 @@ import org.junit.Test
 class SettingsSerializationTest {
 
     private val sample = GroveSettings(
-        theme = ThemePreference.DARK,
+        themeSelection = ThemeSelection(ThemeMode.SYSTEM, ThemePreference.ROSEPINEDAWN, ThemePreference.TOKYONIGHT),
         syncAppIconWithTheme = true,
         appFontSize = FontSizePreference.LARGE,
         readModeFontSize = FontSizePreference.LARGE,
@@ -89,7 +89,7 @@ class SettingsSerializationTest {
         // Re-import onto fresh defaults so we can prove every portable field carried.
         val restored = SettingsSerialization.import(json, GroveSettings())
 
-        assertEquals(sample.theme, restored.theme)
+        assertEquals(sample.themeSelection, restored.themeSelection)
         assertEquals(sample.syncAppIconWithTheme, restored.syncAppIconWithTheme)
         assertEquals(sample.appFontSize, restored.appFontSize)
         assertEquals(sample.readModeFontSize, restored.readModeFontSize)
@@ -222,7 +222,8 @@ class SettingsSerializationTest {
     @Test
     fun `exported document is human-readable json`() {
         val json = SettingsSerialization.export(sample)
-        assertTrue(json.contains("\"theme\": \"dark\""))
+        assertTrue(json.contains("\"themeMode\": \"system\""))
+        assertTrue(json.contains("\"darkTheme\": \"tokyonight\""))
         assertTrue(json.contains("\"version\": ${SettingsExport.CURRENT_VERSION}"))
         // Pretty-printed across multiple lines.
         assertTrue(json.contains("\n"))
@@ -235,7 +236,7 @@ class SettingsSerializationTest {
             "agendaSwipeLeftAction": "cartwheel", "agendaSwipeRightAction": "backflip", "reminderLeadTime": "next week" }"""
         val restored = SettingsSerialization.import(json, GroveSettings())
 
-        assertEquals(ThemePreference.LIGHT, restored.theme)
+        assertEquals(ThemeSelection.fromLegacy(ThemePreference.LIGHT), restored.themeSelection)
         assertEquals(FontSizePreference.MEDIUM, restored.readModeFontSize)
         assertEquals(FontSizePreference.MEDIUM, restored.editModeFontSize)
         assertEquals(SyncMode.ON_OPEN_CLOSE, restored.syncMode)
@@ -313,7 +314,26 @@ class SettingsSerializationTest {
     fun `unknown keys are ignored so newer exports stay importable`() {
         val json = """{ "theme": "light", "futureField": 42 }"""
         val restored = SettingsSerialization.import(json, GroveSettings())
-        assertEquals(ThemePreference.LIGHT, restored.theme)
+        assertEquals(ThemeSelection.fromLegacy(ThemePreference.LIGHT), restored.themeSelection)
+    }
+
+    @Test
+    fun `a pre-mode export maps its single theme onto the matching mode and slot`() {
+        val restored = SettingsSerialization.import("""{ "version": 10, "theme": "lantern" }""", GroveSettings())
+        assertEquals(
+            ThemeSelection(ThemeMode.DARK, ThemePreference.BLOOMLIGHT, ThemePreference.LANTERN),
+            restored.themeSelection,
+        )
+    }
+
+    @Test
+    fun `export still writes the legacy theme so older versions import a sensible one`() {
+        fun legacyTheme(selection: ThemeSelection) =
+            Regex("\"theme\": \"(\\w+)\"").find(SettingsSerialization.export(GroveSettings(themeSelection = selection)))!!.groupValues[1]
+        val s = ThemeSelection(ThemeMode.SYSTEM, ThemePreference.SAGE, ThemePreference.MOSS)
+        assertEquals("sage", legacyTheme(s))
+        assertEquals("sage", legacyTheme(s.copy(mode = ThemeMode.LIGHT)))
+        assertEquals("moss", legacyTheme(s.copy(mode = ThemeMode.DARK)))
     }
 
     @Test

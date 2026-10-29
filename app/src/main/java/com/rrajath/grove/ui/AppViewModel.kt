@@ -27,6 +27,7 @@ import com.rrajath.grove.settings.ReminderLeadTime
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.settings.SettingsSerialization
 import com.rrajath.grove.settings.SyncMode
+import com.rrajath.grove.settings.ThemeMode
 import com.rrajath.grove.settings.ThemePreference
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.newbadge.NewBadgeState
@@ -141,8 +142,14 @@ class AppViewModel(
     fun moveFavorite(fileName: String, lineIndex: Int, delta: Int, customId: String? = null) =
         viewModelScope.launch { favoritesRepository.moveFavorite(fileName, lineIndex, delta, customId) }
 
-    fun setTheme(theme: ThemePreference) =
-        viewModelScope.launch { settingsRepository.setTheme(theme) }
+    fun setThemeMode(mode: ThemeMode) =
+        viewModelScope.launch { settingsRepository.updateThemeSelection { it.copy(mode = mode) } }
+
+    fun setLightTheme(theme: ThemePreference) =
+        viewModelScope.launch { settingsRepository.updateThemeSelection { it.copy(light = theme) } }
+
+    fun setDarkTheme(theme: ThemePreference) =
+        viewModelScope.launch { settingsRepository.updateThemeSelection { it.copy(dark = theme) } }
 
     fun setSyncAppIconWithTheme(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setSyncAppIconWithTheme(enabled)

@@ -25,6 +25,7 @@ import com.rrajath.grove.reminders.ReminderNotification
 import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.theme.ContentFontScale
 import com.rrajath.grove.ui.theme.GroveTheme
+import com.rrajath.grove.ui.theme.resolveForSystem
 import com.rrajath.grove.org.LocalDates
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -63,7 +64,7 @@ class RescheduleActivity : ComponentActivity() {
             // Nothing is drawn until the theme resolves; this window sits over
             // the previous app, so an unthemed flash would be very visible.
             settings?.let { s ->
-                GroveTheme(theme = s.theme) {
+                GroveTheme(theme = s.themeSelection.resolveForSystem()) {
                     ContentFontScale(s.appFontSize) {
                         RescheduleFlow(reminderKey = key, onDone = ::finish)
                     }

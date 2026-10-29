@@ -54,6 +54,7 @@ import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.theme.GroveTheme
+import com.rrajath.grove.ui.theme.resolveForSystem
 import com.rrajath.grove.ui.components.SyncedCheckIcon
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
@@ -87,7 +88,7 @@ class WidgetViewPickerActivity : ComponentActivity() {
             var theme by remember { mutableStateOf<GroveSettings?>(null) }
             LaunchedEffect(Unit) { theme = app.settingsRepository.settings.first() }
             theme?.let { s ->
-                GroveTheme(theme = s.theme) {
+                GroveTheme(theme = s.themeSelection.resolveForSystem()) {
                     ViewPickerSheet(appWidgetId, onDismiss = ::finish)
                 }
             }

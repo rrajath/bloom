@@ -1,7 +1,6 @@
 package com.rrajath.grove.testing
 
 import com.rrajath.grove.settings.GroveSettings
-import com.rrajath.grove.settings.ThemePreference
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -41,10 +40,10 @@ class TestInfraSmokeTest {
 
     @Test
     fun `FakeSettingsRepository emits seed then updates`() = runTest {
-        val repo = FakeSettingsRepository(GroveSettings(theme = ThemePreference.DARK))
-        assertEquals(ThemePreference.DARK, repo.settings.first().theme)
-        repo.update { it.copy(theme = ThemePreference.LIGHT) }
-        assertEquals(ThemePreference.LIGHT, repo.settings.first().theme)
+        val repo = FakeSettingsRepository(GroveSettings(syncAppIconWithTheme = true))
+        assertEquals(true, repo.settings.first().syncAppIconWithTheme)
+        repo.update { it.copy(syncAppIconWithTheme = false) }
+        assertEquals(false, repo.settings.first().syncAppIconWithTheme)
     }
 
     @Test

@@ -29,4 +29,11 @@ class ThemeTest {
         assertEquals(GroveBloomLightColors, groveColorsFor(ThemePreference.BLOOMLIGHT))
         assertEquals(GroveBloomDarkColors, groveColorsFor(ThemePreference.BLOOMDARK))
     }
+
+    @Test
+    fun `ThemePreference isDark matches each palette's isDark`() {
+        for (theme in ThemePreference.entries) {
+            assertEquals("$theme", groveColorsFor(theme).isDark, theme.isDark)
+        }
+    }
 }

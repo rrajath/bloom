@@ -52,8 +52,9 @@ data class PinnedItem(val kind: PinKind, val path: String) {
 }
 
 data class GroveSettings(
-    val theme: ThemePreference = ThemePreference.BLOOMLIGHT,
-    /** When true, the launcher icon and drawer logo follow [theme]; otherwise they stay the default light mark. */
+    /** Light/Dark/System mode plus the chosen light and dark themes; resolve it for the screen. */
+    val themeSelection: ThemeSelection = ThemeSelection(),
+    /** When true, the launcher icon and drawer logo follow the resolved theme; otherwise they stay the default light mark. */
     val syncAppIconWithTheme: Boolean = false,
     /**
      * App-wide text-size baseline (Settings § Look and Feel). Scales every `sp`-sized
@@ -312,7 +313,11 @@ class SettingsRepository(
 ) : SettingsSource {
 
     private object Keys {
-        val theme = stringPreferencesKey("theme")
+        /** Retired single-theme key: read only to migrate into [themeMode]/[lightTheme]/[darkTheme]. */
+        val legacyTheme = stringPreferencesKey("theme")
+        val themeMode = stringPreferencesKey("theme_mode")
+        val lightTheme = stringPreferencesKey("theme_light")
+        val darkTheme = stringPreferencesKey("theme_dark")
         val syncAppIconWithTheme = booleanPreferencesKey("sync_app_icon_with_theme")
 
         /**
@@ -421,8 +426,7 @@ class SettingsRepository(
      */
     override val settings: Flow<GroveSettings> = context.settingsDataStore.data.map { prefs ->
         GroveSettings(
-            theme = prefs[Keys.theme]?.let(ThemePreference::fromStorage)
-                ?: ThemePreference.defaultFor(onboardingDone = prefs[Keys.onboardingDone] ?: false),
+            themeSelection = readThemeSelection(prefs),
             syncAppIconWithTheme = prefs[Keys.syncAppIconWithTheme] ?: false,
             appFontSize = FontSizePreference.fromStorage(prefs[Keys.appFontSize]),
             readModeFontSize = FontSizePreference.fromStorage(
@@ -577,7 +581,7 @@ class SettingsRepository(
      */
     suspend fun applyImported(s: GroveSettings) {
         context.settingsDataStore.edit { p ->
-            p[Keys.theme] = s.theme.storageKey
+            writeThemeSelection(p, s.themeSelection)
             p[Keys.syncAppIconWithTheme] = s.syncAppIconWithTheme
             p[Keys.appFontSize] = s.appFontSize.storageKey
             p[Keys.readModeFontSize] = s.readModeFontSize.storageKey
@@ -650,8 +654,30 @@ class SettingsRepository(
         }
     }
 
-    suspend fun setTheme(theme: ThemePreference) {
-        context.settingsDataStore.edit { it[Keys.theme] = theme.storageKey }
+    /**
+     * Always writes all three theme keys: a migrated install has none of them
+     * yet, and writing one slot alone would leave the legacy key in charge.
+     */
+    suspend fun updateThemeSelection(transform: (ThemeSelection) -> ThemeSelection) {
+        context.settingsDataStore.edit { writeThemeSelection(it, transform(readThemeSelection(it))) }
+    }
+
+    private fun readThemeSelection(prefs: Preferences): ThemeSelection =
+        ThemeSelection.fromStorage(
+            mode = prefs[Keys.themeMode],
+            light = prefs[Keys.lightTheme],
+            dark = prefs[Keys.darkTheme],
+            legacyTheme = prefs[Keys.legacyTheme],
+            onboardingDone = prefs[Keys.onboardingDone] ?: false,
+        )
+
+    private fun writeThemeSelection(p: MutablePreferences, selection: ThemeSelection) {
+        val s = selection.sanitized()
+        p[Keys.themeMode] = s.mode.storageKey
+        p[Keys.lightTheme] = s.light.storageKey
+        p[Keys.darkTheme] = s.dark.storageKey
+        // Keys.legacyTheme is left as-is: themeMode wins once present, and a
+        // downgraded install still finds the theme it last had.
     }
 
     suspend fun setSyncAppIconWithTheme(enabled: Boolean) {
@@ -694,7 +720,9 @@ class SettingsRepository(
         context.settingsDataStore.edit {
             // Pin the fresh-install default before flipping the flag: an unset
             // theme on an onboarded install reads as the legacy default instead.
-            if (done && it[Keys.theme] == null) it[Keys.theme] = ThemePreference.defaultFor(onboardingDone = false).storageKey
+            if (done && it[Keys.themeMode] == null && it[Keys.legacyTheme] == null) {
+                writeThemeSelection(it, ThemeSelection.defaultFor(onboardingDone = false))
+            }
             it[Keys.onboardingDone] = done
             if (seenChangelogBuild != null) it[Keys.lastSeenChangelogBuild] = seenChangelogBuild
         }

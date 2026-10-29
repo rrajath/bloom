@@ -9,7 +9,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.GroveSettings
-import com.rrajath.grove.settings.ThemePreference
+import com.rrajath.grove.settings.ThemeMode
 import com.rrajath.grove.ui.support.setGroveContent
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
@@ -33,7 +33,7 @@ class SettingsAppearanceScreenTest {
 
     private fun content(
         settings: GroveSettings = GroveSettings(),
-        onSetTheme: (ThemePreference) -> Unit = {},
+        onSetThemeMode: (ThemeMode) -> Unit = {},
         onSetSyncAppIconWithTheme: (Boolean) -> Unit = {},
         onSetAppFontSize: (FontSizePreference) -> Unit = {},
     ) {
@@ -41,7 +41,9 @@ class SettingsAppearanceScreenTest {
             SettingsAppearanceScreen(
                 settings = settings,
                 onBack = {},
-                onSetTheme = onSetTheme,
+                onSetThemeMode = onSetThemeMode,
+                onSetLightTheme = {},
+                onSetDarkTheme = {},
                 onSetSyncAppIconWithTheme = onSetSyncAppIconWithTheme,
                 onSetAppFontSize = onSetAppFontSize,
             )

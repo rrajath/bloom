@@ -408,4 +408,19 @@ val NEW_FEATURES: List<NewFeature> = listOf(
         ),
         destination = NewAnchors.SETTINGS_APPEARANCE_THEME,
     ),
+    NewFeature(
+        // Settings § Look and Feel gained a Light/Dark/System theme mode with a
+        // light and a dark theme slot. `since` is the versionCode of the release
+        // that ships it: bump it to match `gradle.properties` versionName when
+        // cutting the release.
+        id = "theme-mode",
+        since = 11200,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_APPEARANCE,
+            NewAnchors.SETTINGS_APPEARANCE_THEME,
+        ),
+        destination = NewAnchors.SETTINGS_APPEARANCE_THEME,
+    ),
 )

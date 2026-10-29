@@ -93,6 +93,7 @@ import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.screens.RefileSheet
 import com.rrajath.grove.ui.theme.PlexMono
+import com.rrajath.grove.ui.theme.resolveFor
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.vault.RefileUiState
@@ -573,7 +574,7 @@ fun TemplateEditScreen(
                                 val app = context.applicationContext as com.rrajath.grove.GroveApplication
                                 val settings = app.settingsRepository.settings.first()
                                 val pinned = ShortcutSyncer.requestPin(
-                                    context, template, settings.theme, settings.syncAppIconWithTheme,
+                                    context, template, settings.themeSelection.resolveFor(context.resources.configuration), settings.syncAppIconWithTheme,
                                 )
                                 if (!pinned) {
                                     android.widget.Toast.makeText(

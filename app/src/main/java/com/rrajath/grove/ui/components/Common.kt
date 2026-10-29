@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
@@ -149,7 +151,9 @@ fun FavoriteStar(modifier: Modifier = Modifier, size: Dp = 24.dp) {
  * Labels render at 11.5sp (design system `labelSmall` scale) so options like
  * "Medium" fit without ellipsis at the control's usual widths. An option can
  * render as an [optionIcons] glyph instead of its text label (e.g. a "None"
- * icon) by supplying a non-null [ImageVector] at that index.
+ * icon) by supplying a non-null [ImageVector] at that index. [leadingIcons]
+ * instead keeps the label and puts a 13dp glyph before it (Look and Feel's
+ * Light/Dark/System sun, moon and phone).
  */
 @Composable
 fun SegmentedControl(
@@ -158,7 +162,8 @@ fun SegmentedControl(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     optionIcons: List<ImageVector?>? = null,
-) = SegmentedControlImpl(options, selectedIndex, onSelect, modifier, optionIcons, onControlClick = null)
+    leadingIcons: List<ImageVector?>? = null,
+) = SegmentedControlImpl(options, selectedIndex, onSelect, modifier, optionIcons, onControlClick = null, leadingIcons)
 
 /**
  * The Read/Edit mode switch every note, file, Dailies and capture top bar carries:
@@ -199,6 +204,7 @@ private fun SegmentedControlImpl(
     modifier: Modifier,
     optionIcons: List<ImageVector?>?,
     onControlClick: (() -> Unit)?,
+    leadingIcons: List<ImageVector?>? = null,
 ) {
     val c = MaterialTheme.grove
     Row(
@@ -230,15 +236,23 @@ private fun SegmentedControlImpl(
                         modifier = Modifier.size(15.dp),
                     )
                 } else {
-                    Text(
-                        label,
-                        color = tint,
-                        fontFamily = PlexSans,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.5.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        leadingIcons?.getOrNull(i)?.let {
+                            Icon(it, contentDescription = null, tint = tint, modifier = Modifier.size(13.dp))
+                        }
+                        Text(
+                            label,
+                            color = tint,
+                            fontFamily = PlexSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }
@@ -328,12 +342,14 @@ private val ThemeSwatches = listOf(
  * screen in design/Grove.dc.html (`themeTriggerStyle` / theme dropdown rows).
  * The trigger shows the active theme's three dots, its name, and a chevron that
  * rotates while open; the list expands in place below it (no popup).
+ * [dark] limits the list to one family (Light or Dark mode); null lists all.
  */
 @Composable
 fun ThemeDropdownPicker(
     selected: ThemePreference,
     onSelect: (ThemePreference) -> Unit,
     modifier: Modifier = Modifier,
+    dark: Boolean? = null,
 ) {
     val c = MaterialTheme.grove
     var open by rememberSaveable { mutableStateOf(false) }
@@ -380,7 +396,7 @@ fun ThemeDropdownPicker(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                ThemeSwatches.forEach { swatch ->
+                ThemeSwatches.filter { dark == null || it.pref.isDark == dark }.forEach { swatch ->
                     ThemeDropdownRow(
                         swatch,
                         active = swatch.pref == selected,
@@ -392,6 +408,142 @@ fun ThemeDropdownPicker(
                 }
             }
         }
+    }
+}
+
+/**
+ * System mode's theme pair (Settings § Look and Feel): two side-by-side tiles,
+ * one per family, each previewing its theme's swatch and name. The tile in use
+ * right now ([systemIsDark]) carries an "In use" pill. Tapping a tile expands
+ * that family's list full width below both tiles, with [ThemeDropdownPicker]'s
+ * list chrome; one list is open at a time.
+ */
+@Composable
+fun ThemePairPicker(
+    light: ThemePreference,
+    dark: ThemePreference,
+    systemIsDark: Boolean,
+    onSelectLight: (ThemePreference) -> Unit,
+    onSelectDark: (ThemePreference) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = MaterialTheme.grove
+    // null = closed, false = light list, true = dark list.
+    var openDark by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    // Holds the last open family while the list animates closed.
+    var shownDark by rememberSaveable { mutableStateOf(false) }
+    Column(modifier) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (isDark in listOf(false, true)) {
+                ThemePairTile(
+                    swatch = ThemeSwatches.first { it.pref == if (isDark) dark else light },
+                    label = if (isDark) "Dark" else "Light",
+                    icon = if (isDark) Icons.Filled.DarkMode else Icons.Outlined.LightMode,
+                    inUse = isDark == systemIsDark,
+                    open = openDark == isDark,
+                    onClick = {
+                        openDark = if (openDark == isDark) null else isDark
+                        shownDark = isDark
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        AnimatedVisibility(openDark != null) {
+            val selected = if (shownDark) dark else light
+            Column(
+                Modifier
+                    .padding(top = 8.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(c.surface2)
+                    .padding(6.dp)
+                    .heightIn(max = 280.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                ThemeSwatches.filter { it.pref.isDark == shownDark }.forEach { swatch ->
+                    ThemeDropdownRow(
+                        swatch,
+                        active = swatch.pref == selected,
+                        onClick = {
+                            if (shownDark) onSelectDark(swatch.pref) else onSelectLight(swatch.pref)
+                            openDark = null
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemePairTile(
+    swatch: ThemeSwatch,
+    label: String,
+    icon: ImageVector,
+    inUse: Boolean,
+    open: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = MaterialTheme.grove
+    Column(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(c.surface2)
+            .border(1.dp, if (open) c.accent else c.line, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(start = 10.dp, end = 10.dp, top = 9.dp, bottom = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, contentDescription = null, tint = c.ink2, modifier = Modifier.size(13.dp))
+            Text(
+                label,
+                color = c.ink2,
+                fontFamily = PlexSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.5.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (inUse) {
+                Text(
+                    "In use",
+                    color = c.accent,
+                    fontFamily = PlexSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.5.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(c.accentSoft)
+                        .padding(horizontal = 7.dp, vertical = 1.dp),
+                )
+            }
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(26.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(swatch.bg)
+                .padding(horizontal = 8.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            ThemeDots(swatch.dots)
+        }
+        Text(
+            swatch.label,
+            color = c.ink,
+            fontFamily = PlexSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.5.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

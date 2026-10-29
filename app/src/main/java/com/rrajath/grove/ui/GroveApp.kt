@@ -96,6 +96,7 @@ import com.rrajath.grove.ui.vault.PendingEdit
 import com.rrajath.grove.ui.vault.wholeFileLineLimitOverride
 import com.rrajath.grove.ui.theme.ContentFontScale
 import com.rrajath.grove.ui.theme.GroveTheme
+import com.rrajath.grove.ui.theme.resolveForSystem
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.vault.Notebook
 import com.rrajath.grove.vault.TestVaultHook
@@ -123,7 +124,10 @@ fun GroveApp(
     // Switching the enabled launcher alias closes the app's task, so defer it
     // until the app goes to the background (ON_STOP) instead of applying it live.
     val syncIcon by rememberUpdatedState(loaded.syncAppIconWithTheme)
-    val iconTheme by rememberUpdatedState(loaded.theme)
+    // Resolved against the phone's light/dark state, so in System mode the
+    // alias switched at ON_STOP matches whatever the app was showing.
+    val activeTheme = loaded.themeSelection.resolveForSystem()
+    val iconTheme by rememberUpdatedState(activeTheme)
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -146,7 +150,7 @@ fun GroveApp(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    GroveTheme(theme = loaded.theme) {
+    GroveTheme(theme = activeTheme) {
         // App-wide text-size baseline: scales every sp-sized text under one lever.
         // The per-mode read/edit levers nest inside this and compound on top.
         ContentFontScale(loaded.appFontSize) {
@@ -966,7 +970,9 @@ private fun GroveNavigation(
                 SettingsAppearanceScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
-                    onSetTheme = viewModel::setTheme,
+                    onSetThemeMode = viewModel::setThemeMode,
+                    onSetLightTheme = viewModel::setLightTheme,
+                    onSetDarkTheme = viewModel::setDarkTheme,
                     onSetSyncAppIconWithTheme = viewModel::setSyncAppIconWithTheme,
                     onSetAppFontSize = viewModel::setAppFontSize,
                 )
