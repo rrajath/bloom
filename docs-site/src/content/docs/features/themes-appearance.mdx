@@ -1,6 +1,6 @@
 ---
 title: Themes & Appearance
-description: 20 built-in color themes and launcher icon theming.
+description: Light, Dark, and System theme modes, 20 built-in color themes, and launcher icon theming.
 ---
 
 import ThemeShot from '../../../components/ThemeShot.astro';
@@ -17,20 +17,34 @@ Settings → Look and Feel is where Bloom's visual presentation is configured, s
   sizes="340px"
 />
 
+## Theme mode
+
+The **Light / Dark / System** control at the top of the Theme section decides which theme Bloom uses:
+
+- **Light**: always use your chosen light theme. The picker lists only light themes.
+- **Dark**: always use your chosen dark theme. The picker lists only dark themes.
+- **System**: follow your phone. Two tiles show the light theme and the dark theme you picked; tap either to change it. Bloom uses the light one while your phone is in light mode and the dark one while it's in dark mode, switching on the spot, so a phone that turns dark at sunset takes Bloom with it. The tile in use right now is marked **In use**.
+
+New installs start on System with Bloom Light and Bloom Dark. If you're updating from an older version, Bloom keeps the theme you had: it picks Light or Dark to match it and puts it in that slot.
+
+System needs Android 10 or later, which is when Android added a system-wide dark theme. On Android 6 to 9 the control shows only Light and Dark.
+
+The home-screen Agenda widget follows the same mode. In System mode it usually switches along with your phone; if Bloom wasn't running at the moment of the switch, it catches up within half an hour.
+
 ## Themes
 
-Bloom ships 20 built-in palettes, picked from a dropdown:
+Bloom ships 20 built-in palettes:
 
 **Light themes:** Ash Rose, Bloom Light, Catppuccin Latte, Chalk, Cobalt, Delft, Grove Light, Rosé Pine Dawn, Sage, Tokyo Day
 **Dark themes:** Bloom Dark, Catppuccin Mocha, Grove Dark, Lantern, Lighthouse, Moss, Obsidian, Rosé Pine Moon, Tokyo Night, Wisteria
 
-Bloom Light and Bloom Dark are the flagship pair: warm parchment with a rose accent, and a dusky purple night with a soft rose accent. New installs start on Bloom Light.
+Bloom Light and Bloom Dark are the flagship pair: warm parchment with a rose accent, and a dusky purple night with a soft rose accent.
 
-There's no "follow system" auto option; theme selection is always explicit. Each theme defines a full token set (background, surface, ink/text, accent, and semantic colors for green/amber/red/blue/violet), so every screen in the app (including org-syntax highlighting in the editor) reflects the chosen theme consistently.
+Each theme defines a full token set (background, surface, ink/text, accent, and semantic colors for green/amber/red/blue/violet), so every screen in the app (including org-syntax highlighting in the editor) reflects the chosen theme consistently.
 
 ## Launcher icon theming
 
-The **Sync App Icon with Theme** toggle swaps the app's launcher icon (and the brand mark in the nav drawer) to match the active theme, using Android's `activity-alias` mechanism. Because of how icon aliasing works on Android, this requires the app to background and restart to take effect; it won't update the icon instantly while Bloom is in the foreground. Note: the notification-shade icon can't follow the theme on Android 16+, a platform limitation rather than something Bloom controls.
+The **Sync App Icon with Theme** toggle swaps the app's launcher icon (and the brand mark in the nav drawer) to match the active theme, using Android's `activity-alias` mechanism. Because of how icon aliasing works on Android, this requires the app to background and restart to take effect; it won't update the icon instantly while Bloom is in the foreground. In System mode the icon follows the theme in use, so after your phone switches between light and dark it changes the next time you leave Bloom. Note: the notification-shade icon can't follow the theme on Android 16+, a platform limitation rather than something Bloom controls.
 
 ## Text size
 
