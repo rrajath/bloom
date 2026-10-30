@@ -11,9 +11,9 @@ import java.io.File
  *
  * Code identifiers (`GroveApp`, `com.rrajath.grove`, `grove://`, `grove-index.db`)
  * intentionally keep the old name; the checks are case-sensitive and whole-word,
- * so only a capitalized "Grove" inside a string literal or a string resource fails.
- * The "Grove Light"/"Grove Dark" theme names are theme names, not the app name,
- * and are allowed by [allowedLiterals].
+ * so only a capitalized "Grove" or "Bloom" inside a string literal, or "Grove" in a
+ * string resource, fails. The "Grove Light"/"Grove Dark" and "Bloom Light"/"Bloom Dark"
+ * theme names are theme names, not the app name, and are allowed by [allowedLiterals].
  */
 class NoHardcodedAppNameTest {
 
@@ -22,15 +22,18 @@ class NoHardcodedAppNameTest {
 
     private val oldName = Regex("""\bGrove\b""")
 
-    /** Exact literals that contain "Grove" on purpose. */
-    private val allowedLiterals = setOf("Grove Light", "Grove Dark")
+    /** Either name, old or current: neither belongs in a Kotlin literal. */
+    private val anyName = Regex("""\b(Grove|Bloom)\b""")
+
+    /** Exact literals that contain an app name on purpose. */
+    private val allowedLiterals = setOf("Grove Light", "Grove Dark", "Bloom Light", "Bloom Dark")
 
     @Test
     fun `no Kotlin string literal names the app`() {
         val hits = sourceSets().flatMap { dir ->
             dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.flatMap { file ->
                 kotlinStringLiterals(file.readText())
-                    .filter { (_, text) -> text !in allowedLiterals && oldName.containsMatchIn(text) }
+                    .filter { (_, text) -> text !in allowedLiterals && anyName.containsMatchIn(text) }
                     .map { (line, text) -> "${file.relativeTo(appDir)}:$line: \"$text\"" }
             }.toList()
         }

@@ -26,9 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.ThemeMode
@@ -109,7 +111,7 @@ fun SettingsAppearanceScreen(
                             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         )
                         Text(
-                            "Bloom switches between these when your phone changes between light and dark mode.",
+                            "${stringResource(R.string.app_name)} switches between these when your phone changes between light and dark mode.",
                             fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                             modifier = Modifier.padding(top = 8.dp),
                         )
@@ -200,7 +202,7 @@ private fun SyncAppIconRow(
         }
         if (checked && followsSystem) {
             Text(
-                "Matches the theme in use. The icon changes the next time you leave Bloom.",
+                "Matches the theme in use. The icon changes the next time you leave ${stringResource(R.string.app_name)}.",
                 fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                 modifier = Modifier.padding(top = 2.dp),
             )

@@ -116,7 +116,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
 /**
- * SCHEDULED, DEADLINE and bare active timestamps on one canvas ("Dates B — tabs"
+ * SCHEDULED, DEADLINE and bare active timestamps on one canvas ("Dates B: tabs"
  * in `design/Grove.dc.html`).
  *
  * A three-way segmented control picks which surface the calendar edits:
@@ -126,7 +126,7 @@ import kotlin.math.abs
  * shows an outlined cell in that kind's colour so it stays visible while you
  * work on the current tab (distinct from the small dots that mark other notes'
  * planned days).
- * Confirming commits all three at once — [onConfirm] takes the triple — so the
+ * Confirming commits all three at once ([onConfirm] takes the triple), so the
  * [focus] tab only decides where you start, not what gets written.
  *
  * For several notes at once (outline bulk edit), [mixed] names the kinds whose
@@ -300,7 +300,7 @@ fun PlanningDatesScreen(
             PlanningKind.SCHEDULED ->
                 if (sched?.covers(day) == true) {
                     sched = null
-                    note = "Cleared — tap a day to set it again."
+                    note = "Cleared. Tap a day to set it again."
                 } else {
                     sched = (sched ?: OrgTimestamp(day)).copy(date = day, rangeEnd = null)
                     month = YearMonth.from(day)
@@ -308,7 +308,7 @@ fun PlanningDatesScreen(
             PlanningKind.DEADLINE ->
                 if (dead?.covers(day) == true) {
                     dead = null
-                    note = "Cleared — tap a day to set it again."
+                    note = "Cleared. Tap a day to set it again."
                 } else {
                     dead = (dead ?: OrgTimestamp(day)).copy(date = day, rangeEnd = null)
                     month = YearMonth.from(day)
@@ -377,7 +377,7 @@ fun PlanningDatesScreen(
     ) {
         // This Dialog opens its own platform Window (decorFitsSystemWindows = false
         // for edge-to-edge), separate from the Activity window GroveTheme's
-        // SideEffect styles — so the status/nav bar icon appearance has to be
+        // SideEffect styles, so the status/nav bar icon appearance has to be
         // re-asserted here or it falls back to the platform default.
         val dialogView = LocalView.current
         if (!dialogView.isInEditMode) {
@@ -864,7 +864,7 @@ fun InsertTimestampScreen(
 
 private val ShorthandHints = listOf("fri", "+2w", "aug 3", "10-11am", "++1w", "a: sat")
 
-/** `covers` — is [day] within this stamp's span (a range end, or the single day)? */
+/** `covers`: is [day] within this stamp's span (a range end, or the single day)? */
 private fun OrgTimestamp.covers(day: LocalDate): Boolean =
     !day.isBefore(date) && !day.isAfter(rangeEnd ?: date)
 
@@ -876,7 +876,7 @@ private fun OrgTimestamp.covers(day: LocalDate): Boolean =
  * draw as an outlined cell in that kind's colour, and days other notes already
  * use carry a small dot.
  * A tap sets/moves/clears a day; on the ACTIVE tab a long-press then drag paints
- * a range. No month swipe — the ‹ / › arrows are the only way to change months.
+ * a range. No month swipe: the ‹ / › arrows are the only way to change months.
  */
 @Composable
 private fun AccentCalendar(
