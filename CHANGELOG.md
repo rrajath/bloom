@@ -77,6 +77,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Capture templates have one "Datetree" option; former Datetree (date) templates are converted automatically and capture the same text.
 - Tapping a day with an active timestamp already on it in Planning Dates adds another instead of removing it; use × to remove.
 - Day and month names, in written timestamps, date trees, and on screen, now follow the phone's language.
+- Search keeps up better while typing in large vaults, dropping outdated searches instead of finishing them.
 
 ### Fixed
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.

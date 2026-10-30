@@ -25,6 +25,7 @@ import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.search.DatePresence
 import com.rrajath.grove.search.FacetNarrowing
 import com.rrajath.grove.search.FilenameMatcher
+import com.rrajath.grove.search.LineProbe
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.search.MatchOptions
 import com.rrajath.grove.search.QueryMatcher
@@ -46,9 +47,11 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
@@ -342,9 +345,10 @@ class SearchViewModel(
         viewModelScope.launch {
             // Re-runs on new keystrokes, filter taps, and when the index
             // changes under an active query (e.g. a sync finishing while the
-            // search screen is up).
+            // search screen is up). collectLatest cancels a search the next
+            // trigger has made outdated instead of letting it run to the end.
             combine(queryFlow.debounce(300), facets.filterNotNull(), filtersFlow) { q, _, f -> q to f }
-                .collect { (q, f) -> runSearch(q, f) }
+                .collectLatest { (q, f) -> runSearch(q, f) }
         }
         viewModelScope.launch {
             // Mirrors Filters-panel selections into the editable query field as
@@ -691,6 +695,7 @@ class SearchViewModel(
             val byFile = LinkedHashMap<String, MutableList<SearchRow>>()
             val fileLevel = mutableSetOf<String>()
             filtered.forEach { note ->
+                ensureActive()
                 val groups = textQuery?.let { QueryMatcher.satisfiedGroups(note, it, today, options, now) } ?: listOf(emptyList())
                 val rows = byFile.getOrPut(note.fileName) { mutableListOf() }
                 if (note.lineIndex == INTRO_LINE_INDEX) {
@@ -857,8 +862,11 @@ class SearchViewModel(
     private fun lineSnippets(note: NoteMeta, groups: List<List<Term>>, ordinalFrom: Int): List<SearchRow.Text> {
         val groupTerms = groups.map { it.textTerms() }.filter { it.isNotEmpty() }
         if (groupTerms.isEmpty()) return emptyList()
+        val groupProbes = groupTerms.map { terms -> terms.map { LineProbe(it, note.inTags(it)) } }
         var ordinal = ordinalFrom
         return note.searchText.substringAfter('\n', "").lineSequence()
+            // Most body lines can't match; only those that might get rendered.
+            .filter { raw -> raw.contains("[[") || groupProbes.any { LineProbe.mayMatch(raw, it) } }
             .map { line -> InlineTokenizer.tokenize(line).joinToString("") { it.text }.trim() }
             .flatMap { line ->
                 // A term found in the note's own tags is already satisfied, so
@@ -890,12 +898,9 @@ class SearchViewModel(
             deadlineOverdue = deadlineOverdue,
             activeLabels = activeStampLabels(meta.activeTimestamps, today),
             tagLine = meta.tags.joinToString(" ") { ":$it:" },
-            scheduledTs = meta.scheduled?.let { OrgTimestamp.parse(it) },
-            deadlineTs = meta.deadline?.let { OrgTimestamp.parse(it) },
-            activeTs = meta.active
-                ?.let { OrgTimestamp.parseAll(it).filter { ts -> ts.active } }
-                .orEmpty()
-                .toImmutableList(),
+            scheduledTs = meta.scheduledTs,
+            deadlineTs = meta.deadlineTs,
+            activeTs = meta.activeTimestamps.toImmutableList(),
         )
     }
 

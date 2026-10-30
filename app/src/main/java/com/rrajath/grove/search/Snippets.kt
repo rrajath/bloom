@@ -6,6 +6,8 @@ object Snippets {
     /** Words of context kept on each side of a match. */
     const val CONTEXT_WORDS = 10
 
+    private val WORD = Regex("""\S+""")
+
     /**
      * One snippet per cluster of matches in [line]: each match gets [radius]
      * words either side, and a later match that falls inside the current
@@ -14,12 +16,9 @@ object Snippets {
      * `…` marks a cut at either end.
      */
     fun windows(line: String, terms: List<String>, radius: Int = CONTEXT_WORDS): List<String> {
-        val words = Regex("""\S+""").findAll(line).map { it.range }.toList()
+        val words = WORD.findAll(line).map { it.range }.toList()
         if (words.isEmpty()) return emptyList()
-        val matchWords = highlightRanges(line, terms)
-            .map { r -> words.indexOfFirst { r.first <= it.last && it.first <= r.first }.coerceAtLeast(0) }
-            .distinct()
-            .sorted()
+        val matchWords = wordIndices(words, highlightRanges(line, terms).map { it.first }.sorted())
         val out = mutableListOf<String>()
         var windowEnd = -1
         for (w in matchWords) {
@@ -31,6 +30,21 @@ object Snippets {
             out += prefix + line.substring(words[from].first, words[windowEnd].last + 1) + suffix
         }
         return out
+    }
+
+    /**
+     * The index of the word holding each of the ascending [starts], distinct
+     * and ascending, in one forward pass. A start on whitespace (no word holds
+     * it) maps to word 0.
+     */
+    private fun wordIndices(words: List<IntRange>, starts: List<Int>): List<Int> {
+        val out = sortedSetOf<Int>()
+        var w = 0
+        for (start in starts) {
+            while (w < words.size && words[w].last < start) w++
+            out += if (w < words.size && words[w].first <= start) w else 0
+        }
+        return out.toList()
     }
 
     /** Every occurrence of every term within [text], case-insensitive. */
