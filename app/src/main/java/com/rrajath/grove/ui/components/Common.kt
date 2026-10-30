@@ -669,7 +669,9 @@ fun DropdownPicker(
                     ) {
                         Text(
                             label,
-                            color = if (active) c.accentInk else c.ink,
+                            // accentInk is for text on the solid accent fill; on the translucent
+                            // accentSoft tint it washes out, so the label stays ink.
+                            color = c.ink,
                             fontFamily = PlexSans,
                             fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                             fontSize = 13.5.sp,
@@ -681,7 +683,7 @@ fun DropdownPicker(
                             Icon(
                                 Icons.Default.Check,
                                 contentDescription = null,
-                                tint = c.accentInk,
+                                tint = c.accent,
                                 modifier = Modifier.size(15.dp),
                             )
                         }
