@@ -51,7 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.material3.DropdownMenu
+import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -629,10 +629,9 @@ private fun IntroContent(
         val (target, anchorOffset) = linkMenuState ?: (null to IntOffset.Zero)
         if (target != null && anchorOffset != IntOffset.Zero) {
             Box(Modifier.offset { anchorOffset }) {
-                DropdownMenu(
+                GroveDropdownMenu(
                     expanded = true,
                     onDismissRequest = { linkMenuState = null },
-                    containerColor = c.surface,
                 ) {
                     LinkActionMenuItems(target, onDismiss = { linkMenuState = null })
                 }
@@ -919,10 +918,9 @@ private fun NoteContent(
             Box(
                 Modifier.offset { anchorOffset }
             ) {
-                DropdownMenu(
+                GroveDropdownMenu(
                     expanded = true,
                     onDismissRequest = { linkMenuState = null },
-                    containerColor = c.surface,
                 ) {
                     LinkActionMenuItems(target, onDismiss = { linkMenuState = null })
                 }

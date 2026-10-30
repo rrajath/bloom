@@ -42,7 +42,7 @@ import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
+import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -406,7 +406,7 @@ private fun SaveSearchDropdown(
     }
     val exactMatch = allNames.any { it.equals(typed, ignoreCase = true) }
 
-    DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
+    GroveDropdownMenu(expanded = true, onDismissRequest = onDismiss) {
         Column(Modifier.width(230.dp).padding(horizontal = 12.dp, vertical = 6.dp)) {
             OutlinedTextField(
                 value = typed,
@@ -547,7 +547,7 @@ private fun AdvancedPanel(onChipTap: (String) -> Unit) {
                         .clickable { legendOpen = true }
                         .padding(4.dp),
                 )
-                DropdownMenu(expanded = legendOpen, onDismissRequest = { legendOpen = false }) {
+                GroveDropdownMenu(expanded = legendOpen, onDismissRequest = { legendOpen = false }) {
                     Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                         OPERATOR_LEGEND.forEach { (token, desc) ->
                             Text(
@@ -765,10 +765,9 @@ private fun BlankState(
                             )
                         }
                     }
-                    DropdownMenu(
+                    GroveDropdownMenu(
                         expanded = menuTarget?.id == saved.id,
                         onDismissRequest = { menuTarget = null },
-                        containerColor = c.surface,
                     ) {
                         DropdownMenuItem(
                             text = { Text("Rename", fontFamily = PlexSans, color = c.ink) },

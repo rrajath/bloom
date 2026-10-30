@@ -23,7 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.DropdownMenu
+import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -211,10 +211,9 @@ private fun QuickAddSheet(onDismiss: () -> Unit) {
                     ComposerChip(dateChipLabel, active = dateOption != QuickAddDate.NONE || customDate != null) {
                         dateMenuOpen = true
                     }
-                    DropdownMenu(
+                    GroveDropdownMenu(
                         expanded = dateMenuOpen,
                         onDismissRequest = { dateMenuOpen = false },
-                        containerColor = MaterialTheme.grove.surface,
                     ) {
                         QuickAddDate.entries.forEach { preset ->
                             DropdownMenuItem(

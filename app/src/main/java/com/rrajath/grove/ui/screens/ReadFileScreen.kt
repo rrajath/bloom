@@ -18,7 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.DropdownMenu
+import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -438,10 +438,9 @@ internal fun FileContent(
         val (target, anchorOffset) = linkMenuState ?: (null to IntOffset.Zero)
         if (target != null && anchorOffset != IntOffset.Zero) {
             Box(Modifier.offset { anchorOffset }) {
-                DropdownMenu(
+                GroveDropdownMenu(
                     expanded = true,
                     onDismissRequest = { linkMenuState = null },
-                    containerColor = c.surface,
                 ) {
                     LinkActionMenuItems(target, onDismiss = { linkMenuState = null })
                 }

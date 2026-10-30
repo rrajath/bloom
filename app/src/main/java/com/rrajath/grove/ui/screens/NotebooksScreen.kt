@@ -36,7 +36,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
+import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Sync
@@ -1070,10 +1070,9 @@ private fun FolderRow(
                 }
             }
         }
-        DropdownMenu(
+        GroveDropdownMenu(
             expanded = menuOpen,
             onDismissRequest = { menuOpen = false },
-            containerColor = c.surface,
         ) {
             if (node.isPinned) {
                 DropdownMenuItem(
@@ -1208,10 +1207,9 @@ private fun FileRow(
                 Pill("Conflict", fg = c.amber, bg = c.amberSoft, onClick = onOpenConflict)
             }
         }
-        DropdownMenu(
+        GroveDropdownMenu(
             expanded = menuOpen,
             onDismissRequest = { menuOpen = false },
-            containerColor = c.surface,
         ) {
             if (notebook.isPinned) {
                 DropdownMenuItem(

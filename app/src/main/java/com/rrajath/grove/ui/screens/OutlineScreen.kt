@@ -94,6 +94,7 @@ import com.rrajath.grove.settings.OutlineToggle
 import com.rrajath.grove.ui.components.BrandMarkGlyph
 import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.components.FavoriteStar
+import com.rrajath.grove.ui.components.GroveDropdownMenu
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.components.GroveUndoSnackbar
@@ -461,10 +462,9 @@ fun OutlineScreen(
                             NewDotBadge(NewAnchors.OUTLINE_MENU) {
                                 IconGlyph("⋮", onClick = { displayMenuOpen = true })
                             }
-                            androidx.compose.material3.DropdownMenu(
+                            GroveDropdownMenu(
                                 expanded = displayMenuOpen,
                                 onDismissRequest = { displayMenuOpen = false },
-                                containerColor = c.surface,
                             ) {
                                 // "View file": the whole file as one note. Disabled
                                 // (with the reason) once the file is over the line
