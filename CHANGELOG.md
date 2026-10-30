@@ -59,8 +59,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Added
 - Date tree templates can grow inside a heading and group entries by day, week, or month.
-- Outline's Move & indent bar can act on several headings at once: tap rows to add them to the selection.
-- Denote links (`[[denote:20240101T120000]]`) open the note with that identifier anywhere in the vault, optionally at a `::*Heading` or `::#custom-id` inside it.
+- Outline's Move & indent bar can act on several headings at once: tap rows to add them to the selection (thanks @MaksRawski)
+- Denote links (`[[denote:20240101T120000]]`) open the note with that identifier anywhere in the vault, optionally at a `::*Heading` or `::#custom-id` inside it (thanks @sharmis-tp)
 - The refile picker has a search box to find any file or heading without drilling down.
 - Marking a recurring task done in Read mode flashes the date that moved to its next occurrence.
 - Tap the Agenda widget's title to show a saved search instead; each widget remembers its own choice.
