@@ -54,7 +54,7 @@ fun SettingsRemindersScreen(
         SettingsGroup {
             ToggleRow(
                 label = "Enable reminders",
-                description = "Notify when a note's SCHEDULED or DEADLINE time arrives",
+                description = "Notify at SCHEDULED and DEADLINE times, and at any active timestamp like <2026-10-30 Thu 09:00>",
                 checked = settings.remindersEnabled,
                 onToggle = onSetRemindersEnabled,
             )
