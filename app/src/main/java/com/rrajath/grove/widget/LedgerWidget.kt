@@ -331,7 +331,7 @@ private fun AgendaView(
                     item(itemId = section.key.hashCode().toLong()) {
                         SectionHeader(colors, section, fontScale)
                     }
-                    items(section.rows.take(plan.visible), itemId = { it.fileName.hashCode() * 31L + it.lineIndex }) { row ->
+                    items(section.rows.take(plan.visible), itemId = { rowItemId(it.fileName, it.lineIndex) }) { row ->
                         LedgerRow(context, colors, row, fontScale)
                     }
                     if (plan.remaining > 0) {
@@ -374,7 +374,7 @@ private fun SearchResultsView(
             else -> {
                 val plan = WidgetPaging.plan(listOf(WidgetPaging.SEARCH_LIST_KEY to rows.size), pages).single()
                 LazyColumn(modifier = GlanceModifier.fillMaxSize().padding(top = 4.dp, bottom = 10.dp)) {
-                    items(rows.take(plan.visible), itemId = { it.fileName.hashCode() * 31L + it.lineIndex }) { row ->
+                    items(rows.take(plan.visible), itemId = { rowItemId(it.fileName, it.lineIndex) }) { row ->
                         LedgerRow(context, colors, row, fontScale)
                     }
                     if (plan.remaining > 0) {
@@ -833,4 +833,18 @@ class MarkDoneAction : ActionCallback {
         }
         LedgerWidget().updateAll(context)
     }
+}
+
+/**
+ * A row's Glance item id: a 64-bit FNV-1a hash of `file@line`, so two rows
+ * practically never share an id (a shared id makes the launcher reuse the
+ * wrong row's views). The sign bit is cleared: Glance reserves ids at or below
+ * `ReservedItemIdRangeEnd`, a quarter of the negative range.
+ */
+internal fun rowItemId(fileName: String, lineIndex: Int): Long {
+    var h = -0x340d631b7bdddcdbL // FNV-1a 64-bit offset basis
+    for (c in "$fileName@$lineIndex") {
+        h = (h xor c.code.toLong()) * 0x100000001b3L
+    }
+    return h and Long.MAX_VALUE
 }
