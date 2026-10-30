@@ -83,6 +83,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Date trees reuse existing month and day headings written in another language instead of adding duplicates.
 - Tapping the target label or empty space in the widget's quick add composer no longer closes it.
 - The quick add composer's text cursor now uses the theme's accent color instead of black.
+- Tapping Outline commands or checkboxes quickly no longer loses an edit; bulk edits on many headings finish much faster.
 
 ## [1.11.0] - 2026-10-19
 

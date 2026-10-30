@@ -444,6 +444,80 @@ class DocumentViewModelIntegrationTest {
     }
 
     @Test
+    fun `two quick moves on a selection both land, each building on the last`() = runTest {
+        val vm = loaded("projects.org")
+        vm.startSelection(headline(vm, "Write the store listing").lineIndex)
+
+        // The second tap arrives before the first move has published.
+        vm.moveUp(vm.selectedLines.value)
+        vm.moveUp(vm.selectedLines.value)
+        advanceUntilIdle()
+
+        val children = OrgParser.parse(store.read("projects.org")).headlines
+            .filter { it.level == 2 }.map { it.title }.take(3)
+        assertEquals(listOf("Write the store listing", "Cut the changelog", "Tag the release"), children)
+        assertEquals(setOf(headline(vm, "Write the store listing").lineIndex), vm.selectedLines.value)
+    }
+
+    @Test
+    fun `two quick bulk edits both land, and undo restores the state between them`() = runTest {
+        val vm = loaded("projects.org")
+        val lines = setOf(headline(vm, "Ship v2 release").lineIndex, headline(vm, "Backlog").lineIndex)
+        vm.startSelection(lines.first())
+        vm.toggleSelected(lines.last())
+
+        // The second command arrives before the first has published.
+        vm.addNoteEach(vm.selectedLines.value, "logged-before-priority")
+        vm.setPriorityEach(vm.selectedLines.value, 'A')
+        advanceUntilIdle()
+
+        val after = store.read("projects.org")
+        listOf("Ship v2 release", "Backlog").forEach { title ->
+            assertEquals('A', OrgParser.parse(after).headlines.first { it.title == title }.priority)
+        }
+        assertEquals(2, Regex("logged-before-priority").findAll(after).count())
+
+        vm.undo()
+        advanceUntilIdle()
+        val undone = store.read("projects.org")
+        assertNull(OrgParser.parse(undone).headlines.first { it.title == "Backlog" }.priority)
+        assertEquals(2, Regex("logged-before-priority").findAll(undone).count())
+    }
+
+    @Test
+    fun `a state change and a checklist tap on the same note in quick succession both land`() = runTest {
+        store.write("projects.org", "* TODO Groceries\n- [ ] milk\n- [ ] eggs\n* TODO Other\n")
+        val vm = loaded("projects.org")
+
+        vm.setState(headline(vm, "Groceries"), "DONE")
+        vm.toggleChecklistDone(2)
+        vm.toggleChecklistDone(1)
+        advanceUntilIdle()
+
+        val after = store.read("projects.org")
+        assertEquals("DONE", OrgParser.parse(after).headlines.first { it.title == "Groceries" }.keyword)
+        assertTrue(after, after.contains("- [X] milk\n- [X] eggs"))
+    }
+
+    @Test
+    fun `an edit queued behind a reload with other text is dropped, not applied to the wrong heading`() = runTest {
+        val vm = loaded("projects.org")
+        val toasts = mutableListOf<OutlineToast?>()
+        backgroundScope.launch { vm.toast.toList(toasts) }
+        val backlog = headline(vm, "Backlog")
+
+        // A sync lands between the tap and its turn.
+        store.write("projects.org", "* Synced in\n" + store.read("projects.org"))
+        vm.load("projects.org")
+        vm.setPriority(backlog, 'A')
+        advanceUntilIdle()
+
+        val after = OrgParser.parse(store.read("projects.org"))
+        assertTrue(after.headlines.none { it.priority == 'A' })
+        assertTrue(toasts.any { it?.message?.startsWith("The file changed") == true })
+    }
+
+    @Test
     fun `a reload with changed text clears the selection and says why`() = runTest {
         val vm = loaded("projects.org")
         val toasts = mutableListOf<OutlineToast?>()

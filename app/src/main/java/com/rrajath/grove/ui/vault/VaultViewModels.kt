@@ -27,6 +27,7 @@ import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.INTRO_LINE_INDEX
+import com.rrajath.grove.org.LineDiff
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.advancedRepeatingPlanning
 import com.rrajath.grove.org.markedDoneMessage
@@ -77,6 +78,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
@@ -912,11 +915,13 @@ class DocumentViewModel(
     }
 
     fun load(fileName: String) {
-        viewModelScope.launch {
+        // Under the edit lock, so an edit waiting for its turn can tell the file
+        // changed on disk instead of saving over that change (see [mutate]).
+        viewModelScope.launch { editLock.withLock {
             val vault = vaultFlow.value
             if (vault == null) {
                 _state.value = DocumentUiState.Error("No sync folder configured")
-                return@launch
+                return@withLock
             }
             _state.value = try {
                 val doc = vault.open(fileName)
@@ -935,7 +940,7 @@ class DocumentViewModel(
             } catch (e: Exception) {
                 DocumentUiState.Error(e.message ?: "Could not open $fileName")
             }
-        }
+        } }
         viewModelScope.launch {
             _allTags.value = database.indexDao().allTagStrings()
                 .flatMap { it.split(':') }
@@ -1092,6 +1097,113 @@ class DocumentViewModel(
         return matchDenoteNotebook(identifier, known, currentFile.substringBeforeLast('/', ""))?.fileName
     }
 
+    // --- serialized document edits ---
+
+    /**
+     * Every edit of the open document runs under this lock, one at a time, on
+     * the document the previous edit published. Without it, a second tap that
+     * lands while the first edit is still computing would build on the same
+     * stale document, and whichever finished last would silently drop the
+     * other's change.
+     */
+    private val editLock = Mutex()
+
+    /** Edits asked for and not yet finished; [editTrail] is only kept while any are. */
+    private var editsInFlight = 0
+
+    /**
+     * One published edit: the document it replaced, the one it published, and
+     * [remap], where each heading line of [before] went (null: work it out
+     * with a [LineDiff]).
+     */
+    private class EditStep(val before: OrgDocument, val after: OrgDocument, val remap: ((Int) -> Int?)?) {
+        private val diff by lazy { LineDiff(before, after) }
+        fun heading(line: Int): Int? = if (remap != null) remap(line) else diff.heading(line)
+        fun bodyLine(line: Int): Int? = diff.bodyLine(line)
+    }
+
+    /** The edits published while others were queued, oldest first; see [Mutation]. */
+    private val editTrail = mutableListOf<EditStep>()
+
+    private fun sameDocument(a: OrgDocument, b: OrgDocument) = a === b || a.text == b.text
+
+    /**
+     * An edit's view of the document once its turn comes: the live [loaded]
+     * state, and the way from the document on screen when it was asked for
+     * ([path], through every edit published since) so lines it captured then
+     * still name the same headings.
+     */
+    private class Mutation(val loaded: DocumentUiState.Loaded, private val path: List<EditStep>) {
+        /** Where the heading at line [line] of the tap-time document is now; null when it's gone. */
+        fun line(line: Int): Int? = path.fold(line as Int?) { l, step -> l?.let(step::heading) }
+
+        fun lines(lines: Set<Int>): Set<Int> = lines.mapNotNullTo(mutableSetOf(), this::line)
+
+        /** [h], as it is in the live document. */
+        fun headline(h: OrgHeadline): OrgHeadline? = line(h.lineIndex)?.let(loaded.document::headlineAtLine)
+
+        /** A non-heading line (a checklist item) of the tap-time document, followed to the live one. */
+        fun bodyLine(line: Int): Int? = path.fold(line as Int?) { l, step -> l?.let(step::bodyLine) }
+    }
+
+    /**
+     * Run [block] as the next document edit, once every edit asked for before
+     * it has finished. It sees the live state, and translates the lines it was
+     * handed through those edits (see [Mutation]); when the document was
+     * replaced from outside meanwhile (a sync or another app), the edit is
+     * dropped with a toast rather than applied to the wrong headings.
+     */
+    private fun mutate(followLines: Boolean = true, block: suspend Mutation.() -> Unit) {
+        val asked = _state.value as? DocumentUiState.Loaded ?: return
+        editsInFlight++
+        viewModelScope.launch {
+            try {
+                editLock.withLock {
+                    val live = _state.value as? DocumentUiState.Loaded
+                    if (live == null || live.fileName != asked.fileName) return@withLock
+                    val path = if (followLines) pathBetween(asked.document, live.document) else emptyList()
+                    if (path == null) {
+                        showToast("The file changed, so that edit wasn't applied. Try again")
+                        return@withLock
+                    }
+                    Mutation(live, path).block()
+                }
+            } finally {
+                if (--editsInFlight == 0) editTrail.clear()
+            }
+        }
+    }
+
+    /** The [editTrail] steps leading from [from] to [to]; null when [to] didn't come from [from] by them. */
+    private fun pathBetween(from: OrgDocument, to: OrgDocument): List<EditStep>? {
+        var doc = from
+        val path = mutableListOf<EditStep>()
+        for (step in editTrail) {
+            if (sameDocument(doc, to)) break
+            if (sameDocument(step.before, doc)) {
+                path += step
+                doc = step.after
+            }
+        }
+        return path.takeIf { sameDocument(doc, to) }
+    }
+
+    /**
+     * Publish an edit's [after] in place of [before]. [remap] carries each
+     * heading line of [before] to its line in [after] when the edit knows it
+     * (moves, bulk edits); [uiRemap] is what the outline's collapsed set follows.
+     */
+    private fun publish(
+        fileName: String,
+        before: OrgDocument,
+        after: OrgDocument,
+        remap: ((Int) -> Int?)? = null,
+        uiRemap: ((Int) -> Int?)? = remap,
+    ) {
+        if (editsInFlight > 1) editTrail += EditStep(before, after, remap)
+        _state.value = DocumentUiState.Loaded(fileName, after, uiRemap)
+    }
+
     // --- structural outline operations (PRD §5.3) ---
 
     /** Single-step undo: the pre-mutation text of every file the mutation touched. */
@@ -1100,22 +1212,25 @@ class DocumentViewModel(
     private var undoSnapshot: UndoSnapshot? = null
 
     fun undo() {
-        val snap = undoSnapshot ?: return
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
+        if (undoSnapshot == null) return
         val vault = vaultFlow.value ?: return
-        undoSnapshot = null
-        _snack.value = null
-        // The focused line indexes the pre-undo document; don't let the
-        // command bar act on whatever headline lands there after restore.
-        _selectedLines.value = emptySet()
-        // The snapshot predates whatever the editor is holding, so restoring it
-        // would put the file back behind an unsaved buffer that could then clobber
-        // it again; the editor lets go of the buffer instead.
-        if (pending != null) {
-            pending = null
-            onPendingPersisted()
-        }
-        viewModelScope.launch {
+        // Restores whole files, so no line it was asked with needs following.
+        mutate(followLines = false) {
+            // Read under the lock: an edit that was still running when UNDO was
+            // tapped has replaced the snapshot with its own by now.
+            val snap = undoSnapshot ?: return@mutate
+            undoSnapshot = null
+            _snack.value = null
+            // The focused line indexes the pre-undo document; don't let the
+            // command bar act on whatever headline lands there after restore.
+            _selectedLines.value = emptySet()
+            // The snapshot predates whatever the editor is holding, so restoring it
+            // would put the file back behind an unsaved buffer that could then clobber
+            // it again; the editor lets go of the buffer instead.
+            if (pending != null) {
+                pending = null
+                onPendingPersisted()
+            }
             snap.files.forEach { (name, text) ->
                 vault.save(name, text)
                 sync.requestReindex(name, text, "undo")
@@ -1124,7 +1239,7 @@ class DocumentViewModel(
                 val doc = withContext(dispatchers.default) {
                     OrgParser.parse(text, loaded.document.keywords)
                 }
-                _state.value = DocumentUiState.Loaded(loaded.fileName, doc)
+                publish(loaded.fileName, loaded.document, doc)
             }
             showToast("Undone")
         }
@@ -1147,17 +1262,19 @@ class DocumentViewModel(
             onResolved(existing)
             return
         }
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return onResolved(null)
-        val vault = vaultFlow.value ?: return onResolved(null)
-        viewModelScope.launch {
+        if (_state.value !is DocumentUiState.Loaded) return onResolved(null)
+        vaultFlow.value ?: return onResolved(null)
+        mutate {
+            val h = this.headline(headline) ?: return@mutate onResolved(null)
+            (h.id ?: h.customId)?.let { return@mutate onResolved(it) }
             val newId = newOrgId()
             val newText = withContext(dispatchers.default) {
-                OrgMutations.upsertProperty(loaded.document, headline, "ID", newId)
+                OrgMutations.upsertProperty(loaded.document, h, "ID", newId)
             }
             val newDoc = withContext(dispatchers.default) {
                 OrgParser.parse(newText, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "favorite added id", newDoc)
             onResolved(newId)
         }
@@ -1224,10 +1341,9 @@ class DocumentViewModel(
      * screen can re-open it as a normal note. Undoable in a single step.
      */
     fun withIntroHeading(describe: String, mutate: (OrgDocument, OrgHeadline) -> String) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        if (!loaded.document.hasIntro) return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        this.mutate {
+            if (!loaded.document.hasIntro) return@mutate
             val (finalText, newLine, finalDoc) = withContext(dispatchers.default) {
                 val (wrapped, line) = OrgMutations.wrapIntroInHeading(loaded.document)
                 val wrappedDoc = OrgParser.parse(wrapped, loaded.document.keywords)
@@ -1237,7 +1353,7 @@ class DocumentViewModel(
                 Triple(text, line, OrgParser.parse(text, loaded.document.keywords))
             }
             undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
-            _state.value = DocumentUiState.Loaded(loaded.fileName, finalDoc)
+            publish(loaded.fileName, loaded.document, finalDoc)
             saveDoc(loaded.fileName, finalText, "intro promoted to heading", finalDoc)
             showSnack("Added a blank heading for this content")
             if (describe.isNotEmpty()) showToast(describe)
@@ -1258,15 +1374,15 @@ class DocumentViewModel(
         blockedToast: String,
         singleMessage: String = verb,
     ) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        mutate {
+            val lines = this.lines(lines)
             val result = withContext(dispatchers.default) {
                 OrgMutations.applyToEach(loaded.document, lines, op)
             }
             if (result == null) {
                 showToast(blockedToast)
-                return@launch
+                return@mutate
             }
             if (op == OrgMutations.StructureOp.DELETE) {
                 val doc = loaded.document
@@ -1276,7 +1392,7 @@ class DocumentViewModel(
             }
             undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
             _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
-            _state.value = DocumentUiState.Loaded(loaded.fileName, result.doc, result.remap)
+            publish(loaded.fileName, loaded.document, result.doc, result.remap)
             saveDoc(loaded.fileName, result.text, "outline edit", result.doc)
             showSnack(
                 when {
@@ -1343,17 +1459,17 @@ class DocumentViewModel(
 
     /** Create a blank child note and report its line index so the caller can open the editor. */
     fun newChild(headline: OrgHeadline, onCreated: (Int) -> Unit) = newNote(onCreated) { doc, options ->
-        OrgMutations.newChild(doc, headline, "", options)
+        this.headline(headline)?.let { OrgMutations.newChild(doc, it, "", options) }
     }
 
     /** Insert menu: blank sibling note immediately above [headline] (same level). */
     fun insertSiblingAbove(headline: OrgHeadline, onCreated: (Int) -> Unit) = newNote(onCreated) { doc, options ->
-        OrgMutations.insertSiblingAbove(doc, headline, "", options)
+        this.headline(headline)?.let { OrgMutations.insertSiblingAbove(doc, it, "", options) }
     }
 
     /** Insert menu: blank sibling note immediately below [headline]'s subtree (same level). */
     fun insertSiblingBelow(headline: OrgHeadline, onCreated: (Int) -> Unit) = newNote(onCreated) { doc, options ->
-        OrgMutations.insertSiblingBelow(doc, headline, "", options)
+        this.headline(headline)?.let { OrgMutations.insertSiblingBelow(doc, it, "", options) }
     }
 
     /** Outline FAB: add a blank top-level note to this notebook (PRD §5.3). */
@@ -1361,13 +1477,13 @@ class DocumentViewModel(
         OrgMutations.newTopLevel(doc, "", options)
     }
 
+    /** [insert] returns the new text and the new heading's line, or null when its anchor heading is gone. */
     private fun newNote(
         onCreated: (Int) -> Unit,
-        insert: (OrgDocument, OrgMutations.NewNoteOptions) -> Pair<String, Int>,
+        insert: Mutation.(OrgDocument, OrgMutations.NewNoteOptions) -> Pair<String, Int>?,
     ) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        mutate {
             val settings = settingsRepository.settings.first()
             val (newText, lineIndex) = insert(
                 loaded.document,
@@ -1375,11 +1491,11 @@ class DocumentViewModel(
                     id = if (settings.addIdToNewNotes) newOrgId() else null,
                     createdAt = if (settings.addCreatedToNewNotes) LocalDateTime.now() else null,
                 ),
-            )
+            ) ?: return@mutate
             val newDoc = withContext(dispatchers.default) {
                 OrgParser.parse(newText, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "note added", newDoc)
             onCreated(lineIndex)
         }
@@ -1396,10 +1512,11 @@ class DocumentViewModel(
      * sheet, Search's state sheet, or the agenda swipe.
      */
     fun setState(headline: OrgHeadline, keyword: String?) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
         val vault = vaultFlow.value ?: return
         if (headline.keyword == keyword) return
-        viewModelScope.launch {
+        mutate {
+            val headline = this.headline(headline) ?: return@mutate
+            if (headline.keyword == keyword) return@mutate
             val settings = settingsRepository.settings.first()
             when (
                 val result = AutoArchive.apply(
@@ -1407,7 +1524,7 @@ class DocumentViewModel(
                 )
             ) {
                 is StateChangeResult.Plain -> {
-                    _state.value = DocumentUiState.Loaded(loaded.fileName, result.doc)
+                    publish(loaded.fileName, loaded.document, result.doc)
                     val after = result.doc.headlines.firstOrNull { it.lineIndex == headline.lineIndex }
                     after?.let { advancedRepeatingPlanning(headline, it, keyword, loaded.document.keywords) }
                         ?.takeIf { it.any }
@@ -1431,7 +1548,7 @@ class DocumentViewModel(
                         }
                     )
                     _selectedLines.value = emptySet()
-                    _state.value = DocumentUiState.Loaded(loaded.fileName, result.sourceDoc)
+                    publish(loaded.fileName, loaded.document, result.sourceDoc)
                     if (result.destFile != loaded.fileName) vault.save(result.destFile, result.destText)
                     saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc)
                     showSnack("Marked done. Refiled to ${result.label}")
@@ -1453,16 +1570,16 @@ class DocumentViewModel(
         mutateChecklistItem(lineIndex, OrgMutations::toggleCheckboxProgress)
 
     private fun mutateChecklistItem(lineIndex: Int, mutate: (OrgDocument, Int) -> String?) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        this.mutate {
+            val lineIndex = bodyLine(lineIndex) ?: return@mutate
             val newText = withContext(dispatchers.default) {
                 mutate(loaded.document, lineIndex)
-            } ?: return@launch
+            } ?: return@mutate
             val newDoc = withContext(dispatchers.default) {
                 OrgParser.parse(newText, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "checklist toggled", newDoc)
         }
     }
@@ -1475,28 +1592,28 @@ class DocumentViewModel(
 
     /** Read mode's metadata sheet: priority/tag chips write straight to disk. */
     fun setPriority(headline: OrgHeadline, priority: Char?) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        mutate {
+            val headline = this.headline(headline) ?: return@mutate
             val (newText, newDoc) = withContext(dispatchers.default) {
                 val text = OrgMutations.setPriority(loaded.document, headline, priority)
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "priority set", newDoc)
             showToast("Priority → ${priority?.let { "#$it" } ?: "none"}")
         }
     }
 
     fun setTags(headline: OrgHeadline, tags: List<String>) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        mutate {
+            val headline = this.headline(headline) ?: return@mutate
             val (newText, newDoc) = withContext(dispatchers.default) {
                 val text = OrgMutations.setTags(loaded.document, headline, tags)
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "tags set", newDoc)
         }
     }
@@ -1511,16 +1628,16 @@ class DocumentViewModel(
         deadline: OrgTimestamp?,
         active: List<OrgTimestamp>,
     ) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        mutate {
+            val headline = this.headline(headline) ?: return@mutate
             val (newText, newDoc) = withContext(dispatchers.default) {
                 val text = OrgMutations.setPlanningAndActiveTimestamps(
                     loaded.document, headline, scheduled, deadline, active,
                 )
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "planning edit", newDoc)
             val fmt = LocalDates.formatter("EEEMMMd", "EEE, MMM d")
             val parts = listOfNotNull(
@@ -1540,14 +1657,14 @@ class DocumentViewModel(
         ts: OrgTimestamp?,
         block: (OrgDocument, OrgHeadline) -> String,
     ) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        mutate {
+            val headline = this.headline(headline) ?: return@mutate
             val (newText, newDoc) = withContext(dispatchers.default) {
                 val text = block(loaded.document, headline)
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "planning edit", newDoc)
             showToast(
                 if (ts == null) "$label cleared"
@@ -1558,14 +1675,14 @@ class DocumentViewModel(
 
     /** Metadata sheet's "Generate org-id": writes a fresh `:ID:` into the heading's PROPERTIES drawer. */
     fun generateId(headline: OrgHeadline) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        vaultFlow.value ?: return
+        mutate {
+            val headline = this.headline(headline) ?: return@mutate
             val (newText, newDoc) = withContext(dispatchers.default) {
                 val text = OrgMutations.upsertProperty(loaded.document, headline, "ID", newOrgId())
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "org-id generated", newDoc)
             showToast("org-id generated")
         }
@@ -1573,10 +1690,10 @@ class DocumentViewModel(
 
     /** Outline swipe "Note" action: org's C-c C-z, logged into the LOGBOOK drawer. */
     fun addNote(headline: OrgHeadline, note: String) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
-        val vault = vaultFlow.value ?: return
+        vaultFlow.value ?: return
         if (note.isBlank()) return
-        viewModelScope.launch {
+        mutate {
+            val headline = this.headline(headline) ?: return@mutate
             val (newText, newDoc) = withContext(dispatchers.default) {
                 val now = LocalDateTime.now()
                 val stamp = OrgTimestamp(
@@ -1587,7 +1704,7 @@ class DocumentViewModel(
                 val text = OrgMutations.appendLogbookNote(loaded.document, headline, note.trim(), stamp)
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
-            _state.value = DocumentUiState.Loaded(loaded.fileName, newDoc)
+            publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "note added", newDoc)
             showToast("Note added")
         }
@@ -1602,9 +1719,9 @@ class DocumentViewModel(
      * archive destinations included.
      */
     fun setStateEach(lines: Set<Int>, keyword: String?) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
         val vault = vaultFlow.value ?: return
-        viewModelScope.launch {
+        mutate {
+            val lines = this.lines(lines)
             val settings = settingsRepository.settings.first()
             // Re-parses the file once per selected heading and again per archived
             // subtree: keep it off the main thread like applyStructure/editEach.
@@ -1612,7 +1729,7 @@ class DocumentViewModel(
                 AutoArchive.applyToEach(
                     vault, settings, loaded.document, loaded.fileName, lines, keyword, LocalDateTime.now(),
                 )
-            } ?: return@launch
+            } ?: return@mutate
             undoSnapshot = UndoSnapshot(
                 listOf(loaded.fileName to loaded.document.text) +
                     result.destWrites.map { (file, before, _) -> file to before }
@@ -1620,8 +1737,9 @@ class DocumentViewModel(
             _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
             // Once anything was archived the remap is all-null; don't let it fold
             // the outline's collapsed set away.
-            _state.value = DocumentUiState.Loaded(
-                loaded.fileName, result.sourceDoc, result.remap.takeIf { result.archivedTo.isEmpty() },
+            publish(
+                loaded.fileName, loaded.document, result.sourceDoc,
+                remap = result.remap, uiRemap = result.remap.takeIf { result.archivedTo.isEmpty() },
             )
             result.destWrites.forEach { (file, _, after) ->
                 vault.save(file, after)
@@ -1687,15 +1805,15 @@ class DocumentViewModel(
         message: (Int) -> String,
         edit: (OrgDocument, OrgHeadline) -> String?,
     ) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
         vaultFlow.value ?: return
-        viewModelScope.launch {
+        mutate {
+            val lines = this.lines(lines)
             val result = withContext(dispatchers.default) {
                 OrgMutations.editEach(loaded.document, lines, edit)
-            } ?: return@launch
+            } ?: return@mutate
             undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
             _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
-            _state.value = DocumentUiState.Loaded(loaded.fileName, result.doc, result.remap)
+            publish(loaded.fileName, loaded.document, result.doc, result.remap)
             saveDoc(loaded.fileName, result.text, syncReason, result.doc)
             showSnack(message(result.applied))
         }
@@ -1828,7 +1946,7 @@ class DocumentViewModel(
         if (picker.sourceLines.size > 1) {
             _refile.value = null
             refileEachToResolvedTarget(
-                loaded, vault, picker.sourceLines, target,
+                vault, picker.sourceLines, target,
                 verb = "Archived", syncReason = "archive", createFileIfMissing = true,
                 archivedAt = LocalDateTime.now(),
             )
@@ -1836,8 +1954,9 @@ class DocumentViewModel(
         }
         val source = loaded.document.headlineAtLine(picker.sourceLine) ?: return
         _refile.value = null
-        val sourceEnd = loaded.document.subtreeEndLine(source)
-        viewModelScope.launch {
+        mutate {
+            val source = this.headline(source) ?: return@mutate
+            val sourceEnd = loaded.document.subtreeEndLine(source)
             refileToResolvedTarget(
                 loaded, vault, source, target,
                 verb = "Archived", syncReason = "archive", createFileIfMissing = true,
@@ -1856,15 +1975,16 @@ class DocumentViewModel(
         if (picker.sourceLines.size > 1) {
             _refile.value = null
             refileEachToResolvedTarget(
-                loaded, vault, picker.sourceLines, target,
+                vault, picker.sourceLines, target,
                 verb = "Refiled", syncReason = "refile", createFileIfMissing = false,
             )
             return
         }
         val source = loaded.document.headlineAtLine(picker.sourceLine) ?: return
         _refile.value = null
-        val sourceEnd = loaded.document.subtreeEndLine(source)
-        viewModelScope.launch {
+        mutate {
+            val source = this.headline(source) ?: return@mutate
+            val sourceEnd = loaded.document.subtreeEndLine(source)
             refileToResolvedTarget(
                 loaded, vault, source, target,
                 verb = "Refiled", syncReason = "refile", createFileIfMissing = false,
@@ -1900,7 +2020,7 @@ class DocumentViewModel(
         )
         _selectedLines.value = emptySet()
         val newSourceDoc = OrgParser.parse(write.sourceText, loaded.document.keywords)
-        _state.value = DocumentUiState.Loaded(loaded.fileName, newSourceDoc)
+        publish(loaded.fileName, loaded.document, newSourceDoc)
         if (write.destFile != loaded.fileName) {
             vault.save(write.destFile, write.destText)
             sync.requestReindex(write.destFile, write.destText, syncReason)
@@ -1911,7 +2031,6 @@ class DocumentViewModel(
 
     /** [refileToResolvedTarget] for several headlines, all to [target], as one undo step. */
     private fun refileEachToResolvedTarget(
-        loaded: DocumentUiState.Loaded,
         vault: Vault,
         lines: List<Int>,
         target: ArchiveTarget,
@@ -1920,13 +2039,14 @@ class DocumentViewModel(
         createFileIfMissing: Boolean,
         archivedAt: LocalDateTime? = null,
     ) {
-        viewModelScope.launch {
+        mutate {
+            val lines = lines.mapNotNull(this::line)
             val result = AutoArchive.refileEach(
                 vault, loaded.document, loaded.fileName, lines.map { it to target }, createFileIfMissing, archivedAt,
             )
             if (result.labels.isEmpty()) {
                 showToast("Couldn't open ${target.fileName.removeSuffix(".org")}")
-                return@launch
+                return@mutate
             }
             commitBulkRefile(
                 loaded, vault, lines, result.sourceText, result.sourceDoc, result.destWrites, syncReason,
@@ -1937,19 +2057,20 @@ class DocumentViewModel(
 
     /** [refileTo] for several headlines: all go under the picked heading, in their original order. */
     private fun refileEachTo(lines: Set<Int>, destFile: String, targetLine: Int?, headingPath: List<String>) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
         val vault = vaultFlow.value ?: return
-        val roots = OrgMutations.selectedRoots(loaded.document, lines)
-        viewModelScope.launch {
+        mutate {
+            val lines = this.lines(lines)
+            val roots = OrgMutations.selectedRoots(loaded.document, lines)
             val destLabel = destFile.removeSuffix(".org")
             if (destFile == loaded.fileName) {
+                val targetLine = targetLine?.let { line(it) ?: return@mutate showToast("Couldn't find the destination heading") }
                 val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
                 val newDoc = withContext(dispatchers.default) {
                     OrgMutations.refileEachWithinFile(loaded.document, lines, targetLine)
                 }
                 if (newDoc == null) {
                     showToast("Can't refile into its own subtree")
-                    return@launch
+                    return@mutate
                 }
                 commitBulkRefile(
                     loaded, vault, roots.map { it.lineIndex }, newDoc.text, newDoc, emptyList(), "refile",
@@ -1959,7 +2080,7 @@ class DocumentViewModel(
                 val destDoc = vault.open(destFile)
                 if (destDoc == null) {
                     showToast("Couldn't open $destLabel")
-                    return@launch
+                    return@mutate
                 }
                 val target = targetLine?.let { destDoc.headlineAtLine(it) }
                 val result = withContext(dispatchers.default) {
@@ -1968,7 +2089,7 @@ class DocumentViewModel(
                 }
                 if (result == null) {
                     showToast("Couldn't find the destination heading")
-                    return@launch
+                    return@mutate
                 }
                 val (newSourceDoc, newDestDoc) = result
                 commitBulkRefile(
@@ -1999,7 +2120,7 @@ class DocumentViewModel(
             listOf(loaded.fileName to loaded.document.text) + destWrites.map { (file, before, _) -> file to before }
         )
         _selectedLines.value = emptySet()
-        _state.value = DocumentUiState.Loaded(loaded.fileName, sourceDoc)
+        publish(loaded.fileName, loaded.document, sourceDoc)
         destWrites.forEach { (file, _, after) ->
             vault.save(file, after)
             sync.requestReindex(file, after, syncReason)
@@ -2019,12 +2140,13 @@ class DocumentViewModel(
     }
 
     private fun refileTo(source: OrgHeadline, destFile: String, targetLine: Int?, headingPath: List<String>) {
-        val loaded = _state.value as? DocumentUiState.Loaded ?: return
         val vault = vaultFlow.value ?: return
-        val sourceEnd = loaded.document.subtreeEndLine(source)
-        viewModelScope.launch {
+        mutate {
+            val source = this.headline(source) ?: return@mutate
+            val sourceEnd = loaded.document.subtreeEndLine(source)
             val destLabel = destFile.removeSuffix(".org")
             if (destFile == loaded.fileName) {
+                val targetLine = targetLine?.let { line(it) ?: return@mutate showToast("Couldn't find the destination heading") }
                 val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
                 val result = withContext(dispatchers.default) {
                     OrgMutations.refileWithinFile(loaded.document, source, targetLine)
@@ -2032,11 +2154,11 @@ class DocumentViewModel(
                 }
                 if (result == null) {
                     showToast("Can't refile into its own subtree")
-                    return@launch
+                    return@mutate
                 }
                 undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
                 _selectedLines.value = emptySet()
-                _state.value = DocumentUiState.Loaded(loaded.fileName, result.second)
+                publish(loaded.fileName, loaded.document, result.second)
                 saveDoc(loaded.fileName, result.first, "refile", result.second)
                 showSnack("Refiled to $destLabel › ${targetTitle ?: "top level"}")
                 rememberRefileTarget(destFile, headingPath)
@@ -2044,7 +2166,7 @@ class DocumentViewModel(
                 val destDoc = vault.open(destFile)
                 if (destDoc == null) {
                     showToast("Couldn't open $destLabel")
-                    return@launch
+                    return@mutate
                 }
                 val target = targetLine?.let { destDoc.headlineAtLine(it) }
                 val (newSourceText, newDestText, newSourceDoc) = withContext(dispatchers.default) {
@@ -2057,7 +2179,7 @@ class DocumentViewModel(
                     listOf(loaded.fileName to loaded.document.text, destFile to destDoc.text)
                 )
                 _selectedLines.value = emptySet()
-                _state.value = DocumentUiState.Loaded(loaded.fileName, newSourceDoc)
+                publish(loaded.fileName, loaded.document, newSourceDoc)
                 vault.save(destFile, newDestText)
                 sync.requestReindex(destFile, newDestText, "refile")
                 saveDoc(loaded.fileName, newSourceText, "refile", newSourceDoc)
