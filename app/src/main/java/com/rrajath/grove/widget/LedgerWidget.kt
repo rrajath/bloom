@@ -185,18 +185,20 @@ class LedgerWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val app = context.applicationContext as GroveApplication
         val initialSettings = app.settingsRepository.settings.first()
-        val initialNotes = app.database.indexDao().plannedNotes().first()
         val initialSaved = app.searchRepository.savedSearches.first()
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         val names = quickStartNames(context)
-        // Same first-frame reasoning as initialNotes: a widget left on a search
-        // view shouldn't open its session on an empty list.
+        // Loaded before the session so its first frame isn't an empty list:
+        // the agenda's rows, or a widget left on a search view's results. Only
+        // the view on screen is loaded; switching views later starts that
+        // view's own collection.
         val initialSelection = WidgetViews.resolve(
             getAppWidgetState<Preferences>(context, id)[WIDGET_VIEW_KEY],
             initialSaved,
             app.keywords.value.active,
             names,
         )
+        val initialNotes = if (initialSelection == null) app.database.indexDao().plannedNotes().first() else emptyList()
         val initialResults = initialSelection?.let { WidgetSearch.runSafely(app, it.query, initialSettings.defaultPriority) }
 
         provideContent {
