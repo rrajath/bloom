@@ -83,6 +83,7 @@ re-uploads the APKs to the existing release instead of failing.
 - The refile and link pickers reopen faster in large vaults, reusing their heading list until the vault changes.
 
 ### Fixed
+- Bloom Light, Bloom Dark and Grove Light now color keyword and attribute keys apart from their values.
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.
 - Date trees reuse existing month and day headings written in another language instead of adding duplicates.
 - Tapping the target label or empty space in the widget's quick add composer no longer closes it.
