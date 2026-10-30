@@ -717,11 +717,8 @@ class EditorViewModel(
         }
     }
 
-    private suspend fun fetchAutoLinkIndex(): ImmutableList<AutoLinkSuggestion> {
-        val notebooks = database.indexDao().notebooks()
-        val headings = database.indexDao().allHeadingOutlines()
-        return buildAutoLinkIndex(notebooks, headings)
-    }
+    private suspend fun fetchAutoLinkIndex(): ImmutableList<AutoLinkSuggestion> =
+        database.headingOutlines.snapshot().autoLinkIndex()
 
     // --- selection-triggered roam-node suggestions ---
     // Parallel to the typing-triggered auto-link suggester above: offers to
@@ -753,7 +750,10 @@ class EditorViewModel(
         val result = RoamNodeCreator.createOrLink(
             vault, sync, template, selectedTitle, index, LocalDateTime.now(),
         )
-        if (result is RoamNodeResult.Created) _autoLinkIndex.value = fetchAutoLinkIndex()
+        if (result is RoamNodeResult.Created) {
+            database.headingOutlines.invalidate()
+            _autoLinkIndex.value = fetchAutoLinkIndex()
+        }
         return result
     }
 
@@ -763,12 +763,12 @@ class EditorViewModel(
             // File names + counts + heading titles come from the Room index; opening
             // and re-parsing every .org file just to list/search them would be
             // O(files) work on every picker open instead of two indexed queries.
-            val notebooks = database.indexDao().notebooks()
-            val headings = database.indexDao().allHeadingOutlines()
-            val sortedNotebooks = notebooks.sortedBy { it.fileName }
+            // Cached across opens until the index changes (HeadingOutlineCache).
+            val snapshot = database.headingOutlines.snapshot()
+            val sortedNotebooks = snapshot.notebooks.sortedBy { it.fileName }
                 .map { RefileNotebook(it.fileName, it.noteCount) }
                 .toImmutableList()
-            val searchIndex = buildLinkSearchIndex(notebooks, headings)
+            val searchIndex = snapshot.linkSearchIndex()
             _linkPicker.update { it?.copy(notebooks = sortedNotebooks, searchIndex = searchIndex) }
         }
     }

@@ -430,7 +430,7 @@ class AppViewModel(
             _locationPicker.value = _locationPicker.value?.copy(notebooks = notebooks)
         }
         viewModelScope.launch {
-            val searchIndex = loadRefileSearchIndex(database.indexDao())
+            val searchIndex = loadRefileSearchIndex(database.headingOutlines)
             _locationPicker.value = _locationPicker.value?.copy(searchIndex = searchIndex)
         }
     }

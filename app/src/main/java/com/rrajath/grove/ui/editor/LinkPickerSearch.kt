@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.editor
 
+import com.rrajath.grove.data.HeadingOutlineCache
 import com.rrajath.grove.data.NoteOutlineRow
 import com.rrajath.grove.data.NotebookEntity
 import com.rrajath.grove.org.OrgDocument
@@ -75,6 +76,12 @@ fun buildLinkSearchIndex(
     }
     return items.toImmutableList()
 }
+
+private object LinkSearchIndexKey
+
+/** [buildLinkSearchIndex] over this snapshot, built once until the Room index changes. */
+fun HeadingOutlineCache.Snapshot.linkSearchIndex(): ImmutableList<LinkSearchItem> =
+    derived(LinkSearchIndexKey) { buildLinkSearchIndex(it.notebooks, it.headings) }
 
 /** What happened after a tap on a live-search result (see `EditorViewModel.linkPickerSelectSearchResult`). */
 sealed interface LinkPickerSearchOutcome {

@@ -23,7 +23,7 @@ import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.settings.SettingsSource
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.editor.AutoLinkSuggestion
-import com.rrajath.grove.ui.editor.buildAutoLinkIndex
+import com.rrajath.grove.ui.editor.autoLinkIndex
 import com.rrajath.grove.ui.vault.NotebookItem
 import com.rrajath.grove.ui.vault.allFolderDirs
 import com.rrajath.grove.vault.TestVaultHook
@@ -105,11 +105,8 @@ class CaptureViewModel(
         }
     }
 
-    private suspend fun fetchAutoLinkIndex(): ImmutableList<AutoLinkSuggestion> {
-        val notebooks = database.indexDao().notebooks()
-        val headings = database.indexDao().allHeadingOutlines()
-        return buildAutoLinkIndex(notebooks, headings)
-    }
+    private suspend fun fetchAutoLinkIndex(): ImmutableList<AutoLinkSuggestion> =
+        database.headingOutlines.snapshot().autoLinkIndex()
 
     // Selection-triggered roam-node suggestions inside a Roam-kind capture
     // draft -- same mechanism as EditorViewModel's, see capture/RoamNodeSuggest.kt.
@@ -133,7 +130,10 @@ class CaptureViewModel(
         val result = RoamNodeCreator.createOrLink(
             vault, sync, template, selectedTitle, index, LocalDateTime.now(),
         )
-        if (result is RoamNodeResult.Created) _autoLinkIndex.value = fetchAutoLinkIndex()
+        if (result is RoamNodeResult.Created) {
+            database.headingOutlines.invalidate()
+            _autoLinkIndex.value = fetchAutoLinkIndex()
+        }
         return result
     }
 

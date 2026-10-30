@@ -1,6 +1,7 @@
 package com.rrajath.grove.ui.editor
 
 import androidx.compose.ui.text.TextRange
+import com.rrajath.grove.data.HeadingOutlineCache
 import com.rrajath.grove.data.NoteOutlineRow
 import com.rrajath.grove.data.NotebookEntity
 import com.rrajath.grove.org.OrgMutations
@@ -66,6 +67,12 @@ fun buildAutoLinkIndex(
     }
     return items.toImmutableList()
 }
+
+private object AutoLinkIndexKey
+
+/** [buildAutoLinkIndex] over this snapshot, built once until the Room index changes. */
+fun HeadingOutlineCache.Snapshot.autoLinkIndex(): ImmutableList<AutoLinkSuggestion> =
+    derived(AutoLinkIndexKey) { buildAutoLinkIndex(it.notebooks, it.headings) }
 
 /**
  * Case-insensitive substring match of [word] against [index], same semantics

@@ -80,6 +80,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Search keeps up better while typing in large vaults, dropping outdated searches instead of finishing them.
 - The Agenda widget's saved-search view uses less battery while the vault is being reindexed.
 - Capturing into a large date tree file is faster: the file is read once instead of once per level.
+- The refile and link pickers reopen faster in large vaults, reusing their heading list until the vault changes.
 
 ### Fixed
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.

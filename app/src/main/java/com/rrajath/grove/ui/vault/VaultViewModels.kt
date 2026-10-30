@@ -1860,7 +1860,7 @@ class DocumentViewModel(
         }
         // Separate so the notebook list never waits on the vault-wide heading query.
         viewModelScope.launch {
-            val searchIndex = loadRefileSearchIndex(database.indexDao())
+            val searchIndex = loadRefileSearchIndex(database.headingOutlines)
             _refile.value = _refile.value?.copy(searchIndex = searchIndex)
         }
     }

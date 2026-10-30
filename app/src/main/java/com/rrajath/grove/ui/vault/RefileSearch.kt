@@ -1,13 +1,13 @@
 package com.rrajath.grove.ui.vault
 
-import com.rrajath.grove.data.IndexDao
+import com.rrajath.grove.data.HeadingOutlineCache
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.ui.editor.LinkFileHit
 import com.rrajath.grove.ui.editor.LinkHeadingHit
 import com.rrajath.grove.ui.editor.LinkSearchItem
-import com.rrajath.grove.ui.editor.buildLinkSearchIndex
 import com.rrajath.grove.ui.editor.filterLinkSearch
+import com.rrajath.grove.ui.editor.linkSearchIndex
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -18,10 +18,12 @@ import kotlinx.collections.immutable.toImmutableList
 
 /**
  * The vault-wide file + heading index the refile picker searches, built from
- * the Room index alone (no `.org` file is opened), same as the link picker's.
+ * the Room index alone (no `.org` file is opened) and shared with the link
+ * picker through [HeadingOutlineCache], so reopening the sheet costs nothing
+ * until the index changes.
  */
-suspend fun loadRefileSearchIndex(dao: IndexDao): ImmutableList<LinkSearchItem> =
-    buildLinkSearchIndex(dao.notebooks(), dao.allHeadingOutlines())
+suspend fun loadRefileSearchIndex(cache: HeadingOutlineCache): ImmutableList<LinkSearchItem> =
+    cache.snapshot().linkSearchIndex()
 
 /**
  * Line ranges of every refiled subtree in [currentDoc] (each source headline

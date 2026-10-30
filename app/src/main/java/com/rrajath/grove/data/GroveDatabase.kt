@@ -675,6 +675,9 @@ abstract class GroveDatabase : RoomDatabase() {
      */
     val ftsAvailable: Boolean get() = indexDao().ftsAvailable
 
+    /** Notebooks + heading outlines for the vault-wide pickers; see [HeadingOutlineCache]. */
+    val headingOutlines: HeadingOutlineCache by lazy { HeadingOutlineCache(indexDao()) }
+
     companion object {
         fun build(context: Context): GroveDatabase =
             create(Room.databaseBuilder(context, GroveDatabase::class.java, "grove-index.db"))
@@ -723,6 +726,9 @@ abstract class GroveDatabase : RoomDatabase() {
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .addCallback(ftsBootstrap)
                 .build()
+            // Registered before the database opens, so this only records the
+            // observer; Room installs its triggers when it first opens.
+            database.invalidationTracker.addObserver(database.headingOutlines.observer)
             return database
         }
     }
