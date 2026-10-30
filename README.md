@@ -97,7 +97,7 @@ run it locally on a real device instead.
 
 ```bash
 ./gradlew :macrobenchmark:connectedBenchmarkReleaseAndroidTest   # startup + scroll benchmarks
-./gradlew :app:generateBaselineProfile                           # writes app/src/main/baselineProfiles/
+./gradlew :app:generateBaselineProfile                           # writes app/src/release/generated/baselineProfiles/
 ```
 
 Results land in `macrobenchmark/build/outputs/connected_android_test_additional_output/`.

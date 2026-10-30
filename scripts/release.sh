@@ -52,6 +52,15 @@ else
   [ -z "$(git status --porcelain --untracked-files=no)" ] || die "working tree has uncommitted changes"
 fi
 
+# The baseline profile is a checked-in source file (so F-Droid's rebuild matches);
+# it only stays useful if it's regenerated as the code changes.
+PROFILE_DIR=app/src/release/generated/baselineProfiles
+[ -n "$(ls "$PROFILE_DIR"/*.txt 2>/dev/null)" ] || die "no baseline profile in $PROFILE_DIR; run ./gradlew :app:generateBaselineProfile and commit it"
+PREV_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+if [ -n "$PREV_TAG" ] && [ -z "$(git log --oneline "$PREV_TAG"..HEAD -- "$PROFILE_DIR")" ]; then
+  echo "warning: baseline profile unchanged since $PREV_TAG; consider ./gradlew :app:generateBaselineProfile first" >&2
+fi
+
 sed -i.bak -e "s/^versionName=.*/versionName=$VERSION/" -e "s/^versionCode=.*/versionCode=$NEW_CODE/" gradle.properties
 rm gradle.properties.bak
 

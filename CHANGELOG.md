@@ -81,6 +81,7 @@ re-uploads the APKs to the existing release instead of failing.
 - The Agenda widget's saved-search view uses less battery while the vault is being reindexed.
 - Capturing into a large date tree file is faster: the file is read once instead of once per level.
 - The refile and link pickers reopen faster in large vaults, reusing their heading list until the vault changes.
+- Faster first launch and smoother first scrolls after installing or updating: the app now ships a precompiled baseline profile.
 - Long-press and overflow menus use a lighter background with a border, so their edges stand out.
 
 ### Fixed

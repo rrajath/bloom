@@ -332,7 +332,7 @@ dependencies {
 
     // Producer of the baseline profile packaged above (see the androidx.baselineprofile
     // plugin). `./gradlew :app:generateBaselineProfile` runs the generator on a
-    // connected device and writes app/src/main/baselineProfiles/.
+    // connected device and writes app/src/release/generated/baselineProfiles/.
     baselineProfile(project(":macrobenchmark"))
 
     // testFixtures compiles against main only; fakes implement production
