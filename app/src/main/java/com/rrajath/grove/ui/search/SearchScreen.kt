@@ -996,16 +996,17 @@ private fun DayResultsList(
             .testTag("search_results_list"),
     ) {
         days.forEach { day ->
+            val rowKeys = dayRowKeys(day)
             item(key = "day-${day.key}", contentType = "dayHeader") {
                 Box(Modifier.padding(top = 10.dp)) { GroupHeader(day.label, day.results.size) }
             }
             itemsIndexed(
                 day.results,
-                key = { i, r -> "${day.key}-${r.fileName}@${r.lineIndex}-$i" },
+                key = { i, _ -> rowKeys[i] },
                 contentType = { _, _ -> "heading" },
             ) { index, result ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.grove.line)
-                val rowKey = "${day.key}-${result.fileName}@${result.lineIndex}-$index"
+                val rowKey = rowKeys[index]
                 ResultSwipeRow(
                     result = result,
                     matchedTerms = matchedTerms,
@@ -1574,5 +1575,20 @@ private fun LoadMoreChip(remaining: Int, onClick: () -> Unit) {
             "Load ${minOf(10, remaining)} more",
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = c.ink2,
         )
+    }
+}
+
+/**
+ * Stable LazyColumn keys for [day]'s rows: `day-file@line`, so a row keeps its
+ * item state (swipe offset) when an earlier row comes or goes. A heading can
+ * be on one day twice (its planned date plus an event, or two events), so a
+ * repeat gets `#n` for its nth occurrence.
+ */
+internal fun dayRowKeys(day: SearchDayGroup): List<String> {
+    val seen = HashMap<String, Int>()
+    return day.results.map { r ->
+        val base = "${day.key}-${r.fileName}@${r.lineIndex}"
+        val n = seen.merge(base, 1, Int::plus)!! - 1
+        if (n == 0) base else "$base#$n"
     }
 }

@@ -87,6 +87,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Tapping the target label or empty space in the widget's quick add composer no longer closes it.
 - The quick add composer's text cursor now uses the theme's accent color instead of black.
 - Tapping Outline commands or checkboxes quickly no longer loses an edit; bulk edits on many headings finish much faster.
+- In Search's agenda view, an open swipe on a row stays with it when results above it change.
 
 ## [1.11.0] - 2026-10-19
 
