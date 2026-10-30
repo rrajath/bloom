@@ -84,6 +84,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Long-press and overflow menus use a lighter background with a border, so their edges stand out.
 
 ### Fixed
+- The drawer's long-press menu for saved searches and favorites no longer sits flush against the screen edge.
 - Files with Windows (CRLF) line endings now parse and highlight correctly, and keep their line endings when saved.
 - Keyword lines like `#+attr_org:` inside a file's intro no longer show up in its Preface.
 - Bloom Light, Bloom Dark and Grove Light now color keyword and attribute keys apart from their values.

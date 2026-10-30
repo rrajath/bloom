@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
@@ -205,7 +206,8 @@ private fun DrawerActionMenu(
     onDelete: () -> Unit,
 ) {
     val c = MaterialTheme.grove
-    GroveDropdownMenu(expanded = expanded, onDismissRequest = onDismissRequest) {
+    // Inset to match DrawerItem's 12dp horizontal padding, so the menu isn't flush with the screen edge.
+    GroveDropdownMenu(expanded = expanded, onDismissRequest = onDismissRequest, offset = DpOffset(12.dp, 0.dp)) {
         DropdownMenuItem(
             text = { Text("Move up", fontFamily = PlexSans, color = if (canMoveUp) c.ink else c.ink3) },
             enabled = canMoveUp,
