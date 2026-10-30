@@ -20,6 +20,7 @@ object CaptureInserter {
     data class Insertion(val newText: String, val insertedAtLine: Int, val entryLineCount: Int = 1)
 
     private val STARS = Regex("""^(\*+)\s+(.*)$""")
+    private val DATE_TITLE = Regex("""^\d{4}(-W?\d{2}){0,2}([ \t].*)?$""")
 
     /**
      * [bodyOnly] (only meaningful for [TargetLocation.UnderHeading]; see
@@ -264,34 +265,40 @@ object CaptureInserter {
         type: DatetreeType,
     ): Insertion {
         var text = docText
+        // Parsed once, and again only after a level adds a node: a date tree
+        // file is a journal that grows forever, and most captures land in a
+        // year and month (often a day) that already exist.
+        var doc = OrgParser.parse(text, keywords)
         // Nodes are only ever spliced in below [parent], so its line index holds.
         var parentLine = parent?.lineIndex
         var level = parent?.level ?: 0
         for (title in datetreeTitles(today, type)) {
             level++
             // A node's numeric prefix is its title up to the first space ("2026-10").
-            val node = ensureDateChild(text, keywords, parentLine, level, title, prefix = title.substringBefore(' '))
-            text = node.first
+            val node = ensureDateChild(text, doc, parentLine, level, title, prefix = title.substringBefore(' '))
+            if (node.first !== text) {
+                text = node.first
+                doc = OrgParser.parse(text, keywords)
+            }
             parentLine = node.second
         }
-        val doc = OrgParser.parse(text, keywords)
         val leaf = doc.headlines.first { it.lineIndex == parentLine }
         return spliceEntry(text, subtreeEnd(doc, leaf), normalizeEntry(entry, level + 1))
     }
 
     /**
-     * Find or create a date-tree node. [parent] is the line index of the parent
-     * headline (null = top level). Returns (newText, headlineLineIndex).
+     * Find or create a date-tree node. [doc] is [text] parsed; [parent] is the
+     * line index of the parent headline (null = top level). Returns (newText,
+     * headlineLineIndex); newText is [text] itself when the node already exists.
      */
     private fun ensureDateChild(
         text: String,
-        keywords: OrgKeywords,
+        doc: OrgDocument,
         parent: Int?,
         level: Int,
         title: String,
         prefix: String,
     ): Pair<String, Int> {
-        val doc = OrgParser.parse(text, keywords)
         val siblings: List<OrgHeadline> = if (parent == null) {
             doc.headlines.filter { it.level == 1 }
         } else {
@@ -320,8 +327,7 @@ object CaptureInserter {
     /** A date-tree title's numeric part: `2026-10` of `2026-10 October`. */
     private fun datePart(title: String): String = title.substringBefore(' ').substringBefore('\t')
 
-    private fun looksLikeDate(title: String): Boolean =
-        Regex("""^\d{4}(-W?\d{2}){0,2}([ \t].*)?$""").matches(title)
+    private fun looksLikeDate(title: String): Boolean = DATE_TITLE.matches(title)
 
     // --- splicing helpers ---
 
