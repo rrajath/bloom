@@ -1528,6 +1528,69 @@ class OrgMutationsTest {
     }
 
     @Test
+    fun `editEach splices section edits to the same text as editing the whole file one heading at a time`() {
+        // Indented metadata on a heading that isn't edited sets the indent new
+        // drawers copy; the last heading's section runs to the file's final newline.
+        val file = OrgParser.parse(
+            """
+            #+TITLE: Bulk
+            * Intro
+            * Styled
+              :PROPERTIES:
+              :ID: styled
+              :END:
+            styled body
+            * TODO A :x:
+            a body
+            ** TODO A1
+               SCHEDULED: <2026-10-05 Mon +1w>
+            - [ ] item
+            * B
+            * TODO C
+            c body
+            """.trimIndent() + "\n"
+        )
+        val targets = setOf("A", "A1", "B", "C").map { t -> file.headlines.first { it.title == t }.lineIndex }.toSet()
+        val now = LocalDateTime.of(2026, 10, 30, 9, 15)
+        val stamp = OrgTimestamp.parse("[2026-10-30 Fri 09:15]")!!
+        val edits: Map<String, (OrgDocument, OrgHeadline) -> String?> = mapOf(
+            "scheduled" to { d, h -> OrgMutations.setScheduled(d, h, OrgTimestamp.parse("<2026-11-02 Mon>")) },
+            "note" to { d, h -> OrgMutations.appendLogbookNote(d, h, "logged", stamp) },
+            "id" to { d, h -> OrgMutations.upsertProperty(d, h, "ID", "id-${h.title}") },
+            "done" to { d, h -> OrgMutations.changeKeyword(d, h, "DONE", d.keywords, now) },
+            "tags" to { d, h -> OrgMutations.setTags(d, h, h.tags + "bulk") },
+            "dates" to { d, h ->
+                OrgMutations.setPlanningAndActiveTimestamps(
+                    d, h, null, OrgTimestamp.parse("<2026-11-03 Tue>"), listOfNotNull(OrgTimestamp.parse("<2026-11-04 Wed>")),
+                )
+            },
+        )
+        edits.forEach { (name, edit) ->
+            var reference = file
+            for (t in file.headlines.filter { it.lineIndex in targets }.sortedByDescending { it.lineIndex }) {
+                reference = OrgParser.parse(edit(reference, reference.headlines[t.index])!!, file.keywords)
+            }
+            val r = OrgMutations.editEach(file, targets, edit)!!
+            assertEquals(name, reference.text, r.text)
+            assertEquals(name, 4, r.applied)
+        }
+    }
+
+    @Test
+    fun `insertEach matches inserting the subtrees one at a time`() {
+        val subtrees = listOf("* X\nx body\n** X1", "*** Y\n")
+        listOf(line("B"), line("C"), null).forEach { targetLine ->
+            var reference = bulk
+            for (s in subtrees) {
+                val target = reference.headlines.firstOrNull { it.lineIndex == targetLine }
+                reference = OrgParser.parse(OrgMutations.refileInsert(reference, target, s).first)
+            }
+            assertEquals("$targetLine", reference.text, OrgMutations.insertEach(bulk, targetLine, subtrees)!!.text)
+        }
+        assertNull(OrgMutations.insertEach(bulk, line("B") + 1, subtrees))
+    }
+
+    @Test
     fun `editEach returns null when nothing changed`() {
         assertNull(OrgMutations.editEach(bulk, setOf(line("A"))) { _, _ -> null })
         assertNull(OrgMutations.editEach(bulk, setOf(line("A"))) { d, _ -> d.text })

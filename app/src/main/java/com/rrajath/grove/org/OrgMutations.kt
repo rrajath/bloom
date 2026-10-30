@@ -665,8 +665,11 @@ object OrgMutations {
      * or appended at the end of the file at level 1 when [target] is null.
      * Returns the new text plus the inserted root's lineIndex.
      */
-    fun refileInsert(doc: OrgDocument, target: OrgHeadline?, subtree: String): Pair<String, Int> {
-        val releveled = relevelSubtree(subtree.trimEnd('\n').split("\n"), (target?.level ?: 0) + 1)
+    fun refileInsert(doc: OrgDocument, target: OrgHeadline?, subtree: String): Pair<String, Int> =
+        insertReleveled(doc, target, relevelSubtree(subtree.trimEnd('\n').split("\n"), (target?.level ?: 0) + 1))
+
+    /** [refileInsert] for subtree lines already releveled to sit under [target]. */
+    private fun insertReleveled(doc: OrgDocument, target: OrgHeadline?, releveled: List<String>): Pair<String, Int> {
         if (target == null && doc.lines.all { it.isEmpty() }) {
             return releveled.joinToString("\n") + "\n" to 0
         }
@@ -732,16 +735,15 @@ object OrgMutations {
     /**
      * Insert each of [subtrees], in order, as the last children of the heading
      * at [targetLine] in [doc] (appended at level 1 when null). Every insert
-     * lands below the target, so its line holds throughout. Null when
-     * [targetLine] isn't a heading.
+     * lands right after the previous one, so they go in as one block with a
+     * single parse. Null when [targetLine] isn't a heading.
      */
     fun insertEach(doc: OrgDocument, targetLine: Int?, subtrees: List<String>): OrgDocument? {
-        var cur = doc
-        for (subtree in subtrees) {
-            val target = targetLine?.let { line -> cur.headlines.firstOrNull { it.lineIndex == line } ?: return null }
-            cur = OrgParser.parse(refileInsert(cur, target, subtree).first, doc.keywords)
-        }
-        return cur
+        val target = targetLine?.let { line -> doc.headlines.firstOrNull { it.lineIndex == line } ?: return null }
+        if (subtrees.isEmpty()) return doc
+        val level = (target?.level ?: 0) + 1
+        val block = subtrees.flatMap { relevelSubtree(it.trimEnd('\n').split("\n"), level) }
+        return OrgParser.parse(insertReleveled(doc, target, block).first, doc.keywords)
     }
 
     /**
@@ -758,26 +760,71 @@ object OrgMutations {
     /**
      * Apply [edit] to each heading starting at one of [lines], for edits confined
      * to a heading's own section that never add or remove headings (keyword,
-     * priority, tags, planning, drawers). They run bottom-up, so each edit leaves
-     * the lines of the headings still to come untouched. [edit] returns null to
-     * leave a heading as it is. [BulkEdit.remap] carries any heading line of
+     * priority, tags, planning, drawers). [edit] gets a document holding just
+     * that heading's section (see below), never the whole file, so it must not
+     * look past the section. [edit] returns null to leave a heading as it is. [BulkEdit.remap] carries any heading line of
      * [doc] to that heading's line now; other lines map to null. Returns null
      * when no heading changed.
      */
     fun editEach(doc: OrgDocument, lines: Set<Int>, edit: (OrgDocument, OrgHeadline) -> String?): BulkEdit? {
-        val targets = doc.headlines.filter { it.lineIndex in lines }.sortedByDescending { it.lineIndex }
+        val targets = doc.headlines.filter { it.lineIndex in lines }
+        // Each edit only reads and writes its heading's own section, so it runs
+        // on a small document of just that section and the result is spliced
+        // back: one full parse for the batch instead of one per heading. The
+        // section is led by the heading line + first metadata line of the first
+        // other heading that has metadata, which is all [metadataIndent] reads
+        // outside the section, so new drawers get the file's indent as before.
+        val exemplars = doc.headlines.asSequence()
+            .mapNotNull { h -> firstMetadataLine(doc, h)?.let { h to it } }
+            .take(2)
+            .toList()
+        val out = ArrayList<String>(doc.lines.size + targets.size * 4)
+        var copied = 0
+        var applied = 0
+        for (h in targets) {
+            val lead = exemplars.firstOrNull { it.first.lineIndex != h.lineIndex }
+                ?.let { (other, metadataLine) -> doc.lines.subList(other.lineIndex, metadataLine + 1) }
+                .orEmpty()
+            val section = OrgParser.parse(
+                (lead + doc.lines.subList(h.lineIndex, h.contentEnd)).joinToString("\n"), doc.keywords,
+            )
+            val text = edit(section, section.headlines.last())?.takeIf { it != section.text } ?: continue
+            val edited = text.split("\n")
+            // An edit that reached outside its section can't be spliced.
+            if (edited.size < lead.size || edited.subList(0, lead.size) != lead) {
+                return editEachReparsing(doc, targets, edit)
+            }
+            out.addAll(doc.lines.subList(copied, h.lineIndex))
+            out.addAll(edited.subList(lead.size, edited.size))
+            copied = h.contentEnd
+            applied++
+        }
+        if (applied == 0) return null
+        out.addAll(doc.lines.subList(copied, doc.lines.size))
+        return bulkEdit(doc, OrgParser.parse(out.joinToString("\n"), doc.keywords), applied, targets.size)
+    }
+
+    /** [editEach] the slow way: bottom-up, re-parsing the whole document after each edit. */
+    private fun editEachReparsing(
+        doc: OrgDocument,
+        targets: List<OrgHeadline>,
+        edit: (OrgDocument, OrgHeadline) -> String?,
+    ): BulkEdit? {
         var cur = doc
         var applied = 0
-        for (target in targets) {
+        for (target in targets.sortedByDescending { it.lineIndex }) {
             val h = cur.headlines.getOrNull(target.index) ?: continue
             val text = edit(cur, h)?.takeIf { it != cur.text } ?: continue
             cur = OrgParser.parse(text, doc.keywords)
             applied++
         }
         if (applied == 0) return null
+        return bulkEdit(doc, cur, applied, targets.size)
+    }
+
+    private fun bulkEdit(doc: OrgDocument, final: OrgDocument, applied: Int, attempted: Int): BulkEdit {
         val indexByLine = doc.headlines.associate { it.lineIndex to it.index }
-        val final = cur
-        return BulkEdit(cur.text, cur, applied, targets.size) { l ->
+        return BulkEdit(final.text, final, applied, attempted) { l ->
             indexByLine[l]?.let { final.headlines.getOrNull(it)?.lineIndex }
         }
     }
@@ -951,11 +998,7 @@ object OrgMutations {
      */
     private fun metadataIndent(doc: OrgDocument, h: OrgHeadline): String {
         fun firstMetadataIndent(of: OrgHeadline): String? =
-            (of.lineIndex + 1 until minOf(of.contentEnd, doc.lines.size))
-                .firstOrNull { !doc.lines[it].isBlank() }
-                ?.let { doc.lines[it] }
-                ?.takeIf(::isMetadataLine)
-                ?.let(::leadingWhitespace)
+            firstMetadataLine(doc, of)?.let { leadingWhitespace(doc.lines[it]) }
         firstMetadataIndent(h)?.let { return it }
         for (other in doc.headlines) {
             if (other.lineIndex == h.lineIndex) continue
@@ -968,6 +1011,12 @@ object OrgMutations {
         }
         return ""
     }
+
+    /** The line of [h]'s first non-blank section line, when it's a metadata line; what [metadataIndent] reads. */
+    private fun firstMetadataLine(doc: OrgDocument, h: OrgHeadline): Int? =
+        (h.lineIndex + 1 until minOf(h.contentEnd, doc.lines.size))
+            .firstOrNull { !doc.lines[it].isBlank() }
+            ?.takeIf { isMetadataLine(doc.lines[it]) }
 
     private fun planningLine(p: Planning): String? {
         val parts = buildList {
