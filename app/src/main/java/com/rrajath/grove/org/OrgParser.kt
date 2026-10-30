@@ -92,12 +92,14 @@ class OrgDocument(
     val preambleEnd: Int = headlines.firstOrNull()?.lineIndex ?: lines.size
 
     /**
-     * File-level `#+KEY: value` lines from the preamble (before the first
-     * headline), in file order. Key is rendered exactly as written, e.g.
-     * "#+TITLE:": casing/format preserved.
+     * File-level `#+KEY: value` lines: the leading keyword run before the
+     * intro (up to [introStart]), in file order. Keyword-looking lines inside
+     * the intro (e.g. `#+attr_org:` above an image) belong to that content,
+     * not the preface. Key is rendered exactly as written, e.g. "#+TITLE:":
+     * casing/format preserved.
      */
     val preambleKeywords: List<Pair<String, String>> by lazy {
-        lines.subList(0, preambleEnd).mapNotNull { line ->
+        lines.subList(0, introStart).mapNotNull { line ->
             OrgParser.PREAMBLE_KEYWORD.matchEntire(line.trim())?.let { m ->
                 "#+${m.groupValues[1]}:" to m.groupValues[2].trim()
             }

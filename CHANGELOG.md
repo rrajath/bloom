@@ -83,6 +83,8 @@ re-uploads the APKs to the existing release instead of failing.
 - The refile and link pickers reopen faster in large vaults, reusing their heading list until the vault changes.
 
 ### Fixed
+- Files with Windows (CRLF) line endings now parse and highlight correctly, and keep their line endings when saved.
+- Keyword lines like `#+attr_org:` inside a file's intro no longer show up in its Preface.
 - Bloom Light, Bloom Dark and Grove Light now color keyword and attribute keys apart from their values.
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.
 - Date trees reuse existing month and day headings written in another language instead of adding duplicates.

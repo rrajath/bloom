@@ -32,6 +32,7 @@ import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.widget.CaptureNotification
 import com.rrajath.grove.vault.JvmFileStore
+import com.rrajath.grove.vault.LineEndingFileStore
 import com.rrajath.grove.vault.SafFileStore
 import com.rrajath.grove.vault.TestVaultHook
 import com.rrajath.grove.vault.Vault
@@ -224,7 +225,7 @@ open class GroveApplication : Application() {
                 testRoot != null -> JvmFileStore(testRoot, ignore)
                 uriString != null -> SafFileStore(this, uriString.toUri(), ignore)
                 else -> null
-            }
+            }?.let(::LineEndingFileStore)
         }.stateIn(appScope, SharingStarted.Eagerly, null)
     }
 

@@ -40,7 +40,9 @@ class OrgSyntaxHighlight(
         // lines don't accumulate over a long editing session.
         val next = HashMap<String, List<LineSpan>>()
         var lineStart = 0
-        for (line in toString().lineSequence()) {
+        // Split on '\n' only: lineSequence() also treats "\r\n" and a lone '\r'
+        // as one terminator, which desyncs the `+ 1` below from the real offsets.
+        for (line in toString().split('\n')) {
             val spans = next[line] ?: lineCache[line] ?: styleLine(line)
             next[line] = spans
             for (s in spans) addStyle(s.style, lineStart + s.start, lineStart + s.end)

@@ -66,6 +66,15 @@ class OrgParserTest {
     }
 
     @Test
+    fun `preambleKeywords stops at the intro so attr_org lines stay with their content`() {
+        val doc = OrgParser.parse(
+            "#+title: Push ups\n\nIntro text\n#+attr_org: :width 300\n[[attachment:a.png]]\n",
+        )
+        assertEquals(listOf("#+title:" to "Push ups"), doc.preambleKeywords)
+        assertTrue(doc.introBody.contains("#+attr_org: :width 300"))
+    }
+
+    @Test
     fun `preambleKeywords ignores keyword-looking lines after the first headline`() {
         val doc = OrgParser.parse("#+TITLE: Foo\n* Heading\n#+NOT_PREAMBLE: bar\n")
         assertEquals(listOf("#+TITLE:" to "Foo"), doc.preambleKeywords)
