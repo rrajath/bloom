@@ -1,0 +1,42 @@
+---
+// Wraps starlight-blog's MarkdownContent (which this override replaces, so the
+// plugin skips installing its own) to put an AI-authorship disclaimer at the
+// top of every blog post body, just below the date and author. Every other
+// page renders through Starlight's default component unchanged.
+import StarlightBlogMarkdownContent from 'starlight-blog/components/MarkdownContent.astro';
+import Default from '@astrojs/starlight/components/MarkdownContent.astro';
+
+const { id } = Astro.locals.starlightRoute;
+// Same post-page test as starlight-blog's isAnyBlogPostPage (not exported):
+// anything under blog/ except the paginated list, tag and author pages.
+const isBlogPost = /^blog\/(?!(\d+\/?|tags\/.+|authors\/.+)$).+$/.test(id);
+---
+
+{
+  isBlogPost ? (
+    <StarlightBlogMarkdownContent>
+      <p class="bloom-ai-disclaimer">
+        This post was generated using AI by reviewing the CHANGELOG and the relevant commits, and was thoroughly
+        reviewed by a human before publishing.
+      </p>
+      <slot />
+    </StarlightBlogMarkdownContent>
+  ) : (
+    <Default>
+      <slot />
+    </Default>
+  )
+}
+
+<style>
+  /* Small, muted metadata line. --ink3 rather than --ink4: it is text a
+     reader needs, so it must clear AA (DESIGN.md's Ghost Drawer Rule).
+     Prefixed with .sl-markdown-content to outrank starlight-overrides.css's
+     `.sl-markdown-content p` serif body rule. */
+  :global(.sl-markdown-content) .bloom-ai-disclaimer {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink3);
+  }
+</style>
