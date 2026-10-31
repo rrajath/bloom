@@ -59,7 +59,7 @@ class NoteCandidateQueryTest {
     @Test
     fun `state tokens become a keyword predicate`() {
         val sql = build("i.TODO")
-        assertTrue(sql.sql.contains("(keyword = ? COLLATE NOCASE)"))
+        assertTrue(sql.sql.contains("(keyword COLLATE NOCASE = ?)"))
         assertEquals(listOf("TODO"), sql.args)
     }
 
@@ -71,7 +71,7 @@ class NoteCandidateQueryTest {
     @Test
     fun `priority and tag tokens are ANDed within a group`() {
         val sql = build("p.A t.work")
-        assertTrue(sql.sql.contains("priority = ? COLLATE NOCASE"))
+        assertTrue(sql.sql.contains("priority COLLATE NOCASE = ?"))
         assertTrue(sql.sql.contains("inheritedTags LIKE ? ESCAPE '\\'"))
         assertEquals(listOf("A", "%work%"), sql.args)
     }
@@ -85,7 +85,7 @@ class NoteCandidateQueryTest {
     @Test
     fun `notebook tokens accept the name with or without the org suffix`() {
         val sql = build("b.work")
-        assertTrue(sql.sql.contains("(fileName = ? COLLATE NOCASE OR fileName = ? COLLATE NOCASE)"))
+        assertTrue(sql.sql.contains("(fileName COLLATE NOCASE = ? OR fileName COLLATE NOCASE = ?)"))
         assertEquals(listOf("work", "work.org"), sql.args)
     }
 
@@ -122,7 +122,7 @@ class NoteCandidateQueryTest {
     @Test
     fun `OR groups become an ORed predicate`() {
         val sql = build("i.TODO OR p.A")
-        assertTrue(sql.sql.contains("((keyword = ? COLLATE NOCASE) OR ((priority = ? COLLATE NOCASE OR priority IS NULL)))"))
+        assertTrue(sql.sql.contains("((keyword COLLATE NOCASE = ?) OR ((priority COLLATE NOCASE = ? OR priority IS NULL)))"))
         assertEquals(listOf("TODO", "A"), sql.args)
     }
 
@@ -175,8 +175,8 @@ class NoteCandidateQueryTest {
         assertTrue(
             sql.sql,
             sql.sql.contains(
-                "(((priority = ? COLLATE NOCASE OR priority IS NULL) AND keyword = ? COLLATE NOCASE) OR " +
-                    "((priority = ? COLLATE NOCASE OR priority IS NULL) AND keyword = ? COLLATE NOCASE))",
+                "(((priority COLLATE NOCASE = ? OR priority IS NULL) AND keyword COLLATE NOCASE = ?) OR " +
+                    "((priority COLLATE NOCASE = ? OR priority IS NULL) AND keyword COLLATE NOCASE = ?))",
             ),
         )
         assertEquals(listOf("A", "TODO", "A", "NEXT"), sql.args)
@@ -211,7 +211,7 @@ class NoteCandidateQueryTest {
         assertTrue(
             sql.sql,
             sql.sql.contains(
-                "(((priority = ? COLLATE NOCASE OR priority IS NULL) AND keyword = ? COLLATE NOCASE) OR ((priority = ? COLLATE NOCASE OR priority IS NULL)))",
+                "(((priority COLLATE NOCASE = ? OR priority IS NULL) AND keyword COLLATE NOCASE = ?) OR ((priority COLLATE NOCASE = ? OR priority IS NULL)))",
             ),
         )
         assertEquals(listOf("A", "TODO", "A"), sql.args)
@@ -226,9 +226,9 @@ class NoteCandidateQueryTest {
     @Test
     fun `p keeps unprioritized rows as candidates, ps does not`() {
         // p.X also matches a note at the default priority, which SQL can't see.
-        assertTrue(build("p.B").sql.contains("(priority = ? COLLATE NOCASE OR priority IS NULL)"))
+        assertTrue(build("p.B").sql.contains("(priority COLLATE NOCASE = ? OR priority IS NULL)"))
         val ps = build("ps.B").sql
-        assertTrue(ps.contains("(priority = ? COLLATE NOCASE)"))
+        assertTrue(ps.contains("(priority COLLATE NOCASE = ?)"))
         assertFalse(ps.contains("priority IS NULL"))
     }
 
@@ -248,7 +248,7 @@ class NoteCandidateQueryTest {
     @Test
     fun `negation alongside a positive term keeps only the positive one`() {
         val sql = build("i.TODO .p.A")
-        assertTrue(sql.sql.contains("keyword = ?"))
+        assertTrue(sql.sql.contains("keyword COLLATE NOCASE = ?"))
         assertFalse(sql.sql.contains("priority"))
     }
 
@@ -325,7 +325,7 @@ class NoteCandidateQueryTest {
     fun `text, query tokens and chips all combine with AND`() {
         val sql = build("meeting i.TODO", FacetNarrowing(priorities = setOf("A")))
         assertTrue(sql.sql.contains("notes_fts MATCH ?"))
-        assertTrue(sql.sql.contains("keyword = ? COLLATE NOCASE"))
+        assertTrue(sql.sql.contains("keyword COLLATE NOCASE = ?"))
         assertTrue(sql.sql.contains("priority IN (?)"))
         assertEquals(listOf("(\"meeting\")", "%meeting%", "TODO", "A"), sql.args)
     }

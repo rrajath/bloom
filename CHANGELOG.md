@@ -57,6 +57,9 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Fixed
+- The Agenda widget's Open tasks view showed nothing; lowercase `i.`, `ps.` and `b.` searches now match regardless of case.
+
 ## [1.12.0] - 2026-10-31
 
 ### Added

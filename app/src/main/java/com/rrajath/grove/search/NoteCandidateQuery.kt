@@ -139,13 +139,17 @@ object NoteCandidateQuery {
         return parts.joinToString(" AND ", prefix = "(", postfix = ")") to args
     }
 
+    // The COLLATE goes on the column, never the bound value: with the value
+    // form (`keyword = ? COLLATE NOCASE`), SQLite answered from the column's
+    // BINARY index and silently matched case-sensitively (e.g. `i.todo OR
+    // i.next` found nothing), though the two forms mean the same thing.
     private fun termCondition(condition: Condition): Pair<String, List<String>>? = when (condition) {
         // Handled by the FTS MATCH expression instead.
         is Condition.Text -> null
 
         is Condition.State ->
             if (condition.state.equals("none", ignoreCase = true)) "keyword IS NULL" to emptyList()
-            else condition.state.ifAscii { "keyword = ? COLLATE NOCASE" to listOf(it) }
+            else condition.state.ifAscii { "keyword COLLATE NOCASE = ?" to listOf(it) }
 
         // Done-ness isn't pushed down: "has a keyword" is a superset of both.
         is Condition.StateType ->
@@ -155,8 +159,8 @@ object NoteCandidateQuery {
         // p. also matches an unprioritized note when the default priority
         // equals X, which only the matcher knows, so NULL rows stay candidates.
         is Condition.Priority -> condition.priority.ifAscii {
-            if (condition.setOnly) "priority = ? COLLATE NOCASE" to listOf(it)
-            else "(priority = ? COLLATE NOCASE OR priority IS NULL)" to listOf(it)
+            if (condition.setOnly) "priority COLLATE NOCASE = ?" to listOf(it)
+            else "(priority COLLATE NOCASE = ? OR priority IS NULL)" to listOf(it)
         }
 
         is Condition.Tag -> {
@@ -171,7 +175,7 @@ object NoteCandidateQuery {
             // QueryMatcher compares with ".org" stripped from both sides, so a
             // stored file name matches as either form.
             val base = name.removeSuffix(".org")
-            "(fileName = ? COLLATE NOCASE OR fileName = ? COLLATE NOCASE)" to listOf(base, "$base.org")
+            "(fileName COLLATE NOCASE = ? OR fileName COLLATE NOCASE = ?)" to listOf(base, "$base.org")
         }
 
         // A note with no such timestamp can never satisfy a date window, except
