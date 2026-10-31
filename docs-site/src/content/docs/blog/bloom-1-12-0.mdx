@@ -1,0 +1,118 @@
+---
+title: 'Bloom 1.12.0: bulk outline edits and a smarter Agenda widget'
+# Noon UTC: a bare date is UTC midnight and renders as the previous day when built west of UTC.
+date: 2026-10-30T12:00:00Z
+authors: rrajath
+tags:
+  - release
+excerpt: 1.12.0 lets Outline act on many headings at once, turns the Agenda widget into a window onto any search, adds Denote links, richer date trees and a System theme mode, and makes the app faster across the board.
+---
+
+1.12.0 is a big release about doing more with less tapping. Outline can now work on many headings at once, the Agenda widget can show any search you like, and capture templates got a lot closer to how org-capture works in Emacs. Underneath, a performance pass made launch, search, capture and bulk edits noticeably faster.
+
+## Outline
+
+### Move and edit several headings at once
+
+While Outline's **Move & indent** bar is up, tapping rows adds them to the selection, and the bar's title shows how many you've picked. Every command then runs on all the selected headings, and the whole batch undoes in one step. The bar also opens the metadata sheet for the selection, so you can change state, priority, tags, dates and notes on many headings together, or refile them all under one heading. Selected rows now get a soft accent fill, and collapsed headings stay collapsed as things move. Thanks to @MaksRawski for this one. See [Outline View](/features/outline-view).
+
+### A clearer demote message
+
+When a heading can't be demoted, Outline now says why: there's no heading above it to go under.
+
+## Agenda widget
+
+### Show a saved search
+
+Tap the Agenda widget's title to choose what it shows: your agenda, or any of your saved searches. Each widget remembers its own choice, so one widget can stay on your agenda while another shows a project search. See [Widgets](/features/widget).
+
+### Quick Start searches
+
+The same picker also lists the four Quick Start searches from the Search screen: **Overdue**, **Today**, **Open tasks** and **Unscheduled**. Each option shows its search expression under its name. If you've saved your own query over a Quick Start card, the widget uses it too.
+
+### "+N more" on long lists
+
+When a widget list is too long to fit, it now ends with a **+N more** link that loads 20 more rows right in the widget. **View all** sits next to it when you'd rather open the full list in the app.
+
+### The icon opens the Agenda
+
+Tapping the app icon on the Agenda widget now opens the Agenda screen instead of the home page, which is where you most likely wanted to go.
+
+## Capture templates
+
+### Date trees inside a heading, grouped by day, week or month
+
+A Date tree template no longer has to live at the top of a file. You can now put the tree inside a heading, the same as `file+olp+datetree` in Emacs. You can also choose how entries are grouped: by **Day**, **Week** (ISO weeks) or **Month**. The template editor shows an outline preview of where today's entry will land, along with the equivalent org `:target` line. Existing date tree templates keep working exactly as before. See [Capture Templates](/features/capture-templates).
+
+### One Datetree option
+
+Templates used to offer **Datetree (date)** and **Datetree (datetime)**, which filed entries the same way. Now that placeholders follow org-mode (below), there's just one **Datetree**. Older Datetree (date) templates are converted automatically and capture exactly the same text.
+
+### Pick the target heading from a list
+
+Templates that file under a heading no longer ask you to type its name or ID. You pick it from a searchable list of the target file's headings. If the heading has an `:ID:` or `:CUSTOM_ID:`, the template saves that, and shows a small ID tag. Each pick also remembers its outline path, so two headings with the same name under different parents stay apart.
+
+### Placeholders match org-mode
+
+The `%t`, `%T`, `%u` and `%U` placeholders now mean what they mean in Emacs. Lowercase gives a date only and uppercase adds the time; `%t`/`%T` are active timestamps and `%u`/`%U` are inactive. Bloom had the two letters swapped with case before. See [Placeholders](/features/placeholders).
+
+## Links and refiling
+
+### Denote links
+
+Links in the form `[[denote:20240101T120000]]` now open the note whose Denote identifier matches, wherever it lives in your vault. You can point at a spot inside it too, with `::*Heading` or `::#custom-id`. If two files somehow share an identifier, the one in the same folder as the linking file wins. Thanks to @sharmis-tp for this one.
+
+### Search in the refile picker
+
+The refile picker now has a search box, so you can jump straight to any file or heading instead of drilling down level by level. It's the same search the link picker uses. Headings in both pickers now show the app's five-spoke asterisk, matching the rest of Bloom. See [Refile](/features/refile).
+
+## Dates
+
+### A flash for the next occurrence
+
+When you mark a recurring task done in Read mode, its date moves to the next occurrence. That jump used to be easy to miss. Now the new date flashes briefly, so you can see where the task went.
+
+### Several timestamps on one day
+
+In Planning Dates, tapping a day that already has an active timestamp now adds another one instead of removing it. That makes it easy to set several reminders on the same day, say an hour before, 15 minutes before and at the event itself. To remove a timestamp, use the × on its chip. See [Planning Dates](/features/planning-dates).
+
+### Dates in your language
+
+Day and month names now follow your phone's language, both on screen and in what Bloom writes into your files: timestamps, date tree headings and the `%month`/`%day` placeholders. That matches how Emacs uses the system locale. Date trees match existing headings by their numbers, so a tree Emacs wrote in German is reused instead of getting a duplicate English branch. On-screen times also follow your phone's 24-hour setting.
+
+## Look and feel
+
+### Light, Dark and System theme modes
+
+The Theme section in Settings now starts with a **Light / Dark / System** control. Light and Dark each pick a theme from their own family. System shows one light and one dark tile, and switches between them as your phone changes mode. The Agenda widget and the synced launcher icon follow along. Existing installs keep their current look. See [Themes & Appearance](/features/themes-appearance).
+
+### Menus that stand out
+
+Long-press, overflow, link and saved-search menus used to share the same background as the screen behind them, so they had no visible edge. They now use a lighter background with a thin border.
+
+## Performance improvements
+
+- **Faster first launch.** Bloom now ships a precompiled baseline profile covering startup and everyday screens like Outline, Read, Search and Agenda, so the first launch and first scrolls after installing or updating are smoother.
+- **Search keeps up with your typing.** In large vaults, an outdated search is cancelled as soon as you type more, and result snippets skip lines that can't match.
+- **Lighter widgets during a reindex.** The Agenda widget's saved-search view no longer re-runs its search after every file during a vault reindex, which saves battery.
+- **Faster date tree captures.** Capturing into a large date tree file reads the file once instead of once per level.
+- **Pickers reopen faster.** The refile and link pickers reuse their heading list until the vault changes, instead of rebuilding it on every open.
+- **Faster bulk edits.** Editing many headings at once in Outline now parses the file once instead of once per heading.
+
+## Fixes
+
+- The selected option in settings dropdowns is readable again in every theme.
+- The drawer's long-press menu for saved searches and favorites no longer sits flush against the screen edge.
+- Files with Windows (CRLF) line endings now parse and highlight correctly, and keep their line endings when saved.
+- Keyword lines like `#+attr_org:` inside a file's intro no longer show up in its Preface.
+- Bloom Light, Bloom Dark and Grove Light now color keyword and attribute keys apart from their values.
+- Moving, promoting or demoting a heading in Outline no longer unfolds collapsed headings.
+- Date trees reuse existing month and day headings written in another language instead of adding duplicates.
+- Tapping the target label or empty space in the widget's quick add composer no longer closes it.
+- The quick add composer's text cursor now uses the theme's accent color instead of black.
+- Tapping Outline commands or checkboxes quickly no longer loses an edit.
+- In Search's agenda view, an open swipe on a row stays with it when results above it change.
+
+## Full changelog
+
+The complete list of changes is in the [1.12.0 release on GitHub](https://github.com/rrajath/bloom/releases/tag/v1.12.0).
