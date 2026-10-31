@@ -57,6 +57,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-31
+
 ### Added
 - Date tree templates can grow inside a heading and group entries by day, week, or month.
 - Outline's Move & indent bar can act on several headings at once: tap rows to add them to the selection (thanks @MaksRawski)
