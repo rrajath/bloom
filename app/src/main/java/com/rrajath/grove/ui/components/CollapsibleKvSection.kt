@@ -22,6 +22,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -142,11 +144,16 @@ fun CollapsibleBlockSection(
                 modifier = Modifier.doubleTapEditRow(onDoubleTap),
             )
         }
+        // Prose blocks (QUOTE, CENTER, ...) take each line's direction from its first
+        // strong character, full width so an RTL line aligns right. Code stays LTR.
+        val contentStyle = if (label == "SRC" || label == "EXAMPLE") TextStyle.Default
+        else TextStyle(textDirection = TextDirection.Content)
         contentLines.forEach { line ->
             Text(
                 line,
+                style = contentStyle,
                 fontFamily = PlexMono, fontSize = 12.sp, lineHeight = 1.5.em, color = c.ink2,
-                modifier = Modifier.doubleTapEditRow(onDoubleTap),
+                modifier = Modifier.fillMaxWidth().doubleTapEditRow(onDoubleTap),
             )
         }
     }

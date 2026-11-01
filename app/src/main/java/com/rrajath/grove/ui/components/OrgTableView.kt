@@ -3,8 +3,10 @@ package com.rrajath.grove.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -16,6 +18,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,12 +27,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -65,7 +71,14 @@ fun OrgTableView(
     val model = remember(lines) { parseOrgTable(lines) }
     if (model.isEmpty) return
 
-    val bodyStyle = TextStyle(fontFamily = PlexMono, fontSize = 12.5.sp, lineHeight = 1.5.em, color = c.ink)
+    // A table whose first strong character is RTL mirrors as a whole: columns run
+    // right to left and the grid anchors to the right. Each cell's text still takes
+    // its own direction (Content), so a Latin name in a Persian table reads LTR.
+    val rtl = remember(lines) { orgInlineStartsRtl(lines.joinToString(" ")) }
+    val bodyStyle = TextStyle(
+        fontFamily = PlexMono, fontSize = 12.5.sp, lineHeight = 1.5.em, color = c.ink,
+        textDirection = TextDirection.Content,
+    )
     val headerStyle = bodyStyle.copy(fontWeight = FontWeight.SemiBold)
 
     val measurer = rememberTextMeasurer()
@@ -95,6 +108,8 @@ fun OrgTableView(
     val maxBodyHeight = with(density) { (containerHeightPx * MAX_BODY_HEIGHT_FRACTION).toDp() }
     val hScroll = rememberScrollState()
 
+    CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+    Box(Modifier.fillMaxWidth()) {
     Column(
         modifier
             .testTag("org_table")
@@ -131,6 +146,8 @@ fun OrgTableView(
             }
         }
     }
+    }
+    }
 }
 
 @Composable
@@ -149,10 +166,13 @@ private fun TableRow(
             // forcing an IntrinsicSize.Min pass (an extra full measurement of every cell) just
             // so a sibling Box could fillMaxHeight to match.
             .drawBehind {
+                // Measured from the row's start edge, so mirror x in an RTL table.
+                val lineWidth = 1.dp.toPx()
                 var x = 0f
                 for (i in 1 until cells.size) {
                     x += colWidths[i - 1].toPx()
-                    drawRect(color = dividerColor, topLeft = Offset(x, 0f), size = Size(1.dp.toPx(), size.height))
+                    val left = if (layoutDirection == LayoutDirection.Rtl) size.width - x - lineWidth else x
+                    drawRect(color = dividerColor, topLeft = Offset(left, 0f), size = Size(lineWidth, size.height))
                 }
             },
     ) {

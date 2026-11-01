@@ -82,6 +82,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -754,6 +755,9 @@ private fun NoteContent(
             item(key = "own") {
                 SelectionContainer {
                     Column {
+                        // An RTL title mirrors the tags, keyword and title rows, like a child heading.
+                        val titleRtl = remember(headline.title) { orgInlineStartsRtl(headline.title) }
+                        CompositionLocalProvider(LocalLayoutDirection provides if (titleRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
                         // Tag chips
                         if (tags.isNotEmpty()) {
                             Row {
@@ -796,6 +800,7 @@ private fun NoteContent(
                                 Spacer(Modifier.width(8.dp))
                                 FavoriteStar(modifier = Modifier.padding(top = 6.dp), size = 24.dp)
                             }
+                        }
                         }
 
                         // Planning line (SCHEDULED/DEADLINE/CLOSED) is immediately after the
@@ -1148,6 +1153,12 @@ internal fun OrgText(
     val c = MaterialTheme.grove
     val annotated = remember(text, c, onOpenLink) { annotateOrgInline(text, c, onOpenLink) }
     val links = remember(text) { orgInlineLinks(text) }
+    // Compose's unspecified direction is the layout direction (LTR), not the
+    // content's; Content picks each line's direction from its first strong
+    // character, so a Persian line reads right-to-left and aligns right.
+    val directedStyle = remember(style) {
+        if (style.textDirection == TextDirection.Unspecified) style.copy(textDirection = TextDirection.Content) else style
+    }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     var textCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
@@ -1158,7 +1169,7 @@ internal fun OrgText(
 
     Text(
         annotated,
-        style = style,
+        style = directedStyle,
         maxLines = maxLines,
         overflow = overflow,
         onTextLayout = { layout = it },

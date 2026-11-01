@@ -61,7 +61,7 @@ re-uploads the APKs to the existing release instead of failing.
 - The Agenda widget's Open tasks view showed nothing; lowercase `i.`, `ps.` and `b.` searches now match regardless of case.
 
 ### Added
-- Read mode lays out right-to-left text (Persian, Arabic, Hebrew) right-aligned, with bullets and heading keywords mirrored to match.
+- Read mode lays out right-to-left text (Persian, Arabic, Hebrew) right-aligned, including lists, headings, tables and quotes.
 
 ## [1.12.0] - 2026-10-31
 
