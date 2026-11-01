@@ -61,7 +61,7 @@ re-uploads the APKs to the existing release instead of failing.
 - The Agenda widget's Open tasks view showed nothing; lowercase `i.`, `ps.` and `b.` searches now match regardless of case.
 
 ### Added
-- Read mode lays out right-to-left text (Persian, Arabic, Hebrew) right-aligned, including lists, headings, tables and quotes.
+- Read mode and the Outline lay out right-to-left text (Persian, Arabic, Hebrew) right-aligned, including lists, headings, tables and quotes.
 
 ### Fixed
 - Heading tags in non-Latin scripts (`:خرید:`, `:été:`) are recognized as tags instead of showing in the title.

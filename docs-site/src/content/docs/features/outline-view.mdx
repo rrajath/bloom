@@ -28,6 +28,8 @@ Opening a notebook from the Notebooks list lands you in Outline View, a flat, sc
 
 A heading marked DONE renders with strikethrough and dims slightly, but stays in place in the list (Outline doesn't auto-hide completed items the way Agenda's filters can).
 
+A heading whose title is in a right-to-left language (Persian, Arabic, Hebrew) mirrors its row: the caret, stars and keyword move to the right, nesting indents from the right, and the title and preview read right-to-left. Each row follows its own title, so a file that mixes languages shows each heading in its own direction. Swipe actions keep their usual sides.
+
 ## Preface and property drawers
 
 If the file has file-level `#+KEYWORDS:` (like `#+FILETAGS:`) or a heading has a `:PROPERTIES:` drawer, they render as collapsible, monospace blocks: tap the disclosure triangle to expand, double-tap to edit that block's raw text on its own. These are controlled by the **Show preface** / **Show property drawers** toggles in Settings → Notes; turn them off if you don't want the visual noise.

@@ -51,6 +51,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.LaunchedEffect
@@ -76,10 +77,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -106,6 +110,7 @@ import com.rrajath.grove.ui.components.StatePickerSheet
 import com.rrajath.grove.ui.components.SwipeAction
 import com.rrajath.grove.ui.components.SwipeRevealRow
 import com.rrajath.grove.ui.components.annotateOrgInline
+import com.rrajath.grove.ui.components.orgInlineStartsRtl
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.containsIdOf
 import com.rrajath.grove.data.matches
@@ -1163,12 +1168,15 @@ private fun IntroRow(doc: OrgDocument, onTap: () -> Unit) {
             // on the right so the block reads as evenly inset.
             .padding(vertical = 10.dp, horizontal = 11.dp),
     ) {
+        // Full width + content direction: each line reads and aligns by its own script.
         Text(
             content,
+            style = TextStyle(textDirection = TextDirection.Content),
             fontFamily = PlexSans,
             fontSize = 13.5.sp,
             lineHeight = 20.sp,
             color = c.ink,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -1194,6 +1202,9 @@ private fun OutlineNode(
     // Tokenizing the title allocates a new AnnotatedString; rows recompose on
     // scroll and swipe, so keep it across recompositions.
     val titleAnnotated = remember(headline.title, c) { annotateOrgInline(headline.title, c) }
+    // An RTL title mirrors the row, like Read mode's headings: caret, stars and
+    // keyword on the right, indent from the right. Swipe actions stay physical.
+    val titleRtl = remember(headline.title) { orgInlineStartsRtl(headline.title) }
 
     // Selected rows get an accentSoft fill, the same "active row" wash the
     // dropdown pickers and the command bar above use. It's drawn inset 2dp top
@@ -1213,6 +1224,7 @@ private fun OutlineNode(
         Modifier.clip(RoundedCornerShape(10.dp)).background(lerp(c.bg, c.accentSoft, highlight))
     }
 
+    CompositionLocalProvider(LocalLayoutDirection provides if (titleRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -1241,10 +1253,12 @@ private fun OutlineNode(
                 if (hasChildren) {
                     Canvas(Modifier.size(9.dp)) {
                         val path = if (isCollapsed) {
+                            // Collapsed points toward the title: right, or left in an RTL row.
+                            val back = if (layoutDirection == LayoutDirection.Rtl) size.width else 0f
                             Path().apply {
-                                moveTo(0f, 0f)
-                                lineTo(0f, size.height)
-                                lineTo(size.width, size.height / 2f)
+                                moveTo(back, 0f)
+                                lineTo(back, size.height)
+                                lineTo(size.width - back, size.height / 2f)
                                 close()
                             }
                         } else {
@@ -1304,6 +1318,7 @@ private fun OutlineNode(
                 }
                 Text(
                     titleAnnotated,
+                    style = TextStyle(textDirection = TextDirection.Content),
                     fontFamily = PlexSans,
                     fontWeight = if (headline.level == 1) FontWeight.SemiBold else FontWeight.Medium,
                     fontSize = 14.5.sp,
@@ -1349,10 +1364,11 @@ private fun OutlineNode(
             if (preview.isNotEmpty()) {
                 Text(
                     preview,
+                    style = TextStyle(textDirection = TextDirection.Content),
                     fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink3,
                     maxLines = 2,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                 )
             }
             // Scheduled / deadline chips, side by side, wrapping to a second
@@ -1422,6 +1438,7 @@ private fun OutlineNode(
                 }
             }
         }
+    }
     }
 }
 
