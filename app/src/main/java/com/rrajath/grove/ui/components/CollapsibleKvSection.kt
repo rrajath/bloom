@@ -55,9 +55,12 @@ fun CollapsibleKvSection(
         entries.forEach { (key, value) ->
             // The whole row is the double-tap target (not just the glyphs): these
             // rows carry no inline links, so the gesture takes a null layout.
+            // The row stays LTR (the Latin key comes first, as in Emacs); only the
+            // value takes its own direction, so an RTL value's punctuation and digits
+            // land on the right side.
             Row(Modifier.doubleTapEditRow(onDoubleTap)) {
                 KvText("$key ", color = c.synKw)
-                KvText(value, color = c.ink2)
+                KvText(value, color = c.ink2, direction = TextDirection.Content)
             }
         }
     }
@@ -65,8 +68,11 @@ fun CollapsibleKvSection(
 
 /** A single key or value run within [CollapsibleKvSection]; the enclosing row owns the double-tap. */
 @Composable
-private fun KvText(text: String, color: Color) {
-    Text(text, fontFamily = PlexMono, fontSize = 12.sp, lineHeight = 1.5.em, color = color)
+private fun KvText(text: String, color: Color, direction: TextDirection = TextDirection.Unspecified) {
+    Text(
+        text, style = TextStyle(textDirection = direction),
+        fontFamily = PlexMono, fontSize = 12.sp, lineHeight = 1.5.em, color = color,
+    )
 }
 
 /** Whole-row double-tap-to-edit for a link-free drawer line; no-op when [onDoubleTap] is null. */
@@ -97,9 +103,12 @@ fun CollapsibleLogSection(
 ) {
     val c = MaterialTheme.grove
     CollapsibleDrawer(label, lines.size, expanded, onToggle, modifier) {
+        // Each line takes its own direction: CLOCK/state lines start Latin and stay
+        // LTR, a Persian note body reads RTL and aligns right (the row is full width).
         lines.forEach { line ->
             Text(
                 line.trim(),
+                style = TextStyle(textDirection = TextDirection.Content),
                 fontFamily = PlexMono, fontSize = 12.sp, lineHeight = 1.5.em, color = c.ink2,
                 modifier = Modifier.doubleTapEditRow(onDoubleTap),
             )
