@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -50,11 +51,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -71,6 +76,7 @@ import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.components.SwipeAction
 import com.rrajath.grove.ui.components.SwipeCommitRow
 import com.rrajath.grove.ui.components.annotateOrgInline
+import com.rrajath.grove.ui.components.orgInlineStartsRtl
 import com.rrajath.grove.ui.components.notebookIcon
 import com.rrajath.grove.ui.screens.NoteDialog
 import com.rrajath.grove.ui.theme.GroveColors
@@ -646,6 +652,10 @@ private fun OverdueCard(
 private fun AgendaRowContent(row: AgendaRow, onToggleDone: () -> Unit) {
     val c = MaterialTheme.grove
     val titleText = remember(row.title, c) { annotateOrgInline(row.title, c) }
+    // An RTL title mirrors the row, like Outline rows: checkbox and state chip on
+    // the right, priority on the left. Swipe actions stay physical.
+    val titleRtl = remember(row.title) { orgInlineStartsRtl(row.title) }
+    CompositionLocalProvider(LocalLayoutDirection provides if (titleRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -673,6 +683,7 @@ private fun AgendaRowContent(row: AgendaRow, onToggleDone: () -> Unit) {
                 }
                 Text(
                     titleText,
+                    style = TextStyle(textDirection = TextDirection.Content),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.sp, lineHeight = 1.35.em,
                     color = if (row.isDone) c.ink3 else c.ink,
@@ -708,6 +719,7 @@ private fun AgendaRowContent(row: AgendaRow, onToggleDone: () -> Unit) {
                 )
             }
         }
+    }
     }
 }
 

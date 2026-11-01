@@ -74,8 +74,11 @@ fun orgInlinePlainText(text: String): String =
  * as rendered (link labels, bare markup): the Unicode "first strong" rule behind CSS
  * `unicode-bidi: plaintext`. Text with no strong character (digits, punctuation) is LTR.
  */
-fun orgInlineStartsRtl(text: String): Boolean {
-    for (ch in orgInlinePlainText(text)) {
+fun orgInlineStartsRtl(text: String): Boolean = textStartsRtl(orgInlinePlainText(text))
+
+/** [orgInlineStartsRtl] for text that is already rendered (no org markup left in it). */
+fun textStartsRtl(text: CharSequence): Boolean {
+    for (ch in text) {
         when (Character.getDirectionality(ch)) {
             Character.DIRECTIONALITY_RIGHT_TO_LEFT,
             Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return true

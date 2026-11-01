@@ -117,6 +117,8 @@ A long swipe has to travel most of the row's width. As it does, the inner cell f
 
 Date pills show the time when the heading has one: a task scheduled for 11 PM today reads `today 23:00`.
 
+A row whose title is in a right-to-left language (Persian, Arabic, Hebrew) mirrors: the TODO keyword and priority move to the right, and the snippet follows its own direction, and the title reads right-to-left. Swipe actions keep their usual sides.
+
 ## Agenda view (`ad.N`)
 
 Add `ad.N` to any search to see the results by day, like Orgzly's agenda: `ad.7 t.work` lists everything tagged `work` that is scheduled, due or happening in the next seven days (today included). An **Overdue** section comes first, then one section per day with something on it. Timed entries are listed in time order, with untimed ones after them. Events (bare active timestamps) appear on every day they cover. The rest of the query still applies, so you can combine `ad.N` with tags, notebooks, states and `OR`.

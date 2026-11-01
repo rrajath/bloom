@@ -11,6 +11,7 @@ import androidx.compose.ui.text.style.TextDirection
 import com.rrajath.grove.org.InlineTokenizer
 import com.rrajath.grove.org.InlineType
 import com.rrajath.grove.org.OrgKeywords
+import com.rrajath.grove.ui.components.textStartsRtl
 import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.starColor
 
@@ -89,18 +90,7 @@ class OrgSyntaxHighlight(
         if (firstWord in keywords.all) rest = rest.substring(firstWord.length).trimStart()
         rest = PRIORITY.replaceFirst(rest, "")
         if (rest == m.groupValues[2]) return false
-        return firstStrongIsRtl(rest)
-    }
-
-    private fun firstStrongIsRtl(text: String): Boolean {
-        for (ch in text) {
-            when (Character.getDirectionality(ch)) {
-                Character.DIRECTIONALITY_RIGHT_TO_LEFT,
-                Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return true
-                Character.DIRECTIONALITY_LEFT_TO_RIGHT -> return false
-            }
-        }
-        return false
+        return textStartsRtl(rest)
     }
 
     private fun styleLine(line: String): List<LineSpan> {
