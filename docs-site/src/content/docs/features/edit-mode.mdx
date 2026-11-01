@@ -29,6 +29,10 @@ Bloom tokenizes each line and applies color per syntax element as you type:
 
 This is implemented with a custom `VisualTransformation` over a `BasicTextField`; there's no separate preview pane, the highlighting applies directly to the text you're editing.
 
+## Right-to-left text
+
+Each line in the editor reads in its own direction, taken from its first letter: a Persian, Arabic or Hebrew line lays out right-to-left, an English line left-to-right. A heading follows its title, so `* TODO [#A] خرید` shows its stars and keyword on the right even though they come first in the file. The file itself is never changed.
+
 ## Formatting toolbar
 
 A toolbar pinned above the keyboard gives one-tap access to common org markup:

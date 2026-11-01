@@ -122,6 +122,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import com.rrajath.grove.ui.editor.orgInputTransformation
+import com.rrajath.grove.ui.editor.EditorTextDirection
 import com.rrajath.grove.ui.editor.OrgSyntaxHighlight
 import com.rrajath.grove.ui.editor.applyEdit
 import com.rrajath.grove.ui.editor.applyToolbarLink
@@ -697,6 +698,7 @@ fun CaptureEditorScreen(
                                 textStyle = TextStyle(
                                     fontFamily = PlexMono, fontSize = 14.sp,
                                     lineHeight = 1.9.em, color = c.ink,
+                                    textDirection = EditorTextDirection,
                                 ),
                                 cursorBrush = SolidColor(c.accent),
                                 onTextLayout = { getResult -> textLayout = getResult() },

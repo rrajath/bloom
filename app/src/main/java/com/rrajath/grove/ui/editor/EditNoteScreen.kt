@@ -488,6 +488,7 @@ fun EditNoteScreen(
                         textStyle = TextStyle(
                             fontFamily = PlexMono, fontSize = 13.5.sp,
                             lineHeight = 1.85.em, color = c.ink,
+                            textDirection = EditorTextDirection,
                         ),
                         cursorBrush = SolidColor(c.accent),
                         onTextLayout = { getResult -> textLayout = getResult() },

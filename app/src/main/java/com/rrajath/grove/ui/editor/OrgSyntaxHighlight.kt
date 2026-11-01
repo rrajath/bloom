@@ -2,10 +2,12 @@ package com.rrajath.grove.ui.editor
 
 import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldBuffer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextDirection
 import com.rrajath.grove.org.InlineTokenizer
 import com.rrajath.grove.org.InlineType
 import com.rrajath.grove.org.OrgKeywords
@@ -13,8 +15,17 @@ import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.starColor
 
 /**
+ * Text direction for every raw org editor field: each line follows its first strong
+ * character, so a Persian line reads right-to-left. Compose's unspecified direction is
+ * the layout direction (LTR), not the content's. Heading lines whose Latin prefix would
+ * mask an RTL title are switched to RTL by [OrgSyntaxHighlight].
+ */
+val EditorTextDirection = TextDirection.Content
+
+/**
  * Highlight-only syntax colouring for the raw org editor (design spec §6).
- * Applied as an [OutputTransformation]: it only adds [SpanStyle] spans, plus
+ * Applied as an [OutputTransformation]: it only adds [SpanStyle] spans, a
+ * same-length swap of one space on RTL heading lines (see [rtlHeading]), plus
  * [trailingBlankLines] display-only newlines after the end of the text (never
  * saved), so every offset into the underlying text maps 1:1 onto the presented
  * text and cursor math stays trivial. The blank lines give the field's own scroll
@@ -30,26 +41,66 @@ class OrgSyntaxHighlight(
     /** Span styles relative to the start of one line: cacheable across edits. */
     private data class LineSpan(val style: SpanStyle, val start: Int, val end: Int)
 
+    /** One line's spans, plus whether it needs an RTL paragraph override ([rtlHeading]). */
+    private class LineStyle(val spans: List<LineSpan>, val rtl: Boolean)
+
     // Across keystrokes only one line changes, so tokenization results are
     // cached per line content: a keystroke re-tokenizes the edited line, not
     // the whole buffer.
-    private var lineCache = HashMap<String, List<LineSpan>>()
+    private var lineCache = HashMap<String, LineStyle>()
 
     override fun TextFieldBuffer.transformOutput() {
         // Rebuilt each pass from the previous cache so entries for deleted
         // lines don't accumulate over a long editing session.
-        val next = HashMap<String, List<LineSpan>>()
+        val next = HashMap<String, LineStyle>()
         var lineStart = 0
         // Split on '\n' only: lineSequence() also treats "\r\n" and a lone '\r'
         // as one terminator, which desyncs the `+ 1` below from the real offsets.
         for (line in toString().split('\n')) {
-            val spans = next[line] ?: lineCache[line] ?: styleLine(line)
-            next[line] = spans
-            for (s in spans) addStyle(s.style, lineStart + s.start, lineStart + s.end)
+            val style = next[line] ?: lineCache[line] ?: LineStyle(styleLine(line), rtlHeading(line))
+            next[line] = style
+            for (s in style.spans) addStyle(s.style, lineStart + s.start, lineStart + s.end)
+            if (style.rtl) {
+                // Display-only, same length: the space after the stars becomes a
+                // transparent tatweel, a strong RTL character with real width, so the
+                // line lays out RTL with its gap intact and offsets stay 1:1. (A
+                // ParagraphStyle can't do this: a paragraph boundary at a '\n' lays
+                // out an extra blank line either side of it.)
+                val gap = lineStart + line.indexOfFirst { it != '*' }
+                replace(gap, gap + 1, RTL_GAP)
+                addStyle(SpanStyle(color = Color.Transparent), gap, gap + 1)
+            }
             lineStart += line.length + 1
         }
         lineCache = next
         if (trailingBlankLines > 0) append("\n".repeat(trailingBlankLines))
+    }
+
+    /**
+     * Whether [line] is a heading whose title reads RTL behind a Latin prefix. The field's
+     * [EditorTextDirection] picks a line's direction from its first strong character, and
+     * in `* TODO [#A] خرید` that is the keyword, so the title would lay out LTR. Stars are
+     * neutral, so a keyword-less RTL heading is already right.
+     */
+    private fun rtlHeading(line: String): Boolean {
+        val m = HEADLINE.matchEntire(line) ?: return false
+        var rest = m.groupValues[2]
+        val firstWord = rest.substringBefore(' ')
+        if (firstWord in keywords.all) rest = rest.substring(firstWord.length).trimStart()
+        rest = PRIORITY.replaceFirst(rest, "")
+        if (rest == m.groupValues[2]) return false
+        return firstStrongIsRtl(rest)
+    }
+
+    private fun firstStrongIsRtl(text: String): Boolean {
+        for (ch in text) {
+            when (Character.getDirectionality(ch)) {
+                Character.DIRECTIONALITY_RIGHT_TO_LEFT,
+                Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return true
+                Character.DIRECTIONALITY_LEFT_TO_RIGHT -> return false
+            }
+        }
+        return false
     }
 
     private fun styleLine(line: String): List<LineSpan> {
@@ -157,5 +208,8 @@ class OrgSyntaxHighlight(
         private val TIMESTAMP = Regex("""[<\[][^>\]]*[>\]]""")
         private val PLANNING_KW = Regex("""(SCHEDULED|DEADLINE|CLOSED):""")
         private val PROPERTY = Regex("""^\s*:([^:\s]+):\s*(.*)$""")
+        private val PRIORITY = Regex("""^\[#[A-Za-z0-9]\]\s*""")
+        /** U+0640 ARABIC TATWEEL: bidi class AL, so it sets an RTL paragraph direction. */
+        private const val RTL_GAP = "\u0640"
     }
 }
