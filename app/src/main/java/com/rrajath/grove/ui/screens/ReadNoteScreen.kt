@@ -42,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -70,6 +71,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalClipboard
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.geometry.Offset
@@ -82,6 +84,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -116,6 +119,7 @@ import com.rrajath.grove.ui.components.doubleTapToEdit
 import com.rrajath.grove.ui.components.EditorMenuFab
 import com.rrajath.grove.ui.components.linkPressHandler
 import com.rrajath.grove.ui.components.orgInlineLinks
+import com.rrajath.grove.ui.components.orgInlineStartsRtl
 import com.rrajath.grove.ui.components.ScrollJumpButtons
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDotBadge
@@ -959,10 +963,14 @@ internal fun ReadHeadingRow(
     val c = MaterialTheme.grove
     val body = remember(doc, child) { doc.bodyOf(child) }
     val foldable = remember(doc, child) { doc.hasDescendants(child) }
+    val titleRtl = remember(child.title) { orgInlineStartsRtl(child.title) }
     Column {
         Spacer(Modifier.height(20.dp))
         SelectionContainer {
             Column {
+                // An RTL title mirrors the whole row, so the caret, keyword and
+                // priority sit beside the title's first word on the right.
+                CompositionLocalProvider(LocalLayoutDirection provides if (titleRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
                 // Top-aligned so the keyword pill stays on the first line
                 // when the title wraps.
                 Row(verticalAlignment = Alignment.Top) {
@@ -980,9 +988,11 @@ internal fun ReadHeadingRow(
                         ) {
                             Canvas(Modifier.size(9.dp)) {
                                 val path = if (isCollapsed) {
+                                    // Collapsed points toward the text: right, or left in an RTL row.
+                                    val back = if (layoutDirection == LayoutDirection.Rtl) size.width else 0f
                                     Path().apply {
-                                        moveTo(0f, 0f); lineTo(0f, size.height)
-                                        lineTo(size.width, size.height / 2f); close()
+                                        moveTo(back, 0f); lineTo(back, size.height)
+                                        lineTo(size.width - back, size.height / 2f); close()
                                     }
                                 } else {
                                     Path().apply {
@@ -1037,6 +1047,7 @@ internal fun ReadHeadingRow(
                         Spacer(Modifier.width(8.dp))
                         FavoriteStar(modifier = Modifier.padding(top = 2.dp))
                     }
+                }
                 }
                 if (showPropertyDrawers && (child.properties.isNotEmpty() || child.logbook.isNotEmpty())) {
                     Spacer(Modifier.height(10.dp))
@@ -1302,23 +1313,29 @@ internal fun BodyBlocks(
                 // Each source line in the paragraph keeps its own visual line
                 // (join with "\n", not " "): a single newline in edit mode is a
                 // line break in read mode too. A blank line already separates
-                // paragraphs upstream in BlockParser.
+                // paragraphs upstream in BlockParser. Full width so each line can
+                // align to its own direction: text direction is picked per line
+                // from its first strong character, so an RTL line sits on the right.
                 OrgText(
                     block.lines.joinToString("\n") { it.trim() },
                     onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
                     onDoubleTapAt = onEditAt,
                     style = paragraphStyle,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
             }
 
             is OrgBlock.ListBlock -> {
                 val ordinals = remember(block) { orderedListOrdinals(block.items) }
-                Column(Modifier.padding(start = 8.dp)) {
+                Column {
                     block.items.forEachIndexed { i, item ->
                         val done = item.checkbox == 'X' || item.checkbox == 'x'
+                        // An RTL item mirrors its row: marker and indent on the right.
+                        val rtl = remember(item.text) { orgInlineStartsRtl(item.text) }
+                        CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
                         Row(
-                            Modifier.padding(vertical = 2.dp).padding(start = (item.indent * 20).dp),
+                            Modifier.padding(vertical = 2.dp).padding(start = (8 + item.indent * 20).dp),
                             verticalAlignment = Alignment.Top,
                         ) {
                             // Sized to the first line's box (16sp * 1.55 line-height
@@ -1403,7 +1420,9 @@ internal fun BodyBlocks(
                                 onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
                                 onDoubleTapAt = onEditAt,
                                 style = if (done) listItemStyleDone else listItemStyleActive,
+                                modifier = Modifier.weight(1f),
                             )
+                        }
                         }
                     }
                 }

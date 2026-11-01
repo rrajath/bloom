@@ -68,7 +68,7 @@ fun Modifier.doubleTapToEdit(
             } else {
                 val layout = layoutResult()
                 val charOffset = layout?.getOffsetForPosition(down.position)
-                val onLink = charOffset != null && links.any { charOffset in it.range }
+                val onLink = layout != null && layout.linkAt(down.position, links) != null
                 lastPosition = null
 
                 if (onLink || (links.isNotEmpty() && (layout == null || charOffset == null))) {

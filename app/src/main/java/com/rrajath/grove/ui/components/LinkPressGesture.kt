@@ -29,8 +29,7 @@ fun Modifier.linkPressHandler(
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             val layout = layoutResult() ?: return@awaitEachGesture
-            val charOffset = layout.getOffsetForPosition(down.position)
-            val link = links.firstOrNull { charOffset in it.range } ?: return@awaitEachGesture
+            val link = layout.linkAt(down.position, links) ?: return@awaitEachGesture
 
             // We own this gesture now: consume the down and every subsequent
             // change for this pointer so the built-in link click and the
@@ -66,4 +65,20 @@ fun Modifier.linkPressHandler(
             }
         }
     }
+}
+
+/**
+ * The link whose glyphs sit under [position], or null. A press in the empty space
+ * past a line's text misses: `getOffsetForPosition` alone snaps it to the line's
+ * nearest character, which in a full-width text (an RTL line pushed right, a heading
+ * title) would open a link the press never touched.
+ */
+internal fun TextLayoutResult.linkAt(
+    position: androidx.compose.ui.geometry.Offset,
+    links: List<InlineLink>,
+): InlineLink? {
+    val line = getLineForVerticalPosition(position.y)
+    if (position.x < getLineLeft(line) || position.x > getLineRight(line)) return null
+    val charOffset = getOffsetForPosition(position)
+    return links.firstOrNull { charOffset in it.range }
 }

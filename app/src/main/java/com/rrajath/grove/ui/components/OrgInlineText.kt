@@ -69,6 +69,22 @@ fun annotateOrgInline(
 fun orgInlinePlainText(text: String): String =
     InlineTokenizer.tokenize(text).joinToString("") { it.text }
 
+/**
+ * Whether [text] reads right-to-left, decided by its first strong-direction character
+ * as rendered (link labels, bare markup): the Unicode "first strong" rule behind CSS
+ * `unicode-bidi: plaintext`. Text with no strong character (digits, punctuation) is LTR.
+ */
+fun orgInlineStartsRtl(text: String): Boolean {
+    for (ch in orgInlinePlainText(text)) {
+        when (Character.getDirectionality(ch)) {
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT,
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return true
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT -> return false
+        }
+    }
+    return false
+}
+
 /** A link's character range within the string [annotateOrgInline] renders, and its target. */
 data class InlineLink(val range: IntRange, val target: String)
 
