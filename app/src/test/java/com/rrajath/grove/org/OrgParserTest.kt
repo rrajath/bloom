@@ -255,6 +255,27 @@ class OrgParserTest {
     }
 
     @Test
+    fun `non-ascii letters are recognized as tags`() {
+        // Org tags are [[:alnum:]_@#%], which covers any script, not just ASCII.
+        val doc = OrgParser.parse(
+            "* TODO خرید از بازار     :خرید:\n* רשימה :עבודה:בית:\n* Café :été:2026:\n",
+        )
+        val (persian, hebrew, latin) = doc.headlines
+        assertEquals("خرید از بازار", persian.title)
+        assertEquals(listOf("خرید"), persian.tags)
+        assertEquals(listOf("עבודה", "בית"), hebrew.tags)
+        assertEquals("Café", latin.title)
+        assertEquals(listOf("été", "2026"), latin.tags)
+    }
+
+    @Test
+    fun `tags keep combining marks`() {
+        // Arabic harakat are combining marks (\p{M}), part of the word.
+        val doc = OrgParser.parse("* ملاحظة :كِتَاب:\n")
+        assertEquals(listOf("كِتَاب"), doc.headlines.first().tags)
+    }
+
+    @Test
     fun `indented or starless lines are not headlines`() {
         val doc = OrgParser.parse(golden("edge-cases.org"))
         assertNull(doc.headlines.firstOrNull { it.title.contains("Also not a heading") })

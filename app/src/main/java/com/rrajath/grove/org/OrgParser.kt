@@ -293,7 +293,9 @@ class OrgDocument(
 object OrgParser {
 
     private val HEADLINE = Regex("""^(\*+)\s+(.*)$""")
-    private val TAGS_AT_END = Regex("""\s+(:[A-Za-z0-9_@#%-]+(?::[A-Za-z0-9_@#%-]+)*:)\s*$""")
+    // Org's [[:alnum:]_@#%] in any script (\p{M} keeps combining marks like Arabic
+    // harakat inside the word). Keep in sync with OrgSyntaxHighlight.TAGS_AT_END.
+    private val TAGS_AT_END = Regex("""\s+(:[\p{L}\p{M}\p{N}_@#%-]+(?::[\p{L}\p{M}\p{N}_@#%-]+)*:)\s*$""")
     private val PRIORITY = Regex("""^\[#([A-Za-z])\]\s*""")
     private val FILETAGS = Regex("""^#\+(?i:FILETAGS):\s*(.*)$""")
     internal val PROPERTY_LINE = Regex("""^\s*:([^:\s]+):\s*(.*)$""")

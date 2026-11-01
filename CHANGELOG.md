@@ -63,6 +63,9 @@ re-uploads the APKs to the existing release instead of failing.
 ### Added
 - Read mode lays out right-to-left text (Persian, Arabic, Hebrew) right-aligned, including lists, headings, tables and quotes.
 
+### Fixed
+- Heading tags in non-Latin scripts (`:خرید:`, `:été:`) are recognized as tags instead of showing in the title.
+
 ## [1.12.0] - 2026-10-31
 
 ### Added

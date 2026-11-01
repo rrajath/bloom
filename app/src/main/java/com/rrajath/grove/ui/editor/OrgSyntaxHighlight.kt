@@ -152,7 +152,8 @@ class OrgSyntaxHighlight(
 
     companion object {
         private val HEADLINE = Regex("""^(\*+)\s+(.*)$""")
-        private val TAGS_AT_END = Regex("""\s+(:[A-Za-z0-9_@#%-]+(?::[A-Za-z0-9_@#%-]+)*:)\s*$""")
+        // Same tag charset as OrgParser.TAGS_AT_END: org's [[:alnum:]_@#%] in any script.
+        private val TAGS_AT_END = Regex("""\s+(:[\p{L}\p{M}\p{N}_@#%-]+(?::[\p{L}\p{M}\p{N}_@#%-]+)*:)\s*$""")
         private val TIMESTAMP = Regex("""[<\[][^>\]]*[>\]]""")
         private val PLANNING_KW = Regex("""(SCHEDULED|DEADLINE|CLOSED):""")
         private val PROPERTY = Regex("""^\s*:([^:\s]+):\s*(.*)$""")
