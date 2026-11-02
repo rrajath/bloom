@@ -65,6 +65,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Fixed
 - Heading tags in non-Latin scripts (`:خرید:`, `:été:`) are recognized as tags instead of showing in the title.
+- Long or many tags no longer squeeze Outline titles; they follow the title's last line or wrap below it.
+- Read mode tag pills wrap onto more lines instead of running off screen.
 
 ## [1.12.0] - 2026-10-31
 

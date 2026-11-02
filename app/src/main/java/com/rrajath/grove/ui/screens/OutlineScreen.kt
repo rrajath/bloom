@@ -117,6 +117,7 @@ import com.rrajath.grove.data.matches
 import com.rrajath.grove.ui.components.favoriteIcon
 import com.rrajath.grove.ui.components.favoriteIconFilled
 import com.rrajath.grove.ui.components.searchIcon
+import com.rrajath.grove.ui.components.TitleWithTrailingTags
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.newbadge.NewDotBadge
@@ -1316,37 +1317,27 @@ private fun OutlineNode(
                     )
                     Spacer(Modifier.width(6.dp))
                 }
-                Text(
-                    titleAnnotated,
-                    style = TextStyle(textDirection = TextDirection.Content),
-                    fontFamily = PlexSans,
-                    fontWeight = if (headline.level == 1) FontWeight.SemiBold else FontWeight.Medium,
-                    fontSize = 14.5.sp,
-                    color = if (isDone) c.ink3 else c.ink,
-                    textDecoration = if (isDone) TextDecoration.LineThrough else null,
-                    // fill = true reserves the trailing tag/star width on every
-                    // wrapped line so they land flush at the row's right edge,
-                    // baseline-aligned to the title's first line.
+                // The title takes the full width; `… N`, tags and star ride its last
+                // line at the row's end, or drop below it when they don't fit (#91).
+                TitleWithTrailingTags(
+                    tags = if (flags.tags) headline.tags else emptyList(),
+                    tagStyle = TextStyle(fontFamily = PlexMono, fontSize = 11.sp, color = c.synTag),
+                    leading = if (isCollapsed && childCount > 0) {
+                        { Text("… $childCount", fontFamily = PlexMono, fontSize = 11.sp, color = c.ink3) }
+                    } else null,
+                    trailing = if (isFavorite) { { FavoriteStar() } } else null,
                     modifier = Modifier.alignByBaseline().weight(1f, fill = true),
-                )
-                if (isCollapsed && childCount > 0) {
-                    Spacer(Modifier.width(6.dp))
+                ) { onTextLayout ->
                     Text(
-                        "… $childCount", fontFamily = PlexMono, fontSize = 11.sp, color = c.ink3,
-                        modifier = Modifier.alignByBaseline(),
+                        titleAnnotated,
+                        style = TextStyle(textDirection = TextDirection.Content),
+                        fontFamily = PlexSans,
+                        fontWeight = if (headline.level == 1) FontWeight.SemiBold else FontWeight.Medium,
+                        fontSize = 14.5.sp,
+                        color = if (isDone) c.ink3 else c.ink,
+                        textDecoration = if (isDone) TextDecoration.LineThrough else null,
+                        onTextLayout = onTextLayout,
                     )
-                }
-                if (flags.tags && headline.tags.isNotEmpty()) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        headline.tags.joinToString(":", prefix = ":", postfix = ":"),
-                        fontFamily = PlexMono, fontSize = 11.sp, color = c.synTag,
-                        modifier = Modifier.alignByBaseline(),
-                    )
-                }
-                if (isFavorite) {
-                    Spacer(Modifier.width(6.dp))
-                    FavoriteStar(modifier = Modifier.alignByBaseline())
                 }
             }
             // Body preview: first two non-empty lines, keeping the line breaks

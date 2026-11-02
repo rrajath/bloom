@@ -758,12 +758,14 @@ private fun NoteContent(
                         // An RTL title mirrors the tags, keyword and title rows, like a child heading.
                         val titleRtl = remember(headline.title) { orgInlineStartsRtl(headline.title) }
                         CompositionLocalProvider(LocalLayoutDirection provides if (titleRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-                        // Tag chips
+                        // Tag chips, wrapping between pills when they outgrow the row (#91).
                         if (tags.isNotEmpty()) {
-                            Row {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                verticalArrangement = Arrangement.spacedBy(7.dp),
+                            ) {
                                 tags.forEach { tag ->
                                     Pill(tag, fg = c.accent, bg = c.accentSoft, outline = true)
-                                    Spacer(Modifier.width(7.dp))
                                 }
                             }
                             Spacer(Modifier.height(12.dp))
