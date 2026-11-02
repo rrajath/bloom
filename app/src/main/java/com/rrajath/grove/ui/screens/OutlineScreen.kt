@@ -67,6 +67,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -97,6 +98,7 @@ import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.settings.OutlineToggle
 import com.rrajath.grove.ui.components.BrandMarkGlyph
 import com.rrajath.grove.ui.components.CollapsibleKvSection
+import com.rrajath.grove.ui.components.FabShadowColor
 import com.rrajath.grove.ui.components.FavoriteStar
 import com.rrajath.grove.ui.components.GroveDropdownMenu
 import com.rrajath.grove.ui.components.GroveTopBar
@@ -557,6 +559,14 @@ fun OutlineScreen(
                 Box(
                     Modifier
                         .size(54.dp)
+                        // Same amber drop shadow as EditorMenuFab (design system FAB spec).
+                        .shadow(
+                            elevation = 10.dp,
+                            shape = RoundedCornerShape(18.dp),
+                            clip = false,
+                            ambientColor = FabShadowColor,
+                            spotColor = FabShadowColor,
+                        )
                         .clip(RoundedCornerShape(18.dp))
                         .background(c.accent)
                         .testTag("outline_fab")

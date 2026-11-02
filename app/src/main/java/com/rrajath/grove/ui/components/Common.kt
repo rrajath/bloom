@@ -695,7 +695,7 @@ fun DropdownPicker(
 }
 
 /** Amber-tinted FAB drop shadow (design system: `rgba(138,90,43,0.40)`). */
-private val FabShadowColor = Color(0x668A5A2B)
+internal val FabShadowColor = Color(0x668A5A2B)
 
 /**
  * Icon-only FAB used on the note editor screens to open the metadata sheet —

@@ -63,6 +63,9 @@ re-uploads the APKs to the existing release instead of failing.
 ### Added
 - Read mode, Outline, editor, Agenda and Search lay out right-to-left text (Persian, Arabic, Hebrew) right-aligned, including tables and quotes.
 
+### Changed
+- The Outline's new-note button now has the same soft amber drop shadow as the note editor's menu button.
+
 ### Fixed
 - Heading tags in non-Latin scripts (`:خرید:`, `:été:`) are recognized as tags instead of showing in the title.
 - Long or many tags no longer squeeze Outline titles; they follow the title's last line or wrap below it.
