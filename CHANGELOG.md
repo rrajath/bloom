@@ -57,9 +57,6 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
-### Fixed
-- The Agenda widget's Open tasks view showed nothing; lowercase `i.`, `ps.` and `b.` searches now match regardless of case.
-
 ### Added
 - Read mode, Outline, editor, Agenda and Search lay out right-to-left text (Persian, Arabic, Hebrew) right-aligned, including tables and quotes.
 
@@ -71,6 +68,8 @@ re-uploads the APKs to the existing release instead of failing.
 - Heading tags in non-Latin scripts (`:خرید:`, `:été:`) are recognized as tags instead of showing in the title.
 - Long or many tags no longer squeeze Outline titles; they follow the title's last line or wrap below it.
 - Read mode tag pills wrap onto more lines instead of running off screen.
+- The Agenda widget's Open tasks view showed nothing; lowercase `i.`, `ps.` and `b.` searches now match regardless of case.
+
 
 ## [1.12.0] - 2026-10-31
 
