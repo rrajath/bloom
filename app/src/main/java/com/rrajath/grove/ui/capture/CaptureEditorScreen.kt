@@ -54,6 +54,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -94,6 +95,7 @@ import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.orgLocale
+import com.rrajath.grove.ui.components.FabShadowColor
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.Pill
@@ -757,7 +759,20 @@ fun CaptureEditorScreen(
                         .padding(bottom = if (slotShown) 0.dp else 16.dp),
                 ) {
                     if (!slotShown) {
-                        saveButton(Modifier.align(Alignment.CenterEnd).padding(end = 16.dp))
+                        // Floating alone it gets the amber FAB shadow (8dp, like the
+                        // dock's Capture pill); inside the strip it stays flat.
+                        saveButton(
+                            Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(end = 16.dp)
+                                .shadow(
+                                    elevation = 8.dp,
+                                    shape = RoundedCornerShape(10.dp),
+                                    clip = false,
+                                    ambientColor = FabShadowColor,
+                                    spotColor = FabShadowColor,
+                                ),
+                        )
                     } else {
                         SuggestionSlot(
                             Modifier.align(Alignment.BottomStart),
