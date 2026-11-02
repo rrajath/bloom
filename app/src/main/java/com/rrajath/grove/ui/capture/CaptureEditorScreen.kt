@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
@@ -41,6 +41,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,7 +73,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -95,7 +101,7 @@ import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.orgLocale
-import com.rrajath.grove.ui.components.FabShadowColor
+import com.rrajath.grove.ui.components.EditorFabMorphMillis
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.Pill
@@ -723,60 +729,32 @@ fun CaptureEditorScreen(
                         }
                     }
                 }
-                // Save: a compact 36dp button that fits inside the suggestion strip.
-                // Stays available in Read mode too, so a metadata-only capture
-                // (state/dates/tags set from the sheet, no further typing) can be
-                // saved without switching back to Edit.
-                val saveButton: @Composable (Modifier) -> Unit = { modifier ->
-                    Box(
-                        modifier
-                            .heightIn(min = 36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(c.accent)
-                            .clickable(enabled = saveState !is SaveState.Saving && roamAppendState !is RoamAppendState.Checking) {
-                                trySave()
-                            }
-                            .testTag("capture_save")
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            if (saveState is SaveState.Saving) "Saving…" else "Save",
-                            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.5.sp, color = c.accentInk,
-                        )
-                    }
-                }
-                // The slot floats over the field's bottom clearance (one strip tall while
-                // it shows), so it never covers text.
-                // Bottom bar: the strip sits flush on the toolbar with Save at its end;
-                // without it, Save floats bottom-right on its own (above the keyboard
-                // while it's up, since the column is ime-padded).
+                // Save: one button for both states, so it morphs (size, corners, shadow,
+                // label) instead of swapping. Keyboard down it is a 54dp FAB floating
+                // bottom-right; keyboard up it shrinks to the compact 36dp form drawn over
+                // the strip's trailing slot, which only reserves its width. Stays available
+                // in Read mode too, so a metadata-only capture (state/dates/tags set from
+                // the sheet, no further typing) can be saved without switching to Edit.
+                val density = LocalDensity.current
+                var saveWidth by remember { mutableStateOf(0.dp) }
+                // Lift from the row's bottom edge: 16dp when floating, or the inset that
+                // centres the 36dp button in the 50dp strip.
+                val saveLift by animateDpAsState(
+                    if (slotShown) (SuggestionSlotHeight - 36.dp) / 2 else 16.dp,
+                    tween(EditorFabMorphMillis),
+                    label = "saveLift",
+                )
+                // The strip sits flush on the toolbar; without it, Save floats on its own
+                // (above the keyboard while it's up, since the column is ime-padded).
                 Box(
                     Modifier
                         .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .padding(bottom = if (slotShown) 0.dp else 16.dp),
+                        .fillMaxWidth(),
                 ) {
-                    if (!slotShown) {
-                        // Floating alone it gets the amber FAB shadow (8dp, like the
-                        // dock's Capture pill); inside the strip it stays flat.
-                        saveButton(
-                            Modifier
-                                .align(Alignment.CenterEnd)
-                                .padding(end = 16.dp)
-                                .shadow(
-                                    elevation = 8.dp,
-                                    shape = RoundedCornerShape(10.dp),
-                                    clip = false,
-                                    ambientColor = FabShadowColor,
-                                    spotColor = FabShadowColor,
-                                ),
-                        )
-                    } else {
+                    if (slotShown) {
                         SuggestionSlot(
                             Modifier.align(Alignment.BottomStart),
-                            trailing = { saveButton(Modifier) },
+                            trailing = { Spacer(Modifier.width(saveWidth)) },
                         ) {
                             // Link and block chips only while typing: with the keyboard down they'd just cover the draft.
                             val block = blockTrigger
@@ -840,6 +818,18 @@ fun CaptureEditorScreen(
                             }
                         }
                     }
+                    CaptureSaveButton(
+                        compact = slotShown,
+                        saving = saveState is SaveState.Saving,
+                        enabled = saveState !is SaveState.Saving && roamAppendState !is RoamAppendState.Checking,
+                        onClick = { trySave() },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp)
+                            .offset(y = -saveLift)
+                            // Only the compact width matters: that is what the strip reserves.
+                            .onSizeChanged { if (slotShown) saveWidth = with(density) { it.width.toDp() } },
+                    )
                 }
             }
             if (!readMode && imeVisible) EditorToolbar(
@@ -1350,4 +1340,46 @@ private fun PromptDialog(
             TextButton(onClick = onCancel) { Text("Cancel", color = c.ink2) }
         },
     )
+}
+
+/**
+ * Capture Editor's Save button. Floating (keyboard down) it is a 54dp FAB, 18dp
+ * corners, accent shadow, like the other FABs; [compact] (inside the suggestion
+ * strip) it is 36dp tall, 10dp corners, flat. Flipping [compact] morphs between
+ * the two over [EditorFabMorphMillis], as EditorMenuFab does.
+ */
+@Composable
+private fun CaptureSaveButton(
+    compact: Boolean,
+    saving: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = MaterialTheme.grove
+    val t by animateFloatAsState(if (compact) 1f else 0f, tween(EditorFabMorphMillis), label = "saveMorph")
+    val shape = RoundedCornerShape(lerp(18.dp, 10.dp, t))
+    Box(
+        modifier
+            .height(lerp(54.dp, 36.dp, t))
+            .shadow(
+                elevation = lerp(10.dp, 0.dp, t),
+                shape = shape,
+                clip = false,
+                ambientColor = c.accent,
+                spotColor = c.accent,
+            )
+            .clip(shape)
+            .background(c.accent)
+            .clickable(enabled = enabled, onClick = onClick)
+            .testTag("capture_save")
+            .padding(horizontal = lerp(22.dp, 16.dp, t)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (saving) "Saving…" else "Save",
+            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+            fontSize = (15f - 1.5f * t).sp, color = c.accentInk,
+        )
+    }
 }

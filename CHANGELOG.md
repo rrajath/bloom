@@ -62,7 +62,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Changed
 - The Outline's new-note button now has the same soft amber drop shadow as the note editor's menu button.
-- The Capture Editor's floating Save button now has a soft amber drop shadow.
+- The Capture Editor's Save button is a full-size floating button with the keyboard down, shrinking into the suggestion strip while typing.
 
 ### Fixed
 - Heading tags in non-Latin scripts (`:خرید:`, `:été:`) are recognized as tags instead of showing in the title.
