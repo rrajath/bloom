@@ -4,13 +4,17 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
@@ -20,6 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -60,8 +67,63 @@ fun EditorToolbar(
      * null elsewhere (the button falls back to inserting a date+time stamp).
      */
     onTimestampLongPress: (() -> Unit)? = null,
+    /**
+     * Opens the attach sheet (experimental attachments). When null (capture,
+     * region editors, release builds) there's no paperclip and the row keeps
+     * its equal-width layout; when set, the row switches to fixed-width
+     * buttons in a horizontal scroll (1c), with the paperclip after `[[]]`.
+     */
+    onAttach: (() -> Unit)? = null,
 ) {
     val c = MaterialTheme.grove
+    val timestampLongPress = onTimestampLongPress ?: {
+        val now = LocalDateTime.now()
+        onInsert(
+            OrgTimestamp(
+                now.toLocalDate(),
+                time = now.toLocalTime().withSecond(0).withNano(0),
+                active = false,
+            ).format()
+        )
+    }
+    val insertDate = { onInsert(OrgTimestamp(LocalDateTime.now().toLocalDate(), active = false).format()) }
+
+    if (onAttach != null) {
+        // 1c: fixed 38x34dp buttons in a scrolling row. At typical widths the last
+        // indent button is clipped at the edge, which is the cue that it scrolls.
+        val fixed = Modifier.size(width = 38.dp, height = 34.dp)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .background(c.surface)
+                .drawBehind { drawLine(c.line, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 6.dp)
+                .testTag("editor_toolbar"),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ToolButton(icon = R.drawable.ic_format_bold, color = c.ink, modifier = fixed) { onWrap('*') }
+            ToolButton(icon = R.drawable.ic_format_italic, color = c.ink, modifier = fixed) { onWrap('/') }
+            ToolButton(icon = R.drawable.ic_format_underlined, color = c.ink, modifier = fixed) { onWrap('_') }
+            ToolButton(icon = R.drawable.ic_code, color = c.ink, modifier = fixed) { onWrap('~') }
+            ToolButton(icon = R.drawable.ic_check_box, color = c.ink, modifier = fixed) { onInsert("\n- [ ] ") }
+            ToolButton("[[]]", c.synLink, fixed, onLongClick = onLinkLongPress, onClick = onLink)
+            ToolButton(
+                icon = R.drawable.ic_attach_file, color = c.ink, iconSize = 18.dp,
+                contentDescription = "Attach",
+                modifier = fixed.testTag("editor_attach"),
+                onClick = onAttach,
+            )
+            ToolButton("◷", c.synTs, fixed, fontSize = 27.sp, onLongClick = timestampLongPress, onClick = insertDate)
+            ToolButton("*", c.synStar, fixed, bold = true) { onHeading() }
+            ToolButton("«", c.ink, fixed) { onIndent(-1) }
+            ToolButton("»", c.ink, fixed) { onIndent(+1) }
+        }
+        return
+    }
+
     // Each button gets equal width (RowScope.weight) so the row always fits
     // the screen exactly, with no scrolling and identical spacing between
     // every icon regardless of how wide its glyph happens to be.
@@ -84,21 +146,7 @@ fun EditorToolbar(
         // Tap inserts an inactive date-only stamp; long-press adds the time
         // (HH:MM), both inactive, since this button is for logging a moment
         // rather than scheduling an active org agenda entry.
-        ToolButton(
-            "◷", c.synTs, Modifier.weight(1f), fontSize = 27.sp,
-            onLongClick = onTimestampLongPress ?: {
-                val now = LocalDateTime.now()
-                onInsert(
-                    OrgTimestamp(
-                        now.toLocalDate(),
-                        time = now.toLocalTime().withSecond(0).withNano(0),
-                        active = false,
-                    ).format()
-                )
-            },
-        ) {
-            onInsert(OrgTimestamp(LocalDateTime.now().toLocalDate(), active = false).format())
-        }
+        ToolButton("◷", c.synTs, Modifier.weight(1f), fontSize = 27.sp, onLongClick = timestampLongPress, onClick = insertDate)
         ToolButton("*", c.synStar, Modifier.weight(1f), bold = true) { onHeading() }
         // List indent: « promotes a sub-list item, » demotes into a sub-list.
         ToolButton("«", c.ink, Modifier.weight(1f)) { onIndent(-1) }
@@ -170,6 +218,8 @@ private fun ToolButton(
     icon: Int,
     color: androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier,
+    iconSize: androidx.compose.ui.unit.Dp = 20.dp,
+    contentDescription: String? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
@@ -183,9 +233,9 @@ private fun ToolButton(
     ) {
         Icon(
             painter = painterResource(icon),
-            contentDescription = null,
+            contentDescription = contentDescription,
             tint = color,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(iconSize),
         )
     }
 }

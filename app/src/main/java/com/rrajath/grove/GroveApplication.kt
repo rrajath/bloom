@@ -78,6 +78,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 private const val LEGACY_IGNORE_FILE_NAME = ".orgzlyignore"
 
+/** 6.7: a copy finished after its editor closed and the owner heading was gone. */
+private const val ATTACH_KEPT_NOT_FOUND = "Attached files kept, but the heading was not found"
+
 open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
     /** Coil's singleton loader, built lazily on the first image request (attachments). */
@@ -239,6 +242,36 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     val vault: StateFlow<Vault?> by lazy {
         combine(fileStore, keywords) { store, kw -> store?.let { Vault(it, kw) } }
             .stateIn(appScope, SharingStarted.Eagerly, null)
+    }
+
+    /**
+     * Runs attach copies (experimental, debug-only) on the main thread with I/O
+     * on [AppDispatchers.io], so a copy finishes even after its editor closed;
+     * then the links go into the file on disk instead of the editor buffer.
+     */
+    val attachmentCopyManager: com.rrajath.grove.attach.AttachmentCopyManager by lazy {
+        com.rrajath.grove.attach.AttachmentCopyManager(
+            scope = CoroutineScope(appScope.coroutineContext + dispatchers.main),
+            io = dispatchers.io,
+            store = { fileStore.value },
+            opener = { uri -> contentResolver.openInputStream(uri.toUri()) },
+            fallback = { done -> applyAttachToFile(done) },
+            notify = { message ->
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+            },
+        )
+    }
+
+    private suspend fun applyAttachToFile(done: com.rrajath.grove.attach.AttachDone): String? {
+        val request = done.request
+        val result = done.result as? com.rrajath.grove.attach.ImportResult.Success ?: return null
+        val v = vault.value ?: return ATTACH_KEPT_NOT_FOUND
+        val doc = v.open(request.orgFile) ?: return ATTACH_KEPT_NOT_FOUND
+        val edit = com.rrajath.grove.attach.appendAttachmentLinksToFile(doc.text, request.owner, request.newId, result.names)
+            ?: return ATTACH_KEPT_NOT_FOUND
+        v.save(request.orgFile, edit.text)
+        syncManager.requestReindex(request.orgFile, edit.text, "attach")
+        return com.rrajath.grove.attach.successMessage(request, result)
     }
 
     /** Today's daily note, warmed when the drawer opens so Dailies renders at once. */

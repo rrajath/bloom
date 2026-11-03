@@ -49,6 +49,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.FeatureFlags
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
@@ -229,6 +231,12 @@ fun EditRegionScreen(
     // False until the region has been loaded into the text field: the field's
     // pre-load contents are not the user's edits and must not be reported.
     var fieldLoaded by remember { mutableStateOf(false) }
+    // Experimental attachments (debug builds only), for the whole-file editor.
+    val attach = if (FeatureFlags.ATTACHMENTS && region == EditRegion.WHOLE_FILE) {
+        rememberAttachController(textState, fileName, fieldLoaded)
+    } else {
+        null
+    }
     // Text last written into the field programmatically (initial load only, here).
     // The snapshotFlow below echoes every write straight back; that echo must not
     // be reported as a user edit, which would wrongly mark a freshly opened
@@ -408,6 +416,7 @@ fun EditRegionScreen(
                 return@Column
             }
             WholeFileEditorBody(
+                attach = attach,
                 state = state,
                 textState = textState,
                 scrollState = scrollState,
@@ -547,9 +556,12 @@ internal fun WholeFileEditorBody(
      *  ([KeepCursorClearOfBottom]); pass the same count as [highlight]'s
      *  `trailingBlankLines`. 0 leaves the field's own cursor tracking alone. */
     bottomMarginLines: Int = 0,
+    /** Experimental attachments: paperclip + sheet for this field, or null (no paperclip). */
+    attach: AttachController? = null,
 ) {
     val c = MaterialTheme.grove
     val context = LocalContext.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
     val scrollButtonThresholdPx = with(LocalDensity.current) { (13.5f * 1.85f * 5).sp.toPx() }
     // A non-collapsed, single-line selection; the auto-link trigger needs a collapsed
@@ -687,6 +699,7 @@ internal fun WholeFileEditorBody(
                     modifier = stripModifier,
                 )
             }
+            attach?.let { AttachOverlays(it, bottomInset = if (suggestionSlotShown) SuggestionSlotHeight else 0.dp) }
         }
         // Hidden while the keyboard is up: the bar and the toolbar both sit at
         // the bottom of this Column, and only one of them should own that row
@@ -715,6 +728,12 @@ internal fun WholeFileEditorBody(
             },
             onLinkLongPress = onLinkLongPress,
             onTimestampLongPress = onTimestampLongPress,
+            onAttach = attach?.let { a ->
+                {
+                    keyboard?.hide()
+                    a.open()
+                }
+            },
         )
     }
 }

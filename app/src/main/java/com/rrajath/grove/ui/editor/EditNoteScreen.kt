@@ -54,6 +54,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextLayoutResult
@@ -66,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.FeatureFlags
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
 import com.rrajath.grove.org.LineEditing
@@ -382,6 +384,9 @@ fun EditNoteScreen(
                 ?.takeIf { (selected, _) -> !selected.contains('\n') }
         }
     }
+    // Experimental attachments (debug builds only): paperclip, sheet, copies.
+    val attach = if (FeatureFlags.ATTACHMENTS) rememberAttachController(textState, state.fileName, fieldLoaded) else null
+    val keyboard = LocalSoftwareKeyboardController.current
     val blockTrigger by rememberBlockTrigger(textState)
     val highlight = remember(c, state.keywords) {
         OrgSyntaxHighlight(c, state.keywords, trailingBlankLines = EditorBottomMarginLines)
@@ -642,6 +647,7 @@ fun EditNoteScreen(
                     },
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
                 )
+                attach?.let { AttachOverlays(it, bottomInset = if (imeVisible) SuggestionSlotHeight else 0.dp) }
             }
             if (imeVisible) EditorToolbar(
                 onWrap = { marker -> textState.applyEdit { wrapSelection(it, marker) } },
@@ -664,6 +670,12 @@ fun EditNoteScreen(
                     viewModel.startLinkPicker()
                 },
                 onTimestampLongPress = { timestampPickerOpen = true },
+                onAttach = attach?.let { a ->
+                    {
+                        keyboard?.hide()
+                        a.open()
+                    }
+                },
             )
         }
     }

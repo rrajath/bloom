@@ -45,4 +45,5 @@
     <!-- Attachments: chooser titles (attach/AttachmentIntents.kt). -->
     <string name="attach_open_with">Open with</string>
     <string name="attach_share">Share</string>
+    <string name="attach_empty_file_no_id">No attachments yet. %1$s adds an :ID: to this file the first time you attach.</string>
 </resources>
