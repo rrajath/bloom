@@ -96,11 +96,6 @@ fun SettingsAttachmentsScreen(
                 }
             }
         }
-        Text(
-            "Both settings are included in Settings import and export.",
-            fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink3, lineHeight = 18.sp,
-            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 24.dp),
-        )
     }
 }
 

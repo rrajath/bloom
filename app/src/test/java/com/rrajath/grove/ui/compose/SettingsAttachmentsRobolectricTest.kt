@@ -53,7 +53,7 @@ class SettingsAttachmentsRobolectricTest {
         composeRule.onNodeWithText("Camera and Photos only. Files are copied as-is.").assertExists()
         composeRule.onNodeWithText("Full resolution. HEIC is still converted to JPEG.").assertExists()
         composeRule.onNodeWithText("Default image width").assertExists()
-        composeRule.onNodeWithText("Both settings are included in Settings import and export.").assertExists()
+        composeRule.onNodeWithText("Both settings are included in Settings import and export.").assertDoesNotExist()
         composeRule.onNodeWithTag("attach_width_value").assertDoesNotExist()
     }
 
