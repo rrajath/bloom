@@ -55,6 +55,8 @@ import com.rrajath.grove.ui.capture.TemplateEditScreen
 import com.rrajath.grove.ui.components.GroveActionSnackbar
 import com.rrajath.grove.ui.nav.DeepLinks
 import com.rrajath.grove.ui.nav.Routes
+import com.rrajath.grove.ui.theme.groveColorsFor
+import com.rrajath.grove.ui.attach.AttachmentViewerScreen
 import com.rrajath.grove.ui.newbadge.LocalNewBadges
 import com.rrajath.grove.ui.newbadge.NewBadges
 import com.rrajath.grove.ui.nav.navEnterTransition
@@ -605,6 +607,7 @@ private fun GroveNavigation(
                         onOpenFileProperties = { target ->
                             navController.navigate(Routes.drawer(target, "fileProps"))
                         },
+                        onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                         showPreface = settings.showPreface,
                         showPropertyDrawers = settings.showPropertyDrawers,
                         showBacklinks = settings.roamFeaturesEnabled && settings.roamShowBacklinks,
@@ -788,6 +791,7 @@ private fun GroveNavigation(
                         }
                         ReadNoteScreen(
                             noteRef = ref,
+                            onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                             onBack = leaveRead,
                             pendingEdit = pendingEdit,
                             onPendingBufferChanged = editorViewModel::onBufferChangedExternally,
@@ -1120,6 +1124,14 @@ private fun GroveNavigation(
                     onSetDailiesDirectory = viewModel::setDailiesDirectory,
                     onSetDailiesFilenamePattern = viewModel::setDailiesFilenamePattern,
                     onSetDailiesHeaderTemplate = viewModel::setDailiesHeaderTemplate,
+                )
+            }
+            composable(Routes.ATTACHMENT_VIEWER) { entry ->
+                AttachmentViewerScreen(
+                    path = entry.arguments?.getString("path").orEmpty(),
+                    title = entry.arguments?.getString("title").orEmpty(),
+                    colors = groveColorsFor(settings.themeSelection.sanitized().dark),
+                    onClose = { navController.popBackStack() },
                 )
             }
             composable(Routes.SETTINGS_ATTACHMENTS) {

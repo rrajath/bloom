@@ -192,6 +192,14 @@ class RoutesTest {
     }
 
     @Test
+    fun `attachment viewer route encodes the vault path and title`() {
+        val route = Routes.attachmentViewer("data/ab/cd-ef/torii path.jpg", "torii path.jpg")
+        assertEquals("attachment/view?path=data%2Fab%2Fcd-ef%2Ftorii%20path.jpg&title=torii%20path.jpg", route)
+        assertEquals("data/ab/cd-ef/torii path.jpg", uriStyleDecode(route.substringAfter("path=").substringBefore("&")))
+        assertTrue(route.startsWith(Routes.ATTACHMENT_VIEWER.substringBefore("{")))
+    }
+
+    @Test
     fun `built routes match declared patterns`() {
         // outline/{notebookId}
         assertEquals(

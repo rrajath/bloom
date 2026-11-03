@@ -116,8 +116,10 @@ class AttachmentRenderContext(
     val fixedWidthPx: Int,
     /** Lines of the note on screen; a repeated chip link resolves against these first. */
     val preferLines: IntRange?,
-    /** Opens a link target the way a link tap does (today: the Open with chooser). */
+    /** Opens a link target the way a link tap does (the Open with chooser). */
     val openTarget: (String) -> Unit,
+    /** Opens a present image in the 1h viewer: (vault path, filename). Null falls back to [openTarget]. */
+    val openImage: ((path: String, name: String) -> Unit)? = null,
     val toast: (String) -> Unit,
     private val io: CoroutineDispatcher,
 ) {
@@ -183,6 +185,7 @@ fun ProvideAttachmentRendering(
     preferLines: IntRange?,
     openTarget: (String) -> Unit,
     toast: (String) -> Unit,
+    openImage: ((path: String, name: String) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as? GroveApplication
@@ -197,7 +200,7 @@ fun ProvideAttachmentRendering(
         cache.clear()
         onPauseOrDispose {}
     }
-    val ctx = remember(orgFile, doc, s, prefs.attachImageWidth, prefs.attachImageWidthPx, preferLines, openTarget, toast) {
+    val ctx = remember(orgFile, doc, s, prefs.attachImageWidth, prefs.attachImageWidthPx, preferLines, openTarget, openImage, toast) {
         AttachmentRenderContext(
             orgFile = orgFile,
             doc = doc,
@@ -207,6 +210,7 @@ fun ProvideAttachmentRendering(
             fixedWidthPx = prefs.attachImageWidthPx,
             preferLines = preferLines,
             openTarget = openTarget,
+            openImage = openImage,
             toast = toast,
             io = app.dispatchers.io,
         )
@@ -298,8 +302,13 @@ fun AttachmentImage(
     }
     val tap = Modifier.pointerTaps(
         onTap = {
-            if (status == AttachmentStatus.Missing) render.toast(imageNotFoundMessage(name))
-            else render.openTarget(rawTarget)
+            val st = status
+            val viewer = render.openImage
+            when {
+                st == AttachmentStatus.Missing -> render.toast(imageNotFoundMessage(name))
+                st is AttachmentStatus.Present && viewer != null -> viewer(st.path, name)
+                else -> render.openTarget(rawTarget)
+            }
         },
         onDoubleTap = onDoubleTap,
     )

@@ -55,6 +55,11 @@ object Routes {
     const val SETTINGS_ROAM = "settings/roam"
     /** Experimental attachments: photo size and default image width (debug builds only). */
     const val SETTINGS_ATTACHMENTS = "settings/attachments"
+    /**
+     * Full-screen image viewer (attachments 1h): [path] is the image's vault
+     * path, [title] the filename shown in the top chrome.
+     */
+    const val ATTACHMENT_VIEWER = "attachment/view?path={path}&title={title}"
     /** A daily journal note; [date] is ISO yyyy-MM-dd, absent = today. */
     const val DAILIES = "dailies?date={date}"
     const val SETTINGS_BACKUP = "settings/backup"
@@ -127,5 +132,7 @@ object Routes {
                 (if (notebook.isNullOrBlank()) "" else "&notebook=${encode(notebook)}")
     fun reminder(fileName: String, headingPath: String, level: Int) =
         "reminder/${encode(fileName)}?headingPath=${encode(headingPath)}&level=$level"
-    fun dailies(date: String? = null) = "dailies" + (date?.let { "?date=${encode(it)}" } ?: "")
+    fun attachmentViewer(path: String, title: String) =
+        "attachment/view?path=${encode(path)}&title=${encode(title)}"
+    fun dailies(date: String? = null) ="dailies" + (date?.let { "?date=${encode(it)}" } ?: "")
 }

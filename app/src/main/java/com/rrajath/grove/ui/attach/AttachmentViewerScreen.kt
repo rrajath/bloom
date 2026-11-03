@@ -1,0 +1,394 @@
+package com.rrajath.grove.ui.attach
+
+import android.app.Activity
+import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import coil3.request.ImageRequest
+import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.R
+import com.rrajath.grove.attach.AttachmentIntents
+import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.theme.GroveColors
+import com.rrajath.grove.ui.theme.LocalGroveColors
+import com.rrajath.grove.ui.theme.PlexMono
+import com.rrajath.grove.ui.theme.PlexSans
+import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.vault.OutlineToast
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import me.saket.telephoto.zoomable.DoubleClickToZoomListener
+import me.saket.telephoto.zoomable.ZoomSpec
+import me.saket.telephoto.zoomable.ZoomableState
+import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
+import me.saket.telephoto.zoomable.rememberZoomableImageState
+import me.saket.telephoto.zoomable.rememberZoomableState
+import kotlin.math.roundToInt
+
+/** Double tap and the zoom chip jump between Fit and this zoom (240%, as in 1h). */
+const val VIEWER_ZOOM_STEP = 2.4f
+
+/** Pinch limit relative to Fit: enough to reach native pixels on a 48 MP photo. */
+const val VIEWER_MAX_ZOOM = 8f
+
+private const val TOAST_MILLIS = 1900L
+
+/** Zoom chip label: `Fit` at the fitted size, else the zoom relative to Fit as a percent. */
+fun viewerZoomLabel(userZoom: Float?): String =
+    if (userZoom == null || userZoom < 1.005f) "Fit" else "${(userZoom * 100).roundToInt()}%"
+
+private fun ZoomableState.userZoom(): Float? =
+    contentTransformation.takeIf { it.isSpecified }?.scaleMetadata?.userZoom
+
+private fun ZoomableState.isZoomed(): Boolean = (userZoom() ?: 1f) > 1.005f
+
+/** Double tap toggles Fit and [VIEWER_ZOOM_STEP] around the tapped point. */
+private object ToggleFitAndZoom : DoubleClickToZoomListener {
+    override suspend fun onDoubleClick(state: ZoomableState, centroid: Offset) {
+        if (state.isZoomed()) state.resetZoom() else state.zoomTo(VIEWER_ZOOM_STEP, centroid)
+    }
+}
+
+/**
+ * The 1h full-screen image viewer (tech design 8). Always drawn with the
+ * user's dark theme ([colors]), whatever the app theme, so photos sit on a
+ * dark ground; the status and navigation bar icons are switched to light for
+ * as long as it's on screen.
+ */
+@Composable
+fun AttachmentViewerScreen(
+    path: String,
+    title: String,
+    colors: GroveColors,
+    onClose: () -> Unit,
+) {
+    val context = LocalContext.current
+    val app = context.applicationContext as? GroveApplication
+    val store by remember(app) { app?.fileStore ?: MutableStateFlow(null) }.collectAsState()
+    var uri by remember(path) { mutableStateOf<Uri?>(null) }
+    var missing by remember(path) { mutableStateOf(false) }
+    LaunchedEffect(store, path) {
+        val s = store ?: return@LaunchedEffect
+        val io = app?.dispatchers?.io ?: return@LaunchedEffect
+        val found = withContext(io) {
+            runCatching { if (s.exists(path)) s.contentUri(path) else null }.getOrNull()
+        }
+        uri = found
+        missing = found == null
+    }
+    ViewerSystemBars(appIsDark = MaterialTheme.grove.isDark)
+
+    val request = remember(uri) {
+        uri?.let { ImageRequest.Builder(context).data(it).build() }
+    }
+
+    suspend fun handOff(share: Boolean): String? {
+        val s = store ?: return imageNotFoundMessage(title)
+        val result = if (share) AttachmentIntents.share(context, s, path) else AttachmentIntents.open(context, s, path)
+        return when (result) {
+            AttachmentIntents.Result.Launched -> null
+            AttachmentIntents.Result.Missing -> imageNotFoundMessage(title)
+            AttachmentIntents.Result.NoHandler -> AttachmentIntents.NO_HANDLER_MESSAGE
+        }
+    }
+
+    CompositionLocalProvider(LocalGroveColors provides colors) {
+        AttachmentViewer(
+            model = request,
+            title = title,
+            missing = missing,
+            onShare = { handOff(share = true) },
+            onOpen = { handOff(share = false) },
+            onClose = onClose,
+        )
+    }
+}
+
+/**
+ * Light bar icons while the viewer shows; restores the app theme's on exit.
+ * Keyed on the configuration as GroveTheme is, since rotation resets them.
+ */
+@Composable
+private fun ViewerSystemBars(appIsDark: Boolean) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    val configuration = LocalConfiguration.current
+    LaunchedEffect(configuration) {
+        val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
+    }
+    DisposableEffect(view) {
+        onDispose {
+            val window = (view.context as? Activity)?.window ?: return@onDispose
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !appIsDark
+                isAppearanceLightNavigationBars = !appIsDark
+            }
+        }
+    }
+}
+
+/**
+ * The viewer's content, without file lookup or system-bar handling. [model] is
+ * the Coil request (null while resolving); [onShare]/[onOpen] return a toast
+ * message, or null when another app took over.
+ */
+@Composable
+fun AttachmentViewer(
+    model: ImageRequest?,
+    title: String,
+    missing: Boolean,
+    onShare: suspend () -> String?,
+    onOpen: suspend () -> String?,
+    onClose: () -> Unit,
+) {
+    val c = MaterialTheme.grove
+    val scope = rememberCoroutineScope()
+    var chrome by rememberSaveable { mutableStateOf(false) }
+    var tapped by rememberSaveable { mutableStateOf(false) }
+    var failed by remember(model) { mutableStateOf(false) }
+    var toast by remember { mutableStateOf<OutlineToast?>(null) }
+    val toggleChrome = {
+        chrome = !chrome
+        tapped = true
+    }
+    fun showToast(message: String) {
+        val t = OutlineToast(message, System.nanoTime())
+        toast = t
+        scope.launch {
+            delay(TOAST_MILLIS)
+            if (toast == t) toast = null
+        }
+    }
+    val zoomState = rememberZoomableState(zoomSpec = ZoomSpec(maxZoomFactor = VIEWER_MAX_ZOOM))
+    val imageState = rememberZoomableImageState(zoomState)
+    val zoomLabel by remember(zoomState) { derivedStateOf { viewerZoomLabel(zoomState.userZoom()) } }
+    val showImage = model != null && !failed && !missing
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(c.bg)
+            .testTag("attachment_viewer"),
+    ) {
+        if (showImage) {
+            val request = remember(model) {
+                model!!.newBuilder().listener(onError = { _, _ -> failed = true }).build()
+            }
+            ZoomableAsyncImage(
+                model = request,
+                contentDescription = title,
+                modifier = Modifier.fillMaxSize().testTag("attachment_viewer_image"),
+                state = imageState,
+                onClick = { toggleChrome() },
+                onDoubleClick = ToggleFitAndZoom,
+            )
+        } else {
+            // Nothing to zoom: the whole screen still toggles the chrome.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures(onTap = { toggleChrome() }) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (missing || failed) {
+                    Text(
+                        if (missing) imageNotFoundMessage(title) else "Can't display image",
+                        fontFamily = PlexSans,
+                        fontSize = 14.sp,
+                        color = c.ink2,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 24.dp).testTag("attachment_viewer_error"),
+                    )
+                }
+            }
+        }
+
+        if (!tapped) {
+            Text(
+                "Tap for controls",
+                fontFamily = PlexSans,
+                fontSize = 12.sp,
+                color = c.ink3,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 40.dp),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = chrome,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(180)),
+            modifier = Modifier.align(Alignment.TopStart),
+        ) {
+            Box(Modifier.fillMaxWidth()) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .background(Brush.verticalGradient(listOf(c.bg.copy(alpha = 0.7f), c.bg.copy(alpha = 0f)))),
+                )
+                Row(
+                    Modifier
+                        .statusBarsPadding()
+                        .padding(start = 4.dp, end = 12.dp, top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .clickable(onClick = onClose)
+                            .semantics {
+                                contentDescription = "Close"
+                                role = Role.Button
+                            }
+                            .testTag("attachment_viewer_close"),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("✕", fontFamily = PlexSans, fontSize = 20.sp, color = c.ink)
+                    }
+                    Text(
+                        title,
+                        fontFamily = PlexMono,
+                        fontSize = 13.sp,
+                        color = c.ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = chrome,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(200)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 30.dp),
+        ) {
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(30.dp))
+                    // Solid at 88% on every API level: Compose has no backdrop blur.
+                    .background(c.surface2.copy(alpha = 0.88f))
+                    .padding(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                BarAction(R.drawable.ic_attach_share, 17, "Share") {
+                    scope.launch { onShare()?.let(::showToast) }
+                }
+                BarAction(R.drawable.ic_attach_open_with, 16, "Open in…") {
+                    scope.launch { onOpen()?.let(::showToast) }
+                }
+                Box(
+                    Modifier
+                        .height(44.dp)
+                        .widthIn(min = 56.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(c.ink.copy(alpha = 0.1f))
+                        .clickable(enabled = showImage) {
+                            scope.launch {
+                                if (zoomState.isZoomed()) zoomState.resetZoom() else zoomState.zoomTo(VIEWER_ZOOM_STEP)
+                            }
+                        }
+                        .padding(horizontal = 12.dp)
+                        .testTag("attachment_viewer_zoom"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(zoomLabel, fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink)
+                }
+            }
+        }
+
+        GroveToast(
+            toast = toast,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 100.dp),
+        )
+    }
+}
+
+@Composable
+private fun BarAction(icon: Int, iconDp: Int, label: String, onClick: () -> Unit) {
+    val c = MaterialTheme.grove
+    Row(
+        Modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = c.ink, modifier = Modifier.size(iconDp.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, fontFamily = PlexSans, fontSize = 14.sp, color = c.ink)
+    }
+}

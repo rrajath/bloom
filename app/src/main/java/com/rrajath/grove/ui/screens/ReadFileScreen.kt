@@ -97,6 +97,8 @@ fun ReadFileScreen(
     onOpenBlock: (fileName: String, line: Int) -> Unit = { _, _ -> },
     onOpenPreface: (fileName: String) -> Unit = {},
     onOpenFileProperties: (fileName: String) -> Unit = {},
+    /** Opens a present inline image in the full-screen viewer: (vault path, filename). */
+    onOpenImage: ((path: String, name: String) -> Unit)? = null,
     /** Settings toggle: show a collapsible section for the file-level `#+` keywords. */
     showPreface: Boolean = true,
     /** Settings toggle: show collapsible sections for `:PROPERTIES:`/`:LOGBOOK:` drawers. */
@@ -242,6 +244,7 @@ fun ReadFileScreen(
                             preferLines = null,
                             openTarget = onOpenLink,
                             toast = showToast,
+                            openImage = onOpenImage,
                           ) {
                             FileContent(
                                 doc = doc,

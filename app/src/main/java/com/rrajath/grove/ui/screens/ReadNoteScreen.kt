@@ -187,6 +187,8 @@ fun ReadNoteScreen(
      * block. [line] is the absolute doc line of its `#+BEGIN` (or first affiliated line).
      */
     onOpenBlock: (fileName: String, line: Int) -> Unit = { _, _ -> },
+    /** Opens a present inline image in the full-screen viewer: (vault path, filename). */
+    onOpenImage: ((path: String, name: String) -> Unit)? = null,
     /** Settings toggle: show collapsible sections for `:PROPERTIES:`/`:LOGBOOK:` drawers. */
     showPropertyDrawers: Boolean = true,
     /** Settings § Notes: font-size lever for the rendered note. App chrome is unaffected. */
@@ -354,6 +356,7 @@ fun ReadNoteScreen(
                             preferLines = null,
                             openTarget = onOpenLink,
                             toast = showToast,
+                            openImage = onOpenImage,
                         ) {
                         IntroContent(
                             doc = doc,
@@ -398,6 +401,7 @@ fun ReadNoteScreen(
                             preferLines = remember(doc, headline) { headline.lineIndex until doc.subtreeEndLine(headline) },
                             openTarget = onOpenLink,
                             toast = showToast,
+                            openImage = onOpenImage,
                         ) {
                         NoteContent(
                             doc = doc,
