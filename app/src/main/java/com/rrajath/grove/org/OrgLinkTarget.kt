@@ -40,6 +40,13 @@ sealed interface OrgLinkTarget {
     /** `http(s)://…`, `mailto:`, `tel:`, … — hand off to the OS. */
     data class External(val uri: String) : OrgLinkTarget
 
+    /**
+     * `[[attachment:IMG_1.jpg]]`: a file in the attach dir of the entry the link
+     * sits under (org-attach). [name] is the path as written, search option
+     * stripped; finding the owner and its dir is the attach layer's job.
+     */
+    data class Attachment(val name: String) : OrgLinkTarget
+
     /** `[[Some text]]` with no scheme and not path-shaped — org "fuzzy" search. */
     data class Fuzzy(val text: String) : OrgLinkTarget
 }
@@ -50,6 +57,8 @@ object OrgLinkParser {
     private val EXTERNAL_SCHEME =
         Regex("""^(https?|mailto|tel|sms|geo|news|ftp|ftps|doi|magnet|irc):""", RegexOption.IGNORE_CASE)
 
+    private const val ATTACHMENT_PREFIX = "attachment:"
+
     fun parse(rawTarget: String, currentFile: String): OrgLinkTarget {
         val target = rawTarget.trim()
 
@@ -58,6 +67,10 @@ object OrgLinkParser {
                 return OrgLinkTarget.Id(target.removePrefix("id:").trim())
             target.startsWith("denote:") ->
                 return parseDenote(target.removePrefix("denote:"))
+            target.startsWith(ATTACHMENT_PREFIX, ignoreCase = true) ->
+                return OrgLinkTarget.Attachment(
+                    target.substring(ATTACHMENT_PREFIX.length).substringBefore("::").trim()
+                )
             EXTERNAL_SCHEME.containsMatchIn(target) ->
                 return OrgLinkTarget.External(target)
             target.startsWith("#") ->

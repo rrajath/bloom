@@ -143,4 +143,16 @@ class OrgLinkParserTest {
     fun `plain text with no scheme is fuzzy`() {
         assertEquals(OrgLinkTarget.Fuzzy("Meeting notes"), parse("Meeting notes"))
     }
+
+    @Test
+    fun `attachment link carries the name as written`() {
+        assertEquals(OrgLinkTarget.Attachment("IMG_1.jpg"), parse("attachment:IMG_1.jpg"))
+        assertEquals(OrgLinkTarget.Attachment("scans/receipt.pdf"), parse("attachment:scans/receipt.pdf"))
+    }
+
+    @Test
+    fun `attachment link drops a search option and is not a fuzzy or file link`() {
+        assertEquals(OrgLinkTarget.Attachment("notes.txt"), parse("attachment:notes.txt::42"))
+        assertEquals(OrgLinkTarget.Attachment("notes.txt"), parse("Attachment: notes.txt ::*Intro"))
+    }
 }

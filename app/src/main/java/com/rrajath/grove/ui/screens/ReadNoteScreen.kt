@@ -218,8 +218,8 @@ fun ReadNoteScreen(
     val repeatAdvance by viewModel.repeatAdvanced.collectAsStateWithLifecycle()
     // Resolves a tapped org link (heading/id: → Read mode, whole file → outline,
     // external scheme → OS, unresolved → toast). See DocumentViewModel.openOrgLink.
-    val onOpenLink: (String) -> Unit = remember(viewModel, onOpenNote, onOpenOutline, noteRef.fileName) {
-        { target -> viewModel.openOrgLink(target, noteRef.fileName, onOpenNote, onOpenOutline) }
+    val onOpenLink: (String) -> Unit = remember(viewModel, onOpenNote, onOpenOutline, noteRef) {
+        { target -> viewModel.openOrgLink(target, noteRef.fileName, onOpenNote, onOpenOutline, scopeNote = noteRef) }
     }
     var metadataOpen by remember { mutableStateOf(false) }
     // Set on a completed move (refileConfirm/refileToArchive/refileToLastUsed), not a plain

@@ -327,7 +327,7 @@ class AttachController internal constructor(
         val store = storeProvider() ?: return
         scope.launch {
             when (AttachmentIntents.open(context, store, file.name)) {
-                AttachmentIntents.Result.NoHandler -> showToast("No app can open this file")
+                AttachmentIntents.Result.NoHandler -> showToast(AttachmentIntents.NO_HANDLER_MESSAGE)
                 AttachmentIntents.Result.Missing -> showToast("File not found: ${file.name.substringAfterLast('/')}")
                 AttachmentIntents.Result.Launched -> Unit
             }

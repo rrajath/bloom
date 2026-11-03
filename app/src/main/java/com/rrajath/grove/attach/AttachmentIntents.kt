@@ -22,6 +22,9 @@ object AttachmentIntents {
     /** Outcome of [open] / [share], for the caller's toast. */
     enum class Result { Launched, Missing, NoHandler }
 
+    /** Toast for [Result.NoHandler]. */
+    const val NO_HANDLER_MESSAGE = "No app can open this file"
+
     /** MIME type for [name] by extension, `application/octet-stream` when unknown. */
     fun mimeType(name: String): String {
         val ext = name.substringAfterLast('/').substringAfterLast('.', "").lowercase()

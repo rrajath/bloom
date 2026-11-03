@@ -9,8 +9,15 @@ import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
+import com.rrajath.grove.FeatureFlags
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
+import com.rrajath.grove.attach.AttachmentBase
+import com.rrajath.grove.attach.AttachmentFiles
+import com.rrajath.grove.attach.AttachmentIntents
+import com.rrajath.grove.attach.AttachmentLink
+import com.rrajath.grove.attach.AttachmentLookup
+import com.rrajath.grove.attach.LocalAttachment
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.FavoritesRepository
 import com.rrajath.grove.data.GroveDatabase
@@ -960,15 +967,31 @@ class DocumentViewModel(
      * or `::#custom-id` target opens Read mode of that heading via [onOpenNote];
      * a whole-file target opens that file's outline via [onOpenOutline]; an
      * external scheme is handed to the OS; anything unresolved shows a toast.
+     * With attachments on, a link to a local non-org file (`attachment:`, `file:`)
+     * opens that file in another app; [scopeNote] is the note on screen, whose
+     * subtree is searched first for the link's owning heading.
      */
     fun openOrgLink(
         rawTarget: String,
         currentFile: String,
         onOpenNote: (NoteRef) -> Unit,
         onOpenOutline: (fileName: String) -> Unit,
+        scopeNote: NoteRef? = null,
     ) {
         val doc = (_state.value as? DocumentUiState.Loaded)?.document
         viewModelScope.launch {
+            // A link to a local non-org file opens it in another app. An
+            // `attachment:` link that isn't there stops at a toast; a `file:` or
+            // path link still gets the org resolution below (it may name a
+            // notebook without its `.org`), and only its toast names the file.
+            val attachment = if (FeatureFlags.ATTACHMENTS) AttachmentLink.classify(rawTarget, null) else null
+            if (attachment != null) {
+                if (openAttachmentLink(attachment, rawTarget, currentFile, doc, scopeNote)) return@launch
+                if (attachment.base == AttachmentBase.ATTACH_DIR) {
+                    showToast(missingAttachmentMessage(attachment.fileName))
+                    return@launch
+                }
+            }
             when (val resolution = resolveOrgLink(rawTarget, currentFile, doc)) {
                 is LinkResolution.Note -> onOpenNote(resolution.ref)
                 is LinkResolution.Outline -> onOpenOutline(resolution.fileName)
@@ -978,9 +1001,37 @@ class DocumentViewModel(
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     )
                 }.onFailure { showToast("Couldn't open $rawTarget") }
-                is LinkResolution.NotFound -> showToast("Couldn't find “${resolution.label}”")
+                is LinkResolution.NotFound ->
+                    showToast(attachment?.let { missingAttachmentMessage(it.fileName) } ?: "Couldn't find “${resolution.label}”")
             }
         }
+    }
+
+    private fun missingAttachmentMessage(name: String) = "Couldn't find “$name”"
+
+    /**
+     * Opens the file [attachment] points at with the "Open with" chooser (until
+     * attachments get an in-app viewer). False when the file doesn't exist;
+     * true once handled, including the no-viewer toast.
+     */
+    private suspend fun openAttachmentLink(
+        attachment: LocalAttachment,
+        rawTarget: String,
+        currentFile: String,
+        doc: OrgDocument?,
+        scopeNote: NoteRef?,
+    ): Boolean {
+        val store = vaultFlow.value?.fileStore() ?: return false
+        val preferLines = scopeNote?.let { ref -> doc?.headlineFor(ref)?.let { it.lineIndex until doc.subtreeEndLine(it) } }
+        val path = withContext(dispatchers.io) {
+            AttachmentLookup(AttachmentFiles(store)).find(attachment, rawTarget, currentFile, doc, preferLines)
+        } ?: return false
+        when (AttachmentIntents.open(app, store, path)) {
+            AttachmentIntents.Result.Launched -> Unit
+            AttachmentIntents.Result.NoHandler -> showToast(AttachmentIntents.NO_HANDLER_MESSAGE)
+            AttachmentIntents.Result.Missing -> showToast(missingAttachmentMessage(attachment.fileName))
+        }
+        return true
     }
 
     private suspend fun resolveOrgLink(
@@ -1061,6 +1112,15 @@ class DocumentViewModel(
                 val file = resolveDenote(t.identifier, currentFile, dao)
                     ?: return LinkResolution.NotFound("denote:${t.identifier}")
                 customIdIn(file, t.customId)
+            }
+
+            is OrgLinkTarget.Attachment -> {
+                // Reached when attachments are off (or the file wasn't found and
+                // [openOrgLink] already said so): keep the old fuzzy-link behavior,
+                // a same-titled heading else a toast with the raw target.
+                val text = rawTarget.trim()
+                doc?.let { findHeadlineByTitle(it, text) }?.let { return noteIn(currentFile, it) }
+                LinkResolution.NotFound(text)
             }
 
             is OrgLinkTarget.Fuzzy -> {
