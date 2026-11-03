@@ -128,6 +128,9 @@ data class SettingsExport(
     val dailiesDirectory: String = "",
     val dailiesFilenamePattern: String = "%<%Y-%m-%d>.org",
     val dailiesHeaderTemplate: String = ":PROPERTIES:\n:ID: %(id)\n:END:\n#+title: %date\n%?",
+    val attachPhotoSize: String = AttachPhotoSize.ORIGINAL.storageKey,
+    val attachImageWidth: String = AttachImageWidth.FIT.storageKey,
+    val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
 ) {
     private fun themeSelection(): ThemeSelection =
         ThemeSelection.fromStorage(themeMode, lightTheme, darkTheme)
@@ -208,6 +211,9 @@ data class SettingsExport(
         dailiesDirectory = dailiesDirectory,
         dailiesFilenamePattern = dailiesFilenamePattern,
         dailiesHeaderTemplate = dailiesHeaderTemplate,
+        attachPhotoSize = AttachPhotoSize.fromStorage(attachPhotoSize),
+        attachImageWidth = AttachImageWidth.fromStorage(attachImageWidth),
+        attachImageWidthPx = AttachImageWidth.clampPx(attachImageWidthPx),
     )
 
     companion object {
@@ -235,7 +241,11 @@ data class SettingsExport(
         // null/empty, which keeps quick-add following the share target.
         // v11: the single `theme` became themeMode/lightTheme/darkTheme. Older
         // exports carry only `theme`, which maps onto the matching mode + slot.
-        const val CURRENT_VERSION = 11
+        // v12: added the Attachments settings (attachPhotoSize/attachImageWidth/
+        // attachImageWidthPx). Additive: older exports omit them and import at
+        // their defaults (Original, Fit column, 320 px). Unknown enum values fall
+        // back to the default and the px value is clamped to 120..1200.
+        const val CURRENT_VERSION = 12
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,
@@ -310,6 +320,9 @@ data class SettingsExport(
             dailiesDirectory = s.dailiesDirectory,
             dailiesFilenamePattern = s.dailiesFilenamePattern,
             dailiesHeaderTemplate = s.dailiesHeaderTemplate,
+            attachPhotoSize = s.attachPhotoSize.storageKey,
+            attachImageWidth = s.attachImageWidth.storageKey,
+            attachImageWidthPx = s.attachImageWidthPx,
         )
     }
 }

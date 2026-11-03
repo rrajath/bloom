@@ -84,6 +84,7 @@ import com.rrajath.grove.ui.screens.settings.SettingsDeveloperScreen
 import com.rrajath.grove.ui.screens.settings.SettingsNotebooksScreen
 import com.rrajath.grove.ui.screens.settings.SettingsNotesScreen
 import com.rrajath.grove.ui.screens.settings.SettingsRemindersScreen
+import com.rrajath.grove.ui.screens.settings.SettingsAttachmentsScreen
 import com.rrajath.grove.ui.screens.settings.SettingsRoamScreen
 import com.rrajath.grove.ui.screens.settings.SettingsSharingScreen
 import com.rrajath.grove.ui.screens.settings.SettingsSyncScreen
@@ -957,6 +958,7 @@ private fun GroveNavigation(
                     onOpenWidget = { navController.navigate(Routes.SETTINGS_WIDGET) },
                     onOpenReminders = { navController.navigate(Routes.SETTINGS_REMINDERS) },
                     onOpenRoam = { navController.navigate(Routes.SETTINGS_ROAM) },
+                    onOpenAttachments = { navController.navigate(Routes.SETTINGS_ATTACHMENTS) },
                     onOpenSharing = { navController.navigate(Routes.SETTINGS_SHARING) },
                     onOpenBackup = { navController.navigate(Routes.SETTINGS_BACKUP) },
                     onOpenBugReport = { navController.navigate(Routes.SETTINGS_BUG_REPORT) },
@@ -1118,6 +1120,15 @@ private fun GroveNavigation(
                     onSetDailiesDirectory = viewModel::setDailiesDirectory,
                     onSetDailiesFilenamePattern = viewModel::setDailiesFilenamePattern,
                     onSetDailiesHeaderTemplate = viewModel::setDailiesHeaderTemplate,
+                )
+            }
+            composable(Routes.SETTINGS_ATTACHMENTS) {
+                SettingsAttachmentsScreen(
+                    settings = settings,
+                    onBack = { navController.popBackStack() },
+                    onSetPhotoSize = viewModel::setAttachPhotoSize,
+                    onSetImageWidth = viewModel::setAttachImageWidth,
+                    onSetImageWidthPx = viewModel::setAttachImageWidthPx,
                 )
             }
             composable(Routes.SETTINGS_BACKUP) {

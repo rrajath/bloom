@@ -290,6 +290,12 @@ data class GroveSettings(
     val dailiesFilenamePattern: String = "%<%Y-%m-%d>.org",
     /** Roam Features § Dailies: expanded (PlaceholderExpander) into a new day file's initial content. */
     val dailiesHeaderTemplate: String = ":PROPERTIES:\n:ID: %(id)\n:END:\n#+title: %date\n%?",
+    /** Settings § Attachments (experimental): resize target for Camera and Photos images. */
+    val attachPhotoSize: AttachPhotoSize = AttachPhotoSize.ORIGINAL,
+    /** Settings § Attachments: default read-mode image width mode. */
+    val attachImageWidth: AttachImageWidth = AttachImageWidth.FIT,
+    /** Settings § Attachments: image width in px when [attachImageWidth] is FIXED. */
+    val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
 ) {
     /** Pinned notebook file names in pin order — derived view of [pinnedItems]. */
     val pinnedNotebooks: List<String>
@@ -427,6 +433,9 @@ class SettingsRepository(
         val dailiesDirectory = stringPreferencesKey("dailies_directory")
         val dailiesFilenamePattern = stringPreferencesKey("dailies_filename_pattern")
         val dailiesHeaderTemplate = stringPreferencesKey("dailies_header_template")
+        val attachPhotoSize = stringPreferencesKey("attach_photo_size")
+        val attachImageWidth = stringPreferencesKey("attach_image_width")
+        val attachImageWidthPx = intPreferencesKey("attach_image_width_px")
     }
 
     /**
@@ -540,6 +549,9 @@ class SettingsRepository(
             dailiesDirectory = prefs[Keys.dailiesDirectory] ?: "",
             dailiesFilenamePattern = prefs[Keys.dailiesFilenamePattern] ?: GroveSettings().dailiesFilenamePattern,
             dailiesHeaderTemplate = prefs[Keys.dailiesHeaderTemplate] ?: GroveSettings().dailiesHeaderTemplate,
+            attachPhotoSize = AttachPhotoSize.fromStorage(prefs[Keys.attachPhotoSize]),
+            attachImageWidth = AttachImageWidth.fromStorage(prefs[Keys.attachImageWidth]),
+            attachImageWidthPx = AttachImageWidth.clampPx(prefs[Keys.attachImageWidthPx] ?: AttachImageWidth.DEFAULT_PX),
         )
     }.shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
@@ -677,6 +689,9 @@ class SettingsRepository(
             p[Keys.dailiesDirectory] = s.dailiesDirectory
             p[Keys.dailiesFilenamePattern] = s.dailiesFilenamePattern
             p[Keys.dailiesHeaderTemplate] = s.dailiesHeaderTemplate
+            p[Keys.attachPhotoSize] = s.attachPhotoSize.storageKey
+            p[Keys.attachImageWidth] = s.attachImageWidth.storageKey
+            p[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(s.attachImageWidthPx)
         }
     }
 
@@ -1015,6 +1030,18 @@ class SettingsRepository(
             prefs[Keys.lastRefileFile] = fileName
             prefs[Keys.lastRefileHeadingPath] = headingPath.joinToString("/")
         }
+    }
+
+    suspend fun setAttachPhotoSize(size: AttachPhotoSize) {
+        context.settingsDataStore.edit { it[Keys.attachPhotoSize] = size.storageKey }
+    }
+
+    suspend fun setAttachImageWidth(mode: AttachImageWidth) {
+        context.settingsDataStore.edit { it[Keys.attachImageWidth] = mode.storageKey }
+    }
+
+    suspend fun setAttachImageWidthPx(px: Int) {
+        context.settingsDataStore.edit { it[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(px) }
     }
 
     suspend fun setRoamFeaturesEnabled(enabled: Boolean) {

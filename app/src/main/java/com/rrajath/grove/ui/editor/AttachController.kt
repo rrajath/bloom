@@ -246,7 +246,7 @@ class AttachController internal constructor(
         val (owner, changed) = relocatePending(doc, p)
         val sources = withContext(Dispatchers.IO) {
             if (cameraFile != null) {
-                listOf(AttachSource(Uri.fromFile(cameraFile).toString(), cameraFile.name, cameraFile.length()))
+                listOf(AttachSource(Uri.fromFile(cameraFile).toString(), cameraFile.name, cameraFile.length(), "image/jpeg"))
             } else {
                 uris.map { describe(context, it) }
             }
@@ -393,7 +393,8 @@ private fun describe(context: Context, uri: Uri): AttachSource {
                 }
             }
     }
-    return AttachSource(uri.toString(), name ?: uri.lastPathSegment?.substringAfterLast('/') ?: "attachment", size)
+    val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+    return AttachSource(uri.toString(), name ?: uri.lastPathSegment?.substringAfterLast('/') ?: "attachment", size, mime)
 }
 
 private val pendingJson = Json { ignoreUnknownKeys = true }

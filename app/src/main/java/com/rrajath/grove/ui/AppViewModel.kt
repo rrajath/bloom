@@ -390,6 +390,15 @@ class AppViewModel(
     fun setRoamShowSuggestions(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setRoamShowSuggestions(enabled) }
 
+    fun setAttachPhotoSize(size: com.rrajath.grove.settings.AttachPhotoSize) =
+        viewModelScope.launch { settingsRepository.setAttachPhotoSize(size) }
+
+    fun setAttachImageWidth(mode: com.rrajath.grove.settings.AttachImageWidth) =
+        viewModelScope.launch { settingsRepository.setAttachImageWidth(mode) }
+
+    fun setAttachImageWidthPx(px: Int) =
+        viewModelScope.launch { settingsRepository.setAttachImageWidthPx(px) }
+
     fun setRoamOpenWholeFile(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setRoamOpenWholeFile(enabled) }
 

@@ -25,7 +25,7 @@ class AttachmentImporterTest {
 
     private val store by lazy { JvmFileStore(tmp.root, skipAttachShards = true) }
     private val sources = mutableMapOf<String, () -> InputStream?>()
-    private val importer by lazy { AttachmentImporter(store) { uri -> sources[uri]?.invoke() } }
+    private val importer by lazy { AttachmentImporter(store, { uri -> sources[uri]?.invoke() }) }
 
     private fun source(uri: String, name: String, bytes: ByteArray = ByteArray(10) { it.toByte() }): AttachSource {
         sources[uri] = { ByteArrayInputStream(bytes) }
@@ -150,5 +150,53 @@ class AttachmentImporterTest {
         assertEquals("2.1 of 4.1 MB", formatCopyBytes((2.1 * 1024 * 1024).toLong(), (4.1 * 1024 * 1024).toLong()))
         assertEquals("100 of 200 KB", formatCopyBytes(100 * 1024, 200 * 1024))
         assertEquals("1.5 MB", formatCopyBytes((1.5 * 1024 * 1024).toLong(), null))
+    }
+
+    // Photo processing (M5): a fake processor stands in for ImageTranscoder.
+
+    private val processedBytes = "JPEGDATA".toByteArray()
+    private val processorCalls = mutableListOf<Pair<String, Int?>>()
+    private fun processor(result: Boolean = true) = PhotoProcessor { src, open, longEdge ->
+        processorCalls += src.displayName to longEdge
+        open()?.close()
+        if (!result) null else tmp.newFile().apply { writeBytes(processedBytes) }
+    }
+
+    @Test
+    fun `a processed photo is written from the processor output under a jpg name`() = runTest {
+        val imp = AttachmentImporter(store, { uri -> sources[uri]?.invoke() }, processor())
+        val result = imp.import(
+            "data/AB/CD", listOf(source("a", "IMG_1.HEIC")), pruneStop = "",
+            processPhotos = true, photoLongEdge = 1920,
+        )
+        assertEquals(ImportResult.Success(listOf("IMG_1.jpg"), emptySet()), result)
+        assertEquals("JPEGDATA", File(tmp.root, "data/AB/CD/IMG_1.jpg").readText())
+        assertEquals(listOf("IMG_1.HEIC" to 1920), processorCalls)
+    }
+
+    @Test
+    fun `the jpg name from a conversion still gets a unique suffix`() = runTest {
+        put("data/AB/CD/IMG_1.jpg")
+        val imp = AttachmentImporter(store, { uri -> sources[uri]?.invoke() }, processor())
+        val result = imp.import("data/AB/CD", listOf(source("a", "IMG_1.heic")), pruneStop = "", processPhotos = true)
+        assertEquals(ImportResult.Success(listOf("IMG_1-1.jpg"), setOf("IMG_1-1.jpg")), result)
+    }
+
+    @Test
+    fun `files source and non-photo formats skip the processor`() = runTest {
+        val imp = AttachmentImporter(store, { uri -> sources[uri]?.invoke() }, processor())
+        imp.import("data/AB/CD", listOf(source("a", "big.jpg")), pruneStop = "", processPhotos = false, photoLongEdge = 1280)
+        imp.import("data/AB/CD", listOf(source("b", "shot.png")), pruneStop = "", processPhotos = true, photoLongEdge = 1280)
+        assertTrue(processorCalls.isEmpty())
+        assertEquals(10L, File(tmp.root, "data/AB/CD/big.jpg").length())
+        assertEquals(10L, File(tmp.root, "data/AB/CD/shot.png").length())
+    }
+
+    @Test
+    fun `a processor that declines falls back to a byte copy under the original name`() = runTest {
+        val imp = AttachmentImporter(store, { uri -> sources[uri]?.invoke() }, processor(result = false))
+        val result = imp.import("data/AB/CD", listOf(source("a", "IMG_2.HEIC")), pruneStop = "", processPhotos = true)
+        assertEquals(ImportResult.Success(listOf("IMG_2.HEIC"), emptySet()), result)
+        assertEquals(10L, File(tmp.root, "data/AB/CD/IMG_2.HEIC").length())
     }
 }

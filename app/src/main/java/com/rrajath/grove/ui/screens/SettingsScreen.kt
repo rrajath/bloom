@@ -56,6 +56,7 @@ fun SettingsScreen(
     onOpenWidget: () -> Unit,
     onOpenReminders: () -> Unit,
     onOpenRoam: () -> Unit,
+    onOpenAttachments: () -> Unit,
     onOpenSharing: () -> Unit,
     onOpenBackup: () -> Unit,
     onOpenBugReport: () -> Unit,
@@ -118,6 +119,12 @@ fun SettingsScreen(
                 Pill(text = "Experimental", fg = c.amber, bg = c.amberSoft)
                 NewDot(NewAnchors.SETTINGS_ROAM, Modifier.padding(start = 6.dp))
             },
+        ),
+        if (!com.rrajath.grove.FeatureFlags.ATTACHMENTS) null else SettingsPage(
+            "Attachments",
+            "Photo size, default image width",
+            onClick = onOpenAttachments,
+            badge = { Pill(text = "Experimental", fg = c.amber, bg = c.amberSoft) },
         ),
         SettingsPage(
             "Sharing",

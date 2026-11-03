@@ -1,6 +1,8 @@
 package com.rrajath.grove.attach
 
 import com.rrajath.grove.vault.FileStore
+import java.io.File
+import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
@@ -18,6 +20,8 @@ data class AttachSource(
     val displayName: String,
     /** Byte size when the picker knows it, for determinate progress. */
     val size: Long?,
+    /** MIME type the provider reported, when known; picks HEIC/JPEG for photo processing. */
+    val mimeType: String? = null,
 )
 
 /** Opens an [AttachSource] for reading; null or a [FileNotFoundException] means it's gone. */
@@ -62,6 +66,8 @@ sealed interface ImportResult {
 class AttachmentImporter(
     private val store: FileStore,
     private val opener: SourceOpener,
+    /** Resizes and converts Camera/Photos images; null copies everything byte for byte. */
+    private val photoProcessor: PhotoProcessor? = null,
 ) {
     private val files = AttachmentFiles(store)
 
@@ -69,12 +75,16 @@ class AttachmentImporter(
      * Copies [sources] into [dir] (vault-relative, created when missing).
      * [pruneStop] bounds the empty-directory cleanup on failure (the org
      * file's own directory). Cancellation is cooperative and rethrown after
-     * cleanup.
+     * cleanup. With [processPhotos] (Camera and Photos, never Files), JPEG and
+     * HEIC sources go through the [photoProcessor] first: resized to
+     * [photoLongEdge] when set, and HEIC always converted to `.jpg`.
      */
     suspend fun import(
         dir: String,
         sources: List<AttachSource>,
         pruneStop: String,
+        processPhotos: Boolean = false,
+        photoLongEdge: Int? = null,
         onProgress: (ImportProgress) -> Unit = {},
     ): ImportResult {
         require(sources.isNotEmpty()) { "nothing to import" }
@@ -89,34 +99,54 @@ class AttachmentImporter(
         }
 
         for ((i, src) in sources.withIndex()) {
-            val wanted = sanitizeAttachmentName(src.displayName)
-            val name = files.uniqueName(dir, wanted)
-            if (name != wanted) renamed += name
-            val partPath = joinPath(dir, name + AttachmentFiles.PART_SUFFIX)
-            onProgress(ImportProgress(i + 1, sources.size, name, 0, src.size))
-            val failure = try {
-                copyOne(src, partPath) { done -> onProgress(ImportProgress(i + 1, sources.size, name, done, src.size)) }
-            } catch (e: CancellationException) {
-                withContext(NonCancellable) { cleanUp(partPath) }
-                throw e
+            var wanted = sanitizeAttachmentName(src.displayName)
+            val processor = photoProcessor
+            val processed: File? = if (processPhotos && processor != null && isTranscodableImage(src)) {
+                onProgress(ImportProgress(i + 1, sources.size, wanted, 0, null))
+                try {
+                    processor.process(src, { opener.open(src.uri) }, photoLongEdge)
+                } catch (e: CancellationException) {
+                    withContext(NonCancellable) { cleanUp(null) }
+                    throw e
+                }
+            } else {
+                null
             }
-            if (failure != null) {
-                cleanUp(partPath)
-                return ImportResult.Failed(name, failure)
+            try {
+                if (processed != null) wanted = withJpegExtension(wanted)
+                val name = files.uniqueName(dir, wanted)
+                if (name != wanted) renamed += name
+                val partPath = joinPath(dir, name + AttachmentFiles.PART_SUFFIX)
+                val total = processed?.length() ?: src.size
+                val open: () -> InputStream? =
+                    if (processed != null) ({ FileInputStream(processed) }) else ({ opener.open(src.uri) })
+                onProgress(ImportProgress(i + 1, sources.size, name, 0, total))
+                val failure = try {
+                    copyOne(open, partPath) { done -> onProgress(ImportProgress(i + 1, sources.size, name, done, total)) }
+                } catch (e: CancellationException) {
+                    withContext(NonCancellable) { cleanUp(partPath) }
+                    throw e
+                }
+                if (failure != null) {
+                    cleanUp(partPath)
+                    return ImportResult.Failed(name, failure)
+                }
+                if (!store.renameRaw(partPath, name)) {
+                    cleanUp(partPath)
+                    return ImportResult.Failed(name, ImportFailure.WriteFailed)
+                }
+                written += name
+            } finally {
+                processed?.delete()
             }
-            if (!store.renameRaw(partPath, name)) {
-                cleanUp(partPath)
-                return ImportResult.Failed(name, ImportFailure.WriteFailed)
-            }
-            written += name
         }
         return ImportResult.Success(written.toList(), renamed)
     }
 
     /** Streams one source into [partPath]. Null on success, else why it failed. */
-    private suspend fun copyOne(src: AttachSource, partPath: String, onBytes: (Long) -> Unit): ImportFailure? {
+    private suspend fun copyOne(open: () -> InputStream?, partPath: String, onBytes: (Long) -> Unit): ImportFailure? {
         val input = try {
-            opener.open(src.uri)
+            open()
         } catch (e: FileNotFoundException) {
             null
         } catch (e: SecurityException) {

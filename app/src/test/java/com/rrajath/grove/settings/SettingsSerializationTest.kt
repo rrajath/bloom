@@ -155,6 +155,47 @@ class SettingsSerializationTest {
     }
 
     @Test
+    fun `attachment settings survive an export then import`() {
+        val custom = GroveSettings(
+            attachPhotoSize = AttachPhotoSize.MEDIUM,
+            attachImageWidth = AttachImageWidth.FIXED,
+            attachImageWidthPx = 480,
+        )
+        val restored = SettingsSerialization.import(SettingsSerialization.export(custom), GroveSettings())
+        assertEquals(AttachPhotoSize.MEDIUM, restored.attachPhotoSize)
+        assertEquals(AttachImageWidth.FIXED, restored.attachImageWidth)
+        assertEquals(480, restored.attachImageWidthPx)
+    }
+
+    @Test
+    fun `unknown attachment enums fall back to defaults and the width is clamped`() {
+        val base = SettingsSerialization.export(GroveSettings())
+        val bad = base
+            .replace("\"attachPhotoSize\": \"ORIGINAL\"", "\"attachPhotoSize\": \"HUGE\"")
+            .replace("\"attachImageWidth\": \"FIT\"", "\"attachImageWidth\": \"STRETCH\"")
+            .replace("\"attachImageWidthPx\": 320", "\"attachImageWidthPx\": 9000")
+        assertTrue(bad.contains("HUGE") && bad.contains("STRETCH") && bad.contains("9000"))
+        val restored = SettingsSerialization.import(
+            bad,
+            GroveSettings(attachPhotoSize = AttachPhotoSize.SMALL, attachImageWidth = AttachImageWidth.FIXED),
+        )
+        assertEquals(AttachPhotoSize.ORIGINAL, restored.attachPhotoSize)
+        assertEquals(AttachImageWidth.FIT, restored.attachImageWidth)
+        assertEquals(AttachImageWidth.MAX_PX, restored.attachImageWidthPx)
+    }
+
+    @Test
+    fun `an export without attachment keys imports the defaults`() {
+        val json = SettingsSerialization.export(GroveSettings())
+            .lines().filterNot { it.contains("\"attach") }.joinToString("\n")
+            .replace(Regex(",(\\s*})"), "$1")
+        val restored = SettingsSerialization.import(json, GroveSettings())
+        assertEquals(AttachPhotoSize.ORIGINAL, restored.attachPhotoSize)
+        assertEquals(AttachImageWidth.FIT, restored.attachImageWidth)
+        assertEquals(AttachImageWidth.DEFAULT_PX, restored.attachImageWidthPx)
+    }
+
+    @Test
     fun `an old-format export with only pinnedNotebooks and pinnedFolders imports into the unified list`() {
         // A pre-unification export: no "pinnedItems" key, just the two legacy arrays.
         val json = """

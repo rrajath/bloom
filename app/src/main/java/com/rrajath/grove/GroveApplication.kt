@@ -259,6 +259,8 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             notify = { message ->
                 android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
             },
+            photoProcessor = com.rrajath.grove.attach.ImageTranscoder(java.io.File(cacheDir, "attach-transcode")),
+            photoLongEdge = { settingsRepository.settings.first().attachPhotoSize.longEdge },
         )
     }
 

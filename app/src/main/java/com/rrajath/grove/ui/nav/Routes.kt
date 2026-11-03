@@ -53,6 +53,8 @@ object Routes {
     const val SETTINGS_SHARING = "settings/sharing"
     /** Experimental Roam-style features: backlinks bar, auto-link suggestions while typing. */
     const val SETTINGS_ROAM = "settings/roam"
+    /** Experimental attachments: photo size and default image width (debug builds only). */
+    const val SETTINGS_ATTACHMENTS = "settings/attachments"
     /** A daily journal note; [date] is ISO yyyy-MM-dd, absent = today. */
     const val DAILIES = "dailies?date={date}"
     const val SETTINGS_BACKUP = "settings/backup"

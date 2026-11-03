@@ -65,6 +65,10 @@ class AttachmentCopyManager(
     /** Shows a message when no editor is listening (an app-level toast on device). */
     private val notify: (String) -> Unit,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Resizes/converts Camera and Photos images (Settings § Attachments); null copies as-is. */
+    private val photoProcessor: PhotoProcessor? = null,
+    /** Current Photo size setting's long edge in px, or null for Original. Read once per copy. */
+    private val photoLongEdge: suspend () -> Int? = { null },
 ) {
     private val _progress = MutableStateFlow<CopyProgress?>(null)
     val progress: StateFlow<CopyProgress?> = _progress
@@ -87,12 +91,14 @@ class AttachmentCopyManager(
         val fs = store() ?: return false
         val id = ++jobId
         val startedAt = clock()
-        val importer = AttachmentImporter(fs, opener)
+        val importer = AttachmentImporter(fs, opener, photoProcessor)
         val pruneStop = request.orgFile.substringBeforeLast('/', "")
         job = scope.launch {
             try {
+                val processPhotos = request.kind != AttachKind.Files
+                val longEdge = if (processPhotos) photoLongEdge() else null
                 val result = withContext(io) {
-                    importer.import(request.dir, request.sources, pruneStop) { p ->
+                    importer.import(request.dir, request.sources, pruneStop, processPhotos, longEdge) { p ->
                         _progress.value = CopyProgress(id, request.orgFile, startedAt, request.kind, p)
                     }
                 }

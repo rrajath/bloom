@@ -228,6 +228,39 @@ enum class ReminderLeadTime(val storageKey: String, val label: String, val offse
     }
 }
 
+/**
+ * Settings § Attachments: how Camera and Photos images are stored. [longEdge] is
+ * the target long edge in px, or null to keep full resolution (HEIC is still
+ * converted to JPEG). Files-picker attachments are always copied as-is.
+ */
+enum class AttachPhotoSize(val storageKey: String, val label: String, val longEdge: Int?, val helper: String) {
+    ORIGINAL("ORIGINAL", "Original", null, "Full resolution. HEIC is still converted to JPEG."),
+    LARGE("LARGE", "Large", 2560, "Long edge 2560 px"),
+    MEDIUM("MEDIUM", "Medium", 1920, "Long edge 1920 px"),
+    SMALL("SMALL", "Small", 1280, "Long edge 1280 px");
+
+    companion object {
+        fun fromStorage(value: String?): AttachPhotoSize = entries.firstOrNull { it.storageKey == value } ?: ORIGINAL
+    }
+}
+
+/** Settings § Attachments: default read-mode width for inline images. */
+enum class AttachImageWidth(val storageKey: String, val label: String) {
+    FIT("FIT", "Fit column"),
+    FIXED("FIXED", "Fixed");
+
+    companion object {
+        const val DEFAULT_PX = 320
+        const val MIN_PX = 120
+        const val MAX_PX = 1200
+        const val STEP_PX = 40
+
+        fun fromStorage(value: String?): AttachImageWidth = entries.firstOrNull { it.storageKey == value } ?: FIT
+
+        fun clampPx(px: Int): Int = px.coerceIn(MIN_PX, MAX_PX)
+    }
+}
+
 /** Agenda row swipe gesture (either direction), Settings § Agenda. */
 enum class AgendaSwipeAction(val storageKey: String, val label: String) {
     SET_SCHEDULED("set_scheduled", "Schedule Task"),
