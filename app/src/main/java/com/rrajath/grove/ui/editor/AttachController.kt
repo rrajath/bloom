@@ -92,7 +92,7 @@ internal data class PendingAttach(
 )
 
 /** Picker results waiting for the buffer to load (after a process death). */
-private data class PendingResult(val pending: PendingAttach, val uris: List<Uri>)
+internal data class PendingResult(val pending: PendingAttach, val uris: List<Uri>)
 
 /**
  * Edit-mode attach (1c) for one editor field: the sheet, the three source
@@ -115,6 +115,8 @@ class AttachController internal constructor(
         private set
     var confirmDelete by mutableStateOf<FileEntry?>(null)
     internal var pending: PendingAttach? = null
+    /** Picker results not yet processed (waiting for the buffer after a process death). */
+    private var waiting by mutableStateOf<PendingResult?>(null)
     internal var launchCamera: (Uri) -> Unit = {}
     internal var launchPhotos: () -> Unit = {}
     internal var launchFiles: () -> Unit = {}
@@ -204,6 +206,27 @@ class AttachController internal constructor(
             }
         }
     }
+
+    /** A launcher delivered [uris] for the pending attach (empty on cancel). */
+    internal fun onPickerResult(uris: List<Uri>) {
+        val p = pending ?: return
+        pending = null
+        waiting = PendingResult(p, uris)
+    }
+
+    /**
+     * Starts processing a waiting result once the editor buffer is loaded. The
+     * work runs on the controller's scope, not in the calling effect: the effect
+     * is keyed on [waiting], so clearing it would cancel work run inside it.
+     */
+    internal fun processWaiting(bufferReady: Boolean) {
+        val w = waiting ?: return
+        if (!bufferReady) return
+        waiting = null
+        scope.launch { onPicked(w.pending, w.uris) }
+    }
+
+    internal val hasWaiting: Boolean get() = waiting != null
 
     /**
      * A picker returned. Re-finds the owner in the live buffer (ID, then title
@@ -382,24 +405,36 @@ private val pendingJson = Json { ignoreUnknownKeys = true }
  */
 @Composable
 fun rememberAttachController(textState: TextFieldState, orgFile: String, bufferReady: Boolean): AttachController {
+    val app = LocalContext.current.applicationContext as? GroveApplication
+    return rememberAttachController(
+        textState, orgFile, bufferReady,
+        manager = app?.attachmentCopyManager,
+        storeProvider = { app?.fileStore?.value },
+    )
+}
+
+@Composable
+internal fun rememberAttachController(
+    textState: TextFieldState,
+    orgFile: String,
+    bufferReady: Boolean,
+    manager: AttachmentCopyManager?,
+    storeProvider: () -> FileStore?,
+): AttachController {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val app = context.applicationContext as? GroveApplication
     val controller = remember(textState, orgFile) {
-        AttachController(context, scope, textState, orgFile, app?.attachmentCopyManager, { app?.fileStore?.value })
+        AttachController(context, scope, textState, orgFile, manager, storeProvider)
     }
     // Saved as JSON so it survives process death without the parcelize plugin.
     var saved by rememberSaveable { mutableStateOf<String?>(null) }
-    var waiting by remember { mutableStateOf<PendingResult?>(null) }
     if (controller.pending == null) {
         saved?.let { s -> controller.pending = runCatching { pendingJson.decodeFromString<PendingAttach>(s) }.getOrNull() }
     }
 
     fun deliver(uris: List<Uri>) {
-        val p = controller.pending ?: return
-        controller.pending = null
         saved = null
-        waiting = PendingResult(p, uris)
+        controller.onPickerResult(uris)
     }
 
     fun persistPending() {
@@ -426,12 +461,7 @@ fun rememberAttachController(textState: TextFieldState, orgFile: String, bufferR
         files.launch(arrayOf("*/*"))
     }
 
-    LaunchedEffect(waiting, bufferReady) {
-        val w = waiting ?: return@LaunchedEffect
-        if (!bufferReady) return@LaunchedEffect
-        waiting = null
-        controller.onPicked(w.pending, w.uris)
-    }
+    LaunchedEffect(controller.hasWaiting, bufferReady) { controller.processWaiting(bufferReady) }
 
     DisposableEffect(controller) {
         val handle = controller.manager?.register(orgFile) { done -> controller.onDone(done) }
