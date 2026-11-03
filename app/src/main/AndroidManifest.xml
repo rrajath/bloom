@@ -9,6 +9,15 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- API 30+ package visibility: lets "Open with" tell whether any app can
+         view an attachment before launching the chooser. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="*/*" />
+        </intent>
+    </queries>
+
     <application
         android:name=".GroveApplication"
         android:allowBackup="true"
@@ -482,6 +491,19 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!-- Attachments: camera captures land in cacheDir/attach-camera/ and are
+             handed to the camera app through this provider. No CAMERA permission:
+             ACTION_IMAGE_CAPTURE doesn't need one when it isn't declared. -->
+        <provider
+            android:name=".attach.AttachmentFileProvider"
+            android:authorities="${applicationId}.attachments"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/attachment_paths" />
+        </provider>
 
 </application>
 

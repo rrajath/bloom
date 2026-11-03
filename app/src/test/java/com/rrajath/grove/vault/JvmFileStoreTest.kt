@@ -141,4 +141,59 @@ class JvmFileStoreTest {
         val s = JvmFileStore(tmp.root, IgnorePatterns(""))
         assertEquals(listOf("keep.org"), s.list().map { it.name })
     }
+
+    @Test
+    fun `list skips attachment shards under data when enabled`() = runTest {
+        listOf(
+            "inbox.org", "data/loose.org", "data/notes/kept.org",
+            "data/3F/2504E0/photo.jpg", "data/202611/02T1252/a.m4a", "data/__/a/ab/b.pdf",
+            "Work/data/AB/CD/c.png", "Work/plan.org", "ab/top-level-two-char.org",
+        ).forEach { tmp.root.resolve(it).apply { parentFile.mkdirs() }.writeText("x") }
+
+        assertEquals(
+            listOf("Work/plan.org", "ab/top-level-two-char.org", "data/loose.org", "data/notes/kept.org", "inbox.org"),
+            JvmFileStore(tmp.root, skipAttachShards = true).list().map { it.name },
+        )
+        assertEquals(9, JvmFileStore(tmp.root, skipAttachShards = false).list().size)
+    }
+
+    @Test
+    fun `raw apis reach into skipped shards`() = runTest {
+        val s = JvmFileStore(tmp.root, skipAttachShards = true)
+        val part = "data/3F/2504E0/photo.jpg.part"
+        assertFalse(s.dirExists("data/3F"))
+        assertTrue(s.createBinary(part))
+        assertFalse(s.createBinary(part))
+        s.openOutput(part).use { it.write(byteArrayOf(1, 2, 3)) }
+        assertTrue(s.renameRaw(part, "photo.jpg"))
+        assertFalse(s.renameRaw("data/3F/2504E0/missing.jpg", "x.jpg"))
+
+        val final = "data/3F/2504E0/photo.jpg"
+        assertEquals(3L, s.statRaw(final)?.size)
+        assertNull(s.statRaw("data/3F/2504E0"))
+        assertEquals(listOf(1, 2, 3), s.openInput(final).use { it.readBytes() }.map { it.toInt() })
+        assertTrue(s.dirExists("data/3F/2504E0"))
+        assertEquals(listOf("3F"), s.listSubdirs("data"))
+        assertEquals(listOf(final), s.listDirRaw("data/3F/2504E0").map { it.name })
+        assertNull(s.contentUri(final))
+        assertTrue(s.list().isEmpty())
+
+        assertTrue(s.moveDir("data/3F/2504E0", "Archive/data/3F"))
+        assertFalse(s.dirExists("data/3F/2504E0"))
+        assertEquals(3L, s.statRaw("Archive/data/3F/2504E0/photo.jpg")?.size)
+
+        assertTrue(s.deleteRaw("Archive/data/3F/2504E0/photo.jpg"))
+        assertFalse(s.deleteRaw("Archive/data/3F/2504E0/photo.jpg"))
+        assertTrue(s.deleteDir("Archive/data"))
+        assertFalse(s.dirExists("Archive/data"))
+    }
+
+    @Test
+    fun `moveDir refuses an existing destination`() = runTest {
+        val s = JvmFileStore(tmp.root)
+        s.createBinary("a/data/3F/X/1.jpg")
+        s.createBinary("b/data/3F/X/2.jpg")
+        assertFalse(s.moveDir("a/data/3F/X", "b/data/3F"))
+        assertTrue(s.dirExists("a/data/3F/X"))
+    }
 }

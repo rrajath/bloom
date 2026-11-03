@@ -8,6 +8,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -15,7 +18,8 @@ import java.util.concurrent.ConcurrentHashMap
  * (ACTION_OPEN_DOCUMENT_TREE).
  *
  * The vault is a tree: [list] walks every subdirectory (one child-documents
- * cursor query per directory), skipping dot-directories. Names are
+ * cursor query per directory), skipping dot-directories and attachment shards
+ * ([isSkippedVaultDir]). Names are
  * vault-relative paths with `/` separators. Writes use mode "wt": without
  * truncate, writing shorter content than the existing file leaves trailing
  * garbage.
@@ -28,6 +32,7 @@ class SafFileStore(
     private val context: Context,
     private val treeUri: Uri,
     private val ignore: IgnorePatterns = IgnorePatterns(""),
+    private val skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
 ) : FileStore {
 
     private val resolver get() = context.contentResolver
@@ -91,7 +96,7 @@ class SafFileStore(
                     val mime = cursor.getString(4)
                     val path = if (dir.isEmpty()) name else "$dir/$name"
                     if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
-                        if (isSkippedVaultDir(name) || ignore.isDirIgnored(name, path)) continue
+                        if (isSkippedVaultDir(name, dir, skipAttachShards) || ignore.isDirIgnored(name, path)) continue
                         dirs[path] = childDocId
                         queue.add(path to childDocId)
                     } else {
@@ -145,7 +150,7 @@ class SafFileStore(
                 val name = it.getString(1) ?: continue
                 val path = if (dir.isEmpty()) name else "$dir/$name"
                 if (it.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    if (isSkippedVaultDir(name) || ignore.isDirIgnored(name, path)) continue
+                    if (isSkippedVaultDir(name, dir, skipAttachShards) || ignore.isDirIgnored(name, path)) continue
                     dirDocIds[path] = childDocId
                     seenDirs += path
                 } else {
@@ -178,7 +183,9 @@ class SafFileStore(
         var currentDocId = rootDocId
         for (segment in dir.split('/')) {
             val nextPath = if (currentPath.isEmpty()) segment else "$currentPath/$segment"
-            if (isSkippedVaultDir(segment) || ignore.isDirIgnored(segment, nextPath)) return null
+            if (isSkippedVaultDir(segment, currentPath, skipAttachShards) || ignore.isDirIgnored(segment, nextPath)) {
+                return null
+            }
             currentDocId = dirDocIds[nextPath]
                 ?: findChildDir(currentDocId, segment)?.also { dirDocIds[nextPath] = it }
                 ?: return null
@@ -208,8 +215,11 @@ class SafFileStore(
         val segments = name.split('/')
         var path = ""
         for (dir in segments.dropLast(1)) {
+            val parent = path
             path = if (path.isEmpty()) dir else "$path/$dir"
-            if (isSkippedVaultDir(dir) || ignore.isDirIgnored(dir, path)) return DirectLookup.Missing
+            if (isSkippedVaultDir(dir, parent, skipAttachShards) || ignore.isDirIgnored(dir, path)) {
+                return DirectLookup.Missing
+            }
         }
         if (ignore.isFileIgnored(segments.last(), name)) return DirectLookup.Missing
         val docId = if (root.endsWith(':')) "$root$name" else "$root/$name"
@@ -453,11 +463,329 @@ class SafFileStore(
         return currentDocId
     }
 
+    // --- Raw access for attachments ---------------------------------------
+    //
+    // Attachment files live under skipped shard dirs, so the listing-backed
+    // caches above never hold them and documentUri() treats them as missing.
+    // These members resolve paths on their own, ignoring every skip/ignore
+    // rule: on the local-storage provider (path document ids) one query per
+    // lookup, elsewhere a cached id validated with one query, falling back to
+    // a walk from the nearest known parent. Their ids go in separate caches
+    // that list() never wipes.
+
+    private data class DocMeta(
+        val docId: String,
+        val name: String,
+        val lastModified: Long,
+        val size: Long,
+        val isDir: Boolean,
+    )
+
+    /** raw relative path -> document id, for files / directories resolved here. */
+    private val rawFileIds: MutableMap<String, String> = ConcurrentHashMap()
+    private val rawDirIds: MutableMap<String, String> = ConcurrentHashMap()
+
+    private fun metaOf(cursor: android.database.Cursor, fallbackId: String): DocMeta? {
+        val name = cursor.getString(1) ?: return null
+        return DocMeta(
+            docId = cursor.getString(0) ?: fallbackId,
+            name = name,
+            lastModified = cursor.getLong(2),
+            size = cursor.getLong(3),
+            isDir = cursor.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR,
+        )
+    }
+
+    /** One query for [docId]'s metadata; null when it's gone or the provider refuses. */
+    private fun queryDoc(docId: String): DocMeta? {
+        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+        val cursor = runCatching { resolver.query(uri, projection, null, null, null) }.getOrNull()
+            ?: return null
+        return cursor.use { if (it.moveToFirst()) metaOf(it, docId) else null }
+    }
+
+    /** Children of [docId], or null when the provider rejects the id. */
+    private fun queryChildren(docId: String): List<DocMeta>? {
+        val uri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+        val cursor = runCatching { resolver.query(uri, projection, null, null, null) }.getOrNull()
+            ?: return null
+        return cursor.use {
+            buildList { while (it.moveToNext()) metaOf(it, "")?.takeIf { m -> m.docId.isNotEmpty() }?.let(::add) }
+        }
+    }
+
+    private fun remember(path: String, meta: DocMeta) {
+        if (meta.isDir) {
+            rawDirIds[path] = meta.docId
+            rawFileIds.remove(path)
+        } else {
+            rawFileIds[path] = meta.docId
+            rawDirIds.remove(path)
+        }
+    }
+
+    /** Drops [path] and everything under it from every cache. */
+    private fun forgetTree(path: String) {
+        fun drop(map: MutableMap<String, String>) {
+            map.keys.removeAll { it == path || it.startsWith("$path/") }
+        }
+        drop(rawFileIds)
+        drop(rawDirIds)
+        drop(docIds)
+        drop(dirDocIds)
+    }
+
+    /** The provider's document id for [path] when ids are paths (local storage), else null. */
+    private fun pathDocId(path: String): String? {
+        if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) return null
+        val root = rootDocId
+        if (':' !in root) return null
+        return if (root.endsWith(':')) "$root$path" else "$root/$path"
+    }
+
+    /** Metadata for whatever is at [path] (file or directory), or null. Never consults skip rules. */
+    private fun rawLookup(path: String): DocMeta? {
+        if (path.isEmpty()) return queryDoc(rootDocId)
+        val leaf = path.substringAfterLast('/')
+        val cached = rawFileIds[path] ?: rawDirIds[path] ?: docIds[path] ?: dirDocIds[path]
+        if (cached != null) {
+            val meta = queryDoc(cached)
+            if (meta != null && meta.name == leaf) return meta.also { remember(path, it) }
+            forgetTree(path)
+        }
+        pathDocId(path)?.let { id ->
+            val meta = queryDoc(id) ?: return null
+            // A different-case match on a case-insensitive volume isn't this
+            // name: settle it from the parent's listing below.
+            if (meta.name == leaf) return meta.also { remember(path, it) }
+        }
+        val parent = rawLookup(path.substringBeforeLast('/', ""))?.takeIf { it.isDir } ?: return null
+        return rawChild(path.substringBeforeLast('/', ""), parent.docId, leaf)
+    }
+
+    /** Finds [leaf] among the children of [parentDocId] (at [parentPath]), caching every child seen. */
+    private fun rawChild(parentPath: String, parentDocId: String, leaf: String): DocMeta? {
+        var found: DocMeta? = null
+        queryChildren(parentDocId)?.forEach { child ->
+            val childPath = if (parentPath.isEmpty()) child.name else "$parentPath/${child.name}"
+            remember(childPath, child)
+            if (child.name == leaf) found = child
+        }
+        return found
+    }
+
+    /** Document id of directory [path], creating it and missing ancestors. Null on failure or a file in the way. */
+    private fun ensureRawDir(path: String): String? {
+        if (path.isEmpty()) return rootDocId
+        rawLookup(path)?.let { return if (it.isDir) it.docId else null }
+        val parentId = ensureRawDir(path.substringBeforeLast('/', "")) ?: return null
+        val leaf = path.substringAfterLast('/')
+        val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, parentId)
+        val created = runCatching {
+            DocumentsContract.createDocument(resolver, parentUri, DocumentsContract.Document.MIME_TYPE_DIR, leaf)
+        }.getOrNull() ?: return null
+        val docId = DocumentsContract.getDocumentId(created)
+        rawDirIds[path] = docId
+        return docId
+    }
+
+    private fun rawFileUri(name: String): Uri? =
+        rawLookup(name.trim('/'))?.takeIf { !it.isDir }
+            ?.let { DocumentsContract.buildDocumentUriUsingTree(treeUri, it.docId) }
+
+    override suspend fun openInput(name: String): InputStream = withContext(Dispatchers.IO) {
+        val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
+        resolver.openInputStream(uri) ?: throw FileNotFoundException(name)
+    }
+
+    override suspend fun createBinary(name: String): Boolean = withContext(Dispatchers.IO) {
+        val path = name.trim('/')
+        if (rawLookup(path) != null) return@withContext false
+        val (dir, leaf) = splitPath(path)
+        val parentId = ensureRawDir(dir) ?: return@withContext false
+        val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, parentId)
+        // octet-stream so the provider doesn't append an extension (see create()).
+        var created = runCatching {
+            DocumentsContract.createDocument(resolver, parentUri, "application/octet-stream", leaf)
+        }.getOrNull() ?: return@withContext false
+        val actualName = displayNameOf(created)
+        if (actualName != null && actualName != leaf) {
+            val renamed = runCatching { DocumentsContract.renameDocument(resolver, created, leaf) }.getOrNull()
+            if (renamed == null) {
+                // Couldn't get the exact name: don't leave a stray "x (1).jpg" behind.
+                runCatching { DocumentsContract.deleteDocument(resolver, created) }
+                return@withContext false
+            }
+            created = renamed
+        }
+        rawFileIds[path] = DocumentsContract.getDocumentId(created)
+        true
+    }
+
+    override suspend fun openOutput(name: String): OutputStream = withContext(Dispatchers.IO) {
+        val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
+        resolver.openOutputStream(uri, "wt") ?: throw FileNotFoundException(name)
+    }
+
+    override suspend fun statRaw(name: String): FileEntry? = withContext(Dispatchers.IO) {
+        val path = name.trim('/')
+        rawLookup(path)?.takeIf { !it.isDir }?.let { FileEntry(path, it.lastModified, it.size) }
+    }
+
+    override suspend fun renameRaw(name: String, newLeaf: String): Boolean = withContext(Dispatchers.IO) {
+        require('/' !in newLeaf && newLeaf.isNotBlank()) { "Bad leaf name: $newLeaf" }
+        val path = name.trim('/')
+        val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext false
+        val dir = path.substringBeforeLast('/', "")
+        val newPath = if (dir.isEmpty()) newLeaf else "$dir/$newLeaf"
+        if (rawLookup(newPath) != null) return@withContext false
+        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, meta.docId)
+        val renamed = runCatching { DocumentsContract.renameDocument(resolver, uri, newLeaf) }.getOrNull()
+            ?: return@withContext false
+        forgetTree(path)
+        rawFileIds[newPath] = DocumentsContract.getDocumentId(renamed)
+        true
+    }
+
+    override suspend fun deleteRaw(name: String): Boolean = withContext(Dispatchers.IO) {
+        val path = name.trim('/')
+        val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext false
+        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, meta.docId)
+        val ok = runCatching { DocumentsContract.deleteDocument(resolver, uri) }.getOrDefault(false)
+        if (ok) forgetTree(path)
+        ok
+    }
+
+    override suspend fun dirExists(dir: String): Boolean = withContext(Dispatchers.IO) {
+        val path = dir.trim('/')
+        path.isEmpty() || rawLookup(path)?.isDir == true
+    }
+
+    override suspend fun listDirRaw(dir: String): List<FileEntry> = withContext(Dispatchers.IO) {
+        rawChildren(dir.trim('/')).filter { !it.second.isDir }
+            .map { (path, m) -> FileEntry(path, m.lastModified, m.size) }
+            .sortedBy { it.name }
+    }
+
+    override suspend fun listSubdirs(dir: String): List<String> = withContext(Dispatchers.IO) {
+        rawChildren(dir.trim('/')).filter { it.second.isDir }.map { it.second.name }.sorted()
+    }
+
+    /** (path, meta) for each child of directory [path]; empty when it isn't a directory. */
+    private fun rawChildren(path: String): List<Pair<String, DocMeta>> {
+        val docId = if (path.isEmpty()) rootDocId else rawLookup(path)?.takeIf { it.isDir }?.docId
+            ?: return emptyList()
+        val prefix = if (path.isEmpty()) "" else "$path/"
+        return queryChildren(docId).orEmpty().map { child ->
+            (prefix + child.name).let { childPath -> remember(childPath, child); childPath to child }
+        }
+    }
+
+    override suspend fun deleteDir(dir: String): Boolean = withContext(Dispatchers.IO) {
+        val path = dir.trim('/')
+        require(path.isNotEmpty()) { "Refusing to delete the vault root" }
+        val meta = rawLookup(path)?.takeIf { it.isDir } ?: return@withContext false
+        val ok = deleteTree(path, meta.docId)
+        forgetTree(path)
+        ok
+    }
+
+    /**
+     * Deletes a directory document. Providers delete children along with a
+     * directory (the platform's local-storage one does); for any that refuse
+     * a non-empty one, empty it first and retry.
+     */
+    private fun deleteTree(path: String, docId: String): Boolean {
+        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+        if (runCatching { DocumentsContract.deleteDocument(resolver, uri) }.getOrDefault(false)) return true
+        val children = queryChildren(docId) ?: return false
+        for (child in children) {
+            val childPath = "$path/${child.name}"
+            val ok = if (child.isDir) {
+                deleteTree(childPath, child.docId)
+            } else {
+                val childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, child.docId)
+                runCatching { DocumentsContract.deleteDocument(resolver, childUri) }.getOrDefault(false)
+            }
+            if (!ok) return false
+        }
+        return runCatching { DocumentsContract.deleteDocument(resolver, uri) }.getOrDefault(false)
+    }
+
+    override suspend fun moveDir(src: String, dstParent: String): Boolean = withContext(Dispatchers.IO) {
+        val srcPath = src.trim('/')
+        val parentPath = dstParent.trim('/')
+        require(srcPath.isNotEmpty()) { "Refusing to move the vault root" }
+        val meta = rawLookup(srcPath)?.takeIf { it.isDir } ?: return@withContext false
+        val dstPath = if (parentPath.isEmpty()) meta.name else "$parentPath/${meta.name}"
+        if (dstPath == srcPath || dstPath.startsWith("$srcPath/")) return@withContext false
+        if (rawLookup(dstPath) != null) return@withContext false
+        val srcParentId = rawLookup(srcPath.substringBeforeLast('/', ""))?.docId ?: return@withContext false
+        val dstParentId = ensureRawDir(parentPath) ?: return@withContext false
+
+        // moveDocument needs API 24 and isn't supported by every provider.
+        val moved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            runCatching {
+                DocumentsContract.moveDocument(
+                    resolver,
+                    DocumentsContract.buildDocumentUriUsingTree(treeUri, meta.docId),
+                    DocumentsContract.buildDocumentUriUsingTree(treeUri, srcParentId),
+                    DocumentsContract.buildDocumentUriUsingTree(treeUri, dstParentId),
+                )
+            }.getOrNull()
+        } else {
+            null
+        }
+        forgetTree(srcPath)
+        forgetTree(dstPath)
+        if (moved != null) return@withContext true
+
+        // Fallback: copy the tree, and only delete the source once it's all there.
+        val copied = copyTree(srcPath, meta.docId, dstPath)
+        if (!copied) {
+            rawLookup(dstPath)?.takeIf { it.isDir }?.let { deleteTree(dstPath, it.docId) }
+            forgetTree(dstPath)
+            return@withContext false
+        }
+        deleteTree(srcPath, meta.docId).also { forgetTree(srcPath) }
+    }
+
+    private fun copyTree(srcPath: String, srcDocId: String, dstPath: String): Boolean {
+        val dstId = ensureRawDir(dstPath) ?: return false
+        val dstUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, dstId)
+        val children = queryChildren(srcDocId) ?: return false
+        for (child in children) {
+            if (child.isDir) {
+                if (!copyTree("$srcPath/${child.name}", child.docId, "$dstPath/${child.name}")) return false
+                continue
+            }
+            val created = runCatching {
+                DocumentsContract.createDocument(resolver, dstUri, "application/octet-stream", child.name)
+            }.getOrNull() ?: return false
+            val srcUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, child.docId)
+            val ok = runCatching {
+                resolver.openInputStream(srcUri)!!.use { input ->
+                    resolver.openOutputStream(created, "wt")!!.use { output -> input.copyTo(output, COPY_BUFFER) }
+                }
+            }.isSuccess
+            if (!ok) return false
+            val actual = displayNameOf(created)
+            if (actual != null && actual != child.name) {
+                runCatching { DocumentsContract.renameDocument(resolver, created, child.name) }.getOrNull() ?: return false
+            }
+        }
+        return true
+    }
+
+    override suspend fun contentUri(name: String): Uri? = withContext(Dispatchers.IO) { rawFileUri(name) }
+
     private fun splitPath(path: String): Pair<String, String> {
         val i = path.lastIndexOf('/')
         return if (i < 0) "" to path else path.substring(0, i) to path.substring(i + 1)
     }
 }
+
+private const val COPY_BUFFER = 64 * 1024
 
 /** The platform's local-storage documents provider, whose document ids are paths. */
 private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"

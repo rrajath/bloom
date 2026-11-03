@@ -1,22 +1,30 @@
 package com.rrajath.grove.vault
 
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 
 /**
  * Plain java.io implementation. Used by JVM unit tests, and reusable for any
  * future direct-filesystem vault location. Recurses into subdirectories,
- * skipping dot-directories (see [isSkippedVaultDir]).
+ * skipping dot-directories and attachment shards (see [isSkippedVaultDir]).
  */
 class JvmFileStore(
     private val root: File,
     private val ignore: IgnorePatterns = IgnorePatterns(""),
+    private val skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
 ) : FileStore {
 
     override suspend fun list(): List<FileEntry> =
         root.walkTopDown()
             .onEnter {
-                it == root || (!isSkippedVaultDir(it.name) &&
-                    !ignore.isDirIgnored(it.name, it.relativeTo(root).invariantSeparatorsPath))
+                it == root || (
+                    !isSkippedVaultDir(it.name, relativeParent(it), skipAttachShards) &&
+                        !ignore.isDirIgnored(it.name, it.relativeTo(root).invariantSeparatorsPath)
+                    )
             }
             .filter {
                 it.isFile && !ignore.isFileIgnored(it.name, it.relativeTo(root).invariantSeparatorsPath)
@@ -71,6 +79,79 @@ class JvmFileStore(
             current = current.substringBeforeLast('/', "")
         }
     }
+
+    override suspend fun openInput(name: String): InputStream {
+        val f = resolve(name)
+        if (!f.isFile) throw FileNotFoundException(name)
+        return FileInputStream(f)
+    }
+
+    override suspend fun createBinary(name: String): Boolean {
+        val target = resolve(name)
+        val parent = target.parentFile
+        if (parent != null && !parent.isDirectory && !parent.mkdirs()) return false
+        return target.createNewFile()
+    }
+
+    override suspend fun openOutput(name: String): OutputStream {
+        val f = resolve(name)
+        if (!f.isFile) throw FileNotFoundException(name)
+        return FileOutputStream(f, false)
+    }
+
+    override suspend fun statRaw(name: String): FileEntry? =
+        resolve(name).takeIf { it.isFile }?.let { FileEntry(name.trim('/'), it.lastModified(), it.length()) }
+
+    override suspend fun renameRaw(name: String, newLeaf: String): Boolean {
+        require('/' !in newLeaf && newLeaf.isNotBlank()) { "Bad leaf name: $newLeaf" }
+        val src = resolve(name)
+        if (!src.isFile) return false
+        val dst = File(src.parentFile, newLeaf)
+        if (dst.exists()) return false
+        return src.renameTo(dst)
+    }
+
+    override suspend fun deleteRaw(name: String): Boolean = resolve(name).let { it.isFile && it.delete() }
+
+    override suspend fun dirExists(dir: String): Boolean = dirFile(dir).isDirectory
+
+    override suspend fun listDirRaw(dir: String): List<FileEntry> {
+        val d = dirFile(dir)
+        val prefix = dir.trim('/').let { if (it.isEmpty()) "" else "$it/" }
+        return d.listFiles().orEmpty()
+            .filter { it.isFile }
+            .map { FileEntry(prefix + it.name, it.lastModified(), it.length()) }
+            .sortedBy { it.name }
+    }
+
+    override suspend fun listSubdirs(dir: String): List<String> =
+        dirFile(dir).listFiles().orEmpty().filter { it.isDirectory }.map { it.name }.sorted()
+
+    override suspend fun deleteDir(dir: String): Boolean {
+        require(dir.trim('/').isNotEmpty()) { "Refusing to delete the vault root" }
+        val d = dirFile(dir)
+        return d.isDirectory && d.deleteRecursively()
+    }
+
+    override suspend fun moveDir(src: String, dstParent: String): Boolean {
+        require(src.trim('/').isNotEmpty()) { "Refusing to move the vault root" }
+        val from = dirFile(src)
+        if (!from.isDirectory) return false
+        val parent = dirFile(dstParent)
+        val to = File(parent, from.name)
+        if (to.exists()) return false
+        if (!parent.isDirectory && !parent.mkdirs()) return false
+        if (from.renameTo(to)) return true
+        return from.copyRecursively(to) && from.deleteRecursively()
+    }
+
+    private fun dirFile(dir: String): File {
+        val trimmed = dir.trim('/')
+        return if (trimmed.isEmpty()) root else resolve(trimmed)
+    }
+
+    private fun relativeParent(dir: File): String =
+        dir.parentFile?.relativeTo(root)?.invariantSeparatorsPath.orEmpty()
 
     private fun resolve(name: String): File {
         require(name.isNotBlank()) { "Empty vault path" }
