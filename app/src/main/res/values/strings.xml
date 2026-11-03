@@ -42,4 +42,7 @@
         <item quantity="one">%1$d result</item>
         <item quantity="other">%1$d results</item>
     </plurals>
+    <!-- Attachments: chooser titles (attach/AttachmentIntents.kt). -->
+    <string name="attach_open_with">Open with</string>
+    <string name="attach_share">Share</string>
 </resources>

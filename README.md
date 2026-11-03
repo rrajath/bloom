@@ -148,7 +148,7 @@ app/src/main/java/com/rrajath/grove/
 
 ## Tech stack
 
-Kotlin 2.2 · Jetpack Compose (Material 3) · Room (on bundled SQLite, for FTS5) · DataStore · WorkManager · Glance · kotlinx.serialization · JUnit 4
+Kotlin 2.2 · Jetpack Compose (Material 3) · Room (on bundled SQLite, for FTS5) · DataStore · WorkManager · Glance · kotlinx.serialization · Coil 3 + Telephoto + ExifInterface (image attachments) · JUnit 4
 
 ## Fonts
 

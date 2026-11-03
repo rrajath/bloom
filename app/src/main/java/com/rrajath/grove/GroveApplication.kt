@@ -7,6 +7,10 @@ import androidx.core.net.toUri
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import com.rrajath.grove.attach.AttachmentImageLoader
 import com.rrajath.grove.capture.SharedPayload
 import com.rrajath.grove.capture.ShortcutSyncer
 import com.rrajath.grove.capture.TemplatesRepository
@@ -74,7 +78,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 private const val LEGACY_IGNORE_FILE_NAME = ".orgzlyignore"
 
-open class GroveApplication : Application() {
+open class GroveApplication : Application(), SingletonImageLoader.Factory {
+
+    /** Coil's singleton loader, built lazily on the first image request (attachments). */
+    override fun newImageLoader(context: PlatformContext): ImageLoader = AttachmentImageLoader.build(context)
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

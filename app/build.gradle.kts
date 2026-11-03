@@ -329,6 +329,12 @@ dependencies {
     // a packaged baseline profile at app startup once one is generated.
     implementation(libs.androidx.profileinstaller)
     implementation(libs.java.diff.utils)
+    // Attachments: image loading (local content URIs only, no network fetcher),
+    // GIF frames, zoomable viewer, EXIF orientation/tags for photo resizing.
+    implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
+    implementation(libs.telephoto.zoomable.image.coil3)
+    implementation(libs.androidx.exifinterface)
 
     // Producer of the baseline profile packaged above (see the androidx.baselineprofile
     // plugin). `./gradlew :app:generateBaselineProfile` runs the generator on a

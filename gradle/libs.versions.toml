@@ -39,6 +39,12 @@ androidxTestServices = "1.6.0"
 # Layer-4 macrobenchmark (internal/test-suite-04-performance-macrobenchmark.md).
 # Kept in lockstep with `benchmark` above.
 baselineprofile = "1.5.0-rc02"
+# Attachments (internal/image-file-support-tech-design.md 3.3). Coil 3.5+ is
+# built with Kotlin 2.4 (stdlib 2.4.x); 3.4.0 is the newest line a Kotlin 2.2
+# compiler can read. Bump with Kotlin.
+coil = "3.4.0"
+telephoto = "0.19.0"
+exifinterface = "1.4.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -89,6 +95,10 @@ androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "
 androidx-test-orchestrator = { group = "androidx.test", name = "orchestrator", version.ref = "androidxTestOrchestrator" }
 androidx-test-services = { group = "androidx.test.services", name = "test-services", version.ref = "androidxTestServices" }
 androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+coil-gif = { group = "io.coil-kt.coil3", name = "coil-gif", version.ref = "coil" }
+telephoto-zoomable-image-coil3 = { group = "me.saket.telephoto", name = "zoomable-image-coil3", version.ref = "telephoto" }
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
