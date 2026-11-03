@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.exifinterface.media.ExifInterface
 import coil3.compose.AsyncImage
 import coil3.decode.BitmapFactoryDecoder
 import coil3.request.ImageRequest
@@ -84,6 +85,7 @@ import com.rrajath.grove.attach.AttachmentStatus
 import com.rrajath.grove.attach.AttachmentStatusCache
 import com.rrajath.grove.attach.ImageBounds
 import com.rrajath.grove.attach.LocalAttachment
+import com.rrajath.grove.attach.attachmentExtension
 import com.rrajath.grove.attach.linkDescription
 import com.rrajath.grove.org.InlineTokenizer
 import com.rrajath.grove.org.InlineType
@@ -96,6 +98,7 @@ import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /**
  * What read mode needs to draw attachment links as 1d images and chips: the
@@ -123,22 +126,47 @@ class AttachmentRenderContext(
     suspend fun status(link: LocalAttachment, rawTarget: String, docLine: Int?): AttachmentStatus =
         withContext(io) { resolver.status(link, rawTarget, orgFile, doc, docLine, preferLines) }
 
-    /** Pixel size from the file header (cached per path + mtime), or null when unreadable. */
+    /**
+     * Displayed pixel size from the file header (cached per path + mtime), or
+     * null when unreadable. EXIF rotation is applied: a camera JPEG copied as-is
+     * stores sensor-landscape pixels plus a "rotate 90" tag, and Coil draws it
+     * rotated, so the raw header size would give a portrait photo a landscape box.
+     */
     suspend fun bounds(entry: FileEntry): ImageBounds? {
         cache.bounds(entry)?.let { return it }
         return withContext(io) {
             runCatching {
-                store.openInput(entry.name).use { input ->
+                val raw = store.openInput(entry.name).use { input ->
                     val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeStream(input, null, opts)
                     if (opts.outWidth > 0 && opts.outHeight > 0) ImageBounds(opts.outWidth, opts.outHeight) else null
-                }
+                } ?: return@runCatching null
+                if (exifSwapsAxes(entry.name)) ImageBounds(raw.height, raw.width) else raw
             }.getOrNull()
         }?.also { cache.putBounds(entry, it) }
     }
 
+    /** Remembers a corrected size once the decoded image disagrees with the header's. */
+    fun correctBounds(entry: FileEntry, value: ImageBounds) = cache.putBounds(entry, value)
+
+    private suspend fun exifSwapsAxes(path: String): Boolean {
+        if (attachmentExtension(path) !in EXIF_EXTENSIONS) return false
+        val orientation = runCatching {
+            store.openInput(path).use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
+        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+        return orientation in SWAPPING_ORIENTATIONS
+    }
+
     suspend fun contentUri(path: String): Uri? = withContext(io) { runCatching { store.contentUri(path) }.getOrNull() }
 }
+
+private val EXIF_EXTENSIONS = setOf("jpg", "jpeg", "heic", "heif", "webp")
+private val SWAPPING_ORIENTATIONS = setOf(
+    ExifInterface.ORIENTATION_ROTATE_90,
+    ExifInterface.ORIENTATION_ROTATE_270,
+    ExifInterface.ORIENTATION_TRANSPOSE,
+    ExifInterface.ORIENTATION_TRANSVERSE,
+)
 
 val LocalAttachmentRender = staticCompositionLocalOf<AttachmentRenderContext?> { null }
 
@@ -327,7 +355,28 @@ fun AttachmentImage(
                             contentDescription = null,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize(),
-                            onSuccess = { loaded = true },
+                            onSuccess = { result ->
+                                // Safety net: if the decoded image's ratio differs from the
+                                // header's (an orientation we didn't read), resize the box to
+                                // it, so the image fills the rounded clip instead of being
+                                // letterboxed inside it with square corners.
+                                val drawn = result.painter.intrinsicSize
+                                val b = bounds
+                                if (drawn.width > 0f && drawn.height > 0f) {
+                                    val ratio = drawn.width / drawn.height
+                                    if (b == null || kotlin.math.abs(ratio - b.ratio) > 0.01f * b.ratio) {
+                                        val base = b?.let { maxOf(it.width, it.height) } ?: maxOf(drawn.width, drawn.height).toInt()
+                                        val fixed = if (ratio >= 1f) {
+                                            ImageBounds(base, (base / ratio).roundToInt().coerceAtLeast(1))
+                                        } else {
+                                            ImageBounds((base * ratio).roundToInt().coerceAtLeast(1), base)
+                                        }
+                                        bounds = fixed
+                                        render.correctBounds(st.entry, fixed)
+                                    }
+                                }
+                                loaded = true
+                            },
                             onError = { failed = true },
                         )
                     }
