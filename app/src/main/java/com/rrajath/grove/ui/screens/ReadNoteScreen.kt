@@ -110,6 +110,17 @@ import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.components.CollapsibleLogSection
 import com.rrajath.grove.ui.components.FavoriteStar
 import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.attach.ParagraphSegment
+import com.rrajath.grove.attach.attrOrgWidth
+import com.rrajath.grove.attach.hasImageLink
+import com.rrajath.grove.attach.isAttrOnlyRun
+import com.rrajath.grove.attach.splitParagraphAtImages
+import com.rrajath.grove.ui.attach.AttachmentImage
+import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
+import com.rrajath.grove.ui.attach.LocalAttachmentRender
+import com.rrajath.grove.ui.attach.chipLinksIn
+import com.rrajath.grove.ui.attach.fileNotFoundMessage
+import com.rrajath.grove.ui.attach.rememberChipRun
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.GroveUndoSnackbar
 import com.rrajath.grove.ui.editor.MetadataSheet
@@ -221,6 +232,7 @@ fun ReadNoteScreen(
     val onOpenLink: (String) -> Unit = remember(viewModel, onOpenNote, onOpenOutline, noteRef) {
         { target -> viewModel.openOrgLink(target, noteRef.fileName, onOpenNote, onOpenOutline, scopeNote = noteRef) }
     }
+    val showToast: (String) -> Unit = remember(viewModel) { { message -> viewModel.showToast(message) } }
     var metadataOpen by remember { mutableStateOf(false) }
     // Set on a completed move (refileConfirm/refileToArchive/refileToLastUsed), not a plain
     // cancel/back-out. The move itself (file write + the "Refiled to X" snack) runs async in
@@ -336,6 +348,13 @@ fun ReadNoteScreen(
                 if (noteRef.isIntro && doc.hasIntro) {
                     val listState = rememberLazyListState()
                     Box(Modifier.fillMaxSize().padding(padding)) {
+                        ProvideAttachmentRendering(
+                            orgFile = noteRef.fileName,
+                            doc = doc,
+                            preferLines = null,
+                            openTarget = onOpenLink,
+                            toast = showToast,
+                        ) {
                         IntroContent(
                             doc = doc,
                             listState = listState,
@@ -348,6 +367,7 @@ fun ReadNoteScreen(
                             },
                             modifier = Modifier.fillMaxSize(),
                         )
+                        }
                         Column(
                             Modifier
                                 .align(Alignment.BottomEnd)
@@ -372,6 +392,13 @@ fun ReadNoteScreen(
                     val listState = rememberLazyListState()
                     Box(Modifier.fillMaxSize().padding(padding)) {
                         ContentFontScale(readModeFontSize) {
+                        ProvideAttachmentRendering(
+                            orgFile = noteRef.fileName,
+                            doc = doc,
+                            preferLines = remember(doc, headline) { headline.lineIndex until doc.subtreeEndLine(headline) },
+                            openTarget = onOpenLink,
+                            toast = showToast,
+                        ) {
                         NoteContent(
                             doc = doc,
                             headline = headline,
@@ -402,6 +429,7 @@ fun ReadNoteScreen(
                             repeatAdvance = repeatAdvance,
                             onRepeatAdvanceShown = viewModel::clearRepeatAdvanced,
                         )
+                        }
                         }
                         Column(
                             Modifier
@@ -1151,10 +1179,47 @@ internal fun OrgText(
     /** Double-tap anywhere in this run switches to edit mode. Word-selection
      * via long-press, and link taps, are unaffected (see [doubleTapToEdit]). */
     onDoubleTapAt: (() -> Unit)? = null,
+    /** Draw local-file links as 1d attachment chips when [LocalAttachmentRender] is provided (note bodies). */
+    attachmentChips: Boolean = false,
 ) {
     val c = MaterialTheme.grove
-    val annotated = remember(text, c, onOpenLink) { annotateOrgInline(text, c, onOpenLink) }
-    val links = remember(text) { orgInlineLinks(text) }
+    val render = if (attachmentChips) LocalAttachmentRender.current else null
+    val chips = remember(text, render != null) { if (render != null) chipLinksIn(text) else emptyList() }
+    val chipRun = if (render != null && chips.isNotEmpty()) rememberChipRun(chips, render) else null
+    val annotated = remember(text, c, onOpenLink, chips) {
+        annotateOrgInline(text, c, onOpenLink, inlineIds = chips.associate { it.range to it.id })
+    }
+    val links = remember(text, chips) {
+        val plain = orgInlineLinks(text)
+        if (chips.isEmpty()) {
+            plain
+        } else {
+            // orgInlineLinks and chipLinksIn walk the same tokens in order, so the
+            // nth chip is the nth link whose target it shares; placeholders are
+            // numbered in text order.
+            val chipTargets = ArrayDeque(chips.map { it.rawTarget })
+            var placeholder = 0
+            plain.map { link ->
+                if (chipTargets.firstOrNull() == link.target) {
+                    chipTargets.removeFirst()
+                    link.copy(placeholder = placeholder++)
+                } else {
+                    link
+                }
+            }
+        }
+    }
+    // A missing chip's tap toasts instead of opening.
+    val onTapLink: (String) -> Unit = remember(onOpenLink, chips, chipRun?.missing, render) {
+        { target ->
+            val chip = chips.firstOrNull { it.rawTarget == target }
+            if (chip != null && render != null && chipRun?.missing?.get(chip.id) == true) {
+                render.toast(fileNotFoundMessage(chip.link.fileName))
+            } else {
+                onOpenLink(target)
+            }
+        }
+    }
     // Compose's unspecified direction is the layout direction (LTR), not the
     // content's; Content picks each line's direction from its first strong
     // character, so a Persian line reads right-to-left and aligns right.
@@ -1174,6 +1239,7 @@ internal fun OrgText(
         style = directedStyle,
         maxLines = maxLines,
         overflow = overflow,
+        inlineContent = chipRun?.inlineContent ?: emptyMap(),
         onTextLayout = { layout = it },
         modifier = modifier
             // Only the long-press menu reads textCoords, and only when there's a link to act
@@ -1189,7 +1255,7 @@ internal fun OrgText(
             .linkPressHandler(
                 links = links,
                 layoutResult = { layout },
-                onTap = onOpenLink,
+                onTap = onTapLink,
                 onLongPress = wrappedOnLongPress,
             ),
     )
@@ -1275,6 +1341,24 @@ private fun orderedListOrdinals(items: List<OrgBlock.ListItem>): IntArray {
     return ordinals
 }
 
+/**
+ * Index of each `#+ATTR_*`-only keyword run that sits directly above (no blank
+ * line) a paragraph opening with an image link, mapped to its `#+ATTR_ORG`
+ * width (null when it has none). Those runs belong to the image.
+ */
+internal fun imageAttrRuns(blocks: List<OrgBlock>): Map<Int, Int?> {
+    val out = mutableMapOf<Int, Int?>()
+    for (i in 0 until blocks.size - 1) {
+        val run = blocks[i] as? OrgBlock.Block ?: continue
+        val para = blocks[i + 1] as? OrgBlock.Paragraph ?: continue
+        if (!run.keywordRun || !isAttrOnlyRun(run.contentLines)) continue
+        if (para.startLine != run.startLine + run.contentLines.size) continue
+        if (splitParagraphAtImages(para.lines).firstOrNull() !is ParagraphSegment.Image) continue
+        out[i] = attrOrgWidth(run.contentLines)
+    }
+    return out
+}
+
 @Composable
 internal fun BodyBlocks(
     bodyLines: List<String>,
@@ -1320,23 +1404,66 @@ internal fun BodyBlocks(
     // metadata, so it opens collapsed.
     val blockExpanded = remember(bodyLines) { mutableStateMapOf<Int, Boolean>() }
 
-    blocks.forEach { block ->
+    val attachments = LocalAttachmentRender.current
+    // With attachments on, an `#+ATTR_*`-only keyword run directly above a
+    // paragraph that opens with an image is that image's metadata: it gives the
+    // image its `:width` and isn't drawn (tech design 7.1).
+    val imageAttrs = remember(blocks, attachments != null) {
+        if (attachments == null) emptyMap() else imageAttrRuns(blocks)
+    }
+
+    blocks.forEachIndexed { blockIdx, block ->
+        if (blockIdx in imageAttrs.keys) return@forEachIndexed
         when (block) {
             is OrgBlock.Paragraph -> {
-                // Each source line in the paragraph keeps its own visual line
-                // (join with "\n", not " "): a single newline in edit mode is a
-                // line break in read mode too. A blank line already separates
-                // paragraphs upstream in BlockParser. Full width so each line can
-                // align to its own direction: text direction is picked per line
-                // from its first strong character, so an RTL line sits on the right.
-                OrgText(
-                    block.lines.joinToString("\n") { it.trim() },
-                    onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
-                    onDoubleTapAt = onEditAt,
-                    style = paragraphStyle,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
+                val segments = remember(block, attachments != null, imageAttrs) {
+                    if (attachments == null || block.lines.none(::hasImageLink)) {
+                        null
+                    } else {
+                        splitParagraphAtImages(block.lines, imageAttrs.entries.firstOrNull { it.key == blockIdx - 1 }?.value)
+                    }
+                }
+                if (segments == null || attachments == null) {
+                    // Each source line in the paragraph keeps its own visual line
+                    // (join with "\n", not " "): a single newline in edit mode is a
+                    // line break in read mode too. A blank line already separates
+                    // paragraphs upstream in BlockParser. Full width so each line can
+                    // align to its own direction: text direction is picked per line
+                    // from its first strong character, so an RTL line sits on the right.
+                    OrgText(
+                        block.lines.joinToString("\n") { it.trim() },
+                        onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
+                        onDoubleTapAt = onEditAt,
+                        style = paragraphStyle,
+                        modifier = Modifier.fillMaxWidth(),
+                        attachmentChips = true,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                } else {
+                    segments.forEach { seg ->
+                        when (seg) {
+                            is ParagraphSegment.Text -> {
+                                OrgText(
+                                    seg.lines.joinToString("\n"),
+                                    onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
+                                    onDoubleTapAt = onEditAt,
+                                    style = paragraphStyle,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    attachmentChips = true,
+                                )
+                                Spacer(Modifier.height(12.dp))
+                            }
+                            is ParagraphSegment.Image -> AttachmentImage(
+                                link = seg.link,
+                                rawTarget = seg.rawTarget,
+                                docLine = lineOffset + block.startLine + seg.line,
+                                widthAttr = seg.widthAttr,
+                                render = attachments,
+                                onDoubleTap = onEditAt,
+                            )
+                        }
+                    }
+                }
             }
 
             is OrgBlock.ListBlock -> {
@@ -1434,6 +1561,7 @@ internal fun BodyBlocks(
                                 onDoubleTapAt = onEditAt,
                                 style = if (done) listItemStyleDone else listItemStyleActive,
                                 modifier = Modifier.weight(1f),
+                                attachmentChips = true,
                             )
                         }
                         }

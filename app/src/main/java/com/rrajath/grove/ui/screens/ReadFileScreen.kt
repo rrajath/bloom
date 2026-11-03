@@ -53,6 +53,7 @@ import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.CollapsibleKvSection
+import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
 import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.LinkedReferencesBar
@@ -149,6 +150,8 @@ fun ReadFileScreen(
         { target -> viewModel.openOrgLink(target, fileName, onOpenNote, onOpenOutline) }
     }
 
+    val showToast: (String) -> Unit = remember(viewModel) { { message -> viewModel.showToast(message) } }
+
     // Reload whenever the screen comes back to the foreground (e.g. returning
     // from the whole-file editor) so saved edits show immediately. The ON_RESUME
     // right after entering composition is skipped: the LaunchedEffect below
@@ -233,6 +236,13 @@ fun ReadFileScreen(
                     val listState = rememberLazyListState()
                     Box(Modifier.fillMaxSize().padding(padding)) {
                         ContentFontScale(readModeFontSize) {
+                          ProvideAttachmentRendering(
+                            orgFile = fileName,
+                            doc = doc,
+                            preferLines = null,
+                            openTarget = onOpenLink,
+                            toast = showToast,
+                          ) {
                             FileContent(
                                 doc = doc,
                                 fileName = fileName,
@@ -258,6 +268,7 @@ fun ReadFileScreen(
                                         detectTapGestures(onDoubleTap = { onEdit() })
                                     },
                             )
+                          }
                         }
                         ScrollJumpButtons(
                             listState = listState,

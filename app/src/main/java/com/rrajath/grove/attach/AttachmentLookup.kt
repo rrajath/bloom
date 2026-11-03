@@ -1,6 +1,7 @@
 package com.rrajath.grove.attach
 
 import com.rrajath.grove.org.OrgDocument
+import com.rrajath.grove.vault.FileEntry
 
 /**
  * Finds the vault file a tapped local-file link points at, for read mode.
@@ -28,16 +29,38 @@ class AttachmentLookup(
         orgFile: String,
         doc: OrgDocument?,
         preferLines: IntRange? = null,
-    ): String? = when (link.base) {
-        AttachmentBase.ORG_DIR -> orgDirPath(orgFile, link.path)?.takeIf { files.stat(it) != null }
+    ): String? = findEntry(link, rawTarget, orgFile, doc, preferLines)?.name
+
+    /**
+     * Like [find], returning the file's [FileEntry] (its [FileEntry.name] is the
+     * vault path). [atLine], when it's a line of [doc], pins the owner to the
+     * heading at that line instead of searching the text for the link.
+     */
+    suspend fun findEntry(
+        link: LocalAttachment,
+        rawTarget: String,
+        orgFile: String,
+        doc: OrgDocument?,
+        preferLines: IntRange? = null,
+        atLine: Int? = null,
+    ): FileEntry? = when (link.base) {
+        AttachmentBase.ORG_DIR -> orgDirPath(orgFile, link.path)?.let { statAt(it) }
         AttachmentBase.ATTACH_DIR -> {
             val resolver = AttachDirResolver(files, config)
-            linkOwners(doc, rawTarget, preferLines, config).firstNotNullOfOrNull { owner ->
+            val owners = if (doc != null && atLine != null && atLine in doc.lines.indices) {
+                listOf(resolveOwnerAtLine(doc, atLine, config))
+            } else {
+                linkOwners(doc, rawTarget, preferLines, config)
+            }
+            owners.firstNotNullOfOrNull { owner ->
                 val dir = resolver.readDir(orgFile, owner) ?: return@firstNotNullOfOrNull null
-                normalizeVaultPath(joinPath(dir, link.path))?.takeIf { it.isNotEmpty() && files.stat(it) != null }
+                normalizeVaultPath(joinPath(dir, link.path))?.takeIf { it.isNotEmpty() }?.let { statAt(it) }
             }
         }
     }
+
+    /** [AttachmentFiles.stat], with the entry's name set to [path] whatever the store reports. */
+    private suspend fun statAt(path: String): FileEntry? = files.stat(path)?.copy(name = path)
 
     private fun orgDirPath(orgFile: String, path: String): String? {
         // Absolute and home paths point outside the vault; nothing to open.

@@ -4,6 +4,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +27,12 @@ fun annotateOrgInline(
     text: String,
     c: GroveColors,
     onLink: ((String) -> Unit)? = null,
+    /**
+     * Link tokens (by source range) drawn as inline content instead of text: the
+     * value is the `inlineContent` id. The token's display text is kept as the
+     * alternate text, so every offset (links, selection) stays the same.
+     */
+    inlineIds: Map<IntRange, String> = emptyMap(),
 ): AnnotatedString = buildAnnotatedString {
     for (token in InlineTokenizer.tokenize(text)) {
         when (token.type) {
@@ -42,7 +49,9 @@ fun annotateOrgInline(
                 SpanStyle(fontFamily = PlexMono, fontSize = 13.5.sp, color = c.synTs)
             ) { append(token.text) }
 
-            InlineType.LINK -> {
+            InlineType.LINK -> if (token.range in inlineIds) {
+                appendInlineContent(inlineIds.getValue(token.range), token.text)
+            } else {
                 val target = token.target ?: token.text
                 val linkStyle = SpanStyle(color = c.synLink, textDecoration = TextDecoration.Underline)
                 if (onLink != null) {
@@ -89,7 +98,12 @@ fun textStartsRtl(text: CharSequence): Boolean {
 }
 
 /** A link's character range within the string [annotateOrgInline] renders, and its target. */
-data class InlineLink(val range: IntRange, val target: String)
+data class InlineLink(
+    val range: IntRange,
+    val target: String,
+    /** Index into `TextLayoutResult.placeholderRects` when the link draws as inline content, else -1. */
+    val placeholder: Int = -1,
+)
 
 /** Every link's rendered character range in [text] once tokenized (labels shown, not raw syntax). */
 fun orgInlineLinks(text: String): List<InlineLink> {

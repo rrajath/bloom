@@ -264,6 +264,19 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
         )
     }
 
+    /**
+     * Read-mode attachment existence and image-size cache (experimental,
+     * debug-only). Each finished sync drops its Missing entries, so a file that
+     * Syncthing delivers later appears without reopening the note.
+     */
+    val attachmentStatusCache: com.rrajath.grove.attach.AttachmentStatusCache by lazy {
+        com.rrajath.grove.attach.AttachmentStatusCache().also { cache ->
+            appScope.launch {
+                syncManager.lastResult.drop(1).collect { cache.invalidateMissing() }
+            }
+        }
+    }
+
     private suspend fun applyAttachToFile(done: com.rrajath.grove.attach.AttachDone): String? {
         val request = done.request
         val result = done.result as? com.rrajath.grove.attach.ImportResult.Success ?: return null

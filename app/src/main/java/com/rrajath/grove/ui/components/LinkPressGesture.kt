@@ -77,6 +77,13 @@ internal fun TextLayoutResult.linkAt(
     position: androidx.compose.ui.geometry.Offset,
     links: List<InlineLink>,
 ): InlineLink? {
+    // Inline content (attachment chips) is one placeholder over the whole link
+    // range; hit-test its box, since offsets inside it snap to either end.
+    for (link in links) {
+        if (link.placeholder < 0) continue
+        val rect = placeholderRects.getOrNull(link.placeholder) ?: continue
+        if (rect.contains(position)) return link
+    }
     val line = getLineForVerticalPosition(position.y)
     if (position.x < getLineLeft(line) || position.x > getLineRight(line)) return null
     val charOffset = getOffsetForPosition(position)
