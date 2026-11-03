@@ -1,0 +1,22 @@
+# Cases for scripts/org-attach-interop.sh. Columns (tab-separated):
+# name	org-attach-id-dir	ID	dirs that already exist (comma-separated, relative to the org file's directory; - for none)
+uuid-new	data/	8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C	-
+uuid-lower-new	data/	8b41d2f0-1c9a-4e57-9a0b-6d2e3f4a5b6c	-
+uuid-existing	data/	8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C	data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C
+ts-new	data/	20261102T125201.123456	-
+ts-existing	data/	20261102T125201.123456	data/202611/02T125201.123456
+ts-both-existing	data/	20261102T125201.123456	data/20/261102T125201.123456,data/202611/02T125201.123456
+short1	data/	a	-
+short2	data/	ab	-
+short3	data/	abc	-
+short6	data/	abcdef	-
+short6-fallback-existing	data/	abcdef	data/__/a/abcdef
+short7	data/	abcdefg	-
+fallback-existing-only	data/	abcdefg	data/__/a/abcdefg
+custom-new	attach/	8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C	-
+custom-existing	attach/	8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C	attach/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C
+custom-data-fallback	attach/	8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C	data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C
+custom-prefers-own	attach/	8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C	attach/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C,data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C
+custom-ts-in-data	attach/	20261102T125201.123456	data/202611/02T125201.123456
+nested-id-dir	.attach/files/	8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C	-
+parent-id-dir	../shared/	8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C	-

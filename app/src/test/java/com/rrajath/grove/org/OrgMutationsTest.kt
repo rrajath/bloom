@@ -1720,4 +1720,27 @@ class OrgMutationsTest {
     fun `refileEachWithinFile refuses a target inside a moved subtree`() {
         assertNull(OrgMutations.refileEachWithinFile(bulk, setOf(line("A"), line("C")), line("A2")))
     }
+
+    @Test
+    fun `upsertFileProperty creates a drawer on line 0 above the title`() {
+        val d = OrgParser.parse("#+TITLE: T\n* H\n")
+        assertEquals(":PROPERTIES:\n:ID: X\n:END:\n#+TITLE: T\n* H\n", OrgMutations.upsertFileProperty(d, "ID", "X"))
+    }
+
+    @Test
+    fun `upsertFileProperty replaces an existing key case-insensitively`() {
+        val d = OrgParser.parse(":PROPERTIES:\n:id: OLD\n:CATEGORY: c\n:END:\n#+TITLE: T\n")
+        assertEquals(
+            ":PROPERTIES:\n:ID: NEW\n:CATEGORY: c\n:END:\n#+TITLE: T\n",
+            OrgMutations.upsertFileProperty(d, "ID", "NEW"),
+        )
+    }
+
+    @Test
+    fun `upsertFileProperty on a file that starts with a heading`() {
+        val d = OrgParser.parse("* H\n:PROPERTIES:\n:ID: HEADING\n:END:\n")
+        val out = OrgMutations.upsertFileProperty(d, "ID", "FILE")
+        assertEquals(":PROPERTIES:\n:ID: FILE\n:END:\n* H\n:PROPERTIES:\n:ID: HEADING\n:END:\n", out)
+        assertEquals("FILE", OrgParser.parse(out).fileId)
+    }
 }

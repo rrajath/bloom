@@ -1230,6 +1230,29 @@ object OrgMutations {
         return lines.joinToString("\n")
     }
 
+    /**
+     * Set [key] to [value] in the file-level `:PROPERTIES:` drawer (the one
+     * [OrgDocument.filePropertyDrawer] reads), replacing an existing entry for
+     * that key or adding one before `:END:`. Creates the drawer on line 0, above
+     * any `#+TITLE:` lines, when the file has none.
+     */
+    fun upsertFileProperty(doc: OrgDocument, key: String, value: String): String {
+        val lines = doc.lines.toMutableList()
+        val newLine = ":$key: $value"
+        val range = fileDrawerRange(doc)
+        if (range != null) {
+            val existing = (range.first + 1 until range.last).firstOrNull { propertyKeyLine(key, lines[it]) }
+            if (existing != null) {
+                lines[existing] = leadingWhitespace(lines[existing]) + newLine
+            } else {
+                lines.add(range.last, newLine)
+            }
+        } else {
+            lines.addAll(0, listOf(":PROPERTIES:", newLine, ":END:"))
+        }
+        return lines.joinToString("\n")
+    }
+
     private val STARS_PREFIX = Regex("""^(\*+)\s""")
     private val STARS_LINE = Regex("""^(\*+)(\s.*)$""")
 
