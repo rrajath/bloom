@@ -29,6 +29,15 @@ class PreviewChipChecker(
 ) {
     private val permits = Semaphore(parallelism)
 
+    /** The resolver for the current store, rebuilt only when the vault changes. */
+    @Volatile
+    private var resolver: Pair<FileStore, AttachmentResolver>? = null
+
+    private fun resolverFor(store: FileStore): AttachmentResolver {
+        resolver?.let { (s, r) -> if (s === store) return r }
+        return AttachmentResolver(AttachmentLookup(AttachmentFiles(store)), cache).also { resolver = store to it }
+    }
+
     /**
      * Whether [link] (written as [rawTarget]) in [orgFile] is there, or null
      * when it can't be told (no vault). [ownerLine] is the line of the heading
@@ -51,8 +60,7 @@ class PreviewChipChecker(
                 } else {
                     doc
                 }
-                AttachmentResolver(AttachmentLookup(AttachmentFiles(s)), cache)
-                    .status(link, rawTarget, orgFile, parsed, docLine = ownerLine)
+                resolverFor(s).status(link, rawTarget, orgFile, parsed, docLine = ownerLine)
             }
         }
     }
