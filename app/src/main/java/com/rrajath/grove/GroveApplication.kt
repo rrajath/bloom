@@ -59,6 +59,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -276,6 +277,47 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             }
         }
     }
+
+    /**
+     * Keeps attach dirs with their notes on notebook/folder moves and deletes,
+     * heading deletes, and refiles (experimental, debug-only: null in release
+     * builds and before a vault is picked). One instance per store, so its
+     * operations stay serialized.
+     */
+    val attachmentLifecycle: StateFlow<com.rrajath.grove.attach.AttachmentLifecycle?> by lazy {
+        fileStore
+            .map { store ->
+                if (!FeatureFlags.ATTACHMENTS || store == null) null
+                else com.rrajath.grove.attach.AttachmentLifecycle(store, roomIdHolders)
+            }
+            .stateIn(appScope, SharingStarted.Eagerly, null)
+    }
+
+    private val roomIdHolders = com.rrajath.grove.attach.IdHolders { ids ->
+        ids.distinct().chunked(400)
+            .flatMap { database.indexDao().filesHoldingOrgIds(it) }
+            .groupBy({ it.orgId }, { it.fileName })
+            .mapValues { it.value.toSet() }
+    }
+
+    /** Moves attach dirs after refiles and archives across directories; see [attachmentLifecycle]. */
+    val attachmentFollow: com.rrajath.grove.attach.AttachmentFollow =
+        com.rrajath.grove.attach.AttachmentFollow { writes, verb ->
+            if (!FeatureFlags.ATTACHMENTS) return@AttachmentFollow
+            appScope.launch {
+                val lifecycle = attachmentLifecycle.value ?: return@launch
+                val result = runCatching { lifecycle.followMovedOwners(writes) }.getOrNull() ?: return@launch
+                if (result.moved + result.copied > 0) attachmentStatusCache.clear()
+                if (result.failed > 0) {
+                    val folders = if (result.failed == 1) "1 attachment folder" else "${result.failed} attachment folders"
+                    withContext(dispatchers.main) {
+                        android.widget.Toast.makeText(
+                            this@GroveApplication, "$verb; $folders couldn't be moved", android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            }
+        }
 
     private suspend fun applyAttachToFile(done: com.rrajath.grove.attach.AttachDone): String? {
         val request = done.request

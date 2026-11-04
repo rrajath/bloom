@@ -2,6 +2,8 @@ package com.rrajath.grove.ui.screens
 
 import com.rrajath.grove.FeatureFlags
 import androidx.compose.ui.text.AnnotatedString
+import com.rrajath.grove.attach.AttachmentInventory
+import com.rrajath.grove.ui.attach.HeadingDeleteAttachmentsSheet
 import com.rrajath.grove.ui.attach.linkSafeTake
 import com.rrajath.grove.ui.attach.rawPreviewChips
 import com.rrajath.grove.ui.attach.rememberPreviewChipText
@@ -62,6 +64,8 @@ import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -1060,6 +1064,11 @@ private fun StructureCommandBar(
 ) {
     val c = MaterialTheme.grove
     var confirmDelete by remember { mutableStateOf(false) }
+    // Non-null when the selected subtrees own attachment folders: the 1n-style
+    // sheet shows instead of the plain dialog (design 10.4).
+    var deleteInventory by remember { mutableStateOf<AttachmentInventory?>(null) }
+    var deleteTitle by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val selected = { viewModel.selectedLines.value }
     // Background first so the accentSoft wash extends behind the status bar,
     // then the inset padding (Scaffold does not pad the topBar slot).
@@ -1096,10 +1105,37 @@ private fun StructureCommandBar(
                 CommandButton(Icons.AutoMirrored.Filled.FormatIndentIncrease, "Demote", c.ink) { viewModel.demote(selected()) }
                 // ☰, like read mode's metadata button: state, priority, tags, dates.
                 CommandButton(Icons.Default.Menu, "Metadata", c.ink, onClick = onMetadata)
-                CommandButton(Icons.Default.Delete, "Delete", c.red) { confirmDelete = true }
+                CommandButton(Icons.Default.Delete, "Delete", c.red) {
+                    scope.launch {
+                        val lines = selected()
+                        val inv = viewModel.headingDeleteAttachments(lines)
+                        if (inv.isEmpty) {
+                            confirmDelete = true
+                        } else {
+                            deleteTitle = (viewModel.state.value as? DocumentUiState.Loaded)
+                                ?.document?.headlines
+                                ?.firstOrNull { it.lineIndex == lines.singleOrNull() }
+                                ?.title
+                            deleteInventory = inv
+                        }
+                    }
+                }
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+    }
+    deleteInventory?.let { inv ->
+        HeadingDeleteAttachmentsSheet(
+            title = deleteTitle,
+            count = selectedCount,
+            inventory = inv,
+            onDelete = { deleteAttachments ->
+                viewModel.deleteNotes(selected(), inv.takeIf { deleteAttachments })
+                deleteInventory = null
+                onExit()
+            },
+            onDismiss = { deleteInventory = null },
+        )
     }
     if (confirmDelete) {
         AlertDialog(

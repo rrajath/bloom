@@ -218,6 +218,9 @@ data class NotebookSyncState(
     val isIndexed: Boolean,
 )
 
+/** A file holding an `:ID:` (see [IndexDao.filesHoldingOrgIds]). */
+data class FileOrgId(val fileName: String, val orgId: String)
+
 /** Primary key of a `notes` row: what an FTS lookup hands back. */
 data class NoteKey(val fileName: String, val lineIndex: Int)
 
@@ -347,6 +350,17 @@ abstract class IndexDao {
      */
     @Query("SELECT fileName FROM notebooks WHERE orgId = :id LIMIT 1")
     abstract suspend fun notebookByOrgId(id: String): String?
+
+    /**
+     * Every (file, `:ID:`) pair among [ids], headings and file-level drawers
+     * alike: which files share an attachment dir (attachments, experimental).
+     * Callers chunk [ids] under SQLite's bound-parameter limit.
+     */
+    @Query(
+        "SELECT fileName, orgId FROM notes WHERE orgId IN (:ids) " +
+            "UNION SELECT fileName, orgId FROM notebooks WHERE orgId IN (:ids)"
+    )
+    abstract suspend fun filesHoldingOrgIds(ids: List<String>): List<FileOrgId>
 
     /** Where a heading with this `:CUSTOM_ID:` lives, for resolving `[[#id]]` links vault-wide. */
     @Query("SELECT fileName, lineIndex FROM notes WHERE customId = :customId LIMIT 1")

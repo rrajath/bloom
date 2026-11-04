@@ -61,6 +61,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -122,6 +123,9 @@ import com.rrajath.grove.ui.vault.TREE_EXPAND_MILLIS
 import com.rrajath.grove.ui.vault.drillLevel
 import com.rrajath.grove.ui.vault.groupNotebookTreeRuns
 import com.rrajath.grove.ui.vault.NotebookEditEvent
+import com.rrajath.grove.attach.AttachmentInventory
+import com.rrajath.grove.ui.attach.NotebookDeleteAttachmentsSheet
+import com.rrajath.grove.ui.attach.NotebookMoveAttachmentsSheet
 import com.rrajath.grove.ui.vault.NotebooksUiState
 import com.rrajath.grove.ui.vault.NotebooksViewModel
 import com.rrajath.grove.ui.vault.PinnedRow
@@ -154,6 +158,9 @@ fun NotebooksScreen(
     var renameTarget by remember { mutableStateOf<String?>(null) }
     var styleTarget by remember { mutableStateOf<String?>(null) }
     var moveTarget by remember { mutableStateOf<String?>(null) }
+    // A picked move (file to destination dir) waiting on its attachment inventory,
+    // and the 1l sheet when there is one.
+    var pendingMove by remember { mutableStateOf<Pair<String, String>?>(null) }
     // Non-null while the "Delete notebook?" confirmation is open; the file name.
     var notebookDeleteTarget by remember { mutableStateOf<String?>(null) }
     // Folder long-press menu targets (variant 1a follow-up); the value is the folder's dir path.
@@ -183,6 +190,8 @@ fun NotebooksScreen(
                     folderRenameTarget = null
                 }
                 is NotebookEditEvent.NameTaken ->
+                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                is NotebookEditEvent.Message ->
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
             }
         }
@@ -631,10 +640,38 @@ fun NotebooksScreen(
                 notebooks = loaded.notebooks,
                 vaultName = loaded.vaultDisplayName,
                 onConfirm = { newDir ->
-                    viewModel.moveNotebook(target, newDir)
+                    if (newDir.trim('/') == nb.dir.trim('/')) {
+                        viewModel.moveNotebook(target, newDir)
+                    } else {
+                        pendingMove = target to newDir
+                    }
                     moveTarget = null
                 },
                 onDismiss = { moveTarget = null },
+            )
+        }
+    }
+    pendingMove?.let { (target, newDir) ->
+        // Null while the inventory loads; Empty runs the plain move (design 10.1).
+        val inventory by produceState<AttachmentInventory?>(null, target, newDir) {
+            value = viewModel.notebookAttachments(target)
+        }
+        val inv = inventory
+        if (inv != null && inv.isEmpty) {
+            LaunchedEffect(target, newDir) {
+                viewModel.moveNotebook(target, newDir)
+                pendingMove = null
+            }
+        } else if (inv != null) {
+            NotebookMoveAttachmentsSheet(
+                fileName = target,
+                newDir = newDir,
+                inventory = inv,
+                onMove = { moveAttachments ->
+                    viewModel.moveNotebook(target, newDir, moveAttachments, inv)
+                    pendingMove = null
+                },
+                onDismiss = { pendingMove = null },
             )
         }
     }
@@ -707,6 +744,7 @@ fun NotebooksScreen(
             folderDeleteTarget = null
         } else {
             val count = node.recursiveOrgCount
+            val hasAttachments by produceState(false, dir) { value = viewModel.folderHasAttachments(dir) }
             AlertDialog(
                 onDismissRequest = { folderDeleteTarget = null },
                 containerColor = c.surface,
@@ -725,6 +763,7 @@ fun NotebooksScreen(
                                 append("permanently delete")
                             }
                             append(" $subject and cannot be undone. Are you sure?")
+                            if (hasAttachments) append(" Attachments in this folder are deleted too.")
                         },
                         fontFamily = PlexSans, fontSize = 13.sp, color = c.ink2,
                     )
@@ -748,6 +787,23 @@ fun NotebooksScreen(
     notebookDeleteTarget?.let { target ->
         val c = MaterialTheme.grove
         val nb = (state as? NotebooksUiState.Loaded)?.notebooks?.firstOrNull { it.fileName == target }
+        // Null while loading; a non-empty inventory swaps the dialog for the 1n sheet.
+        val inventory by produceState<AttachmentInventory?>(null, target) {
+            value = viewModel.notebookAttachments(target)
+        }
+        val inv = inventory ?: return@let
+        if (!inv.isEmpty) {
+            NotebookDeleteAttachmentsSheet(
+                fileName = target,
+                inventory = inv,
+                onDelete = { deleteAttachments ->
+                    viewModel.deleteNotebook(target, deleteAttachments, inv)
+                    notebookDeleteTarget = null
+                },
+                onDismiss = { notebookDeleteTarget = null },
+            )
+            return@let
+        }
         AlertDialog(
             onDismissRequest = { notebookDeleteTarget = null },
             containerColor = c.surface,

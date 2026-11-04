@@ -828,6 +828,13 @@ class MarkDoneAction : ActionCallback {
                     vault.save(result.destFile, result.destText)
                     app.reindexNow(result.destFile, result.destText)
                     app.syncManager.requestReindex(result.destFile, result.destText, "ledger widget mark done")
+                    app.attachmentFollow.filesRewritten(
+                        listOf(
+                            com.rrajath.grove.attach.FileRewrite(fileName, doc.text, result.sourceText),
+                            com.rrajath.grove.attach.FileRewrite(result.destFile, result.destTextBefore, result.destText),
+                        ),
+                        "Archived",
+                    )
                 }
             }
         }

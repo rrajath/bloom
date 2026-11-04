@@ -14,6 +14,13 @@ import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentBase
 import com.rrajath.grove.attach.AttachmentFiles
+import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.AttachmentInventory
+import com.rrajath.grove.attach.AttachmentLifecycle
+import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.dataDirLabel
+import com.rrajath.grove.attach.notebookMoveMessage
+import com.rrajath.grove.attach.orgIdsIn
 import com.rrajath.grove.attach.AttachmentIntents
 import com.rrajath.grove.attach.AttachmentLink
 import com.rrajath.grove.attach.AttachmentLookup
@@ -87,6 +94,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
@@ -205,6 +213,8 @@ sealed interface NotebookEditEvent {
     data object Succeeded : NotebookEditEvent
     /** [message] names the collision; the screen toasts it and leaves the dialog open. */
     data class NameTaken(val message: String) : NotebookEditEvent
+    /** A one-off outcome to toast (attachment moves and deletes). */
+    data class Message(val message: String) : NotebookEditEvent
 }
 
 class NotebooksViewModel(
@@ -213,6 +223,8 @@ class NotebooksViewModel(
     private val settingsRepository: SettingsRepository,
     private val sync: SyncTrigger,
     private val dispatchers: AppDispatchers,
+    /** Attach-dir lifecycle (experimental, debug-only); null keeps today's behavior. */
+    private val attachments: () -> AttachmentLifecycle? = { null },
 ) : ViewModel() {
 
     // One-shot create/rename outcomes for the name dialogs (see NotebookEditEvent).
@@ -502,15 +514,55 @@ class NotebooksViewModel(
      * the new path via [com.rrajath.grove.settings.SettingsRepository.moveNotebookStyle]
      * and drops the stale index row so the next sync re-discovers it in place.
      */
-    fun moveNotebook(path: String, newDir: String) {
+    fun moveNotebook(
+        path: String,
+        newDir: String,
+        moveAttachments: Boolean = false,
+        inventory: AttachmentInventory = AttachmentInventory.Empty,
+    ) {
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
             val newPath = vault.moveNotebook(path, newDir.trim('/'))
             if (newPath != null) {
                 database.indexDao().removeNotebook(path)
+                val lifecycle = attachments()
+                if (lifecycle != null && !inventory.isEmpty) {
+                    val leaf = path.substringAfterLast('/')
+                    val message = if (moveAttachments) {
+                        val result = withContext(dispatchers.io) {
+                            lifecycle.moveNotebookAttachments(path, newPath, inventory)
+                        }
+                        notebookMoveMessage(leaf, newDir.trim('/'), result)
+                    } else {
+                        "Moved $leaf. Attachments stayed in ${dataDirLabel(path)}"
+                    }
+                    _editEvents.emit(NotebookEditEvent.Message(message))
+                }
                 settingsRepository.moveNotebookStyle(path, newPath)
                 sync.requestSync("notebook moved")
             }
+        }
+    }
+
+    /**
+     * The attach dirs [fileName] owns (design 10.1), for the 1l move and 1n
+     * delete sheets. Empty when attachments are off or the file has none, in
+     * which case the plain move/delete flow runs.
+     */
+    suspend fun notebookAttachments(fileName: String): AttachmentInventory {
+        val lifecycle = attachments() ?: return AttachmentInventory.Empty
+        val vault = vaultFlow.value ?: return AttachmentInventory.Empty
+        return withContext(dispatchers.io) {
+            val doc = vault.open(fileName) ?: return@withContext AttachmentInventory.Empty
+            runCatching { lifecycle.inventoryForFile(fileName, doc) }.getOrDefault(AttachmentInventory.Empty)
+        }
+    }
+
+    /** Whether any attach dir sits at or under [dir], for the folder-delete confirm text. */
+    suspend fun folderHasAttachments(dir: String): Boolean {
+        val lifecycle = attachments() ?: return false
+        return withContext(dispatchers.io) {
+            runCatching { lifecycle.folderHasAttachments(dir) }.getOrDefault(false)
         }
     }
 
@@ -536,11 +588,32 @@ class NotebooksViewModel(
         }
     }
 
-    fun deleteNotebook(name: String) {
+    fun deleteNotebook(
+        name: String,
+        deleteAttachments: Boolean = false,
+        inventory: AttachmentInventory = AttachmentInventory.Empty,
+    ) {
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
             if (vault.deleteNotebook(name)) {
                 database.indexDao().removeNotebook(name)
+                val lifecycle = attachments()
+                if (lifecycle != null && !inventory.isEmpty) {
+                    val leaf = name.substringAfterLast('/')
+                    val message = if (deleteAttachments) {
+                        val result = withContext(dispatchers.io) {
+                            lifecycle.deleteDirs(name, inventory) { id -> lifecycle.heldInDir(name, id) }
+                        }
+                        if (result.failed > 0) {
+                            "Deleted $leaf; ${pluralCount(result.failed, "attachment folder")} couldn't be deleted"
+                        } else {
+                            "Deleted $leaf and its attachments"
+                        }
+                    } else {
+                        "Deleted $leaf. Attachments kept in ${dataDirLabel(name)}"
+                    }
+                    _editEvents.emit(NotebookEditEvent.Message(message))
+                }
             }
             sync.requestSync("notebook deleted")
         }
@@ -600,6 +673,18 @@ class NotebooksViewModel(
             val affected = affectedPaths(dir)
             val renamedTo = vault.renameFolder(dir, newName)
             if (renamedTo != null) {
+                attachments()?.let { lifecycle ->
+                    val result = withContext(dispatchers.io) {
+                        runCatching { lifecycle.moveFolderAttachments(trimmed, renamedTo) }.getOrNull()
+                    }
+                    if (result == null || result.failed > 0) {
+                        _editEvents.emit(
+                            NotebookEditEvent.Message(
+                                "Renamed folder; ${pluralCount(result?.failed ?: 1, "attachment folder")} couldn't be moved"
+                            )
+                        )
+                    }
+                }
                 affected.forEach { database.indexDao().removeNotebook(it) }
                 settingsRepository.renameFolderStyle(dir, renamedTo)
                 _editEvents.emit(NotebookEditEvent.Succeeded)
@@ -621,6 +706,9 @@ class NotebooksViewModel(
         viewModelScope.launch {
             val affected = affectedPaths(dir)
             if (vault.deleteFolder(dir) > 0) {
+                attachments()?.let { lifecycle ->
+                    withContext(dispatchers.io) { runCatching { lifecycle.deleteFolderAttachments(dir) } }
+                }
                 affected.forEach { database.indexDao().removeNotebook(it) }
                 settingsRepository.deleteFolderStyle(dir)
                 sync.requestSync("folder deleted")
@@ -637,7 +725,10 @@ class NotebooksViewModel(
 
     companion object {
         val Factory = factory {
-            NotebooksViewModel(it.vault, it.database, it.settingsRepository, it.syncManager, it.dispatchers)
+            NotebooksViewModel(
+                it.vault, it.database, it.settingsRepository, it.syncManager, it.dispatchers,
+                attachments = { it.attachmentLifecycle.value },
+            )
         }
     }
 }
@@ -804,7 +895,7 @@ class DocumentViewModel(
         val s = OutlineSnack(message, ++eventId)
         _snack.value = s
         viewModelScope.launch {
-            delay(4200)
+            delay(UNDO_WINDOW_MS)
             if (_snack.value?.id == s.id) _snack.value = null
         }
     }
@@ -1266,10 +1357,19 @@ class DocumentViewModel(
 
     // --- structural outline operations (PRD §5.3) ---
 
-    /** Single-step undo: the pre-mutation text of every file the mutation touched. */
-    private data class UndoSnapshot(val files: List<Pair<String, String>>)
+    /**
+     * Single-step undo: the pre-mutation text of every file the mutation touched.
+     * [cancelOnUndo] is work the mutation deferred until its UNDO window ran out
+     * (a heading delete's attachment deletion); UNDO cancels it.
+     */
+    private data class UndoSnapshot(val files: List<Pair<String, String>>, val cancelOnUndo: Job? = null)
 
     private var undoSnapshot: UndoSnapshot? = null
+
+    /** Lets attach dirs follow subtrees that an edit moved into another file (experimental). */
+    private fun followAttachments(writes: List<FileRewrite>, verb: String) {
+        if (writes.map { it.file }.distinct().size > 1) app.attachmentFollow.filesRewritten(writes, verb)
+    }
 
     fun undo() {
         if (undoSnapshot == null) return
@@ -1291,10 +1391,20 @@ class DocumentViewModel(
                 pending = null
                 onPendingPersisted()
             }
+            snap.cancelOnUndo?.cancel()
+            val rewrites = if (snap.files.size > 1) {
+                snap.files.mapNotNull { (name, text) ->
+                    val current = if (name == loaded.fileName) loaded.document.text else vault.open(name)?.text
+                    current?.let { FileRewrite(name, it, text) }
+                }
+            } else {
+                emptyList()
+            }
             snap.files.forEach { (name, text) ->
                 vault.save(name, text)
                 sync.requestReindex(name, text, "undo")
             }
+            followAttachments(rewrites, "Undone")
             snap.files.firstOrNull { it.first == loaded.fileName }?.let { (_, text) ->
                 val doc = withContext(dispatchers.default) {
                     OrgParser.parse(text, loaded.document.keywords)
@@ -1433,6 +1543,7 @@ class DocumentViewModel(
         verb: String,
         blockedToast: String,
         singleMessage: String = verb,
+        afterUndoWindow: (suspend (fileName: String) -> Unit)? = null,
     ) {
         vaultFlow.value ?: return
         mutate {
@@ -1450,7 +1561,16 @@ class DocumentViewModel(
                     dropFavoritesInRange(doc, loaded.fileName, h.lineIndex until doc.subtreeEndLine(h))
                 }
             }
-            undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
+            // Not viewModelScope: leaving the screen before the window ends
+            // doesn't cancel what the user confirmed; only UNDO does.
+            val deferred = afterUndoWindow?.let { work ->
+                val fileName = loaded.fileName
+                app.appScope.launch {
+                    delay(UNDO_WINDOW_MS)
+                    work(fileName)
+                }
+            }
+            undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text), deferred)
             _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
             publish(loaded.fileName, loaded.document, result.doc, result.remap)
             saveDoc(loaded.fileName, result.text, "outline edit", result.doc)
@@ -1486,8 +1606,44 @@ class DocumentViewModel(
         "Can't demote: there's no heading above ${if (lines.size > 1) "them" else "it"} to go under",
     )
 
-    fun deleteNotes(lines: Set<Int>) =
-        applyStructure(lines, OrgMutations.StructureOp.DELETE, "Deleted", "", singleMessage = "Note deleted")
+    /**
+     * Delete the subtrees at [lines] (undoable). With [attachments] (the user
+     * ticked "Also delete attachments" in the 1n-style sheet), their attach dirs
+     * are deleted once the UNDO window runs out; UNDO cancels that. Each dir is
+     * re-checked right before: one whose ID turned up again in the file or in
+     * another file of the same directory is kept.
+     */
+    fun deleteNotes(lines: Set<Int>, attachments: AttachmentInventory? = null) {
+        val lifecycle = app.attachmentLifecycle.value
+        val work: (suspend (String) -> Unit)? =
+            if (lifecycle == null || attachments == null || attachments.isEmpty) null else { fileName ->
+                val vault = vaultFlow.value
+                withContext(dispatchers.io) {
+                    val ids = vault?.open(fileName)?.text?.let(::orgIdsIn).orEmpty()
+                    runCatching {
+                        lifecycle.deleteDirs(fileName, attachments) { id -> id in ids || lifecycle.heldInDir(fileName, id) }
+                    }
+                }
+            }
+        applyStructure(
+            lines, OrgMutations.StructureOp.DELETE, "Deleted", "", singleMessage = "Note deleted",
+            afterUndoWindow = work,
+        )
+    }
+
+    /**
+     * The attach dirs the subtrees at [lines] own (design 10.4), for the Outline
+     * delete sheet. Empty when attachments are off or there are none, in which
+     * case the plain delete dialog shows.
+     */
+    suspend fun headingDeleteAttachments(lines: Set<Int>): AttachmentInventory {
+        val lifecycle = app.attachmentLifecycle.value ?: return AttachmentInventory.Empty
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return AttachmentInventory.Empty
+        return withContext(dispatchers.io) {
+            runCatching { lifecycle.inventoryForSubtrees(loaded.fileName, loaded.document, lines) }
+                .getOrDefault(AttachmentInventory.Empty)
+        }
+    }
 
     /**
      * Same-session cleanup for an in-app delete/refile: a favorite whose *current* position
@@ -1611,6 +1767,15 @@ class DocumentViewModel(
                     publish(loaded.fileName, loaded.document, result.sourceDoc)
                     if (result.destFile != loaded.fileName) vault.save(result.destFile, result.destText)
                     saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc)
+                    if (result.destFile != loaded.fileName) {
+                        followAttachments(
+                            listOf(
+                                FileRewrite(loaded.fileName, loaded.document.text, result.sourceText),
+                                FileRewrite(result.destFile, result.destTextBefore, result.destText),
+                            ),
+                            "Archived",
+                        )
+                    }
                     showSnack("Marked done. Refiled to ${result.label}")
                 }
             }
@@ -1806,6 +1971,11 @@ class DocumentViewModel(
                 sync.requestReindex(file, after, "state set")
             }
             saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc)
+            followAttachments(
+                listOf(FileRewrite(loaded.fileName, loaded.document.text, result.sourceText)) +
+                    result.destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
+                "Archived",
+            )
             val stateMessage = "State → ${keyword ?: "none"} on ${pluralCount(result.changed, "note")}"
             val destinations = result.archivedTo.distinct()
             showSnack(
@@ -2086,6 +2256,15 @@ class DocumentViewModel(
             sync.requestReindex(write.destFile, write.destText, syncReason)
         }
         saveDoc(loaded.fileName, write.sourceText, syncReason, newSourceDoc)
+        if (write.destFile != loaded.fileName) {
+            followAttachments(
+                listOf(
+                    FileRewrite(loaded.fileName, loaded.document.text, write.sourceText),
+                    FileRewrite(write.destFile, write.destTextBefore, write.destText),
+                ),
+                verb,
+            )
+        }
         showSnack("$verb to ${write.label}")
     }
 
@@ -2186,6 +2365,11 @@ class DocumentViewModel(
             sync.requestReindex(file, after, syncReason)
         }
         saveDoc(loaded.fileName, sourceText, syncReason, sourceDoc)
+        followAttachments(
+            listOf(FileRewrite(loaded.fileName, loaded.document.text, sourceText)) +
+                destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
+            message.substringBefore(' '),
+        )
         showSnack(message)
         val doc = loaded.document
         lines.mapNotNull(doc::headlineAtLine).forEach { h ->
@@ -2243,6 +2427,13 @@ class DocumentViewModel(
                 vault.save(destFile, newDestText)
                 sync.requestReindex(destFile, newDestText, "refile")
                 saveDoc(loaded.fileName, newSourceText, "refile", newSourceDoc)
+                followAttachments(
+                    listOf(
+                        FileRewrite(loaded.fileName, loaded.document.text, newSourceText),
+                        FileRewrite(destFile, destDoc.text, newDestText),
+                    ),
+                    "Refiled",
+                )
                 showSnack("Refiled to $destLabel › ${target?.title ?: "top level"}")
                 rememberRefileTarget(destFile, headingPath)
             }
@@ -2251,6 +2442,9 @@ class DocumentViewModel(
     }
 
     companion object {
+        /** How long the UNDO snackbar stays up (design spec ~4.2 s); deferred work waits this long. */
+        const val UNDO_WINDOW_MS = 4200L
+
         val Factory = factory {
             DocumentViewModel(
                 it.vault, it.keywords, it.syncManager, it.database,

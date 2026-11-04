@@ -1,5 +1,8 @@
 package com.rrajath.grove.ui.agenda
 
+import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.rewritesFor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rrajath.grove.AppDispatchers
@@ -218,6 +221,7 @@ class AgendaViewModel(
     private val vaultFlow: StateFlow<Vault?>,
     private val sync: SyncTrigger,
     private val dispatchers: AppDispatchers,
+    private val attachFollow: AttachmentFollow = AttachmentFollow.None,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AgendaUiState())
@@ -588,6 +592,13 @@ class AgendaViewModel(
                     if (result.destFile != fileName) {
                         vault.save(result.destFile, result.destText)
                         sync.requestReindex(result.destFile, result.destText, "agenda toggle done")
+                        attachFollow.filesRewritten(
+                            listOf(
+                                FileRewrite(fileName, doc.text, result.sourceText),
+                                FileRewrite(result.destFile, result.destTextBefore, result.destText),
+                            ),
+                            "Archived",
+                        )
                     }
                     showSnack("Marked done. Refiled to ${result.label}")
                 }
@@ -709,10 +720,12 @@ class AgendaViewModel(
         _snack.value = null
         viewModelScope.launch {
             val vault = vaultFlow.value ?: return@launch
+            val rewrites = vault.rewritesFor(snaps.map { it.fileName to it.text })
             snaps.forEach {
                 vault.save(it.fileName, it.text)
                 sync.requestReindex(it.fileName, it.text, "agenda undo")
             }
+            attachFollow.filesRewritten(rewrites, "Undone")
         }
     }
 
@@ -727,7 +740,10 @@ class AgendaViewModel(
 
     companion object {
         val Factory = factory {
-            AgendaViewModel(it.settingsRepository, it.keywords, it.database, it.vault, it.syncManager, it.dispatchers)
+            AgendaViewModel(
+                it.settingsRepository, it.keywords, it.database, it.vault, it.syncManager, it.dispatchers,
+                attachFollow = it.attachmentFollow,
+            )
         }
 
         /** Today's prewarned-deadline section, shown above the day's own rows. */

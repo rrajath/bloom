@@ -1,5 +1,8 @@
 package com.rrajath.grove.ui.editor
 
+import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.rewritesFor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rrajath.grove.AppDispatchers
@@ -128,6 +131,7 @@ class EditorViewModel(
     private val keywords: StateFlow<OrgKeywords>,
     private val dispatchers: AppDispatchers,
     private val templatesRepository: TemplatesRepository,
+    private val attachFollow: AttachmentFollow = AttachmentFollow.None,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EditorUiState())
@@ -196,10 +200,12 @@ class EditorViewModel(
         _snack.value = null
         viewModelScope.launch {
             val vault = vaultFlow.value ?: return@launch
+            val rewrites = vault.rewritesFor(snap.files)
             snap.files.forEach { (name, text) ->
                 vault.save(name, text)
                 sync.requestReindex(name, text, "note undo")
             }
+            attachFollow.filesRewritten(rewrites, "Undone")
             val revision = vault.revision(snap.fileName)
             _state.update {
                 it.copy(
@@ -515,6 +521,13 @@ class EditorViewModel(
                     if (result.destFile != s.fileName) {
                         vault.save(result.destFile, result.destText)
                         sync.requestReindex(result.destFile, result.destText, "note state set")
+                        attachFollow.filesRewritten(
+                            listOf(
+                                FileRewrite(s.fileName, doc.text, result.sourceText),
+                                FileRewrite(result.destFile, result.destTextBefore, result.destText),
+                            ),
+                            "Archived",
+                        )
                     }
                     val destDoc = OrgParser.parse(result.destText, doc.keywords)
                     val destHeadline = destDoc.headlines.firstOrNull { it.lineIndex == result.destLineIndex }
@@ -854,6 +867,7 @@ class EditorViewModel(
             EditorViewModel(
                 it.vault, it.syncManager, it.database, it.settingsRepository, it.keywords, it.dispatchers,
                 it.templatesRepository,
+                attachFollow = it.attachmentFollow,
             )
         }
     }

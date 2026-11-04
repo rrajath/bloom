@@ -1,5 +1,8 @@
 package com.rrajath.grove.ui.search
 
+import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.rewritesFor
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -272,6 +275,7 @@ class SearchViewModel(
     private val keywordsFlow: StateFlow<OrgKeywords>,
     private val settings: SettingsSource,
     private val dispatchers: AppDispatchers,
+    private val attachFollow: AttachmentFollow = AttachmentFollow.None,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SearchUiState())
@@ -298,10 +302,12 @@ class SearchViewModel(
         _snack.value = null
         viewModelScope.launch {
             val vault = vaultFlow.value ?: return@launch
+            val rewrites = vault.rewritesFor(snap)
             snap.forEach { (name, text) ->
                 vault.save(name, text)
                 sync.requestReindex(name, text, "search undo")
             }
+            attachFollow.filesRewritten(rewrites, "Undone")
         }
     }
 
@@ -488,6 +494,13 @@ class SearchViewModel(
                 if (result.destFile != fileName) {
                     vault.save(result.destFile, result.destText)
                     sync.requestReindex(result.destFile, result.destText, "search state set")
+                    attachFollow.filesRewritten(
+                        listOf(
+                            FileRewrite(fileName, doc.text, result.sourceText),
+                            FileRewrite(result.destFile, result.destTextBefore, result.destText),
+                        ),
+                        "Archived",
+                    )
                 }
                 showSnack("Marked done. Refiled to ${result.label}")
             }
@@ -1044,6 +1057,7 @@ class SearchViewModel(
             SearchViewModel(
                 it.vault, it.syncManager, it.searchRepository, it.database,
                 it.keywords, it.settingsRepository, it.dispatchers,
+                attachFollow = it.attachmentFollow,
             )
         }
 
