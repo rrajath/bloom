@@ -66,6 +66,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -563,21 +564,35 @@ fun rememberChipRun(chips: List<ChipLink>, render: AttachmentRenderContext): Chi
     val content = chips.associate { chip ->
         val isMissing = missing[chip.id] == true
         val label = chipLabel(chip.link.label)
+        // Whole pixels, rounded the way AttachmentChip's padding, size and
+        // spacer modifiers round them (see chipPlaceholder).
         val placeholder = with(density) {
             val labelSize = measurer.measure(label, ChipLabelStyle).size
             val lead = if (isMissing) {
-                5.dp.toPx() + 12.dp.toPx()
+                5.dp.roundToPx() + 12.dp.roundToPx()
             } else {
-                3.dp.toPx() + measurer.measure(chip.link.badge, ChipBadgeStyle).size.width + 8.dp.toPx()
+                3.dp.roundToPx() + measurer.measure(chip.link.badge, ChipBadgeStyle).size.width + 4.dp.roundToPx() * 2
             }
-            val width = lead + 5.dp.toPx() + labelSize.width + 7.dp.toPx()
-            val height = labelSize.height + 2.dp.toPx()
-            Placeholder(width.toSp(), height.toSp(), PlaceholderVerticalAlign.TextCenter)
+            val width = lead + 5.dp.roundToPx() + labelSize.width + 7.dp.roundToPx()
+            val height = labelSize.height + 1.dp.roundToPx() * 2
+            chipPlaceholder(width, height)
         }
         chip.id to InlineTextContent(placeholder) { AttachmentChip(chip.link, label, isMissing) }
     }
     return ChipRun(missing, content)
 }
+
+/**
+ * The inline placeholder for a chip that lays out [widthPx] by [heightPx]. The
+ * placeholder is the chip's only width constraint: BasicText measures inline
+ * content with maxWidth = floor(placeholder width), so the size must be the
+ * chip's real pixel size (each dp rounded as its modifier rounds it, not a sum
+ * of fractional dp), or the label gets a pixel or two too few and its last
+ * character wraps onto a line maxLines hides. The extra half pixel survives
+ * the px to sp to px round trip, which can otherwise floor a pixel away.
+ */
+internal fun Density.chipPlaceholder(widthPx: Int, heightPx: Int): Placeholder =
+    Placeholder((widthPx + 0.5f).toSp(), heightPx.toSp(), PlaceholderVerticalAlign.TextCenter)
 
 private val ChipLabelStyle = TextStyle(fontFamily = PlexMono, fontSize = 12.5.sp, lineHeight = 1.5.em)
 private val ChipBadgeStyle = TextStyle(fontFamily = PlexMono, fontSize = 9.sp, fontWeight = FontWeight.Bold)
@@ -610,6 +625,7 @@ fun AttachmentChip(link: LocalAttachment, label: String, missing: Boolean) {
                 style = ChipBadgeStyle,
                 color = fg,
                 maxLines = 1,
+                softWrap = false,
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
                     .background(bg)
@@ -623,6 +639,7 @@ fun AttachmentChip(link: LocalAttachment, label: String, missing: Boolean) {
             color = if (missing) c.ink3 else c.ink,
             textDecoration = if (missing) TextDecoration.LineThrough else null,
             maxLines = 1,
+            softWrap = false,
         )
     }
 }

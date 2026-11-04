@@ -27,8 +27,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -153,15 +151,17 @@ fun rememberPreviewChipText(
                 val label = chipLabel(chip.link.label)
                 val styled = highlightedChipLabel(label, terms, c)
                 val missing = cache?.knownMissing(orgFile, chip.rawTarget) == true
+                // Whole pixels, rounded the way PreviewAttachmentChip's padding,
+                // size and spacer modifiers round them (see chipPlaceholder).
                 val placeholder = with(density) {
                     val labelSize = measurer.measure(styled, styles.label).size
                     val lead = if (missing) {
-                        4.dp.toPx() + styles.icon.toPx()
+                        4.dp.roundToPx() + styles.icon.roundToPx()
                     } else {
-                        2.dp.toPx() + measurer.measure(chip.link.badge, styles.badge).size.width + 6.dp.toPx()
+                        2.dp.roundToPx() + measurer.measure(chip.link.badge, styles.badge).size.width + 3.dp.roundToPx() * 2
                     }
-                    val width = lead + 4.dp.toPx() + labelSize.width + 6.dp.toPx()
-                    Placeholder(width.toSp(), labelSize.height.toSp(), PlaceholderVerticalAlign.TextCenter)
+                    val width = lead + 4.dp.roundToPx() + labelSize.width + 6.dp.roundToPx()
+                    chipPlaceholder(width, labelSize.height)
                 }
                 inline[id] = InlineTextContent(placeholder) { PreviewAttachmentChip(chip.link, styled, missing, styles) }
                 appendInlineContent(id, label)
@@ -227,6 +227,7 @@ private fun PreviewAttachmentChip(link: LocalAttachment, label: AnnotatedString,
                 style = styles.badge,
                 color = fg,
                 maxLines = 1,
+                softWrap = false,
                 modifier = Modifier
                     .clip(RoundedCornerShape(3.dp))
                     .background(bg)
@@ -240,6 +241,7 @@ private fun PreviewAttachmentChip(link: LocalAttachment, label: AnnotatedString,
             color = if (missing) c.ink3 else c.ink,
             textDecoration = if (missing) TextDecoration.LineThrough else null,
             maxLines = 1,
+            softWrap = false,
         )
     }
 }
