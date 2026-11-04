@@ -1,5 +1,10 @@
 package com.rrajath.grove.ui.screens
 
+import com.rrajath.grove.FeatureFlags
+import androidx.compose.ui.text.AnnotatedString
+import com.rrajath.grove.ui.attach.linkSafeTake
+import com.rrajath.grove.ui.attach.rawPreviewChips
+import com.rrajath.grove.ui.attach.rememberPreviewChipText
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -810,6 +815,7 @@ fun OutlineScreen(
                             ) {
                                 OutlineNode(
                                     doc = doc,
+                                    fileName = notebookId,
                                     headline = h,
                                     isCollapsed = h.lineIndex in collapsed,
                                     isFocused = isFocusedRow,
@@ -1196,6 +1202,8 @@ private fun IntroRow(doc: OrgDocument, onTap: () -> Unit) {
 @Composable
 private fun OutlineNode(
     doc: OrgDocument,
+    /** The notebook's vault path; preview chips look up read mode's missing status under it. */
+    fileName: String,
     headline: OrgHeadline,
     isCollapsed: Boolean,
     isFocused: Boolean,
@@ -1354,17 +1362,26 @@ private fun OutlineNode(
             // so multi-line content stays readable. Feed the Text a third line
             // (when there is one) so it overflows past maxLines = 2 and draws a
             // trailing ellipsis — the cue that there's more content below.
+            // The cap never cuts through a link, so a chip is never halved.
             val preview = remember(doc, headline) {
-                doc.bodyWithoutDedicatedTimestamp(headline)
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() }
-                    .take(3)
-                    .joinToString("\n")
-                    .take(240)
+                linkSafeTake(
+                    doc.bodyWithoutDedicatedTimestamp(headline)
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .take(3)
+                        .joinToString("\n"),
+                    240,
+                )
             }
             if (preview.isNotEmpty()) {
+                // 1i: attachment links draw as display-only preview chips.
+                val chips = remember(preview) {
+                    if (FeatureFlags.ATTACHMENTS) rawPreviewChips(preview) else emptyList()
+                }
+                val previewText = rememberPreviewChipText(remember(preview) { AnnotatedString(preview) }, chips, fileName)
                 Text(
-                    preview,
+                    previewText.text,
+                    inlineContent = previewText.inlineContent,
                     style = TextStyle(textDirection = TextDirection.Content),
                     fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink3,
                     maxLines = 2,

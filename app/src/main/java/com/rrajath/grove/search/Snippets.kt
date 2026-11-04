@@ -15,19 +15,49 @@ object Snippets {
      * whitespace-separated; the original spacing inside a window is kept, and
      * `…` marks a cut at either end.
      */
-    fun windows(line: String, terms: List<String>, radius: Int = CONTEXT_WORDS): List<String> {
+    fun windows(line: String, terms: List<String>, radius: Int = CONTEXT_WORDS): List<String> =
+        windowRanges(line, terms, radius).map { it.text(line) }
+
+    /**
+     * One cluster window of a line: [range] of the source line it shows, and
+     * whether it was cut at either end (shown as `…`).
+     */
+    data class Window(val range: IntRange, val cutStart: Boolean, val cutEnd: Boolean) {
+        /** Chars the leading `…` adds before [range]'s text. */
+        val offset: Int get() = if (cutStart) 1 else 0
+
+        fun text(line: String): String =
+            (if (cutStart) "…" else "") + line.substring(range.first, range.last + 1) + (if (cutEnd) "…" else "")
+    }
+
+    /**
+     * [windows] as source ranges. A window never cuts through one of the
+     * [atomic] ranges (attachment chips): it widens to take the whole range.
+     */
+    fun windowRanges(
+        line: String,
+        terms: List<String>,
+        radius: Int = CONTEXT_WORDS,
+        atomic: List<IntRange> = emptyList(),
+    ): List<Window> {
         val words = WORD.findAll(line).map { it.range }.toList()
         if (words.isEmpty()) return emptyList()
         val matchWords = wordIndices(words, highlightRanges(line, terms).map { it.first }.sorted())
-        val out = mutableListOf<String>()
+        val out = mutableListOf<Window>()
         var windowEnd = -1
         for (w in matchWords) {
             if (w <= windowEnd) continue
-            val from = (w - radius).coerceAtLeast(0)
+            var from = (w - radius).coerceAtLeast(0)
             windowEnd = (w + radius).coerceAtMost(words.lastIndex)
-            val prefix = if (from > 0) "…" else ""
-            val suffix = if (windowEnd < words.lastIndex) "…" else ""
-            out += prefix + line.substring(words[from].first, words[windowEnd].last + 1) + suffix
+            for (a in atomic) {
+                if (a.first < words[from].first && a.last >= words[from].first) {
+                    from = words.indexOfFirst { it.last >= a.first }
+                }
+                if (a.last > words[windowEnd].last && a.first <= words[windowEnd].last) {
+                    windowEnd = words.indexOfLast { it.first <= a.last }
+                }
+            }
+            out += Window(words[from].first..words[windowEnd].last, from > 0, windowEnd < words.lastIndex)
         }
         return out
     }

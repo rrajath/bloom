@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.search
 
+import com.rrajath.grove.ui.attach.PreviewChip
+import com.rrajath.grove.ui.attach.rememberPreviewChipText
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -907,7 +909,7 @@ private fun GroupedResultsList(
                         }
                         // Text before the first heading has no note of its own to
                         // open, so it opens the file.
-                        is SearchRow.Text -> TextMatchRow(row.snippet, matchedTerms) {
+                        is SearchRow.Text -> TextMatchRow(row.snippet, row.chips, group.fileName, matchedTerms) {
                             if (row.lineIndex == INTRO_LINE_INDEX) onOpenOutline(group.fileName)
                             else actions.onOpenNote(NoteRef(group.fileName, row.lineIndex))
                         }
@@ -1205,11 +1207,20 @@ private fun highlightedOrgText(text: String, terms: List<String>, c: com.rrajath
  * [com.rrajath.grove.search.Snippets.windows]), no title and no swipe actions.
  */
 @Composable
-private fun TextMatchRow(snippet: String, matchedTerms: List<String>, onTap: () -> Unit) {
+private fun TextMatchRow(
+    snippet: String,
+    chips: List<PreviewChip>,
+    fileName: String,
+    matchedTerms: List<String>,
+    onTap: () -> Unit,
+) {
     val c = MaterialTheme.grove
-    val text = remember(snippet, matchedTerms, c) { highlightedPlainText(snippet, matchedTerms, c) }
+    val highlighted = remember(snippet, matchedTerms, c) { highlightedPlainText(snippet, matchedTerms, c) }
+    // 1j: attachment links as preview chips, with matches highlighted inside the label.
+    val text = rememberPreviewChipText(highlighted, chips, fileName, matchedTerms)
     Text(
-        text,
+        text.text,
+        inlineContent = text.inlineContent,
         fontFamily = PlexSans, fontSize = 13.5.sp, lineHeight = 1.5.em, color = c.ink2,
         modifier = Modifier
             .fillMaxWidth()

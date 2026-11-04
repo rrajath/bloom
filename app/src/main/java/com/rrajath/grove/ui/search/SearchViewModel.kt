@@ -36,6 +36,10 @@ import com.rrajath.grove.search.SearchQuery
 import com.rrajath.grove.search.Snippets
 import com.rrajath.grove.search.Term
 import com.rrajath.grove.search.textTerms
+import com.rrajath.grove.FeatureFlags
+import com.rrajath.grove.ui.attach.ChipLine
+import com.rrajath.grove.ui.attach.PreviewChip
+import com.rrajath.grove.ui.attach.renderedWithChips
 import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.vault.factory
 import com.rrajath.grove.ui.vault.headlineAtLine
@@ -188,6 +192,8 @@ sealed interface SearchRow {
         val snippet: String,
         /** Position among the file's snippets, to keep [key] unique. */
         val ordinal: Int,
+        /** Attachment links in [snippet], drawn as 1j preview chips. */
+        val chips: ImmutableList<PreviewChip> = persistentListOf(),
     ) : SearchRow {
         override val key: String get() = "t-$lineIndex-$ordinal"
     }
@@ -867,8 +873,11 @@ class SearchViewModel(
         return note.searchText.substringAfter('\n', "").lineSequence()
             // Most body lines can't match; only those that might get rendered.
             .filter { raw -> raw.contains("[[") || groupProbes.any { LineProbe.mayMatch(raw, it) } }
-            .map { line -> InlineTokenizer.tokenize(line).joinToString("") { it.text }.trim() }
-            .flatMap { line ->
+            .map { raw ->
+                if (FeatureFlags.ATTACHMENTS) renderedWithChips(raw)
+                else ChipLine(InlineTokenizer.tokenize(raw).joinToString("") { it.text }.trim(), emptyList())
+            }
+            .flatMap { (line, chips) ->
                 // A term found in the note's own tags is already satisfied, so
                 // a line only needs the rest; it highlights what it contains.
                 val lineTerms = groupTerms
@@ -876,9 +885,18 @@ class SearchViewModel(
                     .flatten()
                     .filter { line.contains(it, ignoreCase = true) }
                     .distinct()
-                if (lineTerms.isEmpty()) emptySequence() else Snippets.windows(line, lineTerms).asSequence()
+                if (lineTerms.isEmpty()) {
+                    emptySequence()
+                } else {
+                    Snippets.windowRanges(line, lineTerms, atomic = chips.map { it.range }).asSequence().map { w ->
+                        val inWindow = chips
+                            .filter { it.range.first >= w.range.first && it.range.last <= w.range.last }
+                            .map { it.copy(range = (it.range.first - w.range.first + w.offset)..(it.range.last - w.range.first + w.offset)) }
+                        w.text(line) to inWindow.toImmutableList()
+                    }
+                }
             }
-            .map { SearchRow.Text(note.fileName, note.lineIndex, it, ordinal++) }
+            .map { (snippet, chips) -> SearchRow.Text(note.fileName, note.lineIndex, snippet, ordinal++, chips) }
             .toList()
     }
 

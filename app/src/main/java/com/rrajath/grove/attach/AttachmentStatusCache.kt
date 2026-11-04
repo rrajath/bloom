@@ -44,6 +44,16 @@ class AttachmentStatusCache {
         statuses[key] = status
     }
 
+    /**
+     * Whether a link to [rawTarget] in [orgFile] is already known to be
+     * missing, under any line. Outline and search ask this instead of statting
+     * (tech design 9): they only show what read mode has found.
+     */
+    fun knownMissing(orgFile: String, rawTarget: String): Boolean {
+        val prefix = "$orgFile\u0000$rawTarget\u0000"
+        return statuses.entries.any { (key, value) -> value is AttachmentStatus.Missing && key.startsWith(prefix) }
+    }
+
     fun bounds(entry: FileEntry): ImageBounds? = bounds[boundsKey(entry)]
 
     fun putBounds(entry: FileEntry, value: ImageBounds) {
