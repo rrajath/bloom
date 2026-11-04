@@ -98,6 +98,9 @@ class AttachmentImporter(
             if (!dirExisted) files.pruneEmpty(dir, pruneStop)
         }
 
+        // Listed once per batch: only one copy runs at a time (AttachmentCopyManager),
+        // so the names this batch claims are the only ones that can appear meanwhile.
+        val taken = files.takenNames(dir)
         for ((i, src) in sources.withIndex()) {
             var wanted = sanitizeAttachmentName(src.displayName)
             val processor = photoProcessor
@@ -114,7 +117,7 @@ class AttachmentImporter(
             }
             try {
                 if (processed != null) wanted = withJpegExtension(wanted)
-                val name = files.uniqueName(dir, wanted)
+                val name = taken.claim(wanted)
                 if (name != wanted) renamed += name
                 val partPath = joinPath(dir, name + AttachmentFiles.PART_SUFFIX)
                 val total = processed?.length() ?: src.size

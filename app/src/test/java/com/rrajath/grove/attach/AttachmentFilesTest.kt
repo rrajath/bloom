@@ -38,6 +38,16 @@ class AttachmentFilesTest {
     }
 
     @Test
+    fun `takenNames lists once and reserves every name it claims`() = runTest {
+        put("data/3F/X/a.jpg")
+        val taken = files.takenNames("data/3F/X")
+        put("data/3F/X/late.jpg") // Not re-listed: the batch is the only writer.
+        assertEquals("a-1.jpg", taken.claim("a.jpg"))
+        assertEquals("A-2.jpg", taken.claim("A.jpg"))
+        assertEquals("late.jpg", taken.claim("late.jpg"))
+    }
+
+    @Test
     fun `uniqueName is case-insensitive, sanitizes, and counts partials as taken`() = runTest {
         put("data/3F/X/Photo.JPG")
         put("data/3F/X/scan.pdf.part")

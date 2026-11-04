@@ -29,10 +29,15 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
      * held by in-flight `.part` files count as taken, so two imports into
      * one dir can't pick the same name.
      */
-    suspend fun uniqueName(dir: String, wanted: String): String {
-        val taken = store.listDirRaw(dir).map { it.name.substringAfterLast('/').removeSuffix(PART_SUFFIX) }
-        return uniqueAttachmentName(taken, sanitizeAttachmentName(wanted))
-    }
+    suspend fun uniqueName(dir: String, wanted: String): String = takenNames(dir).claim(wanted)
+
+    /**
+     * The names in use in [dir], listed once, for a batch that writes several
+     * files there: [TakenNames.claim] picks each name and reserves it, so the
+     * batch doesn't re-list the dir per file.
+     */
+    suspend fun takenNames(dir: String): TakenNames =
+        TakenNames(store.listDirRaw(dir).mapTo(mutableListOf()) { it.name.substringAfterLast('/').removeSuffix(PART_SUFFIX) })
 
     /** Deletes one attachment file. */
     suspend fun delete(path: String): Boolean = store.deleteRaw(path)
@@ -49,9 +54,12 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
      */
     suspend fun copyDir(src: String, dst: String): Boolean {
         var ok = true
-        for (file in store.listDirRaw(src)) {
-            val leaf = file.name.substringAfterLast('/')
-            ok = copyFile(file.name, joinPath(dst, uniqueName(dst, leaf))) && ok
+        val files = store.listDirRaw(src)
+        if (files.isNotEmpty()) {
+            val taken = takenNames(dst)
+            for (file in files) {
+                ok = copyFile(file.name, joinPath(dst, taken.claim(file.name.substringAfterLast('/')))) && ok
+            }
         }
         for (sub in store.listSubdirs(src)) {
             ok = copyDir(joinPath(src, sub), joinPath(dst, sub)) && ok
@@ -74,10 +82,13 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
             return true
         }
         var ok = true
-        for (file in store.listDirRaw(src)) {
-            val leaf = file.name.substringAfterLast('/')
-            val target = joinPath(dst, uniqueName(dst, leaf))
-            ok = (copyFile(file.name, target) && store.deleteRaw(file.name)) && ok
+        val files = store.listDirRaw(src)
+        if (files.isNotEmpty()) {
+            val taken = takenNames(dst)
+            for (file in files) {
+                val target = joinPath(dst, taken.claim(file.name.substringAfterLast('/')))
+                ok = (copyFile(file.name, target) && store.deleteRaw(file.name)) && ok
+            }
         }
         for (sub in store.listSubdirs(src)) {
             ok = mergeDir(joinPath(src, sub), joinPath(dst, sub)) && ok
@@ -147,6 +158,13 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
     }
 
     data class DirSize(val bytes: Long, val files: Int)
+
+    /** Names in use in one dir; [claim] reserves each name it hands out. */
+    class TakenNames(private val names: MutableList<String>) {
+        /** [wanted] (sanitized), made unique case-insensitively, and now taken. */
+        fun claim(wanted: String): String =
+            uniqueAttachmentName(names, sanitizeAttachmentName(wanted)).also { names += it }
+    }
 
     companion object {
         /** Suffix of a file still being written; renamed away on success. */
