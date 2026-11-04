@@ -5,6 +5,7 @@ import com.rrajath.grove.vault.JvmFileStore
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -57,6 +58,35 @@ class AttachmentStatusCacheTest {
         cache.invalidateMissing()
         assertTrue(cache.generation.value > before)
         assertTrue(resolver.status(link, "attachment:a.jpg", "n.org", doc, docLine = 4) is AttachmentStatus.Present)
+    }
+
+    @Test
+    fun `knownMissing tracks Missing entries under any line of the file`() {
+        val present = AttachmentStatus.Present(com.rrajath.grove.vault.FileEntry("data/ab/cdef/a.jpg", 0, 1))
+        val key4 = AttachmentStatusCache.key("n.org", "attachment:a.jpg", 4)
+        val key9 = AttachmentStatusCache.key("n.org", "attachment:a.jpg", 9)
+        assertFalse(cache.knownMissing("n.org", "attachment:a.jpg"))
+
+        cache.putStatus(key4, AttachmentStatus.Missing)
+        cache.putStatus(key9, AttachmentStatus.Missing)
+        assertTrue(cache.knownMissing("n.org", "attachment:a.jpg"))
+        assertFalse(cache.knownMissing("other.org", "attachment:a.jpg"))
+        assertFalse(cache.knownMissing("n.org", "attachment:a.j"))
+
+        // One line turns present: the other still reports missing.
+        cache.putStatus(key4, present)
+        assertTrue(cache.knownMissing("n.org", "attachment:a.jpg"))
+        // Re-putting Missing on the same line doesn't double count.
+        cache.putStatus(key9, AttachmentStatus.Missing)
+        cache.putStatus(key9, present)
+        assertFalse(cache.knownMissing("n.org", "attachment:a.jpg"))
+
+        cache.putStatus(key9, AttachmentStatus.Missing)
+        cache.invalidateMissing()
+        assertFalse(cache.knownMissing("n.org", "attachment:a.jpg"))
+        cache.putStatus(key9, AttachmentStatus.Missing)
+        cache.clear()
+        assertFalse(cache.knownMissing("n.org", "attachment:a.jpg"))
     }
 
     @Test
