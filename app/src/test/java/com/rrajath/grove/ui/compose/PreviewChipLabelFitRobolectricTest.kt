@@ -77,7 +77,7 @@ class PreviewChipLabelFitRobolectricTest {
                     for (d in densities) for (s in fontScales) {
                         CompositionLocalProvider(LocalDensity provides Density(d, s)) {
                             val chips = rawPreviewChips(text)
-                            val t = rememberPreviewChipText(AnnotatedString(text), chips, "travel.org", 12.5.sp)
+                            val t = rememberPreviewChipText(AnnotatedString(text), chips, "travel.org", -1, 12.5.sp)
                             Text(t.text, inlineContent = t.inlineContent)
                         }
                     }

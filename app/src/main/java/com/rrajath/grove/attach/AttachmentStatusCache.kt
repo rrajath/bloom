@@ -46,8 +46,8 @@ class AttachmentStatusCache {
 
     /**
      * Whether a link to [rawTarget] in [orgFile] is already known to be
-     * missing, under any line. Outline and search ask this instead of statting
-     * (tech design 9): they only show what read mode has found.
+     * missing, under any line. Outline and search chips start from this, then
+     * [PreviewChipChecker] checks them under their own heading.
      */
     fun knownMissing(orgFile: String, rawTarget: String): Boolean {
         val prefix = "$orgFile\u0000$rawTarget\u0000"

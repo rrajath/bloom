@@ -14,6 +14,7 @@ import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.ui.attach.rawPreviewChips
 import com.rrajath.grove.ui.attach.rememberPreviewChipText
 import com.rrajath.grove.ui.theme.GroveTheme
+import com.rrajath.grove.vault.FileEntry
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,11 +33,11 @@ class PreviewChipsRobolectricTest {
 
     private val text = "Kept the [[attachment:receipt.pdf]] and [[attachment:lantern.jpg]]."
 
-    private fun content() {
+    private fun content(ownerLine: Int = -1) {
         composeRule.setContent {
             GroveTheme {
                 val chips = rawPreviewChips(text)
-                val t = rememberPreviewChipText(AnnotatedString(text), chips, "travel.org", 12.5.sp, listOf("receipt"))
+                val t = rememberPreviewChipText(AnnotatedString(text), chips, "travel.org", ownerLine, 12.5.sp, listOf("receipt"))
                 Text(t.text, inlineContent = t.inlineContent)
             }
         }
@@ -59,5 +60,31 @@ class PreviewChipsRobolectricTest {
         content()
         composeRule.onAllNodesWithTag("preview_chip", useUnmergedTree = true).assertCountEquals(1)
         composeRule.onNodeWithTag("preview_chip_missing", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun aChipCheckedMissingUnderItsHeadingShowsMissing() {
+        val app = ApplicationProvider.getApplicationContext<TestGroveApplication>()
+        app.attachmentStatusCache.putStatus(
+            AttachmentStatusCache.key("travel.org", "attachment:receipt.pdf", 7),
+            AttachmentStatus.Missing,
+        )
+        content(ownerLine = 7)
+        composeRule.waitUntil { composeRule.onAllNodesWithTag("preview_chip_missing", useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
+        composeRule.onAllNodesWithTag("preview_chip", useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun aChipPresentUnderItsHeadingIgnoresAMissingCopyElsewhere() {
+        val app = ApplicationProvider.getApplicationContext<TestGroveApplication>()
+        val cache = app.attachmentStatusCache
+        cache.putStatus(AttachmentStatusCache.key("travel.org", "attachment:lantern.jpg", 3), AttachmentStatus.Missing)
+        cache.putStatus(
+            AttachmentStatusCache.key("travel.org", "attachment:lantern.jpg", 7),
+            AttachmentStatus.Present(FileEntry("data/ab/cdef/lantern.jpg", 0L, 1L)),
+        )
+        content(ownerLine = 7)
+        composeRule.waitUntil { composeRule.onAllNodesWithTag("preview_chip", useUnmergedTree = true).fetchSemanticsNodes().size == 2 }
+        composeRule.onNodeWithTag("preview_chip_missing", useUnmergedTree = true).assertDoesNotExist()
     }
 }

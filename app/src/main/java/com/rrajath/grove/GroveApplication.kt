@@ -278,6 +278,16 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
         }
     }
 
+    /** Existence checks for outline and search attachment chips; shares [attachmentStatusCache]. */
+    val previewChipChecker: com.rrajath.grove.attach.PreviewChipChecker by lazy {
+        com.rrajath.grove.attach.PreviewChipChecker(
+            store = { fileStore.value },
+            cache = attachmentStatusCache,
+            loadDoc = { file -> vault.value?.open(file) },
+            io = dispatchers.io,
+        )
+    }
+
     /**
      * Keeps attach dirs with their notes on notebook/folder moves and deletes,
      * heading deletes, and refiles (experimental, debug-only: null in release

@@ -1414,7 +1414,10 @@ private fun OutlineNode(
                 val chips = remember(preview) {
                     if (FeatureFlags.ATTACHMENTS) rawPreviewChips(preview) else emptyList()
                 }
-                val previewText = rememberPreviewChipText(remember(preview) { AnnotatedString(preview) }, chips, fileName, 12.5.sp)
+                val previewText = rememberPreviewChipText(
+                    remember(preview) { AnnotatedString(preview) }, chips, fileName,
+                    ownerLine = headline.lineIndex, fontSize = 12.5.sp, doc = doc,
+                )
                 Text(
                     previewText.text,
                     inlineContent = previewText.inlineContent,

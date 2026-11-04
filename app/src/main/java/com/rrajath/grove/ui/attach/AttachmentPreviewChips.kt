@@ -15,8 +15,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,16 +42,20 @@ import androidx.compose.ui.unit.em
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentLink
+import com.rrajath.grove.attach.AttachmentStatus
 import com.rrajath.grove.attach.LocalAttachment
+import com.rrajath.grove.attach.PreviewChipChecker
 import com.rrajath.grove.attach.linkDescription
 import com.rrajath.grove.org.InlineTokenizer
 import com.rrajath.grove.org.InlineType
+import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.search.Snippets
 import com.rrajath.grove.ui.editor.categoryColors
 import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.grove
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * An attachment link drawn as a preview-size chip (1i outline, 1j search):
@@ -119,26 +125,51 @@ class PreviewChipText(val text: AnnotatedString, val inlineContent: Map<String, 
 
 /**
  * [text] (already styled, e.g. with search highlights) with each of [chips]
- * replaced by a 1i/1j preview chip. Chips are display-only. No existence check
- * runs here: a chip shows missing only when read mode already found it missing
- * in [orgFile]. Matches of [terms] inside a chip label are highlighted in the chip.
- * The chip label uses [fontSize], the size of the text around it.
+ * replaced by a 1i/1j preview chip. Chips are display-only. Each chip starts
+ * as read mode last saw it in [orgFile] (present unless known missing), then
+ * flips to broken if a background check ([PreviewChipChecker]) finds the file
+ * gone. [ownerLine] is the line of the heading the text sits under (-1 before
+ * the first heading) and [doc] the parsed [orgFile], if the caller has it.
+ * Checks are cancelled with the row. Matches of [terms] inside a chip label
+ * are highlighted in the chip. The chip label uses [fontSize], the size of the
+ * text around it.
  */
 @Composable
 fun rememberPreviewChipText(
     text: AnnotatedString,
     chips: List<PreviewChip>,
     orgFile: String,
+    ownerLine: Int,
     fontSize: TextUnit,
     terms: List<String> = emptyList(),
+    doc: OrgDocument? = null,
 ): PreviewChipText {
     if (chips.isEmpty()) return remember(text) { PreviewChipText(text, emptyMap()) }
     val c = MaterialTheme.grove
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
-    val cache = (LocalContext.current.applicationContext as? GroveApplication)?.attachmentStatusCache
+    val app = LocalContext.current.applicationContext as? GroveApplication
+    val cache = app?.attachmentStatusCache
+    val checker = app?.previewChipChecker
     val generation by remember(cache) { cache?.generation ?: MutableStateFlow(0) }.collectAsState()
-    return remember(text, chips, orgFile, fontSize, terms, c, density, generation) {
+    // Checked answers by raw target. Not keyed on generation: a re-check after a
+    // sync overwrites the old answer, so a broken chip doesn't blink back to
+    // present while it runs.
+    val checked = remember(chips, orgFile, ownerLine) { mutableStateMapOf<String, Boolean>() }
+    LaunchedEffect(checker, chips, orgFile, ownerLine, doc, generation) {
+        if (checker == null) return@LaunchedEffect
+        for (chip in chips.distinctBy { it.rawTarget }) {
+            launch {
+                val status = checker.status(chip.link, chip.rawTarget, orgFile, doc, ownerLine) ?: return@launch
+                checked[chip.rawTarget] = status == AttachmentStatus.Missing
+            }
+        }
+    }
+    val known = remember(chips, orgFile, generation) {
+        chips.associate { it.rawTarget to (cache?.knownMissing(orgFile, it.rawTarget) == true) }
+    }
+    val missingByTarget = known.mapValues { (target, wasMissing) -> checked[target] ?: wasMissing }
+    return remember(text, chips, fontSize, terms, c, density, missingByTarget) {
         val styles = PreviewChipStyles.of(fontSize)
         val sorted = chips.sortedBy { it.range.first }
         val inline = mutableMapOf<String, InlineTextContent>()
@@ -150,7 +181,7 @@ fun rememberPreviewChipText(
                 val id = "preview-chip-${chip.range.first}"
                 val label = chipLabel(chip.link.label)
                 val styled = highlightedChipLabel(label, terms, c)
-                val missing = cache?.knownMissing(orgFile, chip.rawTarget) == true
+                val missing = missingByTarget[chip.rawTarget] == true
                 // Whole pixels, rounded the way PreviewAttachmentChip's padding,
                 // size and spacer modifiers round them (see chipPlaceholder).
                 val placeholder = with(density) {

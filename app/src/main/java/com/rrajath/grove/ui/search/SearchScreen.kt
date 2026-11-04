@@ -909,7 +909,7 @@ private fun GroupedResultsList(
                         }
                         // Text before the first heading has no note of its own to
                         // open, so it opens the file.
-                        is SearchRow.Text -> TextMatchRow(row.snippet, row.chips, group.fileName, matchedTerms) {
+                        is SearchRow.Text -> TextMatchRow(row.snippet, row.chips, group.fileName, row.lineIndex, matchedTerms) {
                             if (row.lineIndex == INTRO_LINE_INDEX) onOpenOutline(group.fileName)
                             else actions.onOpenNote(NoteRef(group.fileName, row.lineIndex))
                         }
@@ -1211,13 +1211,14 @@ private fun TextMatchRow(
     snippet: String,
     chips: List<PreviewChip>,
     fileName: String,
+    lineIndex: Int,
     matchedTerms: List<String>,
     onTap: () -> Unit,
 ) {
     val c = MaterialTheme.grove
     val highlighted = remember(snippet, matchedTerms, c) { highlightedPlainText(snippet, matchedTerms, c) }
     // 1j: attachment links as preview chips, with matches highlighted inside the label.
-    val text = rememberPreviewChipText(highlighted, chips, fileName, TEXT_MATCH_SIZE, matchedTerms)
+    val text = rememberPreviewChipText(highlighted, chips, fileName, lineIndex, TEXT_MATCH_SIZE, matchedTerms)
     Text(
         text.text,
         inlineContent = text.inlineContent,
