@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.editor
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -38,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +53,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -61,6 +66,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import coil3.decode.BitmapFactoryDecoder
+import coil3.request.ImageRequest
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachKind
 import com.rrajath.grove.attach.AttachOwner
@@ -71,6 +79,7 @@ import com.rrajath.grove.attach.badgeFor
 import com.rrajath.grove.attach.categoryOf
 import com.rrajath.grove.attach.formatAttachmentSize
 import com.rrajath.grove.attach.formatCopyBytes
+import com.rrajath.grove.ui.attach.attachmentMemoryCacheKey
 import com.rrajath.grove.ui.components.GroveProgressSnackbar
 import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.theme.GroveColors
@@ -140,6 +149,7 @@ fun BoxScope.AttachOverlays(controller: AttachController, bottomInset: Dp) {
             onInsert = controller::insertExisting,
             onOpen = controller::openWith,
             onDelete = { controller.confirmDelete = it },
+            thumbnailUri = controller::thumbnailUri,
         )
     }
     controller.confirmDelete?.let { file ->
@@ -164,6 +174,7 @@ internal fun AttachSheet(
     onInsert: (FileEntry) -> Unit,
     onOpen: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
+    thumbnailUri: suspend (FileEntry) -> Uri? = { null },
 ) {
     val c = MaterialTheme.grove
     ModalBottomSheet(
@@ -183,7 +194,7 @@ internal fun AttachSheet(
         },
     ) {
         Box {
-            AttachSheetContent(model, cameraAvailable, onPick, onInsert, onOpen, onDelete)
+            AttachSheetContent(model, cameraAvailable, onPick, onInsert, onOpen, onDelete, thumbnailUri)
             // The sheet is its own window, so list-action toasts are drawn inside it.
             GroveToast(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
         }
@@ -199,6 +210,7 @@ internal fun AttachSheetContent(
     onInsert: (FileEntry) -> Unit,
     onOpen: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
+    thumbnailUri: suspend (FileEntry) -> Uri? = { null },
 ) {
     val c = MaterialTheme.grove
     Column(
@@ -280,7 +292,10 @@ internal fun AttachSheetContent(
                         .testTag("attach_empty"),
                 )
                 else -> files.forEach { f ->
-                    AttachmentRow(f, onInsert = { onInsert(f) }, onOpen = { onOpen(f) }, onDelete = { onDelete(f) })
+                    AttachmentRow(
+                        f, thumbnailUri,
+                        onInsert = { onInsert(f) }, onOpen = { onOpen(f) }, onDelete = { onDelete(f) },
+                    )
                 }
             }
         }
@@ -329,10 +344,17 @@ private fun SourcePill(
 }
 
 @Composable
-private fun AttachmentRow(file: FileEntry, onInsert: () -> Unit, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun AttachmentRow(
+    file: FileEntry,
+    thumbnailUri: suspend (FileEntry) -> Uri?,
+    onInsert: () -> Unit,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val c = MaterialTheme.grove
     val name = file.name.substringAfterLast('/')
-    val (fg, bg) = categoryColors(c, categoryOf(attachmentExtension(name)))
+    val category = categoryOf(attachmentExtension(name))
+    val (fg, bg) = categoryColors(c, category)
     Row(
         Modifier
             .fillMaxWidth()
@@ -342,7 +364,7 @@ private fun AttachmentRow(file: FileEntry, onInsert: () -> Unit, onOpen: () -> U
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(bg),
+            Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(bg),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -350,6 +372,7 @@ private fun AttachmentRow(file: FileEntry, onInsert: () -> Unit, onOpen: () -> U
                 fontFamily = PlexMono, fontWeight = FontWeight.Bold, fontSize = 9.5.sp,
                 letterSpacing = 0.02.em, color = fg, maxLines = 1,
             )
+            if (category == AttachmentCategory.IMAGE) ImageThumbnail(file, thumbnailUri)
         }
         Column(Modifier.weight(1f)) {
             Text(
@@ -372,6 +395,35 @@ private fun AttachmentRow(file: FileEntry, onInsert: () -> Unit, onOpen: () -> U
             "Delete", "attach_delete_$name", onDelete,
         )
     }
+}
+
+/**
+ * Image rows draw a center-cropped thumbnail over the badge, which stays
+ * visible while it decodes and whenever it can't (HEIC/SVG on devices that
+ * lack a decoder, corrupt files). Coil sizes the decode to the 40dp tile, and
+ * the `thumb:` key keeps these small bitmaps from evicting or standing in for
+ * the full-size read-mode images cached under the plain key.
+ */
+@Composable
+private fun ImageThumbnail(file: FileEntry, thumbnailUri: suspend (FileEntry) -> Uri?) {
+    val uri by produceState<Uri?>(null, file) { value = thumbnailUri(file) }
+    val u = uri ?: return
+    val context = LocalContext.current
+    val gif = attachmentExtension(file.name).equals("gif", ignoreCase = true)
+    val request = remember(u, file) {
+        ImageRequest.Builder(context)
+            .data(u)
+            .memoryCacheKey("thumb:" + attachmentMemoryCacheKey(file))
+            // First frame only, like read mode.
+            .apply { if (gif) decoderFactory(BitmapFactoryDecoder.Factory()) }
+            .build()
+    }
+    AsyncImage(
+        model = request,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize().testTag("attach_thumb_${file.name.substringAfterLast('/')}"),
+    )
 }
 
 @Composable

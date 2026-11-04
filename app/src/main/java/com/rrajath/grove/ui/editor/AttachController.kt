@@ -323,6 +323,12 @@ class AttachController internal constructor(
         showToast("Linked $name")
     }
 
+    /** A content URI the sheet's image thumbnails load from; null when the file can't be resolved. */
+    suspend fun thumbnailUri(file: FileEntry): Uri? {
+        val store = storeProvider() ?: return null
+        return withContext(Dispatchers.IO) { runCatching { store.contentUri(file.name) }.getOrNull() }
+    }
+
     fun openWith(file: FileEntry) {
         val store = storeProvider() ?: return
         scope.launch {
