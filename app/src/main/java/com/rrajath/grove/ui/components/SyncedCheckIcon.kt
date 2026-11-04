@@ -6,6 +6,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.rrajath.grove.ui.theme.grove
 
 /**
@@ -14,6 +15,10 @@ import com.rrajath.grove.ui.theme.grove
  * widget view picker's selected row) look identical to it.
  */
 @Composable
-fun SyncedCheckIcon(contentDescription: String?, modifier: Modifier = Modifier) {
-    Icon(Icons.Default.Check, contentDescription = contentDescription, tint = MaterialTheme.grove.green, modifier = modifier)
+fun SyncedCheckIcon(
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.grove.green,
+) {
+    Icon(Icons.Default.Check, contentDescription = contentDescription, tint = tint, modifier = modifier)
 }

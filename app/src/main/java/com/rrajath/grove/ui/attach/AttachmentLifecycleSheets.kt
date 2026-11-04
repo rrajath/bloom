@@ -52,6 +52,7 @@ import com.rrajath.grove.attach.dataDirLabel
 import com.rrajath.grove.attach.folderLabel
 import com.rrajath.grove.attach.inventoryDetail
 import com.rrajath.grove.attach.moveSubline
+import com.rrajath.grove.ui.components.SyncedCheckIcon
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -300,7 +301,7 @@ private fun ChoiceCard(
     }
 }
 
-/** 1n checkbox row: 22dp box (6dp radius, 2dp border); checked is a `red` fill with a ✓. */
+/** 1n checkbox row: 22dp box (6dp radius, 2dp border); checked is a `red` fill with the Material check icon. */
 @Composable
 private fun DeleteAttachmentsCheckbox(checked: Boolean, detail: String, onChange: (Boolean) -> Unit) {
     val c = MaterialTheme.grove
@@ -323,7 +324,7 @@ private fun DeleteAttachmentsCheckbox(checked: Boolean, detail: String, onChange
             contentAlignment = Alignment.Center,
         ) {
             if (checked) {
-                Text("✓", fontFamily = PlexSans, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.accentInk)
+                SyncedCheckIcon(contentDescription = null, modifier = Modifier.size(16.dp), tint = c.accentInk)
             }
         }
         Column {
