@@ -566,16 +566,19 @@ class NotebooksViewModel(
         }
     }
 
-    fun renameNotebook(oldName: String, newName: String) {
+    fun renameNotebook(oldName: String, newBaseName: String) {
         val vault = vaultFlow.value ?: return
-        val target = newName.trim().let { if (it.endsWith(".org")) it else "$it.org" }
+        // Rename never moves between folders: re-prefix the original directory.
+        val dirPrefix = oldName.substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
+        val newName = dirPrefix + newBaseName.trim()
+        val target = newName.let { if (it.endsWith(".org")) it else "$it.org" }
         if (target == oldName) {
             // Confirmed without changing the name — nothing to do, just close.
             viewModelScope.launch { _editEvents.emit(NotebookEditEvent.Succeeded) }
             return
         }
         viewModelScope.launch {
-            if (vault.renameNotebook(oldName, newName.trim())) {
+            if (vault.renameNotebook(oldName, newName)) {
                 database.indexDao().removeNotebook(oldName)
                 settingsRepository.moveNotebookStyle(oldName, target)
                 _editEvents.emit(NotebookEditEvent.Succeeded)

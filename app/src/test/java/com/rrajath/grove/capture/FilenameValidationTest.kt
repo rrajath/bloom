@@ -85,6 +85,17 @@ class FilenameValidationTest {
     private fun newNb(name: String) = FilenameValidation.errorForNewNotebook(name)
 
     @Test
+    fun `rename notebook rejects slashes and delegates the rest`() {
+        val msg = "Names can't contain /. Use Move to change folders."
+        assertEquals(msg, FilenameValidation.errorForRenameNotebook("Folder/image-test"))
+        assertEquals(msg, FilenameValidation.errorForRenameNotebook("/x"))
+        assertNotNull(FilenameValidation.errorForRenameNotebook("a\\b"))
+        assertNull(FilenameValidation.errorForRenameNotebook("image-test"))
+        assertNull(FilenameValidation.errorForRenameNotebook("image-test.org"))
+        assertEquals("Enter a name", FilenameValidation.errorForRenameNotebook(" "))
+    }
+
+    @Test
     fun `new notebook name accepts a bare name and appends org implicitly`() {
         assertNull(newNb("Work"))
         assertNull(newNb("2025 journal"))

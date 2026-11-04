@@ -64,6 +64,16 @@ object FilenameValidation {
     }
 
     /**
+     * Validates a name typed into the "Rename notebook" dialog. Rename keeps the
+     * notebook in its folder, so any `/` is rejected (folders change via Move);
+     * everything else follows [errorForNewNotebook].
+     */
+    fun errorForRenameNotebook(name: String): String? {
+        if (name.contains('/')) return "Names can't contain /. Use Move to change folders."
+        return errorForNewNotebook(name)
+    }
+
+    /**
      * Validates a Roam template's target directory. `null` when [path] is a valid
      * vault-relative directory; a blank [path] means the vault root and is valid.
      * Same segment rules as [errorForNewNotebook] minus `.org` handling — a

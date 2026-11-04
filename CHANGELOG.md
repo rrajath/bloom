@@ -64,6 +64,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Repeating timestamps remind you on every occurrence, not only on the date written in the file.
 
 ### Changed
+- Renaming a notebook keeps it in its folder; names can't contain `/`, so use Move to change folders.
 - The Outline's new-note button now has the same soft amber drop shadow as the note editor's menu button.
 - The Capture Editor's Save button is a full-size floating button with the keyboard down, shrinking into the suggestion strip while typing.
 - A SCHEDULED delay like `-2d` keeps a task off the Agenda until the delay has passed, like Emacs.

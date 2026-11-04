@@ -173,6 +173,17 @@ class NotebooksViewModelIntegrationTest {
     }
 
     @Test
+    fun `renameNotebook keeps the notebook in its folder`() = runTest {
+        val vm = seededVm()
+
+        vm.renameNotebook("work/status.org", "renamed")
+        settleUntil { store.exists("work/renamed.org") }
+
+        assertFalse(store.exists("work/status.org"))
+        assertFalse(store.exists("renamed.org"))
+    }
+
+    @Test
     fun `renameNotebook onto an existing name is rejected and still syncs`() = runTest {
         val vm = seededVm()
 

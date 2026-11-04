@@ -678,10 +678,10 @@ fun NotebooksScreen(
     renameTarget?.let { target ->
         NameDialog(
             title = "Rename $target",
-            initial = target,
+            initial = target.substringAfterLast('/'),
             confirmLabel = "Rename",
             filenameSuffix = ".org",
-            validate = FilenameValidation::errorForNewNotebook,
+            validate = FilenameValidation::errorForRenameNotebook,
             onDismiss = { renameTarget = null },
             // Closed by the editEvents collector (see the create dialog).
             onConfirm = { name -> viewModel.renameNotebook(target, name) },
