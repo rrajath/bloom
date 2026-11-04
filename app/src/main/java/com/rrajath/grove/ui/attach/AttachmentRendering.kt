@@ -561,25 +561,29 @@ fun rememberChipRun(chips: List<ChipLink>, render: AttachmentRenderContext): Chi
             missing[chip.id] = render.status(chip.link, chip.rawTarget, null) == AttachmentStatus.Missing
         }
     }
-    val content = chips.associate { chip ->
-        val isMissing = missing[chip.id] == true
-        val label = chipLabel(chip.link.label)
-        // Whole pixels, rounded the way AttachmentChip's padding, size and
-        // spacer modifiers round them (see chipPlaceholder).
-        val placeholder = with(density) {
-            val labelSize = measurer.measure(label, ChipLabelStyle).size
-            val lead = if (isMissing) {
-                5.dp.roundToPx() + 12.dp.roundToPx()
-            } else {
-                3.dp.roundToPx() + measurer.measure(chip.link.badge, ChipBadgeStyle).size.width + 4.dp.roundToPx() * 2
+    // Read in composition so a status flip recomposes; as a remember key it
+    // limits measuring and rebuilding the inline content to when a chip flips.
+    val missingFlags = chips.map { missing[it.id] == true }
+    return remember(chips, missing, missingFlags, density, measurer) {
+        val content = chips.zip(missingFlags).associate { (chip, isMissing) ->
+            val label = chipLabel(chip.link.label)
+            // Whole pixels, rounded the way AttachmentChip's padding, size and
+            // spacer modifiers round them (see chipPlaceholder).
+            val placeholder = with(density) {
+                val labelSize = measurer.measure(label, ChipLabelStyle).size
+                val lead = if (isMissing) {
+                    5.dp.roundToPx() + 12.dp.roundToPx()
+                } else {
+                    3.dp.roundToPx() + measurer.measure(chip.link.badge, ChipBadgeStyle).size.width + 4.dp.roundToPx() * 2
+                }
+                val width = lead + 5.dp.roundToPx() + labelSize.width + 7.dp.roundToPx()
+                val height = labelSize.height + 1.dp.roundToPx() * 2
+                chipPlaceholder(width, height)
             }
-            val width = lead + 5.dp.roundToPx() + labelSize.width + 7.dp.roundToPx()
-            val height = labelSize.height + 1.dp.roundToPx() * 2
-            chipPlaceholder(width, height)
+            chip.id to InlineTextContent(placeholder) { AttachmentChip(chip.link, label, isMissing) }
         }
-        chip.id to InlineTextContent(placeholder) { AttachmentChip(chip.link, label, isMissing) }
+        ChipRun(missing, content)
     }
-    return ChipRun(missing, content)
 }
 
 /**
