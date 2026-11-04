@@ -25,6 +25,7 @@ class AttachmentCopyManagerTest {
     private val store by lazy { JvmFileStore(tmp.root, skipAttachShards = true) }
     private val fallbacks = mutableListOf<AttachDone>()
     private val notes = mutableListOf<String>()
+    private var filesAdded = 0
 
     private val manager by lazy {
         AttachmentCopyManager(
@@ -34,6 +35,7 @@ class AttachmentCopyManagerTest {
             opener = { uri -> if (uri == "missing") null else ByteArrayInputStream(ByteArray(4)) },
             fallback = { done -> fallbacks += done; "fallback" },
             notify = { notes += it },
+            onFilesAdded = { filesAdded++ },
         )
     }
 
@@ -66,6 +68,7 @@ class AttachmentCopyManagerTest {
         advanceUntilIdle()
         assertEquals(1, fallbacks.size)
         assertEquals(listOf("fallback"), notes)
+        assertEquals(1, filesAdded)
     }
 
     @Test
@@ -74,6 +77,7 @@ class AttachmentCopyManagerTest {
         advanceUntilIdle()
         assertTrue(fallbacks.isEmpty())
         assertEquals(listOf("Couldn't attach a.pdf: file unavailable"), notes)
+        assertEquals(0, filesAdded)
     }
 
     @Test

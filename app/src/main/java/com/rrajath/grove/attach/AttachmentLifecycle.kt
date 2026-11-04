@@ -84,8 +84,16 @@ class AttachmentLifecycle(
     private val store: FileStore,
     private val holders: IdHolders,
     private val config: AttachConfig = AttachConfig.Default,
+    /**
+     * Called after an operation moved, copied or deleted attach dirs (or tried
+     * and partly failed), so cached existence answers are dropped.
+     */
+    private val onChanged: () -> Unit = {},
 ) {
     private val files = AttachmentFiles(store)
+
+    private fun LifecycleResult.reported(): LifecycleResult =
+        also { if (moved + copied + deleted + failed > 0) onChanged() }
     private val resolver = AttachDirResolver(files, config)
 
     /** Serializes moves, so an UNDO can't race the refile it reverses. */
@@ -159,7 +167,7 @@ class AttachmentLifecycle(
                 }
                 result = relocate(e.dir, joinPath(newDir, rel), copy = e.shared, pruneStop = oldDir, result)
             }
-            result
+            result.reported()
         }
 
     /**
@@ -186,7 +194,7 @@ class AttachmentLifecycle(
                 result = result.copy(failed = result.failed + 1)
             }
         }
-        result
+        result.reported()
     }
 
     /** True when another file in [orgFile]'s directory holds [id] ([exclude] aside). */
@@ -222,7 +230,7 @@ class AttachmentLifecycle(
                 result = relocate(from, joinPath(dstDir, rel), copy, pruneStop = srcDir, result)
             }
         }
-        result
+        result.reported()
     }
 
     /** True when any attach dir exists at or under [dir]. */
@@ -249,7 +257,7 @@ class AttachmentLifecycle(
         }
         // Folders left empty by the .org moves (the vault's own prune ran while data/ still held shards).
         store.pruneEmptyDirs(from)
-        result
+        result.reported()
     }
 
     /** After a folder delete: deletes the attach shards of every `data/` at or under [dir], then prunes. */
@@ -267,7 +275,7 @@ class AttachmentLifecycle(
             files.pruneEmpty(root, stopAt = parentOf(trimmed))
         }
         if (trimmed.isNotEmpty()) store.pruneEmptyDirs(trimmed)
-        result
+        result.reported()
     }
 
     private suspend fun relocate(

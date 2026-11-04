@@ -262,21 +262,26 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             },
             photoProcessor = com.rrajath.grove.attach.ImageTranscoder(java.io.File(cacheDir, "attach-transcode")),
             photoLongEdge = { settingsRepository.settings.first().attachPhotoSize.longEdge },
+            onFilesAdded = { if (attachmentStatusCacheLazy.isInitialized()) attachmentStatusCache.invalidateMissing() },
         )
     }
 
     /**
      * Read-mode attachment existence and image-size cache (experimental,
      * debug-only). Each finished sync drops its Missing entries, so a file that
-     * Syncthing delivers later appears without reopening the note.
+     * Syncthing delivers later appears without reopening the note. Everything
+     * is dropped when the app comes back to the foreground (files may have
+     * changed outside it), after attachment moves and deletes, and Missing
+     * entries after an attach copies files in.
      */
-    val attachmentStatusCache: com.rrajath.grove.attach.AttachmentStatusCache by lazy {
+    private val attachmentStatusCacheLazy = lazy {
         com.rrajath.grove.attach.AttachmentStatusCache().also { cache ->
             appScope.launch {
                 syncManager.lastResult.drop(1).collect { cache.invalidateMissing() }
             }
         }
     }
+    val attachmentStatusCache: com.rrajath.grove.attach.AttachmentStatusCache by attachmentStatusCacheLazy
 
     /** Existence checks for outline and search attachment chips; shares [attachmentStatusCache]. */
     val previewChipChecker: com.rrajath.grove.attach.PreviewChipChecker by lazy {
@@ -301,7 +306,12 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     private val attachmentLifecycles = com.rrajath.grove.attach.AttachmentLifecycleSource(
         enabled = FeatureFlags.ATTACHMENTS,
         store = { fileStore.value },
-        create = { store -> com.rrajath.grove.attach.AttachmentLifecycle(store, roomIdHolders) },
+        create = { store ->
+            com.rrajath.grove.attach.AttachmentLifecycle(
+                store, roomIdHolders,
+                onChanged = { if (attachmentStatusCacheLazy.isInitialized()) attachmentStatusCache.clear() },
+            )
+        },
     )
 
     private val roomIdHolders = com.rrajath.grove.attach.IdHolders { ids ->
@@ -317,8 +327,8 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             if (!FeatureFlags.ATTACHMENTS) return@AttachmentFollow
             appScope.launch {
                 val lifecycle = attachmentLifecycle() ?: return@launch
+                // The lifecycle's onChanged drops the status cache.
                 val result = runCatching { lifecycle.followMovedOwners(writes) }.getOrNull() ?: return@launch
-                if (result.moved + result.copied > 0) attachmentStatusCache.clear()
                 if (result.failed > 0) {
                     val folders = if (result.failed == 1) "1 attachment folder" else "${result.failed} attachment folders"
                     withContext(dispatchers.main) {
@@ -619,6 +629,8 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
                 // Back from system Settings (or anywhere) with exact-alarm access
                 // changed: re-arm so existing alarms switch exact/inexact.
                 appScope.launch { exactAlarmAccessWatcher.check() }
+                // Attachments may have changed while we were away; re-check them.
+                if (attachmentStatusCacheLazy.isInitialized()) attachmentStatusCache.clear()
             }
 
             override fun onStop(owner: LifecycleOwner) {

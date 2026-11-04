@@ -248,6 +248,21 @@ class AttachmentLifecycleTest {
     }
 
     @Test
+    fun `onChanged fires after attach dirs change, not after a no-op`() = runTest {
+        var changes = 0
+        val tracked = AttachmentLifecycle(
+            JvmFileStore(tmp.root, skipAttachShards = true),
+            IdHolders.None,
+            onChanged = { changes++ },
+        )
+        tracked.deleteFolderAttachments("Nothing")
+        assertEquals(0, changes)
+        put("Work/data/AA/11/a.jpg")
+        tracked.deleteFolderAttachments("Work")
+        assertEquals(1, changes)
+    }
+
+    @Test
     fun `folderHasAttachments stops walking at the first attach root`() = runTest {
         put("Work/a/data/AA/11/a.jpg")
         put("Work/b/data/BB/22/b.jpg")

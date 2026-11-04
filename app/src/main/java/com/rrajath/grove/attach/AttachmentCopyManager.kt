@@ -69,6 +69,8 @@ class AttachmentCopyManager(
     private val photoProcessor: PhotoProcessor? = null,
     /** Current Photo size setting's long edge in px, or null for Original. Read once per copy. */
     private val photoLongEdge: suspend () -> Int? = { null },
+    /** Called after a copy put new files in the vault, before its links are written. */
+    private val onFilesAdded: () -> Unit = {},
 ) {
     private val _progress = MutableStateFlow<CopyProgress?>(null)
     val progress: StateFlow<CopyProgress?> = _progress
@@ -103,6 +105,7 @@ class AttachmentCopyManager(
                     }
                 }
                 _progress.value = null
+                if (result is ImportResult.Success) onFilesAdded()
                 deliver(AttachDone(request, result))
             } finally {
                 _progress.value = null

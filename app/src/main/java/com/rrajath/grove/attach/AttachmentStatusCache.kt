@@ -28,7 +28,9 @@ data class ImageBounds(val width: Int, val height: Int) {
  *
  * Missing entries are dropped after each sync ([invalidateMissing]), so a file
  * that arrives later (Syncthing) shows up without reopening the note; the whole
- * status map is dropped when a read screen resumes ([clear]). Image sizes are
+ * status map is dropped when the app returns to the foreground and after
+ * attachment moves and deletes ([clear]). A Present entry that fails to load is
+ * re-checked on its own ([forget]). Image sizes are
  * keyed by path + mtime + size, so they stay valid until the file changes.
  * [generation] ticks on every invalidation; composables key their lookups on it.
  */
@@ -48,6 +50,11 @@ class AttachmentStatusCache {
         val wasMissing = old is AttachmentStatus.Missing
         val isMissing = status is AttachmentStatus.Missing
         if (wasMissing != isMissing) adjustMissing(key, if (isMissing) 1 else -1)
+    }
+
+    /** Forget one entry, so its next lookup goes to the store. */
+    fun forget(key: String) = synchronized(this) {
+        if (statuses.remove(key) is AttachmentStatus.Missing) adjustMissing(key, -1)
     }
 
     /**
@@ -121,6 +128,32 @@ class AttachmentResolver(
     ): AttachmentStatus {
         val key = AttachmentStatusCache.key(orgFile, rawTarget, docLine)
         cache.status(key)?.let { return it }
+        return lookUp(key, link, rawTarget, orgFile, doc, docLine, preferLines)
+    }
+
+    /** [status], skipping the cached answer (used when a Present file failed to load). */
+    suspend fun recheck(
+        link: LocalAttachment,
+        rawTarget: String,
+        orgFile: String,
+        doc: OrgDocument?,
+        docLine: Int? = null,
+        preferLines: IntRange? = null,
+    ): AttachmentStatus {
+        val key = AttachmentStatusCache.key(orgFile, rawTarget, docLine)
+        cache.forget(key)
+        return lookUp(key, link, rawTarget, orgFile, doc, docLine, preferLines)
+    }
+
+    private suspend fun lookUp(
+        key: String,
+        link: LocalAttachment,
+        rawTarget: String,
+        orgFile: String,
+        doc: OrgDocument?,
+        docLine: Int?,
+        preferLines: IntRange?,
+    ): AttachmentStatus {
         val entry = try {
             lookup.findEntry(link, rawTarget, orgFile, doc, preferLines, docLine)
         } catch (e: CancellationException) {

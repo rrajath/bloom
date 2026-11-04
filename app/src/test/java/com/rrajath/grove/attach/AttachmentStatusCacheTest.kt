@@ -87,6 +87,19 @@ class AttachmentStatusCacheTest {
         cache.putStatus(key9, AttachmentStatus.Missing)
         cache.clear()
         assertFalse(cache.knownMissing("n.org", "attachment:a.jpg"))
+        cache.putStatus(key9, AttachmentStatus.Missing)
+        cache.forget(key9)
+        assertFalse(cache.knownMissing("n.org", "attachment:a.jpg"))
+    }
+
+    @Test
+    fun `recheck skips a stale Present answer`() = runTest {
+        put("data/ab/cdef/a.jpg")
+        assertTrue(resolver.status(link, "attachment:a.jpg", "n.org", doc, docLine = 4) is AttachmentStatus.Present)
+        File(tmp.root, "data/ab/cdef/a.jpg").delete()
+        assertTrue(resolver.status(link, "attachment:a.jpg", "n.org", doc, docLine = 4) is AttachmentStatus.Present)
+        assertEquals(AttachmentStatus.Missing, resolver.recheck(link, "attachment:a.jpg", "n.org", doc, docLine = 4))
+        assertTrue(cache.knownMissing("n.org", "attachment:a.jpg"))
     }
 
     @Test

@@ -70,7 +70,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.exifinterface.media.ExifInterface
 import coil3.compose.AsyncImage
 import coil3.decode.BitmapFactoryDecoder
@@ -129,6 +128,10 @@ class AttachmentRenderContext(
     suspend fun status(link: LocalAttachment, rawTarget: String, docLine: Int?): AttachmentStatus =
         withContext(io) { resolver.status(link, rawTarget, orgFile, doc, docLine, preferLines) }
 
+    /** [status] again from the store, ignoring the cached answer. */
+    suspend fun recheck(link: LocalAttachment, rawTarget: String, docLine: Int?): AttachmentStatus =
+        withContext(io) { resolver.recheck(link, rawTarget, orgFile, doc, docLine, preferLines) }
+
     /**
      * Displayed pixel size from the file header (cached per path + mtime), or
      * null when unreadable. EXIF rotation is applied: a camera JPEG copied as-is
@@ -176,8 +179,9 @@ val LocalAttachmentRender = staticCompositionLocalOf<AttachmentRenderContext?> {
 /**
  * Provides [LocalAttachmentRender] for a read screen's content when the
  * attachments flag is on and a vault is open; otherwise just runs [content].
- * Resuming the screen drops the status cache so files changed elsewhere are
- * checked again.
+ * The status cache is invalidated app-wide (foreground, sync, attachment
+ * moves and deletes), not per screen resume, so returning from the image
+ * viewer doesn't look every attachment up again.
  */
 @Composable
 fun ProvideAttachmentRendering(
@@ -197,10 +201,6 @@ fun ProvideAttachmentRendering(
     val prefs = settings
     if (s == null || prefs == null) return content()
     val cache = app.attachmentStatusCache
-    LifecycleResumeEffect(cache) {
-        cache.clear()
-        onPauseOrDispose {}
-    }
     val ctx = remember(orgFile, doc, s, prefs.attachImageWidth, prefs.attachImageWidthPx, preferLines, openTarget, openImage, toast) {
         AttachmentRenderContext(
             orgFile = orgFile,
@@ -281,6 +281,10 @@ fun AttachmentImage(
     var uri by remember(rawTarget, docLine) { mutableStateOf<Uri?>(null) }
     var failed by remember(rawTarget, docLine) { mutableStateOf(false) }
     var loaded by remember(rawTarget, docLine) { mutableStateOf(false) }
+    // A cached Present answer can be stale (deleted elsewhere); the first load
+    // error asks the store again before showing "can't display".
+    var loadError by remember(rawTarget, docLine) { mutableStateOf(false) }
+    var rechecked by remember(rawTarget, docLine) { mutableStateOf(false) }
 
     LaunchedEffect(nearViewport, rawTarget, docLine, generation, render) {
         if (!nearViewport) return@LaunchedEffect
@@ -288,7 +292,30 @@ fun AttachmentImage(
         if (st is AttachmentStatus.Present) {
             bounds = render.bounds(st.entry)
             uri = render.contentUri(st.path)
-            if (st != status) failed = false
+            if (st != status) {
+                failed = false
+                loadError = false
+                rechecked = false
+            }
+        }
+        status = st
+    }
+
+    LaunchedEffect(loadError) {
+        if (!loadError) return@LaunchedEffect
+        if (rechecked) {
+            failed = true
+            return@LaunchedEffect
+        }
+        rechecked = true
+        val st = render.recheck(link, rawTarget, docLine)
+        val before = status
+        if (st is AttachmentStatus.Present && st != before) {
+            bounds = render.bounds(st.entry)
+            uri = render.contentUri(st.path)
+            loadError = false
+        } else if (st is AttachmentStatus.Present) {
+            failed = true
         }
         status = st
     }
@@ -387,7 +414,7 @@ fun AttachmentImage(
                                 }
                                 loaded = true
                             },
-                            onError = { failed = true },
+                            onError = { loadError = true },
                         )
                     }
                     if (gif) {
