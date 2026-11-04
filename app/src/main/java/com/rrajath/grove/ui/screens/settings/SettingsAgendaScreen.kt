@@ -80,7 +80,8 @@ fun SettingsAgendaScreen(
                 Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
+                // End padding keeps the wrapped description off the number field.
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
                         "Deadline warning",
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
