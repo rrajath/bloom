@@ -96,7 +96,7 @@ fun SettingsWidgetScreen(
                 Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
                         "Days ahead",
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
