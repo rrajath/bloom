@@ -424,6 +424,18 @@
         </receiver>
 
         <receiver
+            android:name=".widget.ClockWidgetReceiver"
+            android:exported="true"
+            android:label="Clock">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/clock_widget_info" />
+        </receiver>
+
+        <receiver
             android:name=".widget.LedgerWidgetReceiver"
             android:exported="true"
             android:label="Agenda">
@@ -470,6 +482,14 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.rrajath.grove.action.REMINDER_COMPLETE" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".clock.ClockActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.rrajath.grove.action.CLOCK_OUT" />
+                <action android:name="com.rrajath.grove.action.CLOCK_CANCEL" />
             </intent-filter>
         </receiver>
         <receiver

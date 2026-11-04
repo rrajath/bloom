@@ -9,6 +9,8 @@ import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.capture.ShareIntake
+import com.rrajath.grove.clock.ClockService
+import com.rrajath.grove.clock.RunningClock
 import com.rrajath.grove.capture.SharedPayload
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.FavoritesRepository
@@ -68,7 +70,28 @@ class AppViewModel(
     // Kept for the handful of Android Context APIs with no JVM stub: Toast,
     // asset streams, contentResolver, getString, and ShareIntake.consumeShare.
     private val app: GroveApplication,
+    private val clockService: ClockService,
 ) : ViewModel() {
+
+    /** Open clocks, newest first: the nav drawer's "Clocked in" row shows the first. */
+    val runningClocks: StateFlow<List<RunningClock>> get() = clockService.running
+
+    fun clockOut(clock: RunningClock) = viewModelScope.launch { clockService.clockOut(clock) }
+
+    fun setClockOutWhenDone(enabled: Boolean) =
+        viewModelScope.launch { settingsRepository.setClockOutWhenDone(enabled) }
+
+    fun setDiscardZeroClocks(enabled: Boolean) =
+        viewModelScope.launch { settingsRepository.setDiscardZeroClocks(enabled) }
+
+    fun setClockNotification(enabled: Boolean) =
+        viewModelScope.launch { settingsRepository.setClockNotification(enabled) }
+
+    fun setClockInState(keyword: String?) =
+        viewModelScope.launch { settingsRepository.setClockInState(keyword) }
+
+    fun setClockOutState(keyword: String?) =
+        viewModelScope.launch { settingsRepository.setClockOutState(keyword) }
 
     /** Null until the DataStore emits, so the UI can gate on first load. */
     val settings: StateFlow<GroveSettings?> = settingsRepository.settings
@@ -577,6 +600,7 @@ class AppViewModel(
                     app.pendingShare,
                     app.dispatchers,
                     app,
+                    app.clockService,
                 ) as T
             }
         }

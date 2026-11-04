@@ -18,6 +18,7 @@ import com.rrajath.grove.testing.FakeSettingsRepository
 import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.OrgFixtures
+import com.rrajath.grove.testing.TestClockService
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.ui.capture.CaptureViewModel
 import com.rrajath.grove.ui.editor.EditorViewModel
@@ -68,6 +69,8 @@ class ScreenTestEnv(
 
     private val dispatchers = AppDispatchers()
 
+    val clockService = TestClockService.create(vaultFlow, database, store, fakeSettings, scope)
+
     init {
         if (index) runBlocking { TestVaultSeeder.index(database, store) }
     }
@@ -104,6 +107,7 @@ class ScreenTestEnv(
         favoritesRepository = favoritesRepository,
         dispatchers = dispatchers,
         app = app,
+        clockService = clockService,
     )
 
     fun editorViewModel() = EditorViewModel(
@@ -123,6 +127,7 @@ class ScreenTestEnv(
         vaultFlow = vaultFlow,
         sync = sync,
         dispatchers = dispatchers,
+        clockService = clockService,
     )
 
     fun captureViewModel() = CaptureViewModel(

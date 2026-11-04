@@ -64,6 +64,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -89,6 +91,7 @@ import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.runningClock
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.settings.OutlineToggle
 import com.rrajath.grove.ui.components.BrandMarkGlyph
@@ -861,6 +864,8 @@ fun OutlineScreen(
                     )
                 }
 
+                ClockResolveHost(viewModel, doc)
+
                 noteDialogFor?.let { line ->
                     val headline = doc.headlineAtLine(line)
                     if (headline != null) {
@@ -900,6 +905,10 @@ fun OutlineScreen(
                             showFavorite = true,
                             isFavorite = isFavorite,
                             onToggleFavorite = { toggleFavoriteOf(single, isFavorite) },
+                            clockRunning = doc.runningClock(single) != null,
+                            onClockIn = { viewModel.clockIn(single) },
+                            onClockOut = { viewModel.clockOut(single) },
+                            onCancelClock = { viewModel.cancelClock(single) },
                             onDismiss = { metadataOpen = false },
                         )
                     } else {
@@ -1327,6 +1336,13 @@ private fun OutlineNode(
                         headline.tags.joinToString(":", prefix = ":", postfix = ":"),
                         fontFamily = PlexMono, fontSize = 11.sp, color = c.synTag,
                         modifier = Modifier.alignByBaseline(),
+                    )
+                }
+                if (remember(doc, headline) { doc.runningClock(headline) != null }) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "◷", fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,
+                        modifier = Modifier.alignByBaseline().semantics { contentDescription = "Clocked in" },
                     )
                 }
                 if (isFavorite) {

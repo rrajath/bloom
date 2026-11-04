@@ -2,6 +2,7 @@ package com.rrajath.grove.org
 
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlin.math.roundToInt
 
 /**
@@ -179,14 +180,24 @@ object OrgMutations {
      * and the keyword stays active; otherwise the keyword becomes [doneKeyword]
      * and a CLOSED stamp is added. Leaving a todo-type keyword (or none) also
      * logs a `- State` entry at the top of the LOGBOOK drawer; a done-to-done
-     * change (DONE to CANCELLED) only refreshes CLOSED.
+     * change (DONE to CANCELLED) only refreshes CLOSED. A clock running on [h]
+     * is first closed at [now] when [clock] says so (`org-clock-out-when-done`),
+     * on the repeating path too, as Emacs' hook still sees the DONE state there.
      */
     fun markDone(
         doc: OrgDocument,
         h: OrgHeadline,
         doneKeyword: String,
         now: LocalDateTime,
+        clock: ClockOutPolicy = ClockOutPolicy(),
     ): String {
+        if (clock.whenDone) {
+            clockOut(doc, h, now, clock.removeZero)?.let { closed ->
+                val redoc = OrgParser.parse(closed, doc.keywords)
+                val again = redoc.headlines.first { it.lineIndex == h.lineIndex }
+                return markDone(redoc, again, doneKeyword, now, clock.copy(whenDone = false))
+            }
+        }
         val today = now.toLocalDate()
         val hasRepeater = h.planning.scheduled?.repeater != null || h.planning.deadline?.repeater != null
         return if (hasRepeater) {
@@ -249,10 +260,97 @@ object OrgMutations {
         newKeyword: String?,
         keywords: OrgKeywords,
         now: LocalDateTime,
+        clock: ClockOutPolicy = ClockOutPolicy(),
     ): String = when {
-        newKeyword != null && keywords.isDone(newKeyword) -> markDone(doc, h, newKeyword, now)
+        newKeyword != null && keywords.isDone(newKeyword) -> markDone(doc, h, newKeyword, now, clock)
         h.keyword != null && keywords.isDone(h.keyword) -> reopen(doc, h, newKeyword)
         else -> setKeyword(doc, h, newKeyword)
+    }
+
+    // --- clocking ---
+
+    /**
+     * Clock in on [h] (`org-clock-in`): `CLOCK: [now]` at the top of its
+     * `:LOGBOOK:` drawer, which is created after the planning line and any
+     * `:PROPERTIES:` drawer when missing ([appendLogbookEntry], the same slot
+     * `org-clock-find-position` picks). With [switchTo] set and [h] not already
+     * in that state, the keyword changes first (`org-clock-in-switch-to-state`),
+     * with full [changeKeyword] semantics. A clock already running on [h] is
+     * resumed rather than doubled (`org-clock-in-resume`); null when that leaves
+     * nothing to change.
+     */
+    fun clockIn(doc: OrgDocument, h: OrgHeadline, now: LocalDateTime, switchTo: String? = null): String? {
+        var d = doc
+        var head = h
+        if (switchTo != null && h.keyword != switchTo) {
+            d = OrgParser.parse(
+                changeKeyword(doc, h, switchTo, doc.keywords, now, ClockOutPolicy(whenDone = false)),
+                doc.keywords,
+            )
+            head = d.headlines.first { it.lineIndex == h.lineIndex }
+        }
+        if (d.runningClock(head) != null) return d.text.takeIf { d !== doc }
+        return appendLogbookEntry(d, head, OrgClock.runningLine(now))
+    }
+
+    /**
+     * Clock out [h]'s running clock at [now] (`org-clock-out`): the open line
+     * becomes `CLOCK: [start]--[now] => H:MM` in place ([OrgClock.closedLine]).
+     * [start] picks one open clock when the heading has several; null takes the
+     * first, as Emacs' search does. A `0:00` result with [removeZero] deletes the
+     * line instead (`org-clock-out-remove-zero-time-clocks`), and the drawer with
+     * it if that leaves it empty. Null when no matching clock runs on [h]. The
+     * duration is wall-clock time in [zone], so a DST change is counted as Emacs counts it.
+     */
+    fun clockOut(
+        doc: OrgDocument,
+        h: OrgHeadline,
+        now: LocalDateTime,
+        removeZero: Boolean,
+        start: LocalDateTime? = null,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? {
+        val open = doc.clocks(h).firstOrNull { it.isRunning && (start == null || it.start == start) } ?: return null
+        val closed = OrgClock.closedLine(doc.lines[open.lineIndex], now, zone) ?: return null
+        val lines = doc.lines.toMutableList()
+        if (removeZero && OrgClock.parse(closed, open.lineIndex)?.minutes(zone = zone) == 0) {
+            lines.removeAt(open.lineIndex)
+            removeEmptyDrawerAt(lines, open.lineIndex)
+        } else {
+            lines[open.lineIndex] = closed
+        }
+        return lines.joinToString("\n")
+    }
+
+    /**
+     * Cancel [h]'s running clock (`org-clock-cancel`): delete the open line, and
+     * the drawer around it if that leaves it empty. [start] picks the clock as in
+     * [clockOut]. Null when no matching clock runs on [h].
+     */
+    fun cancelClock(doc: OrgDocument, h: OrgHeadline, start: LocalDateTime? = null): String? {
+        val open = doc.clocks(h).firstOrNull { it.isRunning && (start == null || it.start == start) } ?: return null
+        val lines = doc.lines.toMutableList()
+        lines.removeAt(open.lineIndex)
+        removeEmptyDrawerAt(lines, open.lineIndex)
+        return lines.joinToString("\n")
+    }
+
+    private val DRAWER_OPEN = Regex("""^[ \t]*:[\w-]+:[ \t]*$""")
+
+    /**
+     * After a line was removed at [at]: drop the drawer it sat in when nothing is
+     * left between its markers, as `org-remove-empty-drawer-at` does (a drawer
+     * holding even a blank line still has contents, so it stays).
+     */
+    private fun removeEmptyDrawerAt(lines: MutableList<String>, at: Int) {
+        val opener = at - 1
+        if (opener < 0 || at >= lines.size) return
+        val isEnd = lines[at].trim().equals(":END:", ignoreCase = true)
+        val isOpener = DRAWER_OPEN.matches(lines[opener]) && !lines[opener].trim().equals(":END:", ignoreCase = true)
+        if (isEnd && isOpener) {
+            lines.removeAt(at)
+            lines.removeAt(opener)
+        }
     }
 
     private val CHECKBOX_LINE = Regex("""^(\s*(?:[-+]|\d+[.)])\s+)\[([ Xx-])\](.*)$""")

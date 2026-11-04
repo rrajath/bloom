@@ -1,0 +1,10 @@
+# ops: in Task 2026-10-30T09:15 | out 2026-10-30T10:30
+* TODO Task
+SCHEDULED: <2026-10-30 Fri>
+:PROPERTIES:
+:ID: 5e0c2a6e-0001
+:END:
+:LOGBOOK:
+CLOCK: [2026-10-30 Fri 09:15]--[2026-10-30 Fri 10:30] =>  1:15
+:END:
+Body text.

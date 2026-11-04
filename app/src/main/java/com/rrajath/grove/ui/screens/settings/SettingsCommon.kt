@@ -339,6 +339,7 @@ internal fun swipeActionDescription(action: AgendaSwipeAction): String = when (a
     AgendaSwipeAction.SET_SCHEDULED -> "open the scheduled-date picker"
     AgendaSwipeAction.SET_DEADLINE -> "open the deadline picker"
     AgendaSwipeAction.MARK_DONE -> "mark it done"
+    AgendaSwipeAction.CLOCK -> "clock in on it, or out when its clock is running"
 }
 
 /** Friendly folder name from a SAF tree URI ("content://…/tree/primary%3Aorg" → "org"). */

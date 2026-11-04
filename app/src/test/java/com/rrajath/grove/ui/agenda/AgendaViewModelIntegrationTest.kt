@@ -10,6 +10,7 @@ import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.testing.FakeFileStore
 import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
+import com.rrajath.grove.testing.TestClockService
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.Vault
@@ -101,6 +102,9 @@ class AgendaViewModelIntegrationTest {
         vaultFlow = vaultFlow,
         sync = sync,
         dispatchers = mainDispatcherRule.appDispatchers,
+        clockService = TestClockService.create(
+            vaultFlow, db, store, settingsRepository, CoroutineScope(mainDispatcherRule.dispatcher),
+        ),
     )
 
     @After

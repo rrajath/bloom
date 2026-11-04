@@ -10,11 +10,13 @@ import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.runningClock
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.testing.FakeFileStore
 import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.OrgFixtures
+import com.rrajath.grove.testing.TestClockService
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
@@ -23,6 +25,7 @@ import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
@@ -87,6 +90,9 @@ class DocumentViewModelIntegrationTest {
     private val settingsRepository = SettingsRepository(app, repoScope)
     private val favoritesRepository = FavoritesRepository(app)
 
+    private val clockService = TestClockService.create(vaultFlow, db, store, settingsRepository, repoScope)
+    private val fileIndexed = MutableSharedFlow<String>(extraBufferCapacity = 8)
+
     private val liveVms = mutableListOf<DocumentViewModel>()
 
     private fun documentVm() = DocumentViewModel(
@@ -98,6 +104,8 @@ class DocumentViewModelIntegrationTest {
         favoritesRepository = favoritesRepository,
         dispatchers = mainDispatcherRule.appDispatchers,
         app = app,
+        clockService = clockService,
+        fileIndexed = fileIndexed,
     ).also { liveVms += it }
 
     @After
@@ -930,5 +938,59 @@ class DocumentViewModelIntegrationTest {
             listOf("Write the store listing"),
             doc.directChildren(doc.headlines.first { it.title == "Ship v2 release" }).map { it.title },
         )
+    }
+
+    // --- clocking ------------------------------------------------------
+
+    @Test
+    fun `clocking in from the sheet writes the LOGBOOK and offers undo`() = runTest {
+        TestVaultSeeder.index(db, store)
+        val vm = loaded("projects.org")
+        val before = store.read("projects.org")
+        vm.clockIn(headline(vm, "Tag the release"))
+        advanceUntilIdle()
+
+        val doc = OrgParser.parse(store.read("projects.org"))
+        val tag = doc.headlines.first { it.title == "Tag the release" }
+        assertNotNull(doc.runningClock(tag))
+        assertNotNull("the screen shows the clock at once", loadedDoc(vm).runningClock(headline(vm, "Tag the release")))
+        assertEquals("Clocked in", vm.snack.value?.message)
+
+        vm.undo()
+        advanceUntilIdle()
+        assertEquals(before, store.read("projects.org"))
+    }
+
+    @Test
+    fun `a clock action writes the editor's pending buffer with it`() = runTest {
+        val vm = loaded("projects.org")
+        val ship = headline(vm, "Ship v2 release")
+        val edited = com.rrajath.grove.org.OrgMutations.subtreeText(loadedDoc(vm), ship)
+            .replace("* TODO Ship v2 release", "* TODO Ship v2 release, edited")
+        var persisted = false
+        vm.setPendingEdit(PendingEdit("projects.org", ship.lineIndex, edited), onPersisted = { persisted = true })
+        vm.load("projects.org")
+        advanceUntilIdle()
+
+        vm.clockIn(headline(vm, "Ship v2 release, edited"))
+        advanceUntilIdle()
+
+        val disk = store.read("projects.org")
+        assertTrue(disk.contains("Ship v2 release, edited"))
+        assertTrue(disk.contains("CLOCK: ["))
+        assertTrue("the editor lets go of its buffer", persisted)
+    }
+
+    @Test
+    fun `a write from elsewhere reloads the open file`() = runTest {
+        val vm = loaded("projects.org")
+        store.write("projects.org", store.read("projects.org").replace("Backlog", "Someday"))
+        fileIndexed.emit("notes.org")
+        advanceUntilIdle()
+        assertTrue(loadedDoc(vm).headlines.any { it.title == "Backlog" })
+
+        fileIndexed.emit("projects.org")
+        advanceUntilIdle()
+        assertTrue(loadedDoc(vm).headlines.any { it.title == "Someday" })
     }
 }

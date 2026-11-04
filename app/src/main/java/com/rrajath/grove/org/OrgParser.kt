@@ -175,6 +175,13 @@ class OrgDocument(
     /** One-line label for the intro note: its first non-blank content line, trimmed. */
     val introTitle: String get() = introBody.firstOrNull { it.isNotBlank() }?.trim().orEmpty()
 
+    /**
+     * Each headline's own `CLOCK:` lines (indexed by [OrgHeadline.index]),
+     * scanned once on first use rather than during [OrgParser.parse], so the
+     * re-parse after every mutation pays nothing for clocks it never reads.
+     */
+    internal val clockIndex: List<List<OrgClock>> by lazy { OrgClock.scan(this) }
+
     fun serialize(): String = text
 
     /**

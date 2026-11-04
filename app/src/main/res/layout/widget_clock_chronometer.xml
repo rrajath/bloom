@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The clock widget's elapsed time (widget/ClockWidget.kt). Glance has no
+  chronometer, and a RemoteViews Chronometer ticks on the launcher's side, so
+  the widget never has to be redrawn just to advance the time.
+-->
+<Chronometer xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/clock_chronometer"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:fontFamily="monospace"
+    android:textSize="12sp" />

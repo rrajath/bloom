@@ -41,6 +41,8 @@ Completing a repeating timestamp always advances its date to the next occurrence
 - **No repeater anywhere on it**: the keyword becomes the first configured done-type keyword (usually `DONE`) and a CLOSED timestamp is added. If Settings has auto-archive on, the heading is then refiled to its archive location.
 - **SCHEDULED and/or DEADLINE repeats**: the keyword is left exactly as it was (a repeating task never reaches a done keyword, matching Emacs' `org-todo` repeat handling), the repeating date(s) advance, and a LOGBOOK state-change note plus a `LAST_REPEAT` property are recorded. Auto-archive never applies here, since there's no done keyword to trigger it.
 
+Either way, a clock running on the task is clocked out first (`org-clock-out-when-done`; Settings › Notes › Clocking can turn this off), from every surface that completes it.
+
 ## Advancing an event's timestamp
 
 An event has no keyword to change, so "completing" it never sets a keyword and never touches LOGBOOK or `LAST_REPEAT`:

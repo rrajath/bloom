@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.rrajath.grove.org.ClockOutPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -194,6 +195,16 @@ data class GroveSettings(
     val autoArchiveFile: String? = null,
     /** '/'-separated heading path within [autoArchiveFile]; empty = top level. */
     val autoArchiveHeadingPath: String = "",
+    /** Marking a heading done closes a clock running on it (`org-clock-out-when-done`). */
+    val clockOutWhenDone: Boolean = true,
+    /** A clock closed at `0:00` is deleted, not logged (`org-clock-out-remove-zero-time-clocks`). */
+    val discardZeroClocks: Boolean = true,
+    /** Ongoing notification for the running clock (see `clock` package). */
+    val clockNotification: Boolean = true,
+    /** Keyword a heading switches to when clocked in (`org-clock-in-switch-to-state`); null = unchanged. */
+    val clockInState: String? = null,
+    /** Keyword a heading switches to when clocked out (`org-clock-out-switch-to-state`); null = unchanged. */
+    val clockOutState: String? = null,
     /** SCHEDULED/DEADLINE reminder notifications (see `reminders` package). */
     val remindersEnabled: Boolean = true,
     /** Daily digest ("You have X tasks due today") opt-in; requires [remindersEnabled] too. */
@@ -290,6 +301,10 @@ data class GroveSettings(
     val pinnedFolders: List<String>
         get() = pinnedItems.filter { it.kind == PinKind.FOLDER }.map { it.path }
 
+    /** What closing a clock does, from [clockOutWhenDone] and [discardZeroClocks]. */
+    val clockOutPolicy: ClockOutPolicy
+        get() = ClockOutPolicy(whenDone = clockOutWhenDone, removeZero = discardZeroClocks)
+
     /** Backlinks are both enabled and visible; the backlinks scan runs only then. */
     val roamBacklinksActive: Boolean
         get() = roamFeaturesEnabled && roamShowBacklinks
@@ -380,6 +395,11 @@ class SettingsRepository(
         val autoArchiveDoneItems = booleanPreferencesKey("auto_archive_done_items")
         val autoArchiveFile = stringPreferencesKey("auto_archive_file")
         val autoArchiveHeadingPath = stringPreferencesKey("auto_archive_heading_path")
+        val clockOutWhenDone = booleanPreferencesKey("clock_out_when_done")
+        val discardZeroClocks = booleanPreferencesKey("discard_zero_clocks")
+        val clockNotification = booleanPreferencesKey("clock_notification")
+        val clockInState = stringPreferencesKey("clock_in_state")
+        val clockOutState = stringPreferencesKey("clock_out_state")
         val remindersEnabled = booleanPreferencesKey("reminders_enabled")
         val morningBriefEnabled = booleanPreferencesKey("morning_brief_enabled")
         val notifyUntimedTasks = booleanPreferencesKey("notify_untimed_tasks")
@@ -473,6 +493,11 @@ class SettingsRepository(
             autoArchiveDoneItems = prefs[Keys.autoArchiveDoneItems] ?: false,
             autoArchiveFile = prefs[Keys.autoArchiveFile],
             autoArchiveHeadingPath = prefs[Keys.autoArchiveHeadingPath] ?: "",
+            clockOutWhenDone = prefs[Keys.clockOutWhenDone] ?: true,
+            discardZeroClocks = prefs[Keys.discardZeroClocks] ?: true,
+            clockNotification = prefs[Keys.clockNotification] ?: true,
+            clockInState = prefs[Keys.clockInState],
+            clockOutState = prefs[Keys.clockOutState],
             remindersEnabled = prefs[Keys.remindersEnabled] ?: true,
             morningBriefEnabled = prefs[Keys.morningBriefEnabled] ?: true,
             notifyUntimedTasks = prefs[Keys.notifyUntimedTasks] ?: false,
@@ -637,6 +662,11 @@ class SettingsRepository(
             if (s.autoArchiveFile == null) p.remove(Keys.autoArchiveFile)
             else p[Keys.autoArchiveFile] = s.autoArchiveFile
             p[Keys.autoArchiveHeadingPath] = s.autoArchiveHeadingPath
+            p[Keys.clockOutWhenDone] = s.clockOutWhenDone
+            p[Keys.discardZeroClocks] = s.discardZeroClocks
+            p[Keys.clockNotification] = s.clockNotification
+            if (s.clockInState == null) p.remove(Keys.clockInState) else p[Keys.clockInState] = s.clockInState
+            if (s.clockOutState == null) p.remove(Keys.clockOutState) else p[Keys.clockOutState] = s.clockOutState
             if (s.lastRefileFile == null) p.remove(Keys.lastRefileFile)
             else p[Keys.lastRefileFile] = s.lastRefileFile
             p[Keys.lastRefileHeadingPath] = s.lastRefileHeadingPath
@@ -987,6 +1017,26 @@ class SettingsRepository(
 
     suspend fun setAutoArchiveDoneItems(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.autoArchiveDoneItems] = enabled }
+    }
+
+    suspend fun setClockOutWhenDone(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.clockOutWhenDone] = enabled }
+    }
+
+    suspend fun setDiscardZeroClocks(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.discardZeroClocks] = enabled }
+    }
+
+    suspend fun setClockNotification(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.clockNotification] = enabled }
+    }
+
+    suspend fun setClockInState(keyword: String?) {
+        context.settingsDataStore.edit { if (keyword == null) it.remove(Keys.clockInState) else it[Keys.clockInState] = keyword }
+    }
+
+    suspend fun setClockOutState(keyword: String?) {
+        context.settingsDataStore.edit { if (keyword == null) it.remove(Keys.clockOutState) else it[Keys.clockOutState] = keyword }
     }
 
     suspend fun setAutoArchiveLocation(fileName: String, headingPath: List<String>) {

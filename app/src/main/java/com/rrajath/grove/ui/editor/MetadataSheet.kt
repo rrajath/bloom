@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
@@ -57,6 +58,9 @@ import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.screens.NoteDialog
+import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
+import com.rrajath.grove.ui.newbadge.NewAnchors
+import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -103,6 +107,15 @@ fun MetadataSheet(
     onSetPlanningDatesBulk: (
         (OrgTimestamp?, OrgTimestamp?, List<OrgTimestamp>, Set<PlanningKind>) -> Unit
     )? = null,
+    /**
+     * Whether a clock runs on [headline]: shows Clock in, or Clock out plus
+     * Cancel clock. Null hides clocking, for surfaces whose edits only reach an
+     * unsaved buffer (the editor, a capture draft) or that have no heading yet.
+     */
+    clockRunning: Boolean? = null,
+    onClockIn: () -> Unit = {},
+    onClockOut: () -> Unit = {},
+    onCancelClock: () -> Unit = {},
 ) {
     val c = MaterialTheme.grove
     var planningOpen by remember { mutableStateOf(false) }
@@ -287,6 +300,32 @@ fun MetadataSheet(
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                if (clockRunning != null) {
+                    MarkNewFeatureSeen(NewAnchors.METADATA_CLOCK)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (clockRunning) "◼ Clock out" else "◷ Clock in",
+                            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp, color = c.accent,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = if (clockRunning) onClockOut else onClockIn)
+                                .padding(vertical = 6.dp),
+                        )
+                        NewDot(NewAnchors.METADATA_CLOCK, Modifier.padding(start = 6.dp))
+                    }
+                    if (clockRunning) {
+                        Text(
+                            "✕ Cancel clock",
+                            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp, color = c.accent,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = onCancelClock)
+                                .padding(vertical = 6.dp),
+                        )
+                    }
+                }
                 Text(
                     "+ Add note",
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,

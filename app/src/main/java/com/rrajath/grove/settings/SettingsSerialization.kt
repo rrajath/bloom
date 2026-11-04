@@ -110,6 +110,11 @@ data class SettingsExport(
     val autoArchiveDoneItems: Boolean = false,
     val autoArchiveFile: String? = null,
     val autoArchiveHeadingPath: String = "",
+    val clockOutWhenDone: Boolean = true,
+    val discardZeroClocks: Boolean = true,
+    val clockNotification: Boolean = true,
+    val clockInState: String? = null,
+    val clockOutState: String? = null,
     val lastRefileFile: String? = null,
     val lastRefileHeadingPath: String = "",
     val roamFeaturesEnabled: Boolean = false,
@@ -185,6 +190,11 @@ data class SettingsExport(
         autoArchiveDoneItems = autoArchiveDoneItems,
         autoArchiveFile = autoArchiveFile,
         autoArchiveHeadingPath = autoArchiveHeadingPath,
+        clockOutWhenDone = clockOutWhenDone,
+        discardZeroClocks = discardZeroClocks,
+        clockNotification = clockNotification,
+        clockInState = clockInState,
+        clockOutState = clockOutState,
         lastRefileFile = lastRefileFile,
         lastRefileHeadingPath = lastRefileHeadingPath,
         roamFeaturesEnabled = roamFeaturesEnabled,
@@ -219,7 +229,10 @@ data class SettingsExport(
         // v10: added the widget quick-add target (quickAddTargetFile/
         // quickAddHeadingPath). Additive: older exports omit them and import as
         // null/empty, which keeps quick-add following the share target.
-        const val CURRENT_VERSION = 10
+        // v11: added the Clocking fields (clockOutWhenDone/discardZeroClocks/
+        // clockNotification/clockInState/clockOutState). Additive: older exports
+        // omit them and import at their defaults.
+        const val CURRENT_VERSION = 11
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.theme.storageKey,
@@ -281,6 +294,11 @@ data class SettingsExport(
             autoArchiveDoneItems = s.autoArchiveDoneItems,
             autoArchiveFile = s.autoArchiveFile,
             autoArchiveHeadingPath = s.autoArchiveHeadingPath,
+            clockOutWhenDone = s.clockOutWhenDone,
+            discardZeroClocks = s.discardZeroClocks,
+            clockNotification = s.clockNotification,
+            clockInState = s.clockInState,
+            clockOutState = s.clockOutState,
             lastRefileFile = s.lastRefileFile,
             lastRefileHeadingPath = s.lastRefileHeadingPath,
             roamFeaturesEnabled = s.roamFeaturesEnabled,

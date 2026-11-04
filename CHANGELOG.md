@@ -66,6 +66,9 @@ re-uploads the APKs to the existing release instead of failing.
 - Tap the Agenda widget's title to show a saved search instead; each widget remembers its own choice.
 - The Agenda widget also shows a Quick Start search: Overdue, Today, Open tasks, or Unscheduled.
 - Long Agenda widget lists have "+N more" to show 20 more rows in place, next to "view all".
+- Org clocking: Clock in, Clock out and Cancel clock in a heading's metadata sheet write `CLOCK:` lines into its `:LOGBOOK:` exactly as Emacs does; one clock runs at a time, marking a task done stops its clock, and Read mode shows the clocked total.
+- The running clock shows in an ongoing notification with Clock out and Cancel, in the navigation drawer, and in a new Clock home-screen widget, including clocks started in Emacs and synced in.
+- An Agenda swipe can be set to Clock In / Out, and Settings › Notes › Clocking can switch a task's state on clock in and clock out, discard 0:00 clocks, and turn the notification off.
 
 ### Changed
 - When a heading can't be demoted in Outline, the message now explains why: there's no heading above to go under.
@@ -79,6 +82,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Fixed
 - Moving, promoting, or demoting a heading in Outline no longer unfolds collapsed headings.
+- The Outline and Read mode reload a file that was changed by a sync, a notification action or a widget, so their next edit can't undo that change.
 - Date trees reuse existing month and day headings written in another language instead of adding duplicates.
 - Tapping the target label or empty space in the widget's quick add composer no longer closes it.
 - The quick add composer's text cursor now uses the theme's accent color instead of black.

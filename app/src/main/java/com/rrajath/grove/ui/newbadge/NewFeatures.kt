@@ -30,6 +30,9 @@ data class NewFeature(
  */
 object NewAnchors {
     const val DRAWER_SETTINGS = "drawer.settings"
+
+    /** The metadata sheet's Clock in / Clock out action. */
+    const val METADATA_CLOCK = "metadata.clock"
     const val SETTINGS_TIPS = "settings.tips"
 
     /** The Settings hub row leading to the Look and Feel page. */
@@ -407,5 +410,14 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_APPEARANCE_THEME,
         ),
         destination = NewAnchors.SETTINGS_APPEARANCE_THEME,
+    ),
+    NewFeature(
+        // Org clocking: the metadata sheet gained Clock in / Clock out.
+        // `since` is the versionCode of the release that ships it: bump it to
+        // match `gradle.properties` versionName when cutting the release.
+        id = "org-clocking",
+        since = 11200,
+        anchors = setOf(NewAnchors.TOPBAR_MENU, NewAnchors.METADATA_CLOCK),
+        destination = NewAnchors.METADATA_CLOCK,
     ),
 )

@@ -78,6 +78,8 @@ data class NotebookEntity(
         // probe an index instead of scanning every note row.
         Index("orgId"),
         Index("customId"),
+        // Backs [IndexDao.runningClocks]' `IS NOT NULL` probe: almost every row is null.
+        Index("clockStart"),
     ],
 )
 data class NoteEntity(
@@ -110,6 +112,12 @@ data class NoteEntity(
     val isDone: Boolean,
     /** Mirror of the notebook's lastModified for recency ranking. */
     val lastModified: Long,
+    /**
+     * ISO `yyyy-MM-ddTHH:mm` start of the heading's open `CLOCK:` line, or null
+     * when no clock runs on it. The running clock is whatever the files say;
+     * this column only lets the app find it without opening every file.
+     */
+    val clockStart: String? = null,
 )
 
 /**
@@ -286,6 +294,15 @@ data class PlannedNoteRow(
     val lastModified: Long,
 )
 
+/** A heading with an open clock: [IndexDao.runningClocks]' projection. */
+data class RunningClockRow(
+    val fileName: String,
+    val lineIndex: Int,
+    val title: String,
+    val keyword: String?,
+    val clockStart: String,
+)
+
 /**
  * An abstract class rather than an interface so it can carry [ftsAvailable]:
  * the FTS statements below live inside the same `@Transaction` methods as the
@@ -392,6 +409,13 @@ abstract class IndexDao {
             "OR activeTimestamps IS NOT NULL"
     )
     abstract fun plannedNotes(): Flow<List<PlannedNoteRow>>
+
+    /** Headings with an open clock, newest start first (see [NoteEntity.clockStart]). */
+    @Query(
+        "SELECT fileName, lineIndex, title, keyword, clockStart FROM notes " +
+            "WHERE clockStart IS NOT NULL AND lineIndex >= 0 ORDER BY clockStart DESC"
+    )
+    abstract fun runningClocks(): Flow<List<RunningClockRow>>
 
     /**
      * Distinct SCHEDULED/DEADLINE timestamp strings across the vault — all the
@@ -612,6 +636,8 @@ interface ReminderDao {
         NotebookEntity::class, NoteEntity::class, FtsMapEntity::class,
         SyncLogEntity::class, ReminderEntity::class,
     ],
+    // v18: added NoteEntity.clockStart (the heading's open CLOCK line, indexed)
+    // for the running clock. Destructive migration; the next sync rebuilds it.
     // v17: added ReminderEntity.isTask (task vs event is now decided by whether
     // the heading carries a live TODO keyword, not by planning type) and started
     // computing hasRepeater for SCHEDULED/DEADLINE rows too, not just ACTIVE.
@@ -660,7 +686,7 @@ interface ReminderDao {
     // v5: added NotebookEntity.isIndexed (stub vs fully-parsed notebook rows);
     // v4: added NotebookEntity.title (cached #+TITLE: preamble value). Destructive
     // migration drops the index so the next sync rebuilds it from the .org files.
-    version = 17,
+    version = 18,
     exportSchema = false,
 )
 abstract class GroveDatabase : RoomDatabase() {

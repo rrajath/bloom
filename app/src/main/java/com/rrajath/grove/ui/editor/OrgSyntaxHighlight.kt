@@ -138,21 +138,23 @@ class OrgSyntaxHighlight(
         }
     }
 
+    // A CLOCK line reads like a planning line: keyword, then timestamps.
     private fun isPlanning(line: String): Boolean {
         val t = line.trimStart()
-        return t.startsWith("SCHEDULED:") || t.startsWith("DEADLINE:") || t.startsWith("CLOSED:")
+        return t.startsWith("SCHEDULED:") || t.startsWith("DEADLINE:") || t.startsWith("CLOSED:") ||
+            t.startsWith("CLOCK:")
     }
 
     private fun isDrawerLine(line: String): Boolean {
         val t = line.trim()
-        return t.equals(":PROPERTIES:", true) || t.equals(":END:", true)
+        return t.equals(":PROPERTIES:", true) || t.equals(":LOGBOOK:", true) || t.equals(":END:", true)
     }
 
     companion object {
         private val HEADLINE = Regex("""^(\*+)\s+(.*)$""")
         private val TAGS_AT_END = Regex("""\s+(:[A-Za-z0-9_@#%-]+(?::[A-Za-z0-9_@#%-]+)*:)\s*$""")
         private val TIMESTAMP = Regex("""[<\[][^>\]]*[>\]]""")
-        private val PLANNING_KW = Regex("""(SCHEDULED|DEADLINE|CLOSED):""")
+        private val PLANNING_KW = Regex("""(SCHEDULED|DEADLINE|CLOSED|CLOCK):""")
         private val PROPERTY = Regex("""^\s*:([^:\s]+):\s*(.*)$""")
     }
 }

@@ -14,6 +14,7 @@ import com.rrajath.grove.testing.FakeFileStore
 import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.OrgFixtures
+import com.rrajath.grove.testing.TestClockService
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.Vault
@@ -68,7 +69,8 @@ class AppViewModelIntegrationTest {
     private val searchRepository = SearchRepository(app)
     private val favoritesRepository = FavoritesRepository(app)
     private val pendingShare = MutableStateFlow<SharedPayload?>(null)
-    private val vaultFlow = MutableStateFlow<Vault?>(Vault(FakeFileStore(OrgFixtures.all)))
+    private val store = FakeFileStore(OrgFixtures.all)
+    private val vaultFlow = MutableStateFlow<Vault?>(Vault(store))
 
     private val liveVms = mutableListOf<AppViewModel>()
 
@@ -82,6 +84,7 @@ class AppViewModelIntegrationTest {
         pendingShare = pendingShare,
         dispatchers = mainDispatcherRule.appDispatchers,
         app = app,
+        clockService = TestClockService.create(vaultFlow, db, store, settingsRepository, repoScope),
     ).also { liveVms += it }
 
     @After

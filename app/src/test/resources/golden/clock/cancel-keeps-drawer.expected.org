@@ -1,0 +1,5 @@
+# ops: in Task 2026-10-30T09:15 | cancel
+* TODO Task
+:LOGBOOK:
+CLOCK: [2026-10-29 Thu 09:00]--[2026-10-29 Thu 10:30] =>  1:30
+:END:

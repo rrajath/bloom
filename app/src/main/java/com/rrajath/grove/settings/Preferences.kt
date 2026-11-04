@@ -140,7 +140,10 @@ enum class ReminderLeadTime(val storageKey: String, val label: String, val offse
 enum class AgendaSwipeAction(val storageKey: String, val label: String) {
     SET_SCHEDULED("set_scheduled", "Schedule Task"),
     SET_DEADLINE("set_deadline", "Set Deadline"),
-    MARK_DONE("mark_done", "Mark as Done");
+    MARK_DONE("mark_done", "Mark as Done"),
+
+    /** Clock in on the row's heading, or out when its clock runs (the Emacs agenda's `I` / `O`). */
+    CLOCK("clock", "Clock In / Out");
 
     companion object {
         fun fromStorage(value: String?, default: AgendaSwipeAction): AgendaSwipeAction =

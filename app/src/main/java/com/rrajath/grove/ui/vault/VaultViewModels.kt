@@ -11,6 +11,10 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
+import com.rrajath.grove.clock.ClockFix
+import com.rrajath.grove.clock.ClockResult
+import com.rrajath.grove.clock.ClockService
+import com.rrajath.grove.clock.RunningClock
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.FavoritesRepository
 import com.rrajath.grove.data.GroveDatabase
@@ -28,6 +32,9 @@ import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.OrgKeywords
+import com.rrajath.grove.org.OrgClock
+import com.rrajath.grove.org.clocks
+import com.rrajath.grove.org.runningClock
 import com.rrajath.grove.org.advancedRepeatingPlanning
 import com.rrajath.grove.org.markedDoneMessage
 import com.rrajath.grove.org.newOrgId
@@ -71,6 +78,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
@@ -711,6 +719,14 @@ data class RefileUiState(
  */
 data class PendingEdit(val fileName: String, val lineIndex: Int, val text: String, val wholeFile: Boolean = false)
 
+/** Clocking in on the heading at [lineIndex] waits on how to close [clocks], which look dangling. */
+data class ClockResolve(val lineIndex: Int, val clocks: List<RunningClock>)
+
+/**
+ * @param fileIndexed every file the index just took in (see [GroveApplication.fileIndexed]):
+ *   the loaded file is re-read when it shows up, so a write from elsewhere (the clock
+ *   notification, the widget, a sync) isn't overwritten by this view model's next edit.
+ */
 class DocumentViewModel(
     private val vaultFlow: StateFlow<Vault?>,
     private val keywordsFlow: StateFlow<OrgKeywords>,
@@ -720,6 +736,8 @@ class DocumentViewModel(
     private val favoritesRepository: FavoritesRepository,
     private val dispatchers: AppDispatchers,
     private val app: GroveApplication,
+    private val clockService: ClockService,
+    fileIndexed: Flow<String> = emptyFlow(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<DocumentUiState>(DocumentUiState.Loading)
@@ -818,6 +836,16 @@ class DocumentViewModel(
     private var onPendingBufferChanged: (String) -> Unit = {}
     private var onPendingPersisted: () -> Unit = {}
 
+    // Re-read the loaded file whenever the index takes it in, so a write from
+    // elsewhere isn't undone by this view model's next edit of a stale copy.
+    init {
+        viewModelScope.launch {
+            fileIndexed.collect { name ->
+                if ((_state.value as? DocumentUiState.Loaded)?.fileName == name) load(name, refreshTags = false)
+            }
+        }
+    }
+
     /**
      * Hand this view model the note editor's unsaved buffer (null when there is
      * none). [onBufferChanged] receives the new subtree text whenever a read-mode
@@ -911,7 +939,7 @@ class DocumentViewModel(
         showToast("Selection cleared: the file was synced or changed elsewhere")
     }
 
-    fun load(fileName: String) {
+    fun load(fileName: String, refreshTags: Boolean = true) {
         viewModelScope.launch {
             val vault = vaultFlow.value
             if (vault == null) {
@@ -936,7 +964,7 @@ class DocumentViewModel(
                 DocumentUiState.Error(e.message ?: "Could not open $fileName")
             }
         }
-        viewModelScope.launch {
+        if (refreshTags) viewModelScope.launch {
             _allTags.value = database.indexDao().allTagStrings()
                 .flatMap { it.split(':') }
                 .filter { it.isNotEmpty() }
@@ -1571,6 +1599,89 @@ class DocumentViewModel(
         }
     }
 
+    // --- clocking ---
+
+    private val _clockResolve = MutableStateFlow<ClockResolve?>(null)
+
+    /** Set while a clock-in waits on the resolve dialog; answered by [clockIn] with fixes, or [dismissClockResolve]. */
+    val clockResolve: StateFlow<ClockResolve?> = _clockResolve
+
+    fun dismissClockResolve() { _clockResolve.value = null }
+
+    /**
+     * Clock in on [headline] (`org-clock-in`), closing whatever clock runs
+     * elsewhere; [fixes] answers [clockResolve]. Clocking writes straight to
+     * disk even while the editor holds unsaved edits to this file: a clock that
+     * isn't on disk isn't running anywhere, so those edits go out with it.
+     */
+    fun clockIn(headline: OrgHeadline, fixes: Map<RunningClock, ClockFix> = emptyMap()) {
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return
+        _clockResolve.value = null
+        viewModelScope.launch {
+            val result = clockService.clockIn(loaded.fileName, headline.lineIndex, pendingBase(loaded), fixes)
+            if (result is ClockResult.NeedsResolution) {
+                _clockResolve.value = ClockResolve(headline.lineIndex, result.clocks)
+                return@launch
+            }
+            applyClockResult(loaded, result, "Clocked in")
+        }
+    }
+
+    /** Clock out [headline]'s running clock (`org-clock-out`). */
+    fun clockOut(headline: OrgHeadline) {
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return
+        val clock = runningClockOf(loaded, headline) ?: return
+        viewModelScope.launch {
+            val result = clockService.clockOut(clock, base = pendingBase(loaded))
+            val minutes = (result as? ClockResult.Done)?.writes
+                ?.firstOrNull { it.fileName == loaded.fileName }?.doc
+                ?.let { doc -> doc.headlines.firstNotNullOfOrNull { h -> doc.clocks(h).firstOrNull { it.start == clock.start } } }
+                ?.minutes()
+            applyClockResult(loaded, result, minutes?.let { "Clocked out after ${OrgClock.hmm(it)}" } ?: "Clocked out")
+        }
+    }
+
+    /** Cancel [headline]'s running clock (`org-clock-cancel`): nothing is logged. */
+    fun cancelClock(headline: OrgHeadline) {
+        val loaded = _state.value as? DocumentUiState.Loaded ?: return
+        val clock = runningClockOf(loaded, headline) ?: return
+        viewModelScope.launch {
+            applyClockResult(loaded, clockService.cancel(clock, base = pendingBase(loaded)), "Clock canceled")
+        }
+    }
+
+    private fun runningClockOf(loaded: DocumentUiState.Loaded, headline: OrgHeadline): RunningClock? {
+        val open = loaded.document.runningClock(headline)?.start ?: return null
+        return RunningClock(loaded.fileName, headline.lineIndex, headline.title, headline.keyword, open)
+    }
+
+    /** The loaded document when it carries the editor's unsaved buffer, so a clock write keeps it. */
+    private fun pendingBase(loaded: DocumentUiState.Loaded): OrgDocument? =
+        loaded.document.takeIf { pending?.fileName == loaded.fileName }
+
+    private fun applyClockResult(loaded: DocumentUiState.Loaded, result: ClockResult, done: String) {
+        when (result) {
+            is ClockResult.Done -> {
+                result.writes.firstOrNull { it.fileName == loaded.fileName }?.let { write ->
+                    if (pending?.fileName == loaded.fileName) {
+                        // The buffer went to disk with the clock line; the editor lets it go.
+                        pending = null
+                        onPendingPersisted()
+                    }
+                    _state.value = DocumentUiState.Loaded(loaded.fileName, write.doc)
+                }
+                undoSnapshot = UndoSnapshot(result.writes.map { it.fileName to it.before })
+                showSnack(done)
+            }
+            ClockResult.Continues -> showToast("Clock continues")
+            ClockResult.NotFound -> {
+                showToast("That clock changed on disk; reloaded")
+                load(loaded.fileName, refreshTags = false)
+            }
+            is ClockResult.NeedsResolution -> Unit
+        }
+    }
+
     /** Outline swipe "Note" action: org's C-c C-z, logged into the LOGBOOK drawer. */
     fun addNote(headline: OrgHeadline, note: String) {
         val loaded = _state.value as? DocumentUiState.Loaded ?: return
@@ -2073,6 +2184,7 @@ class DocumentViewModel(
             DocumentViewModel(
                 it.vault, it.keywords, it.syncManager, it.database,
                 it.settingsRepository, it.favoritesRepository, it.dispatchers, it,
+                it.clockService, it.fileIndexed,
             )
         }
     }

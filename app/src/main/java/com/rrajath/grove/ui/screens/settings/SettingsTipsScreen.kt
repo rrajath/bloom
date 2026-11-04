@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -561,6 +562,23 @@ private fun tipGroups(appName: String): List<TipGroup> = listOf(
                     "{{file:agenda.org_archive}}. " +
                     "The nearest one wins over the Settings location.",
                 newAnchor = NewAnchors.tipsItem("capture-automation", "archive-location"),
+            ),
+        ),
+    ),
+    TipGroup(
+        "clocking",
+        "Clocking",
+        listOf(
+            Tip(
+                "clock", Icons.Default.Timer, "Clock your time on a task",
+                "Open a heading's metadata sheet and tap Clock in. The time goes into its :LOGBOOK: drawer as a " +
+                    "CLOCK line, exactly as Emacs writes it, and only one clock runs at a time: clocking in elsewhere " +
+                    "stops the last one. Stop it from the notification, the drawer, the Clock widget, or by marking " +
+                    "the task done.",
+                listOf(
+                    "Settings › Agenda can set a swipe to Clock In / Out",
+                    "Settings › Notes › Clocking can switch the task's state when you clock in or out",
+                ),
             ),
         ),
     ),

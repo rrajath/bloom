@@ -2,6 +2,7 @@
     <string name="app_name">Bloom</string>
     <string name="widget_description">One-tap capture into your org notes</string>
     <string name="ledger_widget_description">Agenda ledger: overdue and upcoming tasks grouped by day</string>
+    <string name="clock_widget_description">The running org clock, with a button to clock out</string>
     <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
     <string name="exact_alarm_prompt_body">Android can delay %1$s\'s reminders by up to an hour unless %1$s is allowed to set alarms. On the next screen, turn on Alarms &amp; reminders for %1$s.</string>
     <!-- Shared live search in the insert-link and refile pickers (ui/components/PickerSearch.kt). -->

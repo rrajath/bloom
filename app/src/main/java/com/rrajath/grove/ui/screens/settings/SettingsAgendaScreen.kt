@@ -17,10 +17,10 @@ import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 
 /**
- * Only these two are offered from the swipe-action pickers below; [AgendaSwipeAction.SET_DEADLINE]
+ * Only these are offered from the swipe-action pickers below; [AgendaSwipeAction.SET_DEADLINE]
  * stays a valid stored value (an older export can still carry it) but is no longer user-selectable.
  */
-private val SWIPE_ACTION_OPTIONS = listOf(AgendaSwipeAction.MARK_DONE, AgendaSwipeAction.SET_SCHEDULED)
+private val SWIPE_ACTION_OPTIONS = listOf(AgendaSwipeAction.MARK_DONE, AgendaSwipeAction.SET_SCHEDULED, AgendaSwipeAction.CLOCK)
 
 /** Settings § Agenda. */
 @Composable

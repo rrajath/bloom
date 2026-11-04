@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Flag
@@ -51,6 +52,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.mutableStateOf
@@ -96,6 +99,10 @@ import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.runningClock
+import com.rrajath.grove.org.OrgClock
+import com.rrajath.grove.org.clockDisplayMinutes
+import com.rrajath.grove.ui.components.rememberMinuteTicker
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.ui.components.ReadEditToggle
@@ -516,10 +523,16 @@ fun ReadNoteScreen(
                 showFavorite = true,
                 isFavorite = favorites.any { it.matches(headline) },
                 onToggleFavorite = { viewModel.toggleFavorite(headline) },
+                clockRunning = doc.runningClock(headline) != null,
+                onClockIn = { viewModel.clockIn(headline) },
+                onClockOut = { viewModel.clockOut(headline) },
+                onCancelClock = { viewModel.cancelClock(headline) },
                 onDismiss = { metadataOpen = false },
             )
         }
     }
+
+    ClockResolveHost(viewModel, (state as? DocumentUiState.Loaded)?.document)
 
     refileState?.let { refile ->
         val doc = (state as? DocumentUiState.Loaded)?.document
@@ -800,8 +813,18 @@ private fun NoteContent(
                         // renders first here too, matching edit mode's line order.
                         // Both chips share a row and wrap to a second line only if
                         // they don't fit side by side.
+                        // Clocked time, `org-clock-display`'s all-time subtree total,
+                        // ticking while a clock runs in the subtree.
+                        val clockRunning = remember(doc, headline) {
+                            doc.runningClock(headline) != null || doc.subtree(headline).any { doc.runningClock(it) != null }
+                        }
+                        val clockNow = if (clockRunning) rememberMinuteTicker() else null
+                        val clockedMinutes = remember(doc, headline, clockNow) {
+                            doc.clockDisplayMinutes(headline, clockNow ?: java.time.LocalDateTime.now())
+                        }
                         if (headline.planning.scheduled != null || headline.planning.deadline != null ||
-                            headline.planning.closed != null || headline.dedicatedActiveTimestamps.isNotEmpty()
+                            headline.planning.closed != null || headline.dedicatedActiveTimestamps.isNotEmpty() ||
+                            clockRunning || clockedMinutes > 0
                         ) {
                             Spacer(Modifier.height(6.dp))
                             FlowRow(
@@ -841,6 +864,14 @@ private fun NoteContent(
                                 // CLOSED: muted, since it's history rather than an upcoming date.
                                 headline.planning.closed?.let {
                                     PlanningChip(remember(it) { it.formatHuman() }, icon = Icons.Filled.Check, fg = c.ink3, bg = c.surface2)
+                                }
+                                if (clockRunning || clockedMinutes > 0) {
+                                    PlanningChip(
+                                        OrgClock.hmm(clockedMinutes),
+                                        icon = Icons.Outlined.Timer,
+                                        fg = if (clockRunning) c.accent else c.ink2,
+                                        bg = if (clockRunning) c.accentSoft else c.surface2,
+                                    )
                                 }
                             }
                         }
@@ -1033,6 +1064,13 @@ internal fun ReadHeadingRow(
                             "… $directChildCount",
                             fontFamily = PlexMono, fontSize = 12.sp, color = c.ink3,
                             modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                    if (remember(doc, child) { doc.runningClock(child) != null }) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "◷", fontFamily = PlexMono, fontSize = 13.sp, color = c.accent,
+                            modifier = Modifier.padding(top = 2.dp).semantics { contentDescription = "Clocked in" },
                         )
                     }
                     if (isFavorite) {
