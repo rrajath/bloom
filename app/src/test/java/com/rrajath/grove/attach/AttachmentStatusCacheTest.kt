@@ -1,6 +1,7 @@
 package com.rrajath.grove.attach
 
 import com.rrajath.grove.org.OrgParser
+import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.JvmFileStore
 import java.io.File
 import kotlinx.coroutines.test.runTest
@@ -62,7 +63,7 @@ class AttachmentStatusCacheTest {
 
     @Test
     fun `knownMissing tracks Missing entries under any line of the file`() {
-        val present = AttachmentStatus.Present(com.rrajath.grove.vault.FileEntry("data/ab/cdef/a.jpg", 0, 1))
+        val present = AttachmentStatus.Present(FileEntry("data/ab/cdef/a.jpg", 0, 1))
         val key4 = AttachmentStatusCache.key("n.org", "attachment:a.jpg", 4)
         val key9 = AttachmentStatusCache.key("n.org", "attachment:a.jpg", 9)
         assertFalse(cache.knownMissing("n.org", "attachment:a.jpg"))
@@ -119,5 +120,16 @@ class AttachmentStatusCacheTest {
         val l = AttachmentLink.classify("file:img/a.png", null)!!
         val st = resolver.status(l, "file:img/a.png", "trips/kyoto.org", doc)
         assertEquals("trips/img/a.png", (st as AttachmentStatus.Present).path)
+    }
+
+    @Test
+    fun `image sizes are capped, dropping the least recently used`() {
+        val entries = (0..AttachmentStatusCache.MAX_BOUNDS).map { FileEntry("data/$it.jpg", 1L, 1L) }
+        entries.forEach { cache.putBounds(it, ImageBounds(4, 3)) }
+        assertEquals(null, cache.bounds(entries[0]))
+        cache.bounds(entries[1]) // Touch, so the next put evicts entries[2] instead.
+        cache.putBounds(FileEntry("data/new.jpg", 1L, 1L), ImageBounds(4, 3))
+        assertEquals(ImageBounds(4, 3), cache.bounds(entries[1]))
+        assertEquals(null, cache.bounds(entries[2]))
     }
 }

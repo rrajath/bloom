@@ -31,12 +31,17 @@ data class ImageBounds(val width: Int, val height: Int) {
  * status map is dropped when the app returns to the foreground and after
  * attachment moves and deletes ([clear]). A Present entry that fails to load is
  * re-checked on its own ([forget]). Image sizes are
- * keyed by path + mtime + size, so they stay valid until the file changes.
+ * keyed by path + mtime + size, so they stay valid until the file changes;
+ * the least recently used are dropped past [MAX_BOUNDS].
  * [generation] ticks on every invalidation; composables key their lookups on it.
  */
 class AttachmentStatusCache {
     private val statuses = ConcurrentHashMap<String, AttachmentStatus>()
-    private val bounds = ConcurrentHashMap<String, ImageBounds>()
+
+    /** Path + mtime + size -> header size, least recently used first; guarded by itself. */
+    private val bounds = object : LinkedHashMap<String, ImageBounds>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBounds>) = size > MAX_BOUNDS
+    }
 
     /** File + target key -> number of Missing entries under any line; guarded by `this`. */
     private val missingByTarget = ConcurrentHashMap<String, Int>()
@@ -66,10 +71,11 @@ class AttachmentStatusCache {
     fun knownMissing(orgFile: String, rawTarget: String): Boolean =
         (missingByTarget[targetKey(orgFile, rawTarget)] ?: 0) > 0
 
-    fun bounds(entry: FileEntry): ImageBounds? = bounds[boundsKey(entry)]
+    fun bounds(entry: FileEntry): ImageBounds? = synchronized(bounds) { bounds[boundsKey(entry)] }
 
+    /** Capped at [MAX_BOUNDS]; the least recently used size goes first. */
     fun putBounds(entry: FileEntry, value: ImageBounds) {
-        bounds[boundsKey(entry)] = value
+        synchronized(bounds) { bounds[boundsKey(entry)] = value }
     }
 
     /** Forget every Missing entry so it is checked again. */
@@ -101,6 +107,9 @@ class AttachmentStatusCache {
     private fun boundsKey(entry: FileEntry) = "${entry.name}:${entry.lastModified}:${entry.size}"
 
     companion object {
+        /** Image sizes kept; each is a few dozen bytes, so this only bounds very long sessions. */
+        const val MAX_BOUNDS = 1024
+
         /** Cache key for a link at [docLine] (-1 when unknown) of [orgFile]. */
         fun key(orgFile: String, rawTarget: String, docLine: Int?): String =
             "${targetKey(orgFile, rawTarget)}\u0000${docLine ?: -1}"
