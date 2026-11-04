@@ -226,7 +226,7 @@ class AttachmentLifecycle(
     }
 
     /** True when any attach dir exists at or under [dir]. */
-    suspend fun folderHasAttachments(dir: String): Boolean = attachRoots(dir.trim('/')).isNotEmpty()
+    suspend fun folderHasAttachments(dir: String): Boolean = attachRoots(dir.trim('/'), limit = 1).isNotEmpty()
 
     /**
      * After every `.org` under [oldDir] moved to [newDir] (a folder rename or
@@ -297,20 +297,25 @@ class AttachmentLifecycle(
     /**
      * Every attach root (`data/` holding at least one shard) at or under [dir],
      * walking user folders but never into shards. A `data/` folder's non-shard
-     * children (user folders such as `data/notes/`) are walked too.
+     * children (user folders such as `data/notes/`) are walked too. The walk
+     * stops once [limit] roots are found. A missing [dir] lists as empty, so
+     * there's no separate existence check (each one is a provider query on SAF).
      */
-    private suspend fun attachRoots(dir: String): List<String> {
+    private suspend fun attachRoots(dir: String, limit: Int = Int.MAX_VALUE): List<String> {
         val leaf = config.idDir.trim('/').substringAfterLast('/')
         val out = mutableListOf<String>()
         suspend fun walk(path: String) {
-            if (!store.dirExists(path)) return
             for (sub in store.listSubdirs(path)) {
+                if (out.size >= limit) return
                 if (sub.startsWith(".")) continue
                 val child = joinPath(path, sub)
                 if (sub == leaf) {
                     val kids = store.listSubdirs(child)
                     if (kids.any(::isAttachShard)) out += child
-                    kids.filterNot { isAttachShard(it) || it.startsWith(".") }.forEach { walk(joinPath(child, it)) }
+                    for (kid in kids) {
+                        if (out.size >= limit) return
+                        if (!isAttachShard(kid) && !kid.startsWith(".")) walk(joinPath(child, kid))
+                    }
                 } else {
                     walk(child)
                 }

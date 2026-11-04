@@ -247,6 +247,24 @@ class AttachmentLifecycleTest {
         assertFalse(lifecycle.folderHasAttachments("Other/missing"))
     }
 
+    @Test
+    fun `folderHasAttachments stops walking at the first attach root`() = runTest {
+        put("Work/a/data/AA/11/a.jpg")
+        put("Work/b/data/BB/22/b.jpg")
+        put("Work/c/deep/x.org")
+        val listed = mutableListOf<String>()
+        val counting = object : com.rrajath.grove.vault.FileStore by JvmFileStore(tmp.root, skipAttachShards = true) {
+            override suspend fun listSubdirs(dir: String): List<String> {
+                listed += dir
+                return JvmFileStore(tmp.root, skipAttachShards = true).listSubdirs(dir)
+            }
+        }
+        val walker = AttachmentLifecycle(counting, IdHolders.None)
+        assertTrue(walker.folderHasAttachments("Work"))
+        // Sorted walk: Work, Work/a, Work/a/data; nothing under b or c.
+        assertEquals(listOf("Work", "Work/a", "Work/a/data"), listed)
+    }
+
     // --- helpers ---
 
     @Test
