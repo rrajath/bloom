@@ -2,7 +2,10 @@ package com.rrajath.grove.attach
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.FileOutputStream
@@ -10,6 +13,7 @@ import java.io.IOException
 import java.io.InputStream
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
+import kotlin.math.roundToInt
 
 /**
  * Prepares a Camera or Photos image before it's copied into the vault (6.4).
@@ -52,11 +56,15 @@ fun withJpegExtension(name: String): String {
 /**
  * Resizes to a long-edge target and converts HEIC to JPEG. Steps: copy the
  * source into [tempDir] (decoding needs to read it twice, and EXIF needs a
- * seekable file), read bounds, decode with the largest power-of-2
- * `inSampleSize` that keeps the long edge at or above the target, scale to the
- * exact target (never up), apply the EXIF orientation, encode JPEG q85, copy
- * the EXIF tags (GPS included) except orientation, thumbnail and pixel
- * dimensions, then set orientation to normal.
+ * seekable file), read bounds, decode straight to the target size (never up)
+ * with the EXIF orientation applied, encode JPEG q85, copy the EXIF tags (GPS
+ * included) except orientation, thumbnail and pixel dimensions, then set
+ * orientation to normal.
+ *
+ * API 28+ decodes with [ImageDecoder] at the target size, so only the output
+ * bitmap is ever allocated. Older releases decode with the largest power-of-2
+ * `inSampleSize` that keeps the long edge at or above the target, then scale
+ * and rotate into a second bitmap.
  */
 class ImageTranscoder(private val tempDir: File) : PhotoProcessor {
 
@@ -117,13 +125,6 @@ class ImageTranscoder(private val tempDir: File) : PhotoProcessor {
             val target = minOf(longEdge ?: srcLong, srcLong)
             if (!force && target >= srcLong) return false
 
-            val sample = sampleSizeFor(srcLong, target)
-            val decoded = try {
-                BitmapFactory.decodeFile(src.path, BitmapFactory.Options().apply { inSampleSize = sample })
-            } catch (e: OutOfMemoryError) {
-                null
-            } ?: return false
-
             val exif = try {
                 ExifInterface(src)
             } catch (e: Exception) {
@@ -132,28 +133,71 @@ class ImageTranscoder(private val tempDir: File) : PhotoProcessor {
             val orientation = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
                 ?: ExifInterface.ORIENTATION_NORMAL
 
-            val matrix = Matrix()
-            val scale = target.toFloat() / maxOf(decoded.width, decoded.height)
-            if (scale < 1f) matrix.postScale(scale, scale)
-            applyOrientation(matrix, orientation)
-            val result = try {
-                if (matrix.isIdentity) decoded
-                else Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-            } catch (e: OutOfMemoryError) {
-                decoded.recycle()
-                return false
-            }
+            val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                decodeAtTarget(src, target)
+            } else {
+                decodeSampled(src, srcLong, target, orientation)
+            } ?: return false
             try {
                 val ok = FileOutputStream(dst).use { result.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }
                 if (!ok) return false
             } catch (e: IOException) {
                 return false
             } finally {
-                if (result !== decoded) result.recycle()
-                decoded.recycle()
+                result.recycle()
             }
             copyExif(exif, dst)
             return true
+        }
+
+        /**
+         * [src] decoded with its long edge at [target] (never up), oriented
+         * per its EXIF tag (ImageDecoder applies it), in a software bitmap so
+         * it can be compressed. Null when it can't be decoded or doesn't fit.
+         */
+        @RequiresApi(Build.VERSION_CODES.P)
+        private fun decodeAtTarget(src: File, target: Int): Bitmap? = try {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(src)) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val w = info.size.width
+                val h = info.size.height
+                val long = maxOf(w, h)
+                if (target < long) {
+                    val scale = target.toFloat() / long
+                    decoder.setTargetSize(
+                        (w * scale).roundToInt().coerceAtLeast(1),
+                        (h * scale).roundToInt().coerceAtLeast(1),
+                    )
+                }
+            }
+        } catch (e: OutOfMemoryError) {
+            null
+        } catch (e: IOException) {
+            null
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+
+        /** Pre-P: power-of-2 sampled decode, then one scale + rotate pass into a second bitmap. */
+        private fun decodeSampled(src: File, srcLong: Int, target: Int, orientation: Int): Bitmap? {
+            val sample = sampleSizeFor(srcLong, target)
+            val decoded = try {
+                BitmapFactory.decodeFile(src.path, BitmapFactory.Options().apply { inSampleSize = sample })
+            } catch (e: OutOfMemoryError) {
+                null
+            } ?: return null
+            val matrix = Matrix()
+            val scale = target.toFloat() / maxOf(decoded.width, decoded.height)
+            if (scale < 1f) matrix.postScale(scale, scale)
+            applyOrientation(matrix, orientation)
+            if (matrix.isIdentity) return decoded
+            return try {
+                Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+            } catch (e: OutOfMemoryError) {
+                null
+            } finally {
+                decoded.recycle()
+            }
         }
 
         /** Largest power of 2 that keeps the decoded long edge at or above [target]. */

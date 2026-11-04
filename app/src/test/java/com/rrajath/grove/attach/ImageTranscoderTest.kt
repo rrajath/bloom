@@ -26,7 +26,7 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(application = TestGroveApplication::class)
-class ImageTranscoderTest {
+open class ImageTranscoderTest {
 
     @get:Rule
     val tmp = TemporaryFolder()
@@ -154,3 +154,7 @@ class ImageTranscoderTest {
         assertEquals(".hidden.jpg", withJpegExtension(".hidden"))
     }
 }
+
+/** The same cases on API 27, where transcoding takes the BitmapFactory sample + matrix path instead of ImageDecoder. */
+@Config(application = TestGroveApplication::class, sdk = [27])
+class ImageTranscoderLegacyDecodeTest : ImageTranscoderTest()
