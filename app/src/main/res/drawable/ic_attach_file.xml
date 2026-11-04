@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Feather icon from the attachments prototype (internal/Attachments.dc.html, 1c). Tinted at runtime. -->
+<!-- Material Symbols Outlined "attach_file" (opsz 20, wght 200, FILL 0, GRAD 0), tilted 45 degrees
+     clockwise about the viewport center. The rotated glyph stays within about 8dp of the center, so
+     nothing clips. Tinted at runtime. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#000000"
-        android:strokeWidth="1.9"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M21.44,11.05l-9.19,9.19a6,6 0,0 1,-8.49,-8.49l9.19,-9.19a4,4 0,0 1,5.66,5.66l-9.2,9.19a2,2 0,0 1,-2.83,-2.83l8.49,-8.48" />
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <group
+        android:rotation="45"
+        android:pivotX="10"
+        android:pivotY="10">
+        <path
+            android:fillColor="#000000"
+            android:pathData="M13.96,13.32q0,1.6 -1.1,2.72t-2.68,1.12q-1.62,0 -2.72,-1.17T6.37,13.18V5.51q0,-1.11 0.76,-1.89T9.01,2.83q1.13,0 1.89,0.83t0.75,1.99v7.2q0,0.61 -0.43,1.06t-1.04,0.45q-0.63,0 -1.07,-0.46T8.67,12.77V5.64H9.34v7.21q0,0.34 0.24,0.59t0.58,0.25t0.58,-0.25t0.24,-0.59V5.49Q11,4.67 10.41,4.08T9,3.5T7.6,4.11T7.03,5.55v7.78q0.02,1.31 0.92,2.23t2.22,0.94t2.23,-0.95t0.88,-2.33V5.64h0.67v7.68z" />
+    </group>
 </vector>
