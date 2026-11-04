@@ -1,14 +1,20 @@
 package com.rrajath.grove.vault
 
 import android.content.Context
+import android.database.ContentObserver
+import android.database.Cursor
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.provider.DocumentsContract
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
 
 /**
  * Storage Access Framework implementation over a persisted tree URI
@@ -78,13 +84,11 @@ class SafFileStore(
         val files = mutableMapOf<String, String>()
         val dirs = mutableMapOf("" to rootDocId)
         val entries = mutableListOf<FileEntry>()
-
         val queue = ArrayDeque<Pair<String, String>>() // relativeDir to docId
         queue.add("" to rootDocId)
         while (queue.isNotEmpty()) {
             val (dir, docId) = queue.removeFirst()
-            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
-            resolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            queryChildreen(docId).use { cursor ->
                 while (cursor.moveToNext()) {
                     val childDocId = cursor.getString(0)
                     val name = cursor.getString(1) ?: continue
@@ -107,6 +111,68 @@ class SafFileStore(
         listed = true
         return entries.sortedBy { it.name }
     }
+
+    private fun queryChildreen(docId: String): Cursor {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+
+        // I suspect seafile type sync-apps send completions notifications on URIs out of tree
+        val notificationUri =
+            DocumentsContract.buildChildDocumentsUri(requireNotNull(treeUri.authority), docId)
+
+        // increases whenever the external app finishes the loading
+        val loadCompletion = Semaphore(0)
+        val observer = object : ContentObserver(null) {
+            override fun onChange(selfChange: Boolean) {
+                loadCompletion.release()
+            }
+        }
+
+        val timeout = 15_000L // I assume 15sec is enough time
+        val deadline = SystemClock.elapsedRealtime() + timeout
+
+        try {
+            // observe 1st; query after;
+            resolver.registerContentObserver(notificationUri, true, observer)
+            if (childrenUri != notificationUri)
+                resolver.registerContentObserver(childrenUri, true, observer)
+
+            while (true) {
+                val cursor = resolver.query(childrenUri, projection, null, null, null)
+                    ?: throw IOException("Sync dir app gave a null cursor")
+
+                var done = false
+                try {
+                    val extras = cursor.extras
+
+                    extras?.getString(DocumentsContract.EXTRA_ERROR)?.let {
+                        throw IOException("Sync dir app error: $it")
+                    }
+
+                    val isLoading = extras.getBoolean(DocumentsContract.EXTRA_LOADING, false)
+                    done = !isLoading
+
+                    if (done)
+                        return cursor
+                } finally {
+                    if (!done)
+                        cursor.close()
+                }
+
+                val msg = "Sync dir app timed out on loading"
+                val remainingDuration = deadline - SystemClock.elapsedRealtime()
+                val timedOut = remainingDuration <= 0
+                if (timedOut)
+                    throw IOException(msg)
+
+                if (!loadCompletion.tryAcquire(remainingDuration, TimeUnit.MILLISECONDS))
+                    throw IOException(msg)
+
+            }
+        } finally {
+            resolver.unregisterContentObserver(observer)
+        }
+    }
+
 
     /**
      * One children query for [dir] (plus one per path segment whose id isn't
@@ -133,12 +199,14 @@ class SafFileStore(
     /** Direct children files of the directory [docId] (at relative path [dir]),
      *  or null if the provider rejects the id. */
     private fun queryDir(dir: String, docId: String): List<FileEntry>? {
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
         val entries = mutableListOf<FileEntry>()
         val seenFiles = mutableSetOf<String>()
         val seenDirs = mutableSetOf<String>()
-        val cursor = runCatching { resolver.query(childrenUri, projection, null, null, null) }.getOrNull()
-            ?: return null
+        val cursor = try {
+            queryChildreen(docId)
+        } catch (e: java.io.FileNotFoundException) {
+            return null
+        }
         cursor.use {
             while (it.moveToNext()) {
                 val childDocId = it.getString(0)
@@ -228,20 +296,18 @@ class SafFileStore(
         }
     }
 
-    private fun findChildDir(parentDocId: String, name: String): String? {
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
-        val cursor = runCatching { resolver.query(childrenUri, projection, null, null, null) }.getOrNull()
-            ?: return null
-        return cursor.use {
+    private fun findChildDir(parentDocId: String, name: String): String? =
+        queryChildreen(parentDocId).use { cursor ->
             var found: String? = null
-            while (found == null && it.moveToNext()) {
-                if (it.getString(1) == name && it.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    found = it.getString(0)
-                }
+            while (found == null && cursor.moveToNext()) {
+              val cursorName = cursor.getString(1)
+              val cursorMimeType = cursor.getString(4)
+              val isMatch = cursorName == name && cursorMimeType == DocumentsContract.Document.MIME_TYPE_DIR
+              if (isMatch)
+                  found = cursor.getString(0)
             }
             found
         }
-    }
 
     override suspend fun stat(name: String): FileEntry? = withContext(Dispatchers.IO) {
         val uri = documentUri(name) ?: return@withContext null
@@ -390,16 +456,17 @@ class SafFileStore(
     /** Deletes [path] if it has no child documents. Returns whether it was removed. */
     private fun removeDirIfEmpty(path: String): Boolean {
         val docId = dirDocIds[path] ?: return false
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
-        val empty = resolver.query(
-            childrenUri,
-            arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
-            null, null, null,
-        )?.use { !it.moveToFirst() } ?: false
-        if (!empty) return false
+
+        val isEmpty = queryChildreen(docId).use { cursor ->
+            !cursor.moveToFirst()
+        }
+        if (!isEmpty) return false
+
         val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-        val removed = runCatching { DocumentsContract.deleteDocument(resolver, uri) }
-            .getOrDefault(false)
+        val removed = runCatching {
+            DocumentsContract.deleteDocument(resolver, uri)
+        }.getOrDefault(false)
+
         if (removed) dirDocIds.remove(path)
         return removed
     }
