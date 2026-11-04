@@ -64,6 +64,17 @@ class SearchAgendaTest {
     }
 
     @Test
+    fun `a repeating event lands on each occurrence in the window`() {
+        assertEquals(
+            listOf("Today, Jun 11" to listOf("Weekly"), "Wednesday, Jun 18" to listOf("Weekly")),
+            layout(note("Weekly", active = "<2025-05-28 Wed 12:00 +1w>"), days = 8),
+        )
+        // The time belongs to each occurrence's own day.
+        val entries = SearchAgenda.build(listOf(note("Weekly", active = "<2025-05-28 Wed 12:00 +1w>")), today, 8)
+        assertEquals(listOf(java.time.LocalTime.of(12, 0), java.time.LocalTime.of(12, 0)), entries.map { it.entries.single().time })
+    }
+
+    @Test
     fun `a heading lands on its scheduled day, or its deadline when scheduled is past the window`() {
         assertEquals(
             listOf(

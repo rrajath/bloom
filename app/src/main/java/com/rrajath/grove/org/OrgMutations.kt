@@ -120,15 +120,15 @@ object OrgMutations {
     }
 
     /**
-     * Complete on a repeating bare active timestamp: among [h]'s dedicated
-     * active timestamps (the managed line [setActiveTimestamps] rewrites, not
-     * timestamps typed inline in prose), the one dated [date] gets
-     * [OrgTimestamp.advanceRepeater] applied to it; every other stamp on that
-     * line is left untouched. There is no keyword to preserve or transition
-     * here (a bare timestamp reminder is keyword-less by definition), so unlike
-     * [markDone] this never touches the heading line or logs a state change.
-     * Returns null when [date] doesn't match a dedicated stamp with a repeater
-     * -- nothing to advance.
+     * Complete on a repeating bare active timestamp: the stamp dated [date] gets
+     * [OrgTimestamp.advanceRepeater] applied to it and every other stamp is left
+     * untouched. A stamp on the dedicated line (the managed line
+     * [setActiveTimestamps] rewrites) is advanced through that writer; one typed
+     * inline in the body is advanced in place, the rest of its line kept
+     * byte-for-byte. There is no keyword to preserve or transition here (a bare
+     * timestamp reminder is keyword-less by definition), so unlike [markDone]
+     * this never touches the heading line or logs a state change. Returns null
+     * when no repeating stamp is dated [date] -- nothing to advance.
      */
     fun advanceActiveTimestamp(
         doc: OrgDocument,
@@ -137,11 +137,50 @@ object OrgMutations {
         now: LocalDateTime,
     ): String? {
         val stamps = h.dedicatedActiveTimestamps
-        val idx = stamps.indexOfFirst { it.date == date && it.repeater != null }
-        if (idx == -1) return null
-        val advanced = stamps.toMutableList()
-        advanced[idx] = advanced[idx].advanceRepeater(now)
-        return setActiveTimestamps(doc, h, advanced)
+        val idx = stamps.indexOfFirst { it.date == date && it.repeats }
+        if (idx != -1) {
+            val advanced = stamps.toMutableList()
+            advanced[idx] = advanced[idx].advanceRepeater(now)
+            return setActiveTimestamps(doc, h, advanced)
+        }
+        // Inline in the body: drawers and planning sit above bodyStart, so a
+        // SCHEDULED/DEADLINE sharing [date] is never picked up by mistake.
+        val lines = doc.lines.toMutableList()
+        for (i in h.bodyStart until minOf(h.contentEnd, lines.size)) {
+            val shifted = OrgTimestamp.shiftRepeaterOn(lines[i], date, now) ?: continue
+            lines[i] = shifted
+            return lines.joinToString("\n")
+        }
+        return null
+    }
+
+    /**
+     * Whether marking [h] done repeats it instead of closing it, decided the way
+     * Emacs's org-get-repeat does: any active timestamp in the entry (title,
+     * SCHEDULED/DEADLINE, the dedicated line, body, drawers) carries a non-zero
+     * repeater. A repeater only on a body timestamp counts as much as one on
+     * SCHEDULED.
+     */
+    fun isRepeating(doc: OrgDocument, h: OrgHeadline): Boolean =
+        entryLineRange(doc, h).any { i ->
+            OrgTimestamp.parseAll(doc.lines[i]).any { it.active && it.repeats }
+        }
+
+    /** The heading line through the last line before the next heading. */
+    private fun entryLineRange(doc: OrgDocument, h: OrgHeadline): IntRange =
+        h.lineIndex until minOf(h.contentEnd, doc.lines.size)
+
+    /**
+     * The keyword a repeating entry returns to after being marked done, per
+     * Emacs's org-auto-repeat-maybe: the heading's own `REPEAT_TO_STATE`
+     * property when it names a configured keyword, else the first active
+     * keyword of the sequence (so `NEXT` goes back to `TODO`). A heading with no
+     * keyword stays without one.
+     */
+    private fun repeatToState(doc: OrgDocument, h: OrgHeadline): String? {
+        h.properties["REPEAT_TO_STATE"]?.trim()?.takeIf { it in doc.keywords.all }?.let { return it }
+        if (h.keyword == null) return null
+        return doc.keywords.active.firstOrNull() ?: h.keyword
     }
 
     /**
@@ -175,11 +214,16 @@ object OrgMutations {
     }
 
     /**
-     * Mark done per org rules: a repeating SCHEDULED/DEADLINE advances its date
-     * and the keyword stays active; otherwise the keyword becomes [doneKeyword]
-     * and a CLOSED stamp is added. Leaving a todo-type keyword (or none) also
-     * logs a `- State` entry at the top of the LOGBOOK drawer; a done-to-done
-     * change (DONE to CANCELLED) only refreshes CLOSED.
+     * Mark done per org rules (Emacs's org-auto-repeat-maybe). A repeating entry
+     * ([isRepeating]: a repeater on any active timestamp in it, body ones
+     * included) is not closed: every repeating active timestamp shifts to its
+     * next date, a SCHEDULED without a repeater and any CLOSED stamp are
+     * dropped, the keyword returns to [repeatToState], and the transition is
+     * logged plus stamped as LAST_REPEAT. Otherwise the keyword becomes
+     * [doneKeyword] and a CLOSED stamp is added. Leaving a todo-type keyword (or
+     * none) also logs a `- State` entry at the top of the LOGBOOK drawer; a
+     * done-to-done change (DONE to CANCELLED) never repeats and only refreshes
+     * CLOSED.
      */
     fun markDone(
         doc: OrgDocument,
@@ -188,32 +232,32 @@ object OrgMutations {
         now: LocalDateTime,
     ): String {
         val today = now.toLocalDate()
-        val hasRepeater = h.planning.scheduled?.repeater != null || h.planning.deadline?.repeater != null
-        return if (hasRepeater) {
-            val advanced = writePlanning(
-                doc, h,
-                h.planning.copy(
-                    scheduled = h.planning.scheduled?.advanceRepeater(now),
-                    deadline = h.planning.deadline?.advanceRepeater(now),
-                ),
-            )
-            // The keyword itself stays unchanged for a repeater (org semantics),
-            // but the transition is still recorded, same as Emacs logging the
-            // DONE note before reverting the state back to TODO.
-            val doc1 = OrgParser.parse(advanced, doc.keywords)
-            val h1 = doc1.headlines.first { it.lineIndex == h.lineIndex }
+        val wasDone = h.keyword != null && doc.keywords.isDone(h.keyword)
+        return if (!wasDone && isRepeating(doc, h)) {
             val stamp = OrgTimestamp(today, time = now.toLocalTime().withSecond(0).withNano(0), active = false)
-            val logged = appendLogbookEntry(doc1, h1, logStateChangeLine(doneKeyword, h1.keyword ?: "", stamp))
-            val doc2 = OrgParser.parse(logged, doc.keywords)
-            val h2 = doc2.headlines.first { it.lineIndex == h.lineIndex }
-            upsertProperty(doc2, h2, "LAST_REPEAT", stamp.format())
+            fun reparse(text: String): Pair<OrgDocument, OrgHeadline> {
+                val d = OrgParser.parse(text, doc.keywords)
+                return d to d.headlines.first { it.lineIndex == h.lineIndex }
+            }
+            // The planning line sits below the heading, so dropping it never
+            // moves h.lineIndex: every step re-finds the heading by that line.
+            val planning = h.planning.copy(closed = null, scheduled = h.planning.scheduled?.takeIf { it.repeats })
+            val (doc1, h1) = reparse(if (planning != h.planning) writePlanning(doc, h, planning) else doc.text)
+            val lines = doc1.lines.toMutableList()
+            for (i in entryLineRange(doc1, h1)) lines[i] = OrgTimestamp.shiftRepeaters(lines[i], now)
+            val (doc2, h2) = reparse(lines.joinToString("\n"))
+            val toState = repeatToState(doc, h)
+            val (doc3, h3) = if (toState != h2.keyword) reparse(setKeyword(doc2, h2, toState)) else doc2 to h2
+            // Recorded as a transition to [doneKeyword] even though the keyword
+            // reverts, same as Emacs logging the DONE note on a repeat.
+            val (doc4, h4) = reparse(appendLogbookEntry(doc3, h3, logStateChangeLine(doneKeyword, h.keyword ?: "", stamp)))
+            upsertProperty(doc4, h4, "LAST_REPEAT", stamp.format())
         } else {
             val stamp = OrgTimestamp(today, time = now.toLocalTime().withSecond(0).withNano(0), active = false)
             val withClosed = writePlanning(doc, h, h.planning.copy(closed = stamp))
             val redoc = OrgParser.parse(withClosed, doc.keywords)
             val again = redoc.headlines.first { it.lineIndex == h.lineIndex }
             val withKeyword = setKeyword(redoc, again, doneKeyword)
-            val wasDone = h.keyword != null && doc.keywords.isDone(h.keyword)
             if (wasDone) return withKeyword
             val doc2 = OrgParser.parse(withKeyword, doc.keywords)
             val h2 = doc2.headlines.first { it.lineIndex == h.lineIndex }

@@ -1,6 +1,7 @@
 package com.rrajath.grove.ui.agenda
 
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.occurrenceCovering
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.settings.AgendaGrouping
 import com.rrajath.grove.settings.AgendaStateFilter
@@ -28,8 +29,9 @@ import kotlin.math.abs
  *
  * Bare active timestamps (`<2026-09-08 Mon>` in the body, no keyword) are the
  * exception: they are *events*, not plans. One heading with N active dates is
- * N separate agenda entries, each shown on its own day only ([activeEventsOn]),
- * and an event never ages into [overdue] the way a past SCHEDULED does.
+ * N separate agenda entries, each shown on its own day (and on every repeat of
+ * a repeating stamp) via [activeEventsOn], and an event never ages into
+ * [overdue] the way a past SCHEDULED does.
  */
 internal object AgendaBuckets {
 
@@ -63,15 +65,17 @@ internal object AgendaBuckets {
         notes.filter { whenDate(it) == day }
 
     /**
-     * The bare active timestamps whose span covers [day], paired with their
-     * heading — one pair per covering stamp, so a heading with two active dates
-     * on [day] yields two entries. These are the agenda's *events*: they show on
-     * every day they span and never contribute to [overdue].
+     * The bare active timestamps with an occurrence covering [day], paired with
+     * their heading — one pair per covering stamp, so a heading with two active
+     * dates on [day] yields two entries. These are the agenda's *events*: they
+     * show on every day they span, on every later repeat of a repeating stamp
+     * (`<… +1w>` recurs weekly from its date, as the Emacs agenda shows it; see
+     * [occurrenceCovering]), and never contribute to [overdue].
      */
     fun activeEventsOn(notes: List<NoteMeta>, day: LocalDate): List<Pair<NoteMeta, OrgTimestamp>> =
         notes.flatMap { m ->
             m.activeTimestamps
-                .filter { ts -> !day.isBefore(ts.date) && !day.isAfter(ts.rangeEnd ?: ts.date) }
+                .filter { ts -> ts.occurrenceCovering(day) != null }
                 .map { ts -> m to ts }
         }
 

@@ -203,6 +203,81 @@ data class OrgTimestamp(
         }
 
         /**
+         * [text] with every active timestamp that really repeats ([repeats])
+         * advanced per [advanceRepeater] at [now], and every other byte left
+         * exactly as it was. What Emacs's org-auto-repeat-maybe does to each
+         * repeating timestamp in an entry when it is marked done. A range's
+         * brackets each follow their own repeater, except that a closing bracket
+         * with none (how this app writes ranges: `<a +1w>--<b>`) moves by the
+         * opener's shift so the range keeps its length.
+         */
+        fun shiftRepeaters(text: String, now: LocalDateTime): String {
+            val sb = StringBuilder(text.length)
+            var offset = 0
+            while (offset < text.length) {
+                val (ts, range) = parseWithRange(text, offset) ?: break
+                sb.append(text, offset, range.first)
+                val shifted = shiftedAt(text, ts, range, now)
+                if (shifted != null) {
+                    sb.append(shifted.first)
+                    offset = shifted.second
+                } else {
+                    sb.append(text, range.first, range.last + 1)
+                    offset = range.last + 1
+                }
+            }
+            sb.append(text, offset, text.length)
+            return sb.toString()
+        }
+
+        /**
+         * [text] with only the first repeating active timestamp dated [date]
+         * advanced at [now] (its range's closing bracket too, as in
+         * [shiftRepeaters]), or null when [text] has no such stamp.
+         */
+        fun shiftRepeaterOn(text: String, date: LocalDate, now: LocalDateTime): String? {
+            var offset = 0
+            while (offset < text.length) {
+                val (ts, range) = parseWithRange(text, offset) ?: return null
+                if (ts.date == date) {
+                    shiftedAt(text, ts, range, now)?.let { (replacement, end) ->
+                        return text.substring(0, range.first) + replacement + text.substring(end)
+                    }
+                }
+                offset = range.last + 1
+            }
+            return null
+        }
+
+        /**
+         * The advanced text for the repeating active stamp [ts] matched at
+         * [range] in [text], plus the index just past what it replaces: the
+         * stamp alone, or the whole `<a>--<b>` when it opens a range. Null when
+         * [ts] doesn't repeat (a range's closer is handled with its opener).
+         */
+        private fun shiftedAt(
+            text: String,
+            ts: OrgTimestamp,
+            range: IntRange,
+            now: LocalDateTime,
+        ): Pair<String, Int>? {
+            if (!ts.active || !ts.repeats) return null
+            val advanced = ts.advanceRepeater(now)
+            val end = range.last + 1
+            if (text.regionMatches(end, "--", 0, 2)) {
+                val closerMatch = parseWithRange(text, end + 2)
+                    ?.takeIf { (closer, r) -> r.first == end + 2 && closer.active }
+                if (closerMatch != null) {
+                    val (closer, r) = closerMatch
+                    val newCloser = if (closer.repeats) closer.advanceRepeater(now)
+                    else closer.copy(date = closer.date.plusDays(ChronoUnit.DAYS.between(ts.date, advanced.date)))
+                    return advanced.format() + "--" + newCloser.format() to r.last + 1
+                }
+            }
+            return advanced.format() to end
+        }
+
+        /**
          * Every timestamp in [text], in order. When a match is immediately
          * followed by `--<…>` the two are paired into one ranged [OrgTimestamp]
          * ([rangeEnd] set from the second bracket's date). Used to scan an
@@ -243,16 +318,15 @@ data class OrgTimestamp(
  * [now]. Returns the timestamp unchanged if it has no repeater.
  */
 fun OrgTimestamp.advanceRepeater(now: LocalDateTime): OrgTimestamp {
-    val rep = repeater ?: return this
-    if (rep.unit == 'h' && time != null) return advanceHourRepeater(rep, time, now)
-    val today = now.toLocalDate()
-    fun LocalDate.plusUnit(n: Long): LocalDate = when (rep.unit) {
-        'd' -> plusDays(n)
-        'w' -> plusWeeks(n)
-        'm' -> plusMonths(n)
-        'y' -> plusYears(n)
-        else -> this // an hour repeater on a time-less stamp has no time to shift
+    // A zero interval is no repeater (Emacs), and would loop forever under `++`.
+    val rep = repeater?.takeIf { it.value > 0 } ?: return this
+    if (rep.unit == 'h') {
+        // A time-less stamp has no hour to shift (Emacs refuses with a user-error);
+        // leaving it alone also keeps `++` below from looping on a no-op step.
+        return if (time != null) advanceHourRepeater(rep, time, now) else this
     }
+    val today = now.toLocalDate()
+    fun LocalDate.plusUnit(n: Long): LocalDate = plusOrgUnits(n, rep.unit)
 
     val n = rep.value.toLong()
     val newDate = when (rep.type) {
@@ -266,6 +340,89 @@ fun OrgTimestamp.advanceRepeater(now: LocalDateTime): OrgTimestamp {
     }
     val dayDelta = ChronoUnit.DAYS.between(date, newDate)
     return copy(date = newDate, rangeEnd = rangeEnd?.plusDays(dayDelta))
+}
+
+/**
+ * This date moved by [n] repeater units of [unit] (`d`, `w`, `m`, `y`) the way
+ * Emacs does it: months and years keep the day of month and let one the target
+ * month lacks overflow into the next (Jan 31 + 1m = Mar 3, Feb 29 + 1y = Mar 1),
+ * where java.time's plusMonths/plusYears would clamp to the month's last day.
+ * Any other unit (an hour repeater) leaves the date unchanged.
+ */
+fun LocalDate.plusOrgUnits(n: Long, unit: Char): LocalDate = when (unit) {
+    'd' -> plusDays(n)
+    'w' -> plusWeeks(n)
+    'm' -> withDayOfMonth(1).plusMonths(n).plusDays(dayOfMonth - 1L)
+    'y' -> withDayOfMonth(1).plusYears(n).plusDays(dayOfMonth - 1L)
+    else -> this
+}
+
+/** Whether this stamp really repeats: Emacs treats a zero interval (`+0d`) as no repeater. */
+val OrgTimestamp.repeats: Boolean get() = (repeater?.value ?: 0) > 0
+
+/**
+ * The start date of this timestamp's occurrence that covers [day], or null when
+ * none does. A plain stamp covers its own date (through [OrgTimestamp.rangeEnd]
+ * for a range). A repeating one also covers every later occurrence, projected
+ * from [OrgTimestamp.date] the way the Emacs agenda does: `+`, `++` and `.+`
+ * all display alike (the type only matters when the entry is marked done),
+ * months and years overflow per [plusOrgUnits], and an hour repeater covers each
+ * day one of its hourly starts lands on. Never before the stamp's own date.
+ *
+ * Deliberate departure from the Emacs agenda, which shows a repeating range
+ * only once and ignores a repeater followed by a warning cookie (`+1w -1d`):
+ * both repeat here, matching what Emacs's own mark-done does to them. A range
+ * repeats as a block of the same length.
+ */
+fun OrgTimestamp.occurrenceCovering(day: LocalDate): LocalDate? {
+    if (day.isBefore(date)) return null
+    val span = rangeEnd?.let { ChronoUnit.DAYS.between(date, it).coerceAtLeast(0) } ?: 0L
+    val rep = repeater?.takeIf { it.value > 0 }
+        ?: return date.takeIf { !day.isAfter(date.plusDays(span)) }
+    if (rep.unit == 'h') return hourOccurrenceOn(rep.value.toLong(), day)
+    val step = rep.value.toLong()
+    // Index of the last occurrence starting on or before [day]: estimated from
+    // the calendar distance (est + 1 always starts after [day]), then walked down.
+    // Occurrences only move forward with n, overflowed month-ends included.
+    val est = when (rep.unit) {
+        'd' -> ChronoUnit.DAYS.between(date, day) / step
+        'w' -> ChronoUnit.WEEKS.between(date, day) / step
+        'm' -> ChronoUnit.MONTHS.between(date.withDayOfMonth(1), day.withDayOfMonth(1)) / step
+        'y' -> (day.year - date.year).toLong() / step
+        else -> return null
+    }
+    var n = est + 1
+    while (n >= 0) {
+        val start = date.plusOrgUnits(n * step, rep.unit)
+        if (!start.isAfter(day)) return start.takeIf { !day.isAfter(it.plusDays(span)) }
+        n--
+    }
+    return null
+}
+
+/** Whether any occurrence of this stamp ([occurrenceCovering]) touches a day in [from]..[to]. */
+fun OrgTimestamp.occursBetween(from: LocalDate, to: LocalDate): Boolean {
+    if (!repeats) return !date.isAfter(to) && !(rangeEnd ?: date).isBefore(from)
+    var day = maxOf(from, date)
+    while (!day.isAfter(to)) {
+        if (occurrenceCovering(day) != null) return true
+        day = day.plusDays(1)
+    }
+    return false
+}
+
+/**
+ * An hour repeater's agenda days: [day] counts when one of the starts
+ * `date time + k * hours` (k >= 0) falls on it. Every day for an interval of a
+ * day or less, every other day for `+48h`, and so on (Emacs's org-closest-date).
+ */
+private fun OrgTimestamp.hourOccurrenceOn(hours: Long, day: LocalDate): LocalDate? {
+    val start = LocalDateTime.of(date, time ?: LocalTime.MIDNIGHT)
+    val dayStart = day.atStartOfDay()
+    if (!dayStart.isAfter(start)) return day.takeIf { it == date }
+    val stepMinutes = hours * 60
+    val k = (ChronoUnit.MINUTES.between(start, dayStart) + stepMinutes - 1) / stepMinutes
+    return day.takeIf { start.plusMinutes(k * stepMinutes).toLocalDate() == day }
 }
 
 /**

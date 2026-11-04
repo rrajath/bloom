@@ -156,15 +156,114 @@ class OrgMutationsTest {
     }
 
     @Test
-    fun `advanceActiveTimestamp ignores a repeater typed inline in prose`() {
-        // Not on the dedicated first line, so there's no managed line to rewrite.
-        val doc = OrgParser.parse("* Standup\nSee you at <2025-06-09 Mon +1w>.\n")
+    fun `advanceActiveTimestamp advances a repeater typed inline in prose in place`() {
+        val doc = OrgParser.parse("* Standup\nSee you at <2025-06-09 Mon +1w>, room 4.\n")
         val h = doc.findByTitle("Standup")!!
-        assertNull(
-            OrgMutations.advanceActiveTimestamp(
-                doc, h, java.time.LocalDate.of(2025, 6, 9), LocalDateTime.of(2025, 6, 11, 9, 0),
-            )
+        val result = OrgMutations.advanceActiveTimestamp(
+            doc, h, java.time.LocalDate.of(2025, 6, 9), LocalDateTime.of(2025, 6, 11, 9, 0),
         )
+        assertEquals("* Standup\nSee you at <2025-06-16 Mon +1w>, room 4.\n", result)
+    }
+
+    @Test
+    fun `advanceActiveTimestamp never touches a SCHEDULED sharing the date`() {
+        val doc = OrgParser.parse("* Gym\nSCHEDULED: <2025-06-09 Mon +1d>\nLeg day <2025-06-09 Mon +1w>\n")
+        val h = doc.findByTitle("Gym")!!
+        val result = OrgMutations.advanceActiveTimestamp(
+            doc, h, java.time.LocalDate.of(2025, 6, 9), LocalDateTime.of(2025, 6, 11, 9, 0),
+        )
+        assertEquals("* Gym\nSCHEDULED: <2025-06-09 Mon +1d>\nLeg day <2025-06-16 Mon +1w>\n", result)
+    }
+
+    // --- markDone parity with Emacs org-auto-repeat-maybe (internal/emacs-date-parity) ---
+
+    private val nov4 = LocalDateTime.of(2026, 11, 4, 10, 0)
+
+    private fun doneText(text: String, title: String): String {
+        val d = OrgParser.parse(text)
+        return OrgMutations.markDone(d, d.findByTitle(title)!!, "DONE", nov4)
+    }
+
+    @Test
+    fun `markDone repeats a TODO whose only repeater is a body timestamp`() {
+        val result = doneText("* TODO Meeting\n<2026-10-28 Wed 12:00-14:00 +1w>\n", "Meeting")
+        val after = OrgParser.parse(result).findByTitle("Meeting")!!
+        assertEquals("TODO", after.keyword)
+        assertNull(after.planning.closed)
+        assertEquals(listOf("<2026-11-04 Wed 12:00-14:00 +1w>"), after.activeTimestamps.map { it.format() })
+        assertEquals("[2026-11-04 Wed 10:00]", after.properties["LAST_REPEAT"])
+    }
+
+    @Test
+    fun `markDone shifts every repeating stamp in the entry, leaving plain ones`() {
+        val result = doneText(
+            "* TODO Chores <2026-10-28 Wed +1w>\nSCHEDULED: <2026-10-21 Wed +1w>\n" +
+                "Bins <2026-10-29 Thu +1w>, dentist <2026-10-29 Thu>.\n",
+            "Chores <2026-10-28 Wed +1w>",
+        )
+        assertTrue(result, result.contains("* TODO Chores <2026-11-04 Wed +1w>"))
+        assertTrue(result, result.contains("SCHEDULED: <2026-10-28 Wed +1w>"))
+        assertTrue(result, result.contains("Bins <2026-11-05 Thu +1w>, dentist <2026-10-29 Thu>."))
+    }
+
+    @Test
+    fun `markDone drops a non-repeating SCHEDULED when a DEADLINE repeats`() {
+        val result = doneText(
+            "* TODO Report\nSCHEDULED: <2026-11-02 Mon> DEADLINE: <2026-11-06 Fri +1w>\n",
+            "Report",
+        )
+        val after = OrgParser.parse(result).findByTitle("Report")!!
+        assertNull(after.planning.scheduled)
+        assertEquals("<2026-11-13 Fri +1w>", after.planning.deadline!!.format())
+    }
+
+    @Test
+    fun `markDone drops a stale CLOSED on a repeating entry`() {
+        val result = doneText("* TODO Water\nSCHEDULED: <2026-11-04 Wed +1d> CLOSED: [2026-11-01 Sun 08:00]\n", "Water")
+        val after = OrgParser.parse(result).findByTitle("Water")!!
+        assertNull(after.planning.closed)
+        assertEquals("<2026-11-05 Thu +1d>", after.planning.scheduled!!.format())
+    }
+
+    @Test
+    fun `markDone returns a repeating NEXT to the first keyword of the sequence`() {
+        val text = "* NEXT Review\nSCHEDULED: <2026-11-04 Wed +1d>\n"
+        val d = OrgParser.parse(text, OrgKeywords.parse("TODO NEXT | DONE"))
+        val result = OrgMutations.markDone(d, d.findByTitle("Review")!!, "DONE", nov4)
+        assertEquals("TODO", OrgParser.parse(result, d.keywords).findByTitle("Review")!!.keyword)
+    }
+
+    @Test
+    fun `markDone honors REPEAT_TO_STATE`() {
+        val text = "* NEXT Review\nSCHEDULED: <2026-11-04 Wed +1d>\n:PROPERTIES:\n:REPEAT_TO_STATE: NEXT\n:END:\n"
+        val d = OrgParser.parse(text, OrgKeywords.parse("TODO NEXT | DONE"))
+        val result = OrgMutations.markDone(d, d.findByTitle("Review")!!, "DONE", nov4)
+        assertEquals("NEXT", OrgParser.parse(result, d.keywords).findByTitle("Review")!!.keyword)
+    }
+
+    @Test
+    fun `markDone shifts both ends of a repeating range`() {
+        val result = doneText("* TODO Trip\n<2026-10-29 Thu +1w>--<2026-10-30 Fri +1w>\n", "Trip")
+        assertTrue(result, result.contains("<2026-11-05 Thu +1w>--<2026-11-06 Fri +1w>"))
+        val opener = doneText("* TODO Trip\n<2026-10-29 Thu +1w>--<2026-10-30 Fri>\n", "Trip")
+        // A closer without its own repeater (how Bloom writes ranges) keeps the range length.
+        assertTrue(opener, opener.contains("<2026-11-05 Thu +1w>--<2026-11-06 Fri>"))
+    }
+
+    @Test
+    fun `markDone treats a zero-interval repeater as no repeater`() {
+        val result = doneText("* TODO Once\n<2026-11-04 Wed +0d>\n", "Once")
+        assertEquals("DONE", OrgParser.parse(result).findByTitle("Once")!!.keyword)
+    }
+
+    @Test
+    fun `done to done on a repeating entry does not repeat`() {
+        val text = "* DONE Water\nSCHEDULED: <2026-11-04 Wed +1d>\n"
+        val d = OrgParser.parse(text)
+        val result = OrgMutations.markDone(d, d.findByTitle("Water")!!, "CANCELLED", nov4)
+        val after = OrgParser.parse(result).findByTitle("Water")!!
+        assertEquals("CANCELLED", after.keyword)
+        assertEquals("<2026-11-04 Wed +1d>", after.planning.scheduled!!.format())
     }
 
     @Test

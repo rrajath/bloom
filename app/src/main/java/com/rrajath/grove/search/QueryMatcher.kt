@@ -1,6 +1,7 @@
 package com.rrajath.grove.search
 
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.occursBetween
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -129,9 +130,7 @@ object QueryMatcher {
         val horizon = agendaHorizon(today, days)
         if (note.scheduledDate?.isAfter(horizon) == false) return true
         if (note.deadlineDate?.isAfter(horizon) == false) return true
-        return note.activeTimestamps.any { ts ->
-            !ts.date.isAfter(horizon) && !(ts.rangeEnd ?: ts.date).isBefore(today)
-        }
+        return note.activeTimestamps.any { it.occursBetween(today, horizon) }
     }
 
     /** The last day `ad.[days]` covers: `ad.1` is today only (`ad.0` and below count as 1). */

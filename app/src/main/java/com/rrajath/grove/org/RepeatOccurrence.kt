@@ -6,7 +6,7 @@ import java.util.Locale
 
 /**
  * The date a recurring heading moved to when it was marked done: the earliest
- * repeating SCHEDULED / DEADLINE / dedicated active timestamp on [after] that
+ * repeating SCHEDULED / DEADLINE / body active timestamp on [after] that
  * [before] didn't already have. Null when nothing repeating was advanced (a plain,
  * non-recurring mark-done).
  */
@@ -14,8 +14,8 @@ fun nextRepeatOccurrence(before: OrgHeadline, after: OrgHeadline): LocalDate? =
     (after.repeatingDates() - before.repeatingDates().toSet()).minOrNull()
 
 private fun OrgHeadline.repeatingDates(): List<LocalDate> =
-    (listOfNotNull(planning.scheduled, planning.deadline) + dedicatedActiveTimestamps)
-        .filter { it.repeater != null }
+    (listOfNotNull(planning.scheduled, planning.deadline) + activeTimestamps)
+        .filter { it.repeats }
         .map { it.date }
 
 /**

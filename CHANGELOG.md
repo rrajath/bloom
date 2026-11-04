@@ -69,6 +69,10 @@ re-uploads the APKs to the existing release instead of failing.
 - Long or many tags no longer squeeze Outline titles; they follow the title's last line or wrap below it.
 - Read mode tag pills wrap onto more lines instead of running off screen.
 - The Agenda widget's Open tasks view showed nothing; lowercase `i.`, `ps.` and `b.` searches now match regardless of case.
+- Repeating bare timestamps like `<... +1w>` now appear on every occurrence in the Agenda, widget, and `ad.N` search.
+- Marking done a task whose repeater sits in its body now repeats it, like Emacs, instead of closing it.
+- Recurring tasks marked done return to the first TODO keyword (or `REPEAT_TO_STATE`) and drop a non-repeating SCHEDULED, like Emacs.
+- Monthly and yearly repeaters on the 29th to 31st advance like Emacs (Jan 31 +1m is Mar 3).
 
 
 ## [1.12.0] - 2026-10-31

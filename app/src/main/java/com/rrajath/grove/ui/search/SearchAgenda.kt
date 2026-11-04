@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.search
 
+import com.rrajath.grove.org.occurrenceCovering
+import com.rrajath.grove.org.repeats
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.search.QueryMatcher
 import com.rrajath.grove.ui.agenda.AgendaBuckets
@@ -47,10 +49,14 @@ internal object SearchAgenda {
             }
             for (ts in note.activeTimestamps) {
                 var day = maxOf(ts.date, today)
-                val last = minOf(ts.rangeEnd ?: ts.date, horizon)
+                // A repeating stamp recurs through the whole window; a plain one stops at its own end.
+                val last = if (ts.repeats) horizon else minOf(ts.rangeEnd ?: ts.date, horizon)
                 while (!day.isAfter(last)) {
-                    // A ranged event's time belongs to its first day only.
-                    byDay.getOrPut(day) { mutableListOf() } += Entry(note, ts.time.takeIf { day == ts.date })
+                    val start = ts.occurrenceCovering(day)
+                    if (start != null) {
+                        // A ranged event's time belongs to each occurrence's first day only.
+                        byDay.getOrPut(day) { mutableListOf() } += Entry(note, ts.time.takeIf { day == start })
+                    }
                     day = day.plusDays(1)
                 }
             }

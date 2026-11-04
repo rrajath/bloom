@@ -85,6 +85,19 @@ class AgendaBucketsTest {
     }
 
     @Test
+    fun `issue 97 a repeating bare timestamp is an event on every occurrence`() {
+        // <Wed 12:00-14:00 +1w> dated two weeks back: on today (Wed Jun 11) and
+        // every following Wednesday, but never on the days in between.
+        val meeting = note("Meeting", active = "<2025-05-28 Wed 12:00-14:00 +1w>")
+        listOf(LocalDate.of(2025, 6, 11), LocalDate.of(2025, 6, 18), LocalDate.of(2025, 7, 2)).forEach { day ->
+            assertEquals("$day", listOf("Meeting"), AgendaBuckets.activeEventsOn(listOf(meeting), day).map { it.first.title })
+        }
+        assertTrue(AgendaBuckets.activeEventsOn(listOf(meeting), LocalDate.of(2025, 6, 12)).isEmpty())
+        assertTrue(AgendaBuckets.activeEventsOn(listOf(meeting), LocalDate.of(2025, 5, 21)).isEmpty())
+        assertTrue(AgendaBuckets.overdue(listOf(meeting), today).isEmpty())
+    }
+
+    @Test
     fun `a past active date is never overdue`() {
         val past = note("Concert", active = "<2025-06-01 Sun>")
         assertTrue(AgendaBuckets.overdue(listOf(past), today).isEmpty())

@@ -3,6 +3,7 @@ package com.rrajath.grove.reminders
 import com.rrajath.grove.data.ReminderEntity
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.repeats
 import com.rrajath.grove.settings.ReminderLeadTime
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -81,20 +82,17 @@ object ReminderPlanning {
                 )
             }
             h.activeTimestamps.forEach { ts ->
-                // Only a repeater on the *dedicated* timestamp line (the one
-                // com.rrajath.grove.org.OrgMutations.advanceActiveTimestamp can
-                // rewrite) earns the Complete action; a repeater typed inline in
-                // prose has no managed line to rewrite, so it doesn't offer a
-                // button it can't honor.
-                val repeatsOnDedicatedLine = ts.repeater != null &&
-                    h.dedicatedActiveTimestamps.any { it.date == ts.date && it.repeater != null }
+                // A real repeater earns the Complete action, wherever the stamp
+                // sits: com.rrajath.grove.org.OrgMutations.advanceActiveTimestamp
+                // advances one on the dedicated line or typed inline in the body.
+                val repeats = ts.repeats
                 result.add(
                     entity(
                         fileName, path, h.title, h.level, PlanningType.ACTIVE, ts,
                         defaultReminderTime, leadTime, notifyUntimed, zone,
                         discriminator = ts.date.toString(),
                         isTask = isTask,
-                        hasRepeater = repeatsOnDedicatedLine,
+                        hasRepeater = repeats,
                         activeTimestampDate = ts.date.toString(),
                     )
                 )

@@ -674,4 +674,12 @@ class QueryMatcherTest {
         val far = note("Far", active = "<2025-06-30 Mon>")
         assertEquals(listOf("Soon", "Running"), run("ad.3", soon, running, past, far))
     }
+
+    @Test
+    fun `ad N includes a repeating event whose next occurrence falls in the window`() {
+        // Based on Wed May 28, weekly: recurs on Wed Jun 11 (today) and Jun 18.
+        val weekly = note("Weekly", active = "<2025-05-28 Wed +1w>")
+        val monthly = note("Monthly", active = "<2025-05-20 Tue +1m>")
+        assertEquals(listOf("Weekly"), run("ad.3", weekly, monthly))
+    }
 }

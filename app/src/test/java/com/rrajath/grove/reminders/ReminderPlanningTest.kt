@@ -189,8 +189,16 @@ class ReminderPlanningTest {
     }
 
     @Test
-    fun `a repeater typed inline in prose is not flagged hasRepeater`() {
+    fun `a repeater typed inline in prose is flagged hasRepeater too`() {
+        // advanceActiveTimestamp can rewrite an inline stamp in place, so Complete works for it.
         val doc = OrgParser.parse("* Standup\nSee you at <2026-07-24 Fri +1w>.\n")
+        val row = ReminderPlanning.desiredReminders("a.org", doc, nineAm, remindersEnabled = true, zone = zone).single()
+        assertEquals(true, row.hasRepeater)
+    }
+
+    @Test
+    fun `a zero-interval repeater is not flagged hasRepeater`() {
+        val doc = OrgParser.parse("* Holiday\n<2026-07-24 Fri +0d>\n")
         val row = ReminderPlanning.desiredReminders("a.org", doc, nineAm, remindersEnabled = true, zone = zone).single()
         assertEquals(false, row.hasRepeater)
     }
