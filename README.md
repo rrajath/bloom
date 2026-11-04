@@ -111,8 +111,8 @@ Results land in `macrobenchmark/build/outputs/connected_android_test_additional_
 ## Roadmap
 Following is the list of features/enhancements I'm planning to make to this app:
 - [ ] Image support
-- [ ] Nested search expressions
 - [ ] WebDAV support
+- [x] Nested search expressions
 - [x] Clickable org links
 - [x] Tips & Tricks page
 - [x] What's New screen (Settings › About)
