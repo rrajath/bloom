@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -105,24 +106,57 @@ import kotlin.math.roundToInt
  * org file and parsed document the links sit in, the vault store, the status
  * cache, and the image-width setting. Null (no provider) means attachments are
  * off and links render as plain links, exactly as before.
+ *
+ * The document, preferred lines and callbacks are read through sources at the
+ * time they're used, so a reparse (every save or sync) or a new callback
+ * lambda doesn't make a new context; a new context would restart every image
+ * and chip lookup on screen and reset the chips' missing state.
  */
 @Stable
 class AttachmentRenderContext(
     val orgFile: String,
-    val doc: OrgDocument?,
+    private val docSource: () -> OrgDocument?,
     val store: FileStore,
     val cache: AttachmentStatusCache,
     val widthMode: AttachImageWidth,
     val fixedWidthPx: Int,
-    /** Lines of the note on screen; a repeated chip link resolves against these first. */
-    val preferLines: IntRange?,
-    /** Opens a link target the way a link tap does (the Open with chooser). */
-    val openTarget: (String) -> Unit,
-    /** Opens a present image in the 1h viewer: (vault path, filename). Null falls back to [openTarget]. */
-    val openImage: ((path: String, name: String) -> Unit)? = null,
-    val toast: (String) -> Unit,
+    private val preferLinesSource: () -> IntRange?,
+    private val openTargetSource: () -> (String) -> Unit,
+    private val openImageSource: () -> ((path: String, name: String) -> Unit)?,
+    private val toastSource: () -> (String) -> Unit,
     private val io: CoroutineDispatcher,
 ) {
+    /** A context over fixed values (tests, previews). */
+    constructor(
+        orgFile: String,
+        doc: OrgDocument?,
+        store: FileStore,
+        cache: AttachmentStatusCache,
+        widthMode: AttachImageWidth,
+        fixedWidthPx: Int,
+        preferLines: IntRange?,
+        openTarget: (String) -> Unit,
+        openImage: ((path: String, name: String) -> Unit)? = null,
+        toast: (String) -> Unit,
+        io: CoroutineDispatcher,
+    ) : this(
+        orgFile, { doc }, store, cache, widthMode, fixedWidthPx,
+        { preferLines }, { openTarget }, { openImage }, { toast }, io,
+    )
+
+    val doc: OrgDocument? get() = docSource()
+
+    /** Lines of the note on screen; a repeated chip link resolves against these first. */
+    val preferLines: IntRange? get() = preferLinesSource()
+
+    /** Opens a link target the way a link tap does (the Open with chooser). */
+    val openTarget: (String) -> Unit get() = openTargetSource()
+
+    /** Opens a present image in the 1h viewer: (vault path, filename). Null falls back to [openTarget]. */
+    val openImage: ((path: String, name: String) -> Unit)? get() = openImageSource()
+
+    val toast: (String) -> Unit get() = toastSource()
+
     private val resolver = AttachmentResolver(AttachmentLookup(AttachmentFiles(store)), cache)
 
     suspend fun status(link: LocalAttachment, rawTarget: String, docLine: Int?): AttachmentStatus =
@@ -217,18 +251,24 @@ fun ProvideAttachmentRendering(
     val prefs = settings
     if (s == null || prefs == null) return content()
     val cache = app.attachmentStatusCache
-    val ctx = remember(orgFile, doc, s, prefs.attachImageWidth, prefs.attachImageWidthPx, preferLines, openTarget, openImage, toast) {
+    // Read at use time, not remember keys: see AttachmentRenderContext.
+    val docState = rememberUpdatedState(doc)
+    val preferLinesState = rememberUpdatedState(preferLines)
+    val openTargetState = rememberUpdatedState(openTarget)
+    val openImageState = rememberUpdatedState(openImage)
+    val toastState = rememberUpdatedState(toast)
+    val ctx = remember(orgFile, s, cache, prefs.attachImageWidth, prefs.attachImageWidthPx) {
         AttachmentRenderContext(
             orgFile = orgFile,
-            doc = doc,
+            docSource = { docState.value },
             store = s,
             cache = cache,
             widthMode = prefs.attachImageWidth,
             fixedWidthPx = prefs.attachImageWidthPx,
-            preferLines = preferLines,
-            openTarget = openTarget,
-            openImage = openImage,
-            toast = toast,
+            preferLinesSource = { preferLinesState.value },
+            openTargetSource = { openTargetState.value },
+            openImageSource = { openImageState.value },
+            toastSource = { toastState.value },
             io = app.dispatchers.io,
         )
     }
