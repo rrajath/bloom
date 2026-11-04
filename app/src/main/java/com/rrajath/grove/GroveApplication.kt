@@ -277,7 +277,10 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     private val attachmentStatusCacheLazy = lazy {
         com.rrajath.grove.attach.AttachmentStatusCache().also { cache ->
             appScope.launch {
-                syncManager.lastResult.drop(1).collect { cache.invalidateMissing() }
+                syncManager.lastResult.drop(1).collect {
+                    fileStore.value?.dropRawSnapshots()
+                    cache.invalidateMissing()
+                }
             }
         }
     }
@@ -630,7 +633,10 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
                 // changed: re-arm so existing alarms switch exact/inexact.
                 appScope.launch { exactAlarmAccessWatcher.check() }
                 // Attachments may have changed while we were away; re-check them.
-                if (attachmentStatusCacheLazy.isInitialized()) attachmentStatusCache.clear()
+                if (attachmentStatusCacheLazy.isInitialized()) {
+                    fileStore.value?.dropRawSnapshots()
+                    attachmentStatusCache.clear()
+                }
             }
 
             override fun onStop(owner: LifecycleOwner) {

@@ -147,6 +147,14 @@ interface FileStore {
 
     /** A content URI for the file [name] to hand to intents and image loaders; null when there's none. */
     suspend fun contentUri(name: String): Uri? = null
+
+    /**
+     * Forget short-lived raw lookup snapshots (recent directory listings and
+     * just-verified ids), so the next raw lookup asks the provider. Called when
+     * files may have changed outside the store: a finished sync, the app
+     * returning to the foreground.
+     */
+    fun dropRawSnapshots() {}
 }
 
 private fun unsupported(): Nothing =

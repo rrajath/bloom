@@ -121,6 +121,43 @@ class SafFileStoreAttachmentsTest {
     }
 
     @Test
+    fun `misses in one directory share a recent listing`() = runTest {
+        write("data/3F/2504E0/present.jpg")
+        var clock = 0L
+        val provider = FakeDocumentsProvider.install(tmp.root, FakeDocumentsProvider.OPAQUE_AUTHORITY)
+        val saf = SafFileStore(
+            context, FakeDocumentsProvider.treeUri(FakeDocumentsProvider.OPAQUE_AUTHORITY),
+            skipAttachShards = true, now = { clock },
+        )
+        assertNotNull(saf.statRaw("data/3F/2504E0/present.jpg"))
+        provider.queries.set(0)
+        assertNull(saf.statRaw("data/3F/2504E0/gone-0.jpg"))
+        val firstMiss = provider.queries.get()
+        provider.queries.set(0)
+        repeat(5) { assertNull(saf.statRaw("data/3F/2504E0/gone-${it + 1}.jpg")) }
+        // The parent's listing answers the later misses, and a missing parent's
+        // children are missing too.
+        assertNull(saf.statRaw("data/3F/nope/x.jpg"))
+        assertEquals("first miss cost $firstMiss", 0, provider.queries.get())
+
+        // Our own writes drop the listing, so a new file is found at once.
+        assertTrue(saf.createBinary("data/3F/2504E0/gone-1.jpg"))
+        assertNotNull(saf.statRaw("data/3F/2504E0/gone-1.jpg"))
+
+        // A file added from outside shows up once the window has passed...
+        assertNull(saf.statRaw("data/3F/2504E0/later.jpg"))
+        write("data/3F/2504E0/later.jpg")
+        assertNull(saf.statRaw("data/3F/2504E0/later.jpg"))
+        clock += RAW_FRESH_MS + 1
+        assertNotNull(saf.statRaw("data/3F/2504E0/later.jpg"))
+        // ...or right after a sync drops the snapshots.
+        assertNull(saf.statRaw("data/3F/2504E0/later2.jpg"))
+        write("data/3F/2504E0/later2.jpg")
+        saf.dropRawSnapshots()
+        assertNotNull(saf.statRaw("data/3F/2504E0/later2.jpg"))
+    }
+
+    @Test
     fun `a deleted file is not opened from a stale id`() = runTest {
         write("data/3F/2504E0/photo.jpg")
         val (saf, _) = store()
@@ -183,6 +220,8 @@ class SafFileStoreAttachmentsTest {
         saf.list()
         assertFalse(saf.dirExists("data/AB/CD"))
         write("data/AB/CD/late.png")
+        // A finished sync (or the app coming back) drops the recent listing.
+        saf.dropRawSnapshots()
         assertTrue(saf.dirExists("data/AB/CD"))
         assertEquals(1L, saf.statRaw("data/AB/CD/late.png")?.size)
     }
