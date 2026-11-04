@@ -75,6 +75,7 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.vault.OutlineToast
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -130,21 +131,35 @@ fun AttachmentViewerScreen(
     val app = context.applicationContext as? GroveApplication
     val store by remember(app) { app?.fileStore ?: MutableStateFlow(null) }.collectAsState()
     var uri by remember(path) { mutableStateOf<Uri?>(null) }
+    var placeholderKey by remember(path) { mutableStateOf<String?>(null) }
     var missing by remember(path) { mutableStateOf(false) }
     LaunchedEffect(store, path) {
         val s = store ?: return@LaunchedEffect
         val io = app?.dispatchers?.io ?: return@LaunchedEffect
         // contentUri() goes through the raw-file lookup and is null when the file
         // is gone. Not exists(): on SAF that only sees the .org note index, so
-        // every attachment would read as missing.
-        val found = withContext(io) { runCatching { s.contentUri(path) }.getOrNull() }
-        uri = found
-        missing = found == null
+        // every attachment would read as missing. The stat runs alongside it and
+        // only feeds the placeholder key, so it never delays the image.
+        val found = withContext(io) {
+            val entry = async { runCatching { s.statRaw(path) }.getOrNull() }
+            val u = runCatching { s.contentUri(path) }.getOrNull()
+            u to entry.await()
+        }
+        placeholderKey = found.second?.let(::attachmentMemoryCacheKey)
+        uri = found.first
+        missing = found.first == null
     }
     ViewerSystemBars(appIsDark = MaterialTheme.grove.isDark)
 
-    val request = remember(uri) {
-        uri?.let { ImageRequest.Builder(context).data(it).build() }
+    val request = remember(uri, placeholderKey) {
+        uri?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                // The inline image's decoded bitmap, if it's still in memory, is
+                // the first frame while the full image loads.
+                .placeholderMemoryCacheKey(placeholderKey)
+                .build()
+        }
     }
 
     suspend fun handOff(share: Boolean): String? {

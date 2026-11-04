@@ -437,8 +437,7 @@ fun AttachmentImage(
                         val request = remember(u, st.entry) {
                             ImageRequest.Builder(context)
                                 .data(u)
-                                // Path + mtime + size, so an edited file isn't served stale.
-                                .memoryCacheKey("${st.path}:${st.entry.lastModified}:${st.entry.size}")
+                                .memoryCacheKey(attachmentMemoryCacheKey(st.entry))
                                 // First frame only; the viewer animates.
                                 .apply { if (gif) decoderFactory(BitmapFactoryDecoder.Factory()) }
                                 .build()
@@ -730,3 +729,10 @@ fun AttachmentChip(link: LocalAttachment, label: String, missing: Boolean) {
         )
     }
 }
+
+/**
+ * Coil memory-cache key for an attachment image: path + mtime + size, so an
+ * edited file isn't served stale. The viewer passes it as its placeholder key
+ * to show the inline bitmap while the full image loads.
+ */
+fun attachmentMemoryCacheKey(entry: FileEntry): String = "${entry.name}:${entry.lastModified}:${entry.size}"
