@@ -11,6 +11,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -419,6 +421,18 @@ class SettingsRepository(
     }
 
     /**
+     * Every write goes through here. DataStore runs the transform in the *caller's*
+     * context (dispatcher + Job), on its single serial write actor, and the store
+     * is a process-wide singleton. A caller on a dispatcher that stops running
+     * with a write in flight would park that actor forever and hang every later
+     * write in the process (seen in the Robolectric suite, where a finished test's
+     * TestDispatcher is never advanced again). Hopping to [Dispatchers.IO] first
+     * makes the captured caller context one that always runs.
+     */
+    private suspend fun editSettings(transform: suspend (MutablePreferences) -> Unit): Preferences =
+        withContext(Dispatchers.IO) { context.settingsDataStore.edit(transform) }
+
+    /**
      * Shared, hot: one `GroveSettings` build per DataStore write, fanned out to all
      * ~40 collectors, instead of each collector re-running the (non-trivial) mapper.
      * `replay = 1` with no seed value preserves the "nothing until the first read"
@@ -580,7 +594,7 @@ class SettingsRepository(
      * travel with an export (see [SettingsSerialization]).
      */
     suspend fun applyImported(s: GroveSettings) {
-        context.settingsDataStore.edit { p ->
+        editSettings { p ->
             writeThemeSelection(p, s.themeSelection)
             p[Keys.syncAppIconWithTheme] = s.syncAppIconWithTheme
             p[Keys.appFontSize] = s.appFontSize.storageKey
@@ -659,7 +673,7 @@ class SettingsRepository(
      * yet, and writing one slot alone would leave the legacy key in charge.
      */
     suspend fun updateThemeSelection(transform: (ThemeSelection) -> ThemeSelection) {
-        context.settingsDataStore.edit { writeThemeSelection(it, transform(readThemeSelection(it))) }
+        editSettings { writeThemeSelection(it, transform(readThemeSelection(it))) }
     }
 
     private fun readThemeSelection(prefs: Preferences): ThemeSelection =
@@ -681,31 +695,31 @@ class SettingsRepository(
     }
 
     suspend fun setSyncAppIconWithTheme(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.syncAppIconWithTheme] = enabled }
+        editSettings { it[Keys.syncAppIconWithTheme] = enabled }
     }
 
     suspend fun setAppFontSize(fontSize: FontSizePreference) {
-        context.settingsDataStore.edit { it[Keys.appFontSize] = fontSize.storageKey }
+        editSettings { it[Keys.appFontSize] = fontSize.storageKey }
     }
 
     suspend fun setReadModeFontSize(fontSize: FontSizePreference) {
-        context.settingsDataStore.edit { it[Keys.readModeFontSize] = fontSize.storageKey }
+        editSettings { it[Keys.readModeFontSize] = fontSize.storageKey }
     }
 
     suspend fun setEditModeFontSize(fontSize: FontSizePreference) {
-        context.settingsDataStore.edit { it[Keys.editModeFontSize] = fontSize.storageKey }
+        editSettings { it[Keys.editModeFontSize] = fontSize.storageKey }
     }
 
     suspend fun setDefaultNoteOpenMode(mode: NoteOpenMode) {
-        context.settingsDataStore.edit { it[Keys.noteOpenMode] = mode.storageKey }
+        editSettings { it[Keys.noteOpenMode] = mode.storageKey }
     }
 
     suspend fun setNewNoteCursor(cursor: NewNoteCursor) {
-        context.settingsDataStore.edit { it[Keys.newNoteCursor] = cursor.storageKey }
+        editSettings { it[Keys.newNoteCursor] = cursor.storageKey }
     }
 
     suspend fun setAutoSaveNotes(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.autoSaveNotes] = enabled }
+        editSettings { it[Keys.autoSaveNotes] = enabled }
     }
 
     /**
@@ -717,7 +731,7 @@ class SettingsRepository(
      * `lastSeenChangelogBuild == null` and wrongly pops the modal.
      */
     suspend fun setOnboardingDone(done: Boolean, seenChangelogBuild: Int? = null) {
-        context.settingsDataStore.edit {
+        editSettings {
             // Pin the fresh-install default before flipping the flag: an unset
             // theme on an onboarded install reads as the legacy default instead.
             if (done && it[Keys.themeMode] == null && it[Keys.legacyTheme] == null) {
@@ -729,15 +743,15 @@ class SettingsRepository(
     }
 
     suspend fun setLastSeenChangelogBuild(build: Int) {
-        context.settingsDataStore.edit { it[Keys.lastSeenChangelogBuild] = build }
+        editSettings { it[Keys.lastSeenChangelogBuild] = build }
     }
 
     suspend fun setExactAlarmAccessLastKnown(granted: Boolean) {
-        context.settingsDataStore.edit { it[Keys.exactAlarmAccessLastKnown] = granted }
+        editSettings { it[Keys.exactAlarmAccessLastKnown] = granted }
     }
 
     suspend fun markExactAlarmPromptHandled() {
-        context.settingsDataStore.edit { it[Keys.exactAlarmPromptHandled] = true }
+        editSettings { it[Keys.exactAlarmPromptHandled] = true }
     }
 
     /**
@@ -750,7 +764,7 @@ class SettingsRepository(
      * misses this one release's badges — the same tradeoff the What's New check makes.)
      */
     suspend fun ensureNewBadgeBaseline(currentBuild: Int) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             if (prefs[Keys.newBadgeBaseline] == null) {
                 prefs[Keys.newBadgeBaseline] = prefs[Keys.lastSeenChangelogBuild] ?: currentBuild
             }
@@ -760,7 +774,7 @@ class SettingsRepository(
     /** Retire the badges for [ids] — the user has reached those features. */
     suspend fun markNewFeaturesSeen(ids: Collection<String>) {
         if (ids.isEmpty()) return
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             val merged = decodeStringSet(prefs[Keys.seenNewFeatures]) + ids
             prefs[Keys.seenNewFeatures] = merged.joinToString(";")
         }
@@ -768,78 +782,78 @@ class SettingsRepository(
 
     /** Debug only: re-arm every NEW badge (clear the seen set, drop the baseline to 0). */
     suspend fun resetNewBadges() {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             prefs.remove(Keys.seenNewFeatures)
             prefs[Keys.newBadgeBaseline] = 0
         }
     }
 
     suspend fun setVaultTreeUri(uri: String) {
-        context.settingsDataStore.edit { it[Keys.vaultTreeUri] = uri }
+        editSettings { it[Keys.vaultTreeUri] = uri }
     }
 
     suspend fun setSyncMode(mode: SyncMode) {
-        context.settingsDataStore.edit { it[Keys.syncMode] = mode.storageKey }
+        editSettings { it[Keys.syncMode] = mode.storageKey }
     }
 
     suspend fun setPeriodicSyncMinutes(minutes: Int) {
-        context.settingsDataStore.edit { it[Keys.periodicSyncMinutes] = minutes }
+        editSettings { it[Keys.periodicSyncMinutes] = minutes }
     }
 
     suspend fun setTodoKeywords(config: String) {
-        context.settingsDataStore.edit { it[Keys.todoKeywords] = config }
+        editSettings { it[Keys.todoKeywords] = config }
     }
 
     suspend fun setIgnoreList(value: String) {
-        context.settingsDataStore.edit { it[Keys.ignoreList] = value }
+        editSettings { it[Keys.ignoreList] = value }
     }
 
     suspend fun markIgnoreListImportCheckDone() {
-        context.settingsDataStore.edit { it[Keys.ignoreListImportCheckDone] = true }
+        editSettings { it[Keys.ignoreListImportCheckDone] = true }
     }
 
     /** Debug only (Settings › Developer): flip the one-time import-check flag back to re-trigger it. */
     suspend fun setIgnoreListImportCheckDone(value: Boolean) {
-        context.settingsDataStore.edit { it[Keys.ignoreListImportCheckDone] = value }
+        editSettings { it[Keys.ignoreListImportCheckDone] = value }
     }
 
     suspend fun setIgnoreListImportedFromFile(value: Boolean) {
-        context.settingsDataStore.edit { it[Keys.ignoreListImportedFromFile] = value }
+        editSettings { it[Keys.ignoreListImportedFromFile] = value }
     }
 
     suspend fun setIgnoreListLegacyFileEmpty(value: Boolean) {
-        context.settingsDataStore.edit { it[Keys.ignoreListLegacyFileEmpty] = value }
+        editSettings { it[Keys.ignoreListLegacyFileEmpty] = value }
     }
 
     suspend fun setDefaultPriority(priority: Char?) {
-        context.settingsDataStore.edit {
+        editSettings {
             if (priority == null) it.remove(Keys.defaultPriority)
             else it[Keys.defaultPriority] = priority.toString()
         }
     }
 
     suspend fun setAddIdToNewNotes(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.addIdToNewNotes] = enabled }
+        editSettings { it[Keys.addIdToNewNotes] = enabled }
     }
 
     suspend fun setAddCreatedToNewNotes(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.addCreatedToNewNotes] = enabled }
+        editSettings { it[Keys.addCreatedToNewNotes] = enabled }
     }
 
     suspend fun setCaptureNotification(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.captureNotification] = enabled }
+        editSettings { it[Keys.captureNotification] = enabled }
     }
 
     suspend fun setShareTargetFile(fileName: String) {
-        context.settingsDataStore.edit { it[Keys.shareTargetFile] = fileName }
+        editSettings { it[Keys.shareTargetFile] = fileName }
     }
 
     suspend fun setFetchSharedLinkTitles(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.fetchSharedLinkTitles] = enabled }
+        editSettings { it[Keys.fetchSharedLinkTitles] = enabled }
     }
 
     suspend fun setOutlineToggle(key: OutlineToggle, enabled: Boolean) {
-        context.settingsDataStore.edit {
+        editSettings {
             it[
                 when (key) {
                     OutlineToggle.TAGS -> Keys.showTagsInOutline
@@ -851,115 +865,115 @@ class SettingsRepository(
     }
 
     suspend fun setShowPreface(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.showPreface] = enabled }
+        editSettings { it[Keys.showPreface] = enabled }
     }
 
     suspend fun setShowPropertyDrawers(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.showPropertyDrawers] = enabled }
+        editSettings { it[Keys.showPropertyDrawers] = enabled }
     }
 
     suspend fun setNotebookDisplayNameMode(mode: NotebookDisplayNameMode) {
-        context.settingsDataStore.edit { it[Keys.notebookDisplayNameMode] = mode.storageKey }
+        editSettings { it[Keys.notebookDisplayNameMode] = mode.storageKey }
     }
 
     suspend fun setShowNotebookFileIcons(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.showNotebookFileIcons] = enabled }
+        editSettings { it[Keys.showNotebookFileIcons] = enabled }
     }
 
     suspend fun setFlattenNotebookFolders(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.flattenNotebookFolders] = enabled }
+        editSettings { it[Keys.flattenNotebookFolders] = enabled }
     }
 
     suspend fun setNotebookSortKey(key: NotebookSortKey) {
-        context.settingsDataStore.edit { it[Keys.notebookSortKey] = key.storageKey }
+        editSettings { it[Keys.notebookSortKey] = key.storageKey }
     }
 
     suspend fun setNotebookSortAscending(ascending: Boolean) {
-        context.settingsDataStore.edit { it[Keys.notebookSortAscending] = ascending }
+        editSettings { it[Keys.notebookSortAscending] = ascending }
     }
 
     suspend fun setRemindersEnabled(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.remindersEnabled] = enabled }
+        editSettings { it[Keys.remindersEnabled] = enabled }
     }
 
     suspend fun setMorningBriefEnabled(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.morningBriefEnabled] = enabled }
+        editSettings { it[Keys.morningBriefEnabled] = enabled }
     }
 
     suspend fun setNotifyUntimedTasks(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.notifyUntimedTasks] = enabled }
+        editSettings { it[Keys.notifyUntimedTasks] = enabled }
     }
 
     suspend fun setDefaultReminderTime(time: LocalTime) {
-        context.settingsDataStore.edit { it[Keys.defaultReminderTime] = encodeTime(time) }
+        editSettings { it[Keys.defaultReminderTime] = encodeTime(time) }
     }
 
     suspend fun setReminderLeadTime(leadTime: ReminderLeadTime) {
-        context.settingsDataStore.edit { it[Keys.reminderLeadTime] = leadTime.storageKey }
+        editSettings { it[Keys.reminderLeadTime] = leadTime.storageKey }
     }
 
     suspend fun setAgendaSwipeLeftAction(action: AgendaSwipeAction) {
-        context.settingsDataStore.edit { it[Keys.agendaSwipeLeftAction] = action.storageKey }
+        editSettings { it[Keys.agendaSwipeLeftAction] = action.storageKey }
     }
 
     suspend fun setAgendaSwipeRightAction(action: AgendaSwipeAction) {
-        context.settingsDataStore.edit { it[Keys.agendaSwipeRightAction] = action.storageKey }
+        editSettings { it[Keys.agendaSwipeRightAction] = action.storageKey }
     }
 
     suspend fun setAgendaGroupingToday(grouping: AgendaGrouping) {
-        context.settingsDataStore.edit { it[Keys.agendaGroupingToday] = grouping.storageKey }
+        editSettings { it[Keys.agendaGroupingToday] = grouping.storageKey }
     }
 
     suspend fun setAgendaGroupingUpcoming(grouping: AgendaGrouping) {
-        context.settingsDataStore.edit { it[Keys.agendaGroupingUpcoming] = grouping.storageKey }
+        editSettings { it[Keys.agendaGroupingUpcoming] = grouping.storageKey }
     }
 
     suspend fun setAgendaStateFilterToday(filter: AgendaStateFilter) {
-        context.settingsDataStore.edit { it[Keys.agendaStateFilterToday] = filter.storageKey }
+        editSettings { it[Keys.agendaStateFilterToday] = filter.storageKey }
     }
 
     suspend fun setAgendaStateFilterUpcoming(filter: AgendaStateFilter) {
-        context.settingsDataStore.edit { it[Keys.agendaStateFilterUpcoming] = filter.storageKey }
+        editSettings { it[Keys.agendaStateFilterUpcoming] = filter.storageKey }
     }
 
     suspend fun setAgendaShowTags(show: Boolean) {
-        context.settingsDataStore.edit { it[Keys.agendaShowTags] = show }
+        editSettings { it[Keys.agendaShowTags] = show }
     }
 
     suspend fun setAgendaShowFile(show: Boolean) {
-        context.settingsDataStore.edit { it[Keys.agendaShowFile] = show }
+        editSettings { it[Keys.agendaShowFile] = show }
     }
 
     suspend fun setAgendaShowTimestamps(show: Boolean) {
-        context.settingsDataStore.edit { it[Keys.agendaShowTimestamps] = show }
+        editSettings { it[Keys.agendaShowTimestamps] = show }
     }
 
     suspend fun setAgendaWidgetTransparency(transparency: Float) {
-        context.settingsDataStore.edit { it[Keys.agendaWidgetTransparency] = transparency.coerceIn(0f, 1f) }
+        editSettings { it[Keys.agendaWidgetTransparency] = transparency.coerceIn(0f, 1f) }
     }
 
     suspend fun setAgendaWidgetDaysAhead(days: Int) {
-        context.settingsDataStore.edit { it[Keys.agendaWidgetDaysAhead] = days.coerceAtLeast(2) }
+        editSettings { it[Keys.agendaWidgetDaysAhead] = days.coerceAtLeast(2) }
     }
 
     suspend fun setAgendaWidgetShowFileName(show: Boolean) {
-        context.settingsDataStore.edit { it[Keys.agendaWidgetShowFileName] = show }
+        editSettings { it[Keys.agendaWidgetShowFileName] = show }
     }
 
     suspend fun setAgendaWidgetShowTags(show: Boolean) {
-        context.settingsDataStore.edit { it[Keys.agendaWidgetShowTags] = show }
+        editSettings { it[Keys.agendaWidgetShowTags] = show }
     }
 
     suspend fun setAgendaWidgetShowPriority(show: Boolean) {
-        context.settingsDataStore.edit { it[Keys.agendaWidgetShowPriority] = show }
+        editSettings { it[Keys.agendaWidgetShowPriority] = show }
     }
 
     suspend fun setAgendaWidgetFontSize(fontSize: FontSizePreference) {
-        context.settingsDataStore.edit { it[Keys.agendaWidgetFontSize] = fontSize.storageKey }
+        editSettings { it[Keys.agendaWidgetFontSize] = fontSize.storageKey }
     }
 
     suspend fun setQuickAddTarget(fileName: String, headingPath: List<String>) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             prefs[Keys.quickAddTargetFile] = fileName
             prefs[Keys.quickAddHeadingPath] = headingPath.joinToString("/")
         }
@@ -967,65 +981,65 @@ class SettingsRepository(
 
     /** Replace the whole expanded-folder set (expand-all / collapse-all). */
     suspend fun setExpandedFolders(dirs: Set<String>) {
-        context.settingsDataStore.edit { it[Keys.expandedFolders] = dirs.joinToString(";") }
+        editSettings { it[Keys.expandedFolders] = dirs.joinToString(";") }
     }
 
     /** First-open heuristic result: seed the expanded set and mark the pass done, in one write. */
     suspend fun applyNotebooksTreeDefaults(expanded: Set<String>) {
-        context.settingsDataStore.edit {
+        editSettings {
             it[Keys.expandedFolders] = expanded.joinToString(";")
             it[Keys.notebooksTreeDefaultsApplied] = true
         }
     }
 
     suspend fun setLastRefileTarget(fileName: String, headingPath: List<String>) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             prefs[Keys.lastRefileFile] = fileName
             prefs[Keys.lastRefileHeadingPath] = headingPath.joinToString("/")
         }
     }
 
     suspend fun setRoamFeaturesEnabled(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.roamFeaturesEnabled] = enabled }
+        editSettings { it[Keys.roamFeaturesEnabled] = enabled }
     }
 
     suspend fun setRoamShowBacklinks(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.roamShowBacklinks] = enabled }
+        editSettings { it[Keys.roamShowBacklinks] = enabled }
     }
 
     suspend fun setRoamShowSuggestions(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.roamShowSuggestions] = enabled }
+        editSettings { it[Keys.roamShowSuggestions] = enabled }
     }
 
     suspend fun setRoamOpenWholeFile(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.roamOpenWholeFile] = enabled }
+        editSettings { it[Keys.roamOpenWholeFile] = enabled }
     }
 
     suspend fun setDailiesDirectory(dir: String) {
-        context.settingsDataStore.edit { it[Keys.dailiesDirectory] = dir }
+        editSettings { it[Keys.dailiesDirectory] = dir }
     }
 
     suspend fun setDailiesFilenamePattern(pattern: String) {
-        context.settingsDataStore.edit { it[Keys.dailiesFilenamePattern] = pattern }
+        editSettings { it[Keys.dailiesFilenamePattern] = pattern }
     }
 
     suspend fun setDailiesHeaderTemplate(template: String) {
-        context.settingsDataStore.edit { it[Keys.dailiesHeaderTemplate] = template }
+        editSettings { it[Keys.dailiesHeaderTemplate] = template }
     }
 
     suspend fun setAutoArchiveDoneItems(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.autoArchiveDoneItems] = enabled }
+        editSettings { it[Keys.autoArchiveDoneItems] = enabled }
     }
 
     suspend fun setAutoArchiveLocation(fileName: String, headingPath: List<String>) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             prefs[Keys.autoArchiveFile] = fileName
             prefs[Keys.autoArchiveHeadingPath] = headingPath.joinToString("/")
         }
     }
 
     suspend fun setNotebookColor(fileName: String, colorKey: String) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             val current = decodeModes(prefs[Keys.notebookColors]).toMutableMap()
             current[fileName] = colorKey
             prefs[Keys.notebookColors] = encodeModes(current)
@@ -1035,7 +1049,7 @@ class SettingsRepository(
     }
 
     private suspend fun editPinnedItems(mutate: (MutableList<PinnedItem>) -> Boolean) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             val current = readPinnedItems(prefs).toMutableList()
             if (mutate(current)) writePinnedItems(prefs, current)
         }
@@ -1064,7 +1078,7 @@ class SettingsRepository(
 
     /** Keep the chosen monogram color and pin position attached to a notebook across renames. */
     suspend fun moveNotebookStyle(oldFileName: String, newFileName: String) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             val colors = decodeModes(prefs[Keys.notebookColors]).toMutableMap()
             colors.remove(oldFileName)?.let { value ->
                 colors[newFileName] = value
@@ -1082,7 +1096,7 @@ class SettingsRepository(
     }
 
     suspend fun setFolderColor(dir: String, colorKey: String) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             val current = decodeModes(prefs[Keys.folderColors]).toMutableMap()
             current[dir] = colorKey
             prefs[Keys.folderColors] = encodeModes(current)
@@ -1105,7 +1119,7 @@ class SettingsRepository(
      */
     suspend fun renameFolderStyle(oldDir: String, newDir: String) {
         if (oldDir == newDir) return
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             val oldPrefix = "$oldDir/"
             fun rebase(key: String): String? = when {
                 key == oldDir -> newDir
@@ -1134,7 +1148,7 @@ class SettingsRepository(
 
     /** Drop the icon colour and pin state of [dir] and every descendant when the folder is deleted. */
     suspend fun deleteFolderStyle(dir: String) {
-        context.settingsDataStore.edit { prefs ->
+        editSettings { prefs ->
             val prefix = "$dir/"
             fun own(key: String) = key == dir || key.startsWith(prefix)
 

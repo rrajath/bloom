@@ -839,12 +839,18 @@ class DocumentViewModelIntegrationTest {
 
     // --- linked references: gated on Roam Features ------------------
 
-    private suspend fun TestScope.linkedRefsForShipRelease(): LinkedReferencesResult {
+    /**
+     * The loader gates on a real-DataStore settings read (a real IO thread,
+     * invisible to [advanceUntilIdle]), so a test expecting a non-empty result
+     * passes [awaitNonEmpty] to poll for it instead of reading once.
+     */
+    private suspend fun TestScope.linkedRefsForShipRelease(awaitNonEmpty: Boolean = false): LinkedReferencesResult {
         store.write("mentions.org", "* Weekly notes\nTalked about Ship v2 release today.\n")
         TestVaultSeeder.index(db, store)
         val vm = loaded("projects.org")
         val ship = headline(vm, "Ship v2 release")
         vm.loadLinkedReferences("projects.org", ship.lineIndex, ship.id, ship.title)
+        if (awaitNonEmpty) settleUntil { vm.linkedReferences.value != LinkedReferencesResult.EMPTY }
         advanceUntilIdle()
         return vm.linkedReferences.value
     }
@@ -867,7 +873,7 @@ class DocumentViewModelIntegrationTest {
     fun `linked references are computed when Roam Features and backlinks are on`() = runTest {
         settingsRepository.setRoamFeaturesEnabled(true)
         settingsRepository.setRoamShowBacklinks(true)
-        val result = linkedRefsForShipRelease()
+        val result = linkedRefsForShipRelease(awaitNonEmpty = true)
         assertTrue(result.unlinkedCount > 0)
         // Crumbs come from the hit files' own outlines.
         assertEquals("Weekly notes", result.unlinked.first { it.fileName == "mentions.org" }.crumb)
