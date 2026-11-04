@@ -126,7 +126,12 @@ fun AgendaScreen(
     val c = MaterialTheme.grove
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snack by viewModel.snack.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
+    // One scroll position per tab: sharing a single state carried Today's
+    // offset over to Upcoming. Picked by state.tab, which flips in the same
+    // emission as the list contents, so a tab never renders with the other's offset.
+    val todayListState = rememberLazyListState()
+    val upcomingListState = rememberLazyListState()
+    val listState = if (state.tab == AgendaTab.TODAY) todayListState else upcomingListState
     var datePickerRequest by remember { mutableStateOf<DatePickerRequest?>(null) }
     var noteDialogFor by remember { mutableStateOf<AgendaRow?>(null) }
 
@@ -211,7 +216,7 @@ fun AgendaScreen(
                     onShowInNotebook = onShowInNotebook,
                 )
 
-                val nearBottom by remember {
+                val nearBottom by remember(listState) {
                     derivedStateOf {
                         val info = listState.layoutInfo
                         val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1

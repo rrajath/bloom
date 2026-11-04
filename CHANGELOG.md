@@ -77,6 +77,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Marking done a task whose repeater sits in its body now repeats it, like Emacs, instead of closing it.
 - Recurring tasks marked done return to the first TODO keyword (or `REPEAT_TO_STATE`) and drop a non-repeating SCHEDULED, like Emacs.
 - Monthly and yearly repeaters on the 29th to 31st advance like Emacs (Jan 31 +1m is Mar 3).
+- The Agenda's Today and Upcoming tabs keep their own scroll positions instead of sharing one.
 
 
 ## [1.12.0] - 2026-10-31
