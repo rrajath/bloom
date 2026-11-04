@@ -636,6 +636,11 @@ internal fun WholeFileEditorBody(
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),
             )
+            // Not inside the suggestion slot: that slot leaves composition when the
+            // keyboard hides, and the paperclip hides the keyboard, so the sheet would
+            // vanish, the field would re-show the keyboard, and the sheet would loop.
+            // The slot sits below this Box, so nothing covers its bottom edge.
+            attach?.let { AttachOverlays(it, bottomInset = 0.dp) }
         }
         // Suggestions only while typing: with the keyboard down they'd just cover the text.
         // Docked in their own slot between the text and the toolbar (not overlaid on the
@@ -699,7 +704,6 @@ internal fun WholeFileEditorBody(
                     modifier = stripModifier,
                 )
             }
-            attach?.let { AttachOverlays(it, bottomInset = if (suggestionSlotShown) SuggestionSlotHeight else 0.dp) }
         }
         // Hidden while the keyboard is up: the bar and the toolbar both sit at
         // the bottom of this Column, and only one of them should own that row
