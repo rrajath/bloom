@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.sp
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.attach.AttachmentStatus
 import com.rrajath.grove.attach.AttachmentStatusCache
@@ -35,7 +36,7 @@ class PreviewChipsRobolectricTest {
         composeRule.setContent {
             GroveTheme {
                 val chips = rawPreviewChips(text)
-                val t = rememberPreviewChipText(AnnotatedString(text), chips, "travel.org", listOf("receipt"))
+                val t = rememberPreviewChipText(AnnotatedString(text), chips, "travel.org", 12.5.sp, listOf("receipt"))
                 Text(t.text, inlineContent = t.inlineContent)
             }
         }

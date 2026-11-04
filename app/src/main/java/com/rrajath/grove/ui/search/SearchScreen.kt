@@ -1217,11 +1217,11 @@ private fun TextMatchRow(
     val c = MaterialTheme.grove
     val highlighted = remember(snippet, matchedTerms, c) { highlightedPlainText(snippet, matchedTerms, c) }
     // 1j: attachment links as preview chips, with matches highlighted inside the label.
-    val text = rememberPreviewChipText(highlighted, chips, fileName, matchedTerms)
+    val text = rememberPreviewChipText(highlighted, chips, fileName, TEXT_MATCH_SIZE, matchedTerms)
     Text(
         text.text,
         inlineContent = text.inlineContent,
-        fontFamily = PlexSans, fontSize = 13.5.sp, lineHeight = 1.5.em, color = c.ink2,
+        fontFamily = PlexSans, fontSize = TEXT_MATCH_SIZE, lineHeight = 1.5.em, color = c.ink2,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
@@ -1230,6 +1230,9 @@ private fun TextMatchRow(
             .padding(start = 16.dp, top = 10.dp, end = 11.dp, bottom = 10.dp),
     )
 }
+
+/** Text-match row text size; its attachment chips use it too. */
+private val TEXT_MATCH_SIZE = 13.5.sp
 
 /** [text] with every occurrence of [terms] in the match highlight. */
 private fun highlightedPlainText(text: String, terms: List<String>, c: com.rrajath.grove.ui.theme.GroveColors): AnnotatedString =

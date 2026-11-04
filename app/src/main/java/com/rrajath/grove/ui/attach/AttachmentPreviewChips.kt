@@ -35,9 +35,10 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentLink
@@ -123,12 +124,14 @@ class PreviewChipText(val text: AnnotatedString, val inlineContent: Map<String, 
  * replaced by a 1i/1j preview chip. Chips are display-only. No existence check
  * runs here: a chip shows missing only when read mode already found it missing
  * in [orgFile]. Matches of [terms] inside a chip label are highlighted in the chip.
+ * The chip label uses [fontSize], the size of the text around it.
  */
 @Composable
 fun rememberPreviewChipText(
     text: AnnotatedString,
     chips: List<PreviewChip>,
     orgFile: String,
+    fontSize: TextUnit,
     terms: List<String> = emptyList(),
 ): PreviewChipText {
     if (chips.isEmpty()) return remember(text) { PreviewChipText(text, emptyMap()) }
@@ -137,7 +140,8 @@ fun rememberPreviewChipText(
     val measurer = rememberTextMeasurer()
     val cache = (LocalContext.current.applicationContext as? GroveApplication)?.attachmentStatusCache
     val generation by remember(cache) { cache?.generation ?: MutableStateFlow(0) }.collectAsState()
-    return remember(text, chips, orgFile, terms, c, density, generation) {
+    return remember(text, chips, orgFile, fontSize, terms, c, density, generation) {
+        val styles = PreviewChipStyles.of(fontSize)
         val sorted = chips.sortedBy { it.range.first }
         val inline = mutableMapOf<String, InlineTextContent>()
         val annotated = buildAnnotatedString {
@@ -150,16 +154,16 @@ fun rememberPreviewChipText(
                 val styled = highlightedChipLabel(label, terms, c)
                 val missing = cache?.knownMissing(orgFile, chip.rawTarget) == true
                 val placeholder = with(density) {
-                    val labelSize = measurer.measure(styled, PreviewLabelStyle).size
+                    val labelSize = measurer.measure(styled, styles.label).size
                     val lead = if (missing) {
-                        4.dp.toPx() + 10.dp.toPx()
+                        4.dp.toPx() + styles.icon.toPx()
                     } else {
-                        2.dp.toPx() + measurer.measure(chip.link.badge, PreviewBadgeStyle).size.width + 6.dp.toPx()
+                        2.dp.toPx() + measurer.measure(chip.link.badge, styles.badge).size.width + 6.dp.toPx()
                     }
                     val width = lead + 4.dp.toPx() + labelSize.width + 6.dp.toPx()
                     Placeholder(width.toSp(), labelSize.height.toSp(), PlaceholderVerticalAlign.TextCenter)
                 }
-                inline[id] = InlineTextContent(placeholder) { PreviewAttachmentChip(chip.link, styled, missing) }
+                inline[id] = InlineTextContent(placeholder) { PreviewAttachmentChip(chip.link, styled, missing, styles) }
                 appendInlineContent(id, label)
                 pos = chip.range.last + 1
             }
@@ -181,12 +185,23 @@ private fun highlightedChipLabel(label: String, terms: List<String>, c: GroveCol
         }
     }
 
-private val PreviewLabelStyle = TextStyle(fontFamily = PlexMono, fontSize = 11.sp, lineHeight = 1.4.em)
-private val PreviewBadgeStyle = TextStyle(fontFamily = PlexMono, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+/**
+ * Chip text styles for a label at [fontSize]. The badge and missing icon keep
+ * the prototype's proportions to the label (8.5sp badge and 10dp icon at 11sp).
+ */
+private class PreviewChipStyles(val label: TextStyle, val badge: TextStyle, val icon: Dp) {
+    companion object {
+        fun of(fontSize: TextUnit) = PreviewChipStyles(
+            label = TextStyle(fontFamily = PlexMono, fontSize = fontSize, lineHeight = 1.4.em),
+            badge = TextStyle(fontFamily = PlexMono, fontSize = fontSize * (8.5f / 11f), fontWeight = FontWeight.Bold),
+            icon = (fontSize.value * 10f / 11f).dp,
+        )
+    }
+}
 
 /** The 1i/1j preview chip: the 1d chip at preview size. */
 @Composable
-private fun PreviewAttachmentChip(link: LocalAttachment, label: AnnotatedString, missing: Boolean) {
+private fun PreviewAttachmentChip(link: LocalAttachment, label: AnnotatedString, missing: Boolean, styles: PreviewChipStyles) {
     val c = MaterialTheme.grove
     val (fg, bg) = categoryColors(c, link.category)
     Row(
@@ -204,12 +219,12 @@ private fun PreviewAttachmentChip(link: LocalAttachment, label: AnnotatedString,
                 painterResource(R.drawable.ic_attach_chip_missing),
                 contentDescription = null,
                 tint = c.ink3,
-                modifier = Modifier.size(10.dp),
+                modifier = Modifier.size(styles.icon),
             )
         } else {
             Text(
                 link.badge,
-                style = PreviewBadgeStyle,
+                style = styles.badge,
                 color = fg,
                 maxLines = 1,
                 modifier = Modifier
@@ -221,7 +236,7 @@ private fun PreviewAttachmentChip(link: LocalAttachment, label: AnnotatedString,
         Spacer(Modifier.width(4.dp))
         Text(
             label,
-            style = PreviewLabelStyle,
+            style = styles.label,
             color = if (missing) c.ink3 else c.ink,
             textDecoration = if (missing) TextDecoration.LineThrough else null,
             maxLines = 1,
