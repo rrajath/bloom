@@ -248,6 +248,30 @@ class AttachmentLifecycleTest {
     }
 
     @Test
+    fun `file inventory resolves hundreds of IDs from a few listings`() = runTest {
+        val ids = (0 until 300).map { "%02X%06X".format(it % 256, it) }
+        put("Notes/data/${ids[3].take(2)}/${ids[3].drop(2)}/a.jpg", "12")
+        put("Notes/data/${ids[200].take(2)}/${ids[200].drop(2)}/b.jpg", "3")
+        val text = ids.joinToString("") { heading("H$it", it) }
+        val jvm = JvmFileStore(tmp.root, skipAttachShards = true)
+        var dirQueries = 0
+        val counting = object : com.rrajath.grove.vault.FileStore by jvm {
+            override suspend fun dirExists(dir: String): Boolean { dirQueries++; return jvm.dirExists(dir) }
+            override suspend fun listSubdirs(dir: String): List<String> { dirQueries++; return jvm.listSubdirs(dir) }
+        }
+        val inv = AttachmentLifecycle(counting, IdHolders.None)
+            .inventoryForFile("Notes/travel.org", OrgParser.parse(text))
+        assertEquals(
+            listOf(ids[3], ids[200]).map { "Notes/data/${it.take(2)}/${it.drop(2)}" },
+            inv.dirs.map { it.dir },
+        )
+        assertEquals(3L, inv.bytes)
+        // Notes, Notes/data, the two shards that exist, and sizeOf's walk of
+        // the two dirs; nothing per missing ID (was ~900 lookups).
+        assertTrue("dir queries: $dirQueries", dirQueries <= 8)
+    }
+
+    @Test
     fun `onChanged fires after attach dirs change, not after a no-op`() = runTest {
         var changes = 0
         val tracked = AttachmentLifecycle(

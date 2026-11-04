@@ -1,5 +1,7 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.vault.FileStore
+
 /** Answers whether a vault-relative directory exists. Implemented over the vault's FileStore. */
 fun interface DirExists {
     suspend fun exists(vaultDir: String): Boolean
@@ -71,6 +73,28 @@ class AttachDirResolver(
     companion object {
         const val DEFAULT_ID_DIR = "data"
     }
+}
+
+/**
+ * [DirExists] answered from directory listings, each listed once: a dir exists
+ * when its parent exists and lists it. Resolving many IDs then costs one
+ * listing of `data/` plus one per shard that exists, instead of one or more
+ * provider queries per candidate. For one batch of lookups (an inventory);
+ * the listings aren't refreshed.
+ */
+class ListedDirs(private val store: FileStore) : DirExists {
+    private val listings = mutableMapOf<String, Set<String>>()
+
+    override suspend fun exists(vaultDir: String): Boolean {
+        val path = vaultDir.trim('/')
+        if (path.isEmpty()) return true
+        val parent = path.substringBeforeLast('/', "")
+        if (!exists(parent)) return false
+        return path.substringAfterLast('/') in children(parent)
+    }
+
+    private suspend fun children(dir: String): Set<String> =
+        listings[dir] ?: store.listSubdirs(dir).toSet().also { listings[dir] = it }
 }
 
 /** Joins path parts with `/`, ignoring empty parts. Not normalized. */

@@ -137,9 +137,12 @@ class AttachmentLifecycle(
             .distinct()
         if (ids.isEmpty()) return AttachmentInventory(emptyList(), dirProps)
         val sharedInDir = idsHeldInDir(orgFile, ids, exclude = setOf(orgFile))
+        // Most IDs have no attach dir; answering from listings keeps a notebook
+        // with hundreds of IDs to a handful of queries before its dialog shows.
+        val listed = AttachDirResolver(ListedDirs(store), config)
         val seen = mutableSetOf<String>()
         val entries = ids.mapNotNull { id ->
-            val dir = resolver.readDir(orgFile, AttachOwner.File(id, null)) ?: return@mapNotNull null
+            val dir = listed.readDir(orgFile, AttachOwner.File(id, null)) ?: return@mapNotNull null
             if (!seen.add(dir)) return@mapNotNull null
             val size = files.sizeOf(dir)
             AttachDirEntry(id, dir, size.files, size.bytes, shared = id in sharedInDir || id in heldElsewhereInFile)
