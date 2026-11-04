@@ -140,33 +140,49 @@ class AttachmentRenderContext(
      */
     suspend fun bounds(entry: FileEntry): ImageBounds? {
         cache.bounds(entry)?.let { return it }
-        return withContext(io) {
-            runCatching {
-                val raw = store.openInput(entry.name).use { input ->
-                    val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    BitmapFactory.decodeStream(input, null, opts)
-                    if (opts.outWidth > 0 && opts.outHeight > 0) ImageBounds(opts.outWidth, opts.outHeight) else null
-                } ?: return@runCatching null
-                if (exifSwapsAxes(entry.name)) ImageBounds(raw.height, raw.width) else raw
-            }.getOrNull()
-        }?.also { cache.putBounds(entry, it) }
+        return withContext(io) { runCatching { readBounds(store, entry.name) }.getOrNull() }
+            ?.also { cache.putBounds(entry, it) }
     }
 
     /** Remembers a corrected size once the decoded image disagrees with the header's. */
     fun correctBounds(entry: FileEntry, value: ImageBounds) = cache.putBounds(entry, value)
 
-    private suspend fun exifSwapsAxes(path: String): Boolean {
-        if (attachmentExtension(path) !in EXIF_EXTENSIONS) return false
-        val orientation = runCatching {
-            store.openInput(path).use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
-        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
-        return orientation in SWAPPING_ORIENTATIONS
-    }
-
     suspend fun contentUri(path: String): Uri? = withContext(io) { runCatching { store.contentUri(path) }.getOrNull() }
 }
 
 private val EXIF_EXTENSIONS = setOf("jpg", "jpeg", "heic", "heif", "webp")
+
+/** Header bytes kept for re-reading EXIF after the bounds decode; past this the file is opened again. */
+internal const val HEADER_MARK_LIMIT = 1 shl 20
+
+/**
+ * [path]'s displayed pixel size from one open of the file: the bounds decode
+ * reads the header through a marked buffer, which is rewound for the EXIF
+ * orientation read. If the bounds decode read past [HEADER_MARK_LIMIT] (the
+ * rewind fails), EXIF is read from a second open instead.
+ */
+internal suspend fun readBounds(store: FileStore, path: String): ImageBounds? {
+    val wantsExif = attachmentExtension(path) in EXIF_EXTENSIONS
+    var orientation = ExifInterface.ORIENTATION_NORMAL
+    var needsReopen = false
+    val raw = store.openInput(path).buffered(64 * 1024).use { input ->
+        if (wantsExif) input.mark(HEADER_MARK_LIMIT)
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeStream(input, null, opts)
+        if (opts.outWidth <= 0 || opts.outHeight <= 0) return null
+        if (wantsExif) {
+            val rewound = runCatching { input.reset() }.isSuccess
+            if (rewound) orientation = exifOrientation(input) else needsReopen = true
+        }
+        ImageBounds(opts.outWidth, opts.outHeight)
+    }
+    if (needsReopen) orientation = runCatching { store.openInput(path).use(::exifOrientation) }.getOrDefault(orientation)
+    return if (orientation in SWAPPING_ORIENTATIONS) ImageBounds(raw.height, raw.width) else raw
+}
+
+private fun exifOrientation(input: java.io.InputStream): Int = runCatching {
+    ExifInterface(input).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+}.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
 private val SWAPPING_ORIENTATIONS = setOf(
     ExifInterface.ORIENTATION_ROTATE_90,
     ExifInterface.ORIENTATION_ROTATE_270,

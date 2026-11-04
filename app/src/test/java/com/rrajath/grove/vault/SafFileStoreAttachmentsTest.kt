@@ -95,6 +95,41 @@ class SafFileStoreAttachmentsTest {
     }
 
     @Test
+    fun `opening a file right after its stat reuses the verified id`() = runTest {
+        write("data/3F/2504E0/photo.jpg", "abc")
+        for (authority in listOf(FakeDocumentsProvider.AUTHORITY, FakeDocumentsProvider.OPAQUE_AUTHORITY)) {
+            var clock = 0L
+            val provider = FakeDocumentsProvider.install(tmp.root, authority)
+            val saf = SafFileStore(
+                context, FakeDocumentsProvider.treeUri(authority), skipAttachShards = true, now = { clock },
+            )
+            assertNotNull(saf.statRaw("data/3F/2504E0/photo.jpg"))
+            provider.queries.set(0)
+            assertNotNull(saf.contentUri("data/3F/2504E0/photo.jpg"))
+            assertEquals("abc", saf.openInput("data/3F/2504E0/photo.jpg").use { String(it.readBytes()) })
+            assertEquals(authority, 0, provider.queries.get())
+
+            // Past the window the id is checked again before use.
+            clock += RAW_FRESH_MS + 1
+            assertNotNull(saf.contentUri("data/3F/2504E0/photo.jpg"))
+            assertTrue(authority, provider.queries.get() > 0)
+            // Metadata is always queried.
+            provider.queries.set(0)
+            assertNotNull(saf.statRaw("data/3F/2504E0/photo.jpg"))
+            assertTrue(authority, provider.queries.get() > 0)
+        }
+    }
+
+    @Test
+    fun `a deleted file is not opened from a stale id`() = runTest {
+        write("data/3F/2504E0/photo.jpg")
+        val (saf, _) = store()
+        assertNotNull(saf.statRaw("data/3F/2504E0/photo.jpg"))
+        assertTrue(saf.deleteRaw("data/3F/2504E0/photo.jpg"))
+        assertNull(saf.contentUri("data/3F/2504E0/photo.jpg"))
+    }
+
+    @Test
     fun `normal lookups still treat shard files as missing`() = runTest {
         write("data/3F/2504E0/photo.jpg")
         val (saf, _) = store()

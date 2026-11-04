@@ -33,6 +33,8 @@ class SafFileStore(
     private val treeUri: Uri,
     private val ignore: IgnorePatterns = IgnorePatterns(""),
     private val skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
+    /** Monotonic millis, for how long a raw file id counts as just verified. */
+    private val now: () -> Long = android.os.SystemClock::elapsedRealtime,
 ) : FileStore {
 
     private val resolver get() = context.contentResolver
@@ -485,6 +487,16 @@ class SafFileStore(
     private val rawFileIds: MutableMap<String, String> = ConcurrentHashMap()
     private val rawDirIds: MutableMap<String, String> = ConcurrentHashMap()
 
+    /**
+     * raw file path -> when its id was last confirmed by a query. Opening a
+     * file (or building its URI) right after a stat reuses the id without
+     * asking the provider again: read mode stats an image, then opens it for
+     * its header and hands its URI to Coil, all within a few milliseconds. A
+     * file replaced inside the window fails the open, which callers already
+     * treat as missing or unreadable. Metadata ([statRaw]) is always queried.
+     */
+    private val rawVerifiedAt: MutableMap<String, Long> = ConcurrentHashMap()
+
     private fun metaOf(cursor: android.database.Cursor, fallbackId: String): DocMeta? {
         val name = cursor.getString(1) ?: return null
         return DocMeta(
@@ -518,10 +530,19 @@ class SafFileStore(
         if (meta.isDir) {
             rawDirIds[path] = meta.docId
             rawFileIds.remove(path)
+            rawVerifiedAt.remove(path)
         } else {
             rawFileIds[path] = meta.docId
             rawDirIds.remove(path)
+            rawVerifiedAt[path] = now()
         }
+    }
+
+    /** [path]'s file id when a query confirmed it within [RAW_FRESH_MS], else null. */
+    private fun freshFileId(path: String): String? {
+        val at = rawVerifiedAt[path] ?: return null
+        if (now() - at > RAW_FRESH_MS) return null
+        return rawFileIds[path]
     }
 
     /** Drops [path] and everything under it from every cache. */
@@ -531,6 +552,7 @@ class SafFileStore(
         }
         drop(rawFileIds)
         drop(rawDirIds)
+        rawVerifiedAt.keys.removeAll { it == path || it.startsWith("$path/") }
         drop(docIds)
         drop(dirDocIds)
     }
@@ -589,9 +611,11 @@ class SafFileStore(
         return docId
     }
 
-    private fun rawFileUri(name: String): Uri? =
-        rawLookup(name.trim('/'))?.takeIf { !it.isDir }
-            ?.let { DocumentsContract.buildDocumentUriUsingTree(treeUri, it.docId) }
+    private fun rawFileUri(name: String): Uri? {
+        val path = name.trim('/')
+        val id = freshFileId(path) ?: rawLookup(path)?.takeIf { !it.isDir }?.docId ?: return null
+        return DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
+    }
 
     override suspend fun openInput(name: String): InputStream = withContext(Dispatchers.IO) {
         val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
@@ -786,6 +810,9 @@ class SafFileStore(
 }
 
 private const val COPY_BUFFER = 64 * 1024
+
+/** How long a just-queried raw file id is reused for opens without another query. */
+internal const val RAW_FRESH_MS = 2_000L
 
 /** The platform's local-storage documents provider, whose document ids are paths. */
 private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"

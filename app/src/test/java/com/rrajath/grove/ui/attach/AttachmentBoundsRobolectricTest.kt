@@ -59,6 +59,21 @@ class AttachmentBoundsRobolectricTest {
     }
 
     @Test
+    fun boundsAndExifComeFromOneOpen() {
+        jpeg("cam.jpg", ExifInterface.ORIENTATION_ROTATE_90)
+        val jvm = JvmFileStore(tmp.root, skipAttachShards = true)
+        var opens = 0
+        val counting = object : com.rrajath.grove.vault.FileStore by jvm {
+            override suspend fun openInput(name: String): java.io.InputStream {
+                opens++
+                return jvm.openInput(name)
+            }
+        }
+        assertEquals(ImageBounds(30, 40), runBlocking { readBounds(counting, "cam.jpg") })
+        assertEquals(1, opens)
+    }
+
+    @Test
     fun unrotatedJpegKeepsItsHeaderSize() {
         jpeg("plain.jpg", null)
         assertEquals(ImageBounds(40, 30), bounds("plain.jpg"))
