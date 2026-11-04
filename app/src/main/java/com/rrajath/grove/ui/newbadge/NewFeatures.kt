@@ -56,6 +56,12 @@ object NewAnchors {
     /** The "Capture link" section on a template's editor (bloom:// link + Add to Homescreen). */
     const val SETTINGS_CAPTURE_TEMPLATES_LINK = "settings.captureTemplates.captureLink"
 
+    /** The Settings hub row leading to the Agenda page. */
+    const val SETTINGS_AGENDA = "settings.agenda"
+
+    /** The "Deadline warning" row inside Settings § Agenda. */
+    const val SETTINGS_AGENDA_DEADLINE_WARNING = "settings.agenda.deadlineWarning"
+
     /** The Settings hub row leading to the Reminders page. */
     const val SETTINGS_REMINDERS = "settings.reminders"
 
@@ -422,5 +428,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_APPEARANCE_THEME,
         ),
         destination = NewAnchors.SETTINGS_APPEARANCE_THEME,
+    ),
+    NewFeature(
+        // Settings § Agenda gained a "Deadline warning" row: how many days ahead
+        // a deadline shows under Today's Due soon. `since` is the versionCode of
+        // the release that ships it: bump it to match `gradle.properties`
+        // versionName when cutting the release.
+        id = "agenda-deadline-warning",
+        since = 11300,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_AGENDA,
+            NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING,
+        ),
+        destination = NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING,
     ),
 )

@@ -15,6 +15,9 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.settings.AgendaSwipeAction
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.components.DropdownPicker
+import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
+import com.rrajath.grove.ui.newbadge.NewAnchors
+import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 
@@ -34,6 +37,9 @@ fun SettingsAgendaScreen(
     onSetAgendaDeadlineWarningDays: (Int) -> Unit,
 ) {
     val c = MaterialTheme.grove
+    // Leaving this screen retires the Deadline warning's NEW dot from its whole
+    // trail (menu glyph, drawer, Settings hub row, the row itself).
+    MarkNewFeatureSeen(NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING)
     SettingsPageScaffold(title = "Agenda", onBack = onBack) {
         SettingsGroup {
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
@@ -82,11 +88,14 @@ fun SettingsAgendaScreen(
             ) {
                 // End padding keeps the wrapped description off the number field.
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                    Text(
-                        "Deadline warning",
-                        fontFamily = PlexSans, fontWeight = FontWeight.Medium,
-                        fontSize = 14.5.sp, color = c.ink,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Deadline warning",
+                            fontFamily = PlexSans, fontWeight = FontWeight.Medium,
+                            fontSize = 14.5.sp, color = c.ink,
+                        )
+                        NewDot(NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING, Modifier.padding(start = 8.dp))
+                    }
                     Text(
                         "Days before a deadline that it shows under Due soon on Today. " +
                             "A warning on the deadline itself, like -3d, wins. 0 turns this off.",

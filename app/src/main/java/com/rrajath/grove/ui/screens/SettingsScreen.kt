@@ -91,7 +91,12 @@ fun SettingsScreen(
             onClick = onOpenNotes,
             badge = { NewDot(NewAnchors.SETTINGS_NOTES) },
         ),
-        SettingsPage("Agenda", "Swipe actions on agenda rows", onOpenAgenda),
+        SettingsPage(
+            "Agenda",
+            "Swipe actions on agenda rows, deadline warnings",
+            onOpenAgenda,
+            badge = { NewDot(NewAnchors.SETTINGS_AGENDA) },
+        ),
         SettingsPage(
             "Widget",
             "Home-screen Agenda widget: content, transparency, size",
