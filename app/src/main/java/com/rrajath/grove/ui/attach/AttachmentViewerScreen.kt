@@ -126,9 +126,10 @@ fun AttachmentViewerScreen(
     LaunchedEffect(store, path) {
         val s = store ?: return@LaunchedEffect
         val io = app?.dispatchers?.io ?: return@LaunchedEffect
-        val found = withContext(io) {
-            runCatching { if (s.exists(path)) s.contentUri(path) else null }.getOrNull()
-        }
+        // contentUri() goes through the raw-file lookup and is null when the file
+        // is gone. Not exists(): on SAF that only sees the .org note index, so
+        // every attachment would read as missing.
+        val found = withContext(io) { runCatching { s.contentUri(path) }.getOrNull() }
         uri = found
         missing = found == null
     }
