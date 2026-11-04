@@ -7,7 +7,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.ui.attach.AttachmentViewer
-import com.rrajath.grove.ui.attach.viewerZoomLabel
 import com.rrajath.grove.ui.theme.GroveBloomDarkColors
 import com.rrajath.grove.ui.theme.GroveTheme
 import com.rrajath.grove.ui.theme.LocalGroveColors
@@ -69,8 +68,7 @@ class AttachmentViewerRobolectricTest {
         composeRule.onNodeWithText("torii-path.jpg").assertExists()
         composeRule.onNodeWithText("Share").assertExists()
         composeRule.onNodeWithText("Open in…").assertExists()
-        composeRule.onNodeWithTag("attachment_viewer_zoom").assertExists()
-        composeRule.onNodeWithText("Fit").assertExists()
+        composeRule.onNodeWithText("Fit").assertDoesNotExist()
 
         composeRule.onNodeWithTag("attachment_viewer").performClick()
         composeRule.waitForIdle()
@@ -96,14 +94,5 @@ class AttachmentViewerRobolectricTest {
     fun missingFileSaysSo() {
         content(missing = true)
         composeRule.onNodeWithText("Image not found: torii-path.jpg").assertExists()
-    }
-
-    @Test
-    fun zoomLabelIsFitOrPercentOfFit() {
-        assertEquals("Fit", viewerZoomLabel(null))
-        assertEquals("Fit", viewerZoomLabel(1f))
-        assertEquals("Fit", viewerZoomLabel(1.004f))
-        assertEquals("240%", viewerZoomLabel(2.4f))
-        assertEquals("800%", viewerZoomLabel(8f))
     }
 }

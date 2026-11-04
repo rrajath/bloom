@@ -11,6 +11,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,8 +34,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,12 +43,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -55,6 +60,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -81,7 +87,7 @@ import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
 import kotlin.math.roundToInt
 
-/** Double tap and the zoom chip jump between Fit and this zoom (240%, as in 1h). */
+/** Double tap jumps between Fit and this zoom (240%, as in 1h). */
 const val VIEWER_ZOOM_STEP = 2.4f
 
 /** Pinch limit relative to Fit: enough to reach native pixels on a 48 MP photo. */
@@ -89,9 +95,11 @@ const val VIEWER_MAX_ZOOM = 8f
 
 private const val TOAST_MILLIS = 1900L
 
-/** Zoom chip label: `Fit` at the fitted size, else the zoom relative to Fit as a percent. */
-fun viewerZoomLabel(userZoom: Float?): String =
-    if (userZoom == null || userZoom < 1.005f) "Fit" else "${(userZoom * 100).roundToInt()}%"
+/** Minimum space kept above and below the hint when it sits in the band under the image. */
+private val HINT_GAP = 12.dp
+
+/** Height of the top chrome's row (close target plus filename), below the status bar. */
+private val TOP_BAR_HEIGHT = 52.dp
 
 private fun ZoomableState.userZoom(): Float? =
     contentTransformation.takeIf { it.isSpecified }?.scaleMetadata?.userZoom
@@ -222,13 +230,14 @@ fun AttachmentViewer(
     }
     val zoomState = rememberZoomableState(zoomSpec = ZoomSpec(maxZoomFactor = VIEWER_MAX_ZOOM))
     val imageState = rememberZoomableImageState(zoomState)
-    val zoomLabel by remember(zoomState) { derivedStateOf { viewerZoomLabel(zoomState.userZoom()) } }
+    var viewerHeight by remember { mutableIntStateOf(0) }
     val showImage = model != null && !failed && !missing
 
     Box(
         Modifier
             .fillMaxSize()
             .background(c.bg)
+            .onSizeChanged { viewerHeight = it.height }
             .testTag("attachment_viewer"),
     ) {
         if (showImage) {
@@ -265,15 +274,14 @@ fun AttachmentViewer(
         }
 
         if (!tapped) {
-            Text(
-                "Tap for controls",
-                fontFamily = PlexSans,
-                fontSize = 12.sp,
-                color = c.ink3,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 40.dp),
+            TapHint(
+                imageBottom = if (showImage) {
+                    zoomState.transformedContentBounds.takeIf { it.height > 0f }?.bottom
+                } else {
+                    null
+                },
+                waitForImage = showImage,
+                viewerHeight = viewerHeight,
             )
         }
 
@@ -283,17 +291,19 @@ fun AttachmentViewer(
             exit = fadeOut(tween(180)),
             modifier = Modifier.align(Alignment.TopStart),
         ) {
-            Box(Modifier.fillMaxWidth()) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .background(Brush.verticalGradient(listOf(c.bg.copy(alpha = 0.7f), c.bg.copy(alpha = 0f)))),
-                )
+            // Solid at 88% behind the status bar and the row, so the filename never
+            // straddles the image's top edge.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(c.bg.copy(alpha = 0.88f))
+                    .statusBarsPadding(),
+            ) {
                 Row(
                     Modifier
-                        .statusBarsPadding()
-                        .padding(start = 4.dp, end = 12.dp, top = 4.dp),
+                        .fillMaxWidth()
+                        .height(TOP_BAR_HEIGHT)
+                        .padding(start = 4.dp, end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
@@ -347,23 +357,6 @@ fun AttachmentViewer(
                 BarAction(R.drawable.ic_attach_open_with, 16, "Open in…") {
                     scope.launch { onOpen()?.let(::showToast) }
                 }
-                Box(
-                    Modifier
-                        .height(44.dp)
-                        .widthIn(min = 56.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(c.ink.copy(alpha = 0.1f))
-                        .clickable(enabled = showImage) {
-                            scope.launch {
-                                if (zoomState.isZoomed()) zoomState.resetZoom() else zoomState.zoomTo(VIEWER_ZOOM_STEP)
-                            }
-                        }
-                        .padding(horizontal = 12.dp)
-                        .testTag("attachment_viewer_zoom"),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(zoomLabel, fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink)
-                }
             }
         }
 
@@ -374,6 +367,55 @@ fun AttachmentViewer(
                 .navigationBarsPadding()
                 .padding(bottom = 100.dp),
         )
+    }
+}
+
+/**
+ * `Tap for controls`. Sits centered in the band between the image's bottom
+ * edge ([imageBottom], px) and the nav bar when that band leaves [HINT_GAP]
+ * on both sides; otherwise (a tall image, or zoomed in) it floats as a pill
+ * 40dp above the nav bar so it never touches the image edge. With
+ * [waitForImage] it stays invisible until the image's bounds are known.
+ */
+@Composable
+private fun BoxScope.TapHint(imageBottom: Float?, waitForImage: Boolean, viewerHeight: Int) {
+    val c = MaterialTheme.grove
+    val density = LocalDensity.current
+    val navBottom = WindowInsets.navigationBars.getBottom(density)
+    var hintHeight by remember { mutableIntStateOf(0) }
+    val gap = with(density) { HINT_GAP.toPx() }
+    val room = imageBottom?.let { viewerHeight - navBottom - it }
+    val inBand = room != null && hintHeight > 0 && room >= hintHeight + 2 * gap
+    val text = @Composable { modifier: Modifier ->
+        Text(
+            "Tap for controls",
+            fontFamily = PlexSans,
+            fontSize = 12.sp,
+            color = c.ink3,
+            modifier = modifier,
+        )
+    }
+    if (inBand) {
+        val top = (imageBottom!! + (room!! - hintHeight) / 2).roundToInt()
+        text(
+            Modifier
+                .align(Alignment.TopCenter)
+                .offset { IntOffset(0, top) }
+                .onSizeChanged { hintHeight = it.height },
+        )
+    } else {
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 40.dp)
+                .alpha(if (waitForImage && imageBottom == null) 0f else 1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(c.surface2.copy(alpha = 0.88f))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            text(Modifier.onSizeChanged { hintHeight = it.height })
+        }
     }
 }
 
