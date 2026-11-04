@@ -73,16 +73,25 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # The M3 Robolectric integration tests download an `android-all-*.jar`
-      # (~100 MB) into ~/.m2 on first run. Cache it, keyed on the Robolectric
-      # version pin in the version catalog, so per-push `testDebugUnitTest` runs
-      # don't re-fetch it. setup-gradle already caches the Gradle module cache,
-      # which is where the sqlite-bundled JVM natives land.
+      # The M3 Robolectric integration tests download one `android-all-*.jar`
+      # (~100 MB) per SDK level into ~/.m2 on first run. Cache them so per-push
+      # `testDebugUnitTest` runs don't re-fetch from Maven Central (a network
+      # blip there fails the whole test class). The key must cover every SDK
+      # the tests run on, not just the Robolectric version: actions/cache never
+      # re-saves on an exact key hit, so a newly added `@Config(sdk = [N])` jar
+      # would otherwise be downloaded on every run forever. setup-gradle already
+      # caches the Gradle module cache, where the sqlite-bundled JVM natives land.
+      - name: Compute Robolectric cache key
+        id: robolectric-key
+        run: |
+          key=$( { grep -rhoE 'sdk ?= ?\[[^]]*\]' app/src/test || true; grep -E '^robolectric' gradle/libs.versions.toml; cat app/src/test/resources/robolectric.properties; } | sort -u | sha256sum | cut -c1-16 )
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+
       - name: Cache Robolectric runtime jars
         uses: actions/cache@v4
         with:
           path: ~/.m2/repository/org/robolectric
-          key: robolectric-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          key: robolectric-${{ runner.os }}-${{ steps.robolectric-key.outputs.key }}
           restore-keys: |
             robolectric-${{ runner.os }}-
 
