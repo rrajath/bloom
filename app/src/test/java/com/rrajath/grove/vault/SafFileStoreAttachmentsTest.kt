@@ -1,6 +1,7 @@
 package com.rrajath.grove.vault
 
 import android.app.Application
+import com.rrajath.grove.attach.ownerOf
 import androidx.test.core.app.ApplicationProvider
 import java.io.File
 import kotlinx.coroutines.test.runTest
@@ -180,6 +181,56 @@ class SafFileStoreAttachmentsTest {
         assertEquals("bb", File(tmp.root, "Archive/data/3F/2504E0/sub/b.pdf").readText())
         assertEquals(3L, saf.statRaw("Archive/data/3F/2504E0/a.jpg")?.size)
         assertNull(saf.statRaw("Notes/data/3F/2504E0/a.jpg"))
+    }
+
+    @Test
+    fun `root notebook move carries file-level and heading attach dirs on a path-id provider`() = runTest {
+        rootNotebookMove(FakeDocumentsProvider.AUTHORITY)
+    }
+
+    @Test
+    fun `root notebook move carries file-level and heading attach dirs on an opaque-id provider`() = runTest {
+        rootNotebookMove(FakeDocumentsProvider.OPAQUE_AUTHORITY)
+    }
+
+    /**
+     * The on-device shape: a root notebook whose file-level `:ID:` was added by
+     * the editor's attach sheet (drawer on line 0, above `#+TITLE:`) plus a
+     * heading owner, moved into a folder that already holds the file's attach
+     * dir with a clashing name (merged, the newcomer renamed).
+     */
+    private suspend fun rootNotebookMove(authority: String) {
+        val fileId = "C482DAE9-87F2-4045-BE53-8582798C5D58"
+        val headingId = "A0050AF0-FB23-4124-9E18-7C506F6E3949"
+        val base = "#+TITLE: Image test\n\nintro\n* Images\nbody\n"
+        val withFile = com.rrajath.grove.attach.insertAttachmentLinks(
+            base, 0, com.rrajath.grove.attach.AttachOwner.File(null, null), fileId, listOf("a.jpg"),
+        ).text
+        val parsed = com.rrajath.grove.org.OrgParser.parse(withFile)
+        val heading = parsed.ownerOf(parsed.headlines.single())
+        val text = com.rrajath.grove.attach.insertAttachmentLinks(withFile, withFile.length, heading, headingId, listOf("b.jpg")).text
+        write("image-test.org", text)
+        write("Folder/inbox.org", "")
+        write("data/C4/82DAE9-87F2-4045-BE53-8582798C5D58/a.jpg", "new")
+        write("data/A0/050AF0-FB23-4124-9E18-7C506F6E3949/b.jpg", "bb")
+        write("Folder/data/C4/82DAE9-87F2-4045-BE53-8582798C5D58/a.jpg", "old")
+
+        val (saf, _) = store(authority)
+        saf.list()
+        val lifecycle = com.rrajath.grove.attach.AttachmentLifecycle(saf, com.rrajath.grove.attach.IdHolders.None)
+        val inv = lifecycle.inventoryForFile("image-test.org", com.rrajath.grove.org.OrgParser.parse(saf.read("image-test.org")))
+        assertEquals(setOf(fileId, headingId), inv.dirs.map { it.id }.toSet())
+
+        assertTrue(saf.rename("image-test.org", "Folder/image-test.org"))
+        val result = lifecycle.moveNotebookAttachments("image-test.org", "Folder/image-test.org", inv)
+
+        assertEquals(2, result.moved)
+        assertEquals(0, result.failed)
+        val fileDir = "Folder/data/C4/82DAE9-87F2-4045-BE53-8582798C5D58"
+        assertEquals("old", File(tmp.root, "$fileDir/a.jpg").readText())
+        assertEquals("new", File(tmp.root, "$fileDir/a-1.jpg").readText())
+        assertEquals("bb", File(tmp.root, "Folder/data/A0/050AF0-FB23-4124-9E18-7C506F6E3949/b.jpg").readText())
+        assertFalse("root data/ pruned", File(tmp.root, "data").exists())
     }
 
     @Test

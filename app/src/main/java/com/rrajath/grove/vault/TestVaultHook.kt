@@ -36,4 +36,10 @@ object TestVaultHook {
         _root.value = dir
         skipOnboarding = true
     }
+
+    /** Unit tests only: undoes [useDirectory] so the forced vault can't leak into the next test. */
+    internal fun reset() {
+        _root.value = null
+        skipOnboarding = false
+    }
 }

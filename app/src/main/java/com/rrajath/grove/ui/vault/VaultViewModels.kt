@@ -727,7 +727,7 @@ class NotebooksViewModel(
         val Factory = factory {
             NotebooksViewModel(
                 it.vault, it.database, it.settingsRepository, it.syncManager, it.dispatchers,
-                attachments = { it.attachmentLifecycle.value },
+                attachments = { it.attachmentLifecycle() },
             )
         }
     }
@@ -1614,7 +1614,7 @@ class DocumentViewModel(
      * another file of the same directory is kept.
      */
     fun deleteNotes(lines: Set<Int>, attachments: AttachmentInventory? = null) {
-        val lifecycle = app.attachmentLifecycle.value
+        val lifecycle = app.attachmentLifecycle()
         val work: (suspend (String) -> Unit)? =
             if (lifecycle == null || attachments == null || attachments.isEmpty) null else { fileName ->
                 val vault = vaultFlow.value
@@ -1637,7 +1637,7 @@ class DocumentViewModel(
      * case the plain delete dialog shows.
      */
     suspend fun headingDeleteAttachments(lines: Set<Int>): AttachmentInventory {
-        val lifecycle = app.attachmentLifecycle.value ?: return AttachmentInventory.Empty
+        val lifecycle = app.attachmentLifecycle() ?: return AttachmentInventory.Empty
         val loaded = _state.value as? DocumentUiState.Loaded ?: return AttachmentInventory.Empty
         return withContext(dispatchers.io) {
             runCatching { lifecycle.inventoryForSubtrees(loaded.fileName, loaded.document, lines) }

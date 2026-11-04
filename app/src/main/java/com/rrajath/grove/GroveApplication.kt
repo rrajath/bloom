@@ -282,16 +282,17 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
      * Keeps attach dirs with their notes on notebook/folder moves and deletes,
      * heading deletes, and refiles (experimental, debug-only: null in release
      * builds and before a vault is picked). One instance per store, so its
-     * operations stay serialized.
+     * operations stay serialized. Read synchronously from [fileStore]'s current
+     * value; see [com.rrajath.grove.attach.AttachmentLifecycleSource] for why it
+     * is not a StateFlow.
      */
-    val attachmentLifecycle: StateFlow<com.rrajath.grove.attach.AttachmentLifecycle?> by lazy {
-        fileStore
-            .map { store ->
-                if (!FeatureFlags.ATTACHMENTS || store == null) null
-                else com.rrajath.grove.attach.AttachmentLifecycle(store, roomIdHolders)
-            }
-            .stateIn(appScope, SharingStarted.Eagerly, null)
-    }
+    fun attachmentLifecycle(): com.rrajath.grove.attach.AttachmentLifecycle? = attachmentLifecycles.current()
+
+    private val attachmentLifecycles = com.rrajath.grove.attach.AttachmentLifecycleSource(
+        enabled = FeatureFlags.ATTACHMENTS,
+        store = { fileStore.value },
+        create = { store -> com.rrajath.grove.attach.AttachmentLifecycle(store, roomIdHolders) },
+    )
 
     private val roomIdHolders = com.rrajath.grove.attach.IdHolders { ids ->
         ids.distinct().chunked(400)
@@ -305,7 +306,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
         com.rrajath.grove.attach.AttachmentFollow { writes, verb ->
             if (!FeatureFlags.ATTACHMENTS) return@AttachmentFollow
             appScope.launch {
-                val lifecycle = attachmentLifecycle.value ?: return@launch
+                val lifecycle = attachmentLifecycle() ?: return@launch
                 val result = runCatching { lifecycle.followMovedOwners(writes) }.getOrNull() ?: return@launch
                 if (result.moved + result.copied > 0) attachmentStatusCache.clear()
                 if (result.failed > 0) {
