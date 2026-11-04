@@ -1,6 +1,7 @@
 package com.rrajath.grove.widget
 
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.agenda.AgendaBuckets
@@ -8,6 +9,7 @@ import com.rrajath.grove.ui.agenda.AgendaMeta
 import com.rrajath.grove.ui.agenda.AgendaMetaTone
 import com.rrajath.grove.ui.agenda.AgendaRow
 import com.rrajath.grove.ui.agenda.AgendaViewModel
+import com.rrajath.grove.ui.agenda.RowPlacement
 import kotlinx.collections.immutable.toImmutableList
 import java.time.LocalDate
 import java.time.LocalTime
@@ -35,6 +37,7 @@ object LedgerBuckets {
 
         data class Planned(override val meta: NoteMeta) : DayEntry
         data class Event(override val meta: NoteMeta, val ts: OrgTimestamp) : DayEntry
+        data class Repeat(override val meta: NoteMeta, val kind: PlanningKind, val ts: OrgTimestamp) : DayEntry
 
         fun priorityKey(): String = meta.priority ?: NO_PRIORITY_SORT_KEY
 
@@ -42,6 +45,7 @@ object LedgerBuckets {
         fun sortTime(): LocalTime = when (this) {
             is Planned -> (if (meta.scheduledDate != null) meta.scheduledTime else meta.deadlineTime) ?: LocalTime.MAX
             is Event -> ts.time ?: LocalTime.MAX
+            is Repeat -> ts.time ?: LocalTime.MAX
         }
     }
 
@@ -54,11 +58,15 @@ object LedgerBuckets {
      * one section per day from [today] through [today] + [windowDays] - 1 that
      * actually has something on it, in date order. Bare active-timestamp events
      * are woven into their day alongside planned headings (a multi-day event
-     * shows on each day it spans); an event never ages into Overdue. A day with
+     * shows on each day it spans); an event never ages into Overdue. Later
+     * days also carry each future repeat of a repeating SCHEDULED/DEADLINE
+     * ([AgendaBuckets.repeatsOn]), and a SCHEDULED delay cookie holds a plan
+     * back ([AgendaBuckets.delayed]), as on the Agenda screen. A day with
      * nothing on it is omitted entirely rather than rendered empty.
      */
     fun build(notes: List<NoteMeta>, today: LocalDate, windowDays: Int, settings: GroveSettings): List<Section> {
-        val overdueNotes = AgendaBuckets.overdue(notes, today)
+        val plannable = notes.filterNot { AgendaBuckets.delayed(it, today) }
+        val overdueNotes = AgendaBuckets.overdue(plannable, today)
         val overdueSection = if (overdueNotes.isEmpty()) null else Section(
             key = "Overdue",
             count = overdueNotes.size,
@@ -66,7 +74,7 @@ object LedgerBuckets {
         )
 
         val horizon = today.plusDays((windowDays - 1).coerceAtLeast(0).toLong())
-        val plannedByDay = notes
+        val plannedByDay = plannable
             .filter {
                 val d = AgendaBuckets.whenDate(it)
                 d != null && !d.isBefore(today) && !d.isAfter(horizon)
@@ -78,6 +86,7 @@ object LedgerBuckets {
             .mapNotNull { day ->
                 val entries = (
                     plannedByDay[day].orEmpty().map { DayEntry.Planned(it) } +
+                        AgendaBuckets.repeatsOn(plannable, day, today).map { DayEntry.Repeat(it.meta, it.kind, it.ts) } +
                         AgendaBuckets.activeEventsOn(notes, day).map { DayEntry.Event(it.first, it.second) }
                     ).sortedWith(BY_DAY)
                 if (entries.isEmpty()) return@mapNotNull null
@@ -89,6 +98,11 @@ object LedgerBuckets {
                             is DayEntry.Planned -> widgetRow(e.meta, today, showDate = false, settings)
                             is DayEntry.Event ->
                                 widgetRow(e.meta, today, showDate = false, settings, activeTs = e.ts, eventDay = day)
+                            is DayEntry.Repeat ->
+                                widgetRow(
+                                    e.meta, today, showDate = false, settings,
+                                    placement = RowPlacement.Repeat(e.kind, e.ts),
+                                )
                         }
                     },
                 )
@@ -115,13 +129,16 @@ object LedgerBuckets {
         settings: GroveSettings,
         activeTs: OrgTimestamp? = null,
         eventDay: LocalDate? = null,
+        placement: RowPlacement? = null,
     ): AgendaRow {
         val rowSettings = settings.copy(
             agendaShowTags = settings.agendaWidgetShowTags,
             agendaShowFile = false,
             agendaShowTimestamps = false,
         )
-        val row = AgendaViewModel.row(m, today, showDate, p = rowSettings, activeTs = activeTs, eventDay = eventDay)
+        val row = AgendaViewModel.row(
+            m, today, showDate, p = rowSettings, activeTs = activeTs, eventDay = eventDay, placement = placement,
+        )
         val meta = if (settings.agendaWidgetShowFileName) {
             (row.meta + AgendaMeta(contractFileName(m.fileName), AgendaMetaTone.MUTED)).toImmutableList()
         } else {

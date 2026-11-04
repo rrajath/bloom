@@ -1,6 +1,8 @@
 package com.rrajath.grove.reminders
 
 import com.rrajath.grove.data.ReminderEntity
+import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.occurrenceCovering
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -20,8 +22,15 @@ import java.time.ZoneId
 object ReminderDigest {
 
     fun count(reminders: List<ReminderEntity>, today: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Int {
-        fun dateOf(r: ReminderEntity): LocalDate =
+        fun triggerDate(r: ReminderEntity): LocalDate =
             Instant.ofEpochMilli(r.triggerAtMillis).atZone(zone).toLocalDate()
+
+        // A repeating reminder's trigger has rolled on to its next occurrence,
+        // but the Agenda still places the heading by the date written in the
+        // file (a weekly task left undone stays overdue), so count by that.
+        fun repeatStamp(r: ReminderEntity): OrgTimestamp? = r.repeatStamp?.let { OrgTimestamp.parse(it) }
+
+        fun dateOf(r: ReminderEntity): LocalDate = repeatStamp(r)?.date ?: triggerDate(r)
 
         val (active, planning) = reminders.partition { it.planningType == PlanningType.ACTIVE.storageKey }
 
@@ -52,7 +61,10 @@ object ReminderDigest {
         // own anchor - keyed distinctly by its date discriminator - never
         // collapsed into a heading's scheduled/deadline grouping, so a heading
         // that has both an event and a task today contributes to both totals.
-        val activeCount = active.count { dateOf(it).isEqual(today) }
+        // A repeating event counts on every day one of its occurrences covers.
+        val activeCount = active.count { r ->
+            repeatStamp(r)?.let { it.occurrenceCovering(today) != null } ?: triggerDate(r).isEqual(today)
+        }
 
         return planningCount + activeCount
     }

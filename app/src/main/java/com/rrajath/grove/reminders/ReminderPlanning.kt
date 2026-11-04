@@ -3,8 +3,10 @@ package com.rrajath.grove.reminders
 import com.rrajath.grove.data.ReminderEntity
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.firstOccurrenceOnOrAfter
 import com.rrajath.grove.org.repeats
 import com.rrajath.grove.settings.ReminderLeadTime
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -37,6 +39,42 @@ object ReminderPlanning {
     }
 
     /**
+     * When a repeating [ts] should next fire: the trigger ([triggerAtMillis]) of
+     * its first occurrence, projected like the agenda does
+     * ([com.rrajath.grove.org.occurrenceCovering]), that lands after
+     * [afterMillis]. So an unadvanced weekly meeting reminds every week, not just
+     * on the date written in the file. A non-repeating stamp, or one whose own
+     * trigger is still ahead, keeps its stored trigger.
+     */
+    fun nextTriggerMillis(
+        ts: OrgTimestamp,
+        defaultReminderTime: LocalTime,
+        afterMillis: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+        leadTime: ReminderLeadTime = ReminderLeadTime.AT_TIME,
+    ): Long {
+        val base = triggerAtMillis(ts, defaultReminderTime, zone, leadTime)
+        if (!ts.repeats || base > afterMillis) return base
+        val rep = ts.repeater!!
+        if (rep.unit == 'h') {
+            // Hourly repeats step the full date-time; a stamp with no time has no hour to step.
+            if (ts.time == null) return base
+            val step = rep.value * 3_600_000L
+            return base + ((afterMillis - base) / step + 1) * step
+        }
+        // The lead time can pull a trigger back across midnight (up to a day),
+        // so start one day early; a daily repeat needs at most four steps from there.
+        var day = Instant.ofEpochMilli(afterMillis).atZone(zone).toLocalDate().minusDays(1)
+        repeat(MAX_OCCURRENCE_STEPS) {
+            val start = ts.firstOccurrenceOnOrAfter(day) ?: return base
+            val trigger = triggerAtMillis(ts.copy(date = start), defaultReminderTime, zone, leadTime)
+            if (trigger > afterMillis) return trigger
+            day = start.plusDays(1)
+        }
+        return base
+    }
+
+    /**
      * Every reminder [fileName]'s headlines should have: one per non-done
      * heading's SCHEDULED and/or DEADLINE timestamp, plus one per bare active
      * timestamp in the heading's own body. A ranged active stamp
@@ -47,6 +85,10 @@ object ReminderPlanning {
      * [notifyUntimed] mirrors Settings › Reminders › "Notify for tasks without a
      * time": when on, a date-only timestamp fires its own notification (at
      * [defaultReminderTime] on its date) instead of only feeding the digest.
+     *
+     * A repeating stamp (SCHEDULED, DEADLINE or bare active) is armed for its
+     * next occurrence after [nowMillis] ([nextTriggerMillis]) and carries
+     * [ReminderEntity.repeatStamp] so it can roll on after it fires.
      */
     fun desiredReminders(
         fileName: String,
@@ -56,6 +98,7 @@ object ReminderPlanning {
         leadTime: ReminderLeadTime = ReminderLeadTime.AT_TIME,
         notifyUntimed: Boolean = false,
         zone: ZoneId = ZoneId.systemDefault(),
+        nowMillis: Long = System.currentTimeMillis(),
     ): List<ReminderEntity> {
         if (!remindersEnabled) return emptyList()
         val result = mutableListOf<ReminderEntity>()
@@ -67,7 +110,7 @@ object ReminderPlanning {
                 result.add(
                     entity(
                         fileName, path, h.title, h.level, PlanningType.SCHEDULED, ts,
-                        defaultReminderTime, leadTime, notifyUntimed, zone,
+                        defaultReminderTime, leadTime, notifyUntimed, zone, nowMillis,
                         isTask = isTask, hasRepeater = ts.repeater != null,
                     )
                 )
@@ -76,7 +119,7 @@ object ReminderPlanning {
                 result.add(
                     entity(
                         fileName, path, h.title, h.level, PlanningType.DEADLINE, ts,
-                        defaultReminderTime, leadTime, notifyUntimed, zone,
+                        defaultReminderTime, leadTime, notifyUntimed, zone, nowMillis,
                         isTask = isTask, hasRepeater = ts.repeater != null,
                     )
                 )
@@ -89,7 +132,7 @@ object ReminderPlanning {
                 result.add(
                     entity(
                         fileName, path, h.title, h.level, PlanningType.ACTIVE, ts,
-                        defaultReminderTime, leadTime, notifyUntimed, zone,
+                        defaultReminderTime, leadTime, notifyUntimed, zone, nowMillis,
                         discriminator = ts.date.toString(),
                         isTask = isTask,
                         hasRepeater = repeats,
@@ -112,6 +155,7 @@ object ReminderPlanning {
         leadTime: ReminderLeadTime,
         notifyUntimed: Boolean,
         zone: ZoneId,
+        nowMillis: Long,
         discriminator: String? = null,
         isTask: Boolean = false,
         hasRepeater: Boolean = false,
@@ -126,13 +170,17 @@ object ReminderPlanning {
             headingTitle = headingTitle,
             headingLevel = level,
             planningType = type.storageKey,
-            triggerAtMillis = triggerAtMillis(ts, defaultReminderTime, zone, leadTime),
+            triggerAtMillis = nextTriggerMillis(ts, defaultReminderTime, nowMillis, zone, leadTime),
             notificationId = ReminderKeys.notificationId(key),
             firesOwnNotification = hasOwnTime || notifyUntimed,
             leadTime = (if (hasOwnTime) leadTime else ReminderLeadTime.AT_TIME).storageKey,
             isTask = isTask,
             hasRepeater = hasRepeater,
             activeTimestampDate = activeTimestampDate,
+            repeatStamp = ts.takeIf { it.repeats }?.format(),
         )
     }
+
+    /** Safety cap on [nextTriggerMillis]'s occurrence walk, which needs four steps at most. */
+    private const val MAX_OCCURRENCE_STEPS = 8
 }

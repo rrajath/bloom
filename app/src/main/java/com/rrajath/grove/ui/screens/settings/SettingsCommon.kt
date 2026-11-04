@@ -16,10 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,8 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.capture.CaptureTemplate
@@ -345,4 +350,31 @@ internal fun swipeActionDescription(action: AgendaSwipeAction): String = when (a
 internal fun uriDisplayName(uri: String): String {
     val last = java.net.URLDecoder.decode(uri.substringAfterLast("/"), "UTF-8")
     return last.substringAfterLast(':').ifEmpty { last }
+}
+
+/**
+ * Whole-number settings field (Widget "Days ahead", Agenda "Deadline warning"):
+ * non-digit keystrokes are filtered as typed, and a value below [minValue] (or
+ * blank) reverts to the last committed setting on blur rather than showing an
+ * inline error.
+ */
+@Composable
+internal fun IntSettingField(value: Int, minValue: Int, onSet: (Int) -> Unit) {
+    val c = MaterialTheme.grove
+    var text by remember(value) { mutableStateOf(value.toString()) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it.filter(Char::isDigit).take(4) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        textStyle = TextStyle(fontFamily = PlexMono, fontSize = 14.sp, color = c.accent),
+        modifier = Modifier
+            .width(72.dp)
+            .onFocusChanged { state ->
+                if (!state.isFocused) {
+                    val parsed = text.toIntOrNull()
+                    if (parsed != null && parsed >= minValue) onSet(parsed) else text = value.toString()
+                }
+            },
+    )
 }

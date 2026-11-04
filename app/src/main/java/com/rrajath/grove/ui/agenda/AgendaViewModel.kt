@@ -81,7 +81,23 @@ data class AgendaRow(
     val activeTs: OrgTimestamp? = null,
     /** Every active timestamp on the heading, so the Dates screen's ACTIVE tab prefills. */
     val activeTimestamps: ImmutableList<OrgTimestamp> = persistentListOf(),
+    /**
+     * Set when a future repeat of this SCHEDULED or DEADLINE is what put the row
+     * on this day (an Upcoming preview, see [AgendaBuckets.repeatsOn]). The row's
+     * actions still run on the heading and its stored stamps.
+     */
+    val previewKind: PlanningKind? = null,
 )
+
+/**
+ * Why a planned row sits on a day other than its stored date: a future repeat
+ * of its SCHEDULED/DEADLINE, or a deadline inside its prewarning window
+ * (Today's "Due soon").
+ */
+internal sealed interface RowPlacement {
+    data class Repeat(val kind: PlanningKind, val ts: OrgTimestamp) : RowPlacement
+    data object DueSoon : RowPlacement
+}
 
 /**
  * A heading with no TODO keyword is an event, not a task: it appears in the
@@ -104,6 +120,7 @@ val AgendaRow.repeaterKind: PlanningKind?
     get() = when {
         keyword != null -> null
         activeTs?.repeater != null -> PlanningKind.ACTIVE
+        previewKind != null -> previewKind
         scheduledTs?.repeater != null -> PlanningKind.SCHEDULED
         deadlineTs?.repeater != null -> PlanningKind.DEADLINE
         else -> null
@@ -163,6 +180,7 @@ private data class AgendaPrefs(
     val showTimestamps: Boolean,
     val swipeLeft: AgendaSwipeAction,
     val swipeRight: AgendaSwipeAction,
+    val deadlineWarningDays: Int,
 ) {
     constructor(s: GroveSettings) : this(
         s.agendaGroupingToday,
@@ -174,6 +192,7 @@ private data class AgendaPrefs(
         s.agendaShowTimestamps,
         s.agendaSwipeLeftAction,
         s.agendaSwipeRightAction,
+        s.agendaDeadlineWarningDays,
     )
 }
 
@@ -331,12 +350,21 @@ class AgendaViewModel(
             .takeUnless { it is AgendaStateFilter.Keyword && it.name !in active }
             ?: AgendaStateFilter.Open
         val visible = matched.filter { AgendaBuckets.keep(it, filter) }
+        // A SCHEDULED delay cookie keeps the plan off the agenda for now; the
+        // heading's events and deadline prewarning still count.
+        val plannable = visible.filterNot { AgendaBuckets.delayed(it, today) }
 
-        val todayItems = AgendaBuckets.onDay(visible, today)
-        val overdueItems = AgendaBuckets.overdue(visible, today)
-        val futureItems = AgendaBuckets.upcoming(visible, today, windowDays)
+        val todayItems = AgendaBuckets.onDay(plannable, today)
+        val overdueItems = AgendaBuckets.overdue(plannable, today)
+        val futureItems = AgendaBuckets.upcoming(plannable, today, windowDays)
         // Events (bare active timestamps) dated today, for the Today tab and the count.
         val todayEvents = AgendaBuckets.activeEventsOn(visible, today)
+        // Deadlines coming up, minus headings already on today's list or in
+        // the overdue card: one row per heading per day.
+        val onTodayKeys = (todayItems + overdueItems + todayEvents.map { it.first })
+            .map { it.fileName to it.lineIndex }.toSet()
+        val dueSoonItems = AgendaBuckets.dueSoon(visible, today, p.agendaDeadlineWarningDays)
+            .filter { (it.fileName to it.lineIndex) !in onTodayKeys }
 
         val list = if (isTodayTab) todayItems else futureItems
         // Date grouping already puts the day in the section header; every other
@@ -345,8 +373,20 @@ class AgendaViewModel(
 
         // Events only weave into the Date grouping (both tabs); Priority/Tag/File
         // are deliberate slices and stay planned-rows-only.
-        val groups = if (grouping == AgendaGrouping.DATE) {
-            dateGroups(visible, list, today, isTodayTab, windowDays, p)
+        val dueSoonGroup = if (isTodayTab && dueSoonItems.isNotEmpty()) {
+            listOf(
+                AgendaGroup(
+                    DUE_SOON_KEY,
+                    dueSoonItems.size,
+                    dueSoonItems.map { row(it, today, showDate = false, p = p, placement = RowPlacement.DueSoon) }
+                        .toImmutableList(),
+                ),
+            )
+        } else {
+            emptyList()
+        }
+        val groups = dueSoonGroup + if (grouping == AgendaGrouping.DATE) {
+            dateGroups(visible, plannable, list, today, isTodayTab, windowDays, p)
         } else {
             AgendaBuckets.group(list, today, grouping, isTodayTab)
                 .map { b ->
@@ -380,11 +420,13 @@ class AgendaViewModel(
 
         data class Planned(override val meta: NoteMeta) : DayEntry
         data class Event(override val meta: NoteMeta, val ts: OrgTimestamp) : DayEntry
+        data class Repeat(override val meta: NoteMeta, val kind: PlanningKind, val ts: OrgTimestamp) : DayEntry
 
         /** Untimed entries sort last within a day, matching [AgendaBuckets.BY_TIME]. */
         fun sortTime(): LocalTime = when (this) {
             is Planned -> (if (meta.scheduledDate != null) meta.scheduledTime else meta.deadlineTime) ?: LocalTime.MAX
             is Event -> ts.time ?: LocalTime.MAX
+            is Repeat -> ts.time ?: LocalTime.MAX
         }
     }
 
@@ -395,9 +437,15 @@ class AgendaViewModel(
      * both scheduled/deadlined and carries an active date lands twice only when
      * those dates differ — on the same day it is one plan, not a plan plus an
      * event, so the active-timestamp occurrence for that day is dropped.
+     *
+     * Upcoming also previews each later repeat of a repeating SCHEDULED or
+     * DEADLINE ([AgendaBuckets.repeatsOn]) from [plannable], the headings whose
+     * plan isn't held back by a delay cookie. A preview takes the heading's one
+     * row for that day, so an event of the same heading on that day is dropped.
      */
     private fun dateGroups(
         visible: List<NoteMeta>,
+        plannable: List<NoteMeta>,
         planned: List<NoteMeta>,
         today: LocalDate,
         isTodayTab: Boolean,
@@ -412,6 +460,8 @@ class AgendaViewModel(
                 when (e) {
                     is DayEntry.Planned -> row(e.meta, today, showDate = false, p = p)
                     is DayEntry.Event -> row(e.meta, today, showDate = false, p = p, activeTs = e.ts, eventDay = day)
+                    is DayEntry.Repeat ->
+                        row(e.meta, today, showDate = false, p = p, placement = RowPlacement.Repeat(e.kind, e.ts))
                 }
             }
             return AgendaGroup(key, rows.size, rows.toImmutableList())
@@ -434,12 +484,21 @@ class AgendaViewModel(
 
         val horizon = today.plusDays((windowDays - 1).coerceAtLeast(0).toLong())
         val plannedByDay = planned.groupBy { AgendaBuckets.whenDate(it)!! }
-        val eventsByDay = generateSequence(today.plusDays(1)) { it.plusDays(1) }
-            .takeWhile { !it.isAfter(horizon) }
-            .associateWith { day -> eventsNotAlreadyPlanned(AgendaBuckets.activeEventsOn(visible, day), plannedByDay[day].orEmpty()) }
+        val days = generateSequence(today.plusDays(1)) { it.plusDays(1) }.takeWhile { !it.isAfter(horizon) }.toList()
+        val repeatsByDay = days
+            .associateWith { day -> AgendaBuckets.repeatsOn(plannable, day, today) }
             .filterValues { it.isNotEmpty() }
-        return (plannedByDay.keys + eventsByDay.keys).toSortedSet().map { day ->
+        val eventsByDay = days
+            .associateWith { day ->
+                eventsNotAlreadyPlanned(
+                    AgendaBuckets.activeEventsOn(visible, day),
+                    plannedByDay[day].orEmpty() + repeatsByDay[day].orEmpty().map { it.meta },
+                )
+            }
+            .filterValues { it.isNotEmpty() }
+        return (plannedByDay.keys + repeatsByDay.keys + eventsByDay.keys).toSortedSet().map { day ->
             val entries = plannedByDay[day].orEmpty().map { DayEntry.Planned(it) } +
+                repeatsByDay[day].orEmpty().map { DayEntry.Repeat(it.meta, it.kind, it.ts) } +
                 eventsByDay[day].orEmpty().map { DayEntry.Event(it.first, it.second) }
             bucket(AgendaBuckets.dayLabel(day, today), day, entries)
         }
@@ -671,6 +730,9 @@ class AgendaViewModel(
             AgendaViewModel(it.settingsRepository, it.keywords, it.database, it.vault, it.syncManager, it.dispatchers)
         }
 
+        /** Today's prewarned-deadline section, shown above the day's own rows. */
+        const val DUE_SOON_KEY = "Due soon"
+
         private const val INITIAL_WINDOW_DAYS = 14
         private const val PAGE_SIZE = 14
 
@@ -704,6 +766,7 @@ class AgendaViewModel(
             p: GroveSettings,
             activeTs: OrgTimestamp? = null,
             eventDay: LocalDate? = null,
+            placement: RowPlacement? = null,
         ): AgendaRow {
             val scheduledTs = m.scheduled?.let { OrgTimestamp.parse(it) }
             val deadlineTs = m.deadline?.let { OrgTimestamp.parse(it) }
@@ -751,6 +814,65 @@ class AgendaViewModel(
                     deadlineTs = deadlineTs,
                     activeTs = activeTs,
                     activeTimestamps = allActive,
+                )
+            }
+
+            fun MutableList<AgendaMeta>.addTimeRange(ts: OrgTimestamp) {
+                ts.time?.let { start ->
+                    add(AgendaMeta(start.format(CLOCK) + (ts.endTime?.let { "–${it.format(CLOCK)}" } ?: ""), AgendaMetaTone.NORMAL))
+                }
+            }
+
+            fun MutableList<AgendaMeta>.addTagsAndFile() {
+                if (p.agendaShowTags) {
+                    m.inheritedTags.takeIf { it.isNotEmpty() }
+                        ?.let { add(AgendaMeta(it.joinToString(":", ":", ":"), AgendaMetaTone.TAG)) }
+                }
+                if (p.agendaShowFile) add(AgendaMeta(m.fileName, AgendaMetaTone.MUTED))
+            }
+
+            if (placement != null) {
+                val meta = buildList {
+                    when (placement) {
+                        // A future repeat under its day section: the same chips a
+                        // planned row gets on that day, from the projected stamp.
+                        is RowPlacement.Repeat -> {
+                            val isDeadline = placement.kind == PlanningKind.DEADLINE
+                            if (showDate || p.agendaShowTimestamps) {
+                                val label = AgendaBuckets.dayLabel(placement.ts.date, today)
+                                add(
+                                    if (isDeadline) AgendaMeta("⚑ $label", AgendaMetaTone.DANGER)
+                                    else AgendaMeta(label, AgendaMetaTone.NORMAL, icon = AgendaMetaIcon.CALENDAR),
+                                )
+                            } else if (isDeadline) {
+                                add(AgendaMeta("⚑ due", AgendaMetaTone.DANGER))
+                            }
+                            addTimeRange(placement.ts)
+                            placement.ts.repeater?.let { add(AgendaMeta("↻ $it", AgendaMetaTone.MUTED)) }
+                        }
+                        // A deadline inside its prewarning window: when it falls and how far off.
+                        RowPlacement.DueSoon -> {
+                            val dl = deadlineTs ?: return@buildList
+                            val left = ChronoUnit.DAYS.between(today, dl.date)
+                            add(AgendaMeta("⚑ ${dl.date.format(AgendaBuckets.SHORT_DATE)} · in ${left}d", AgendaMetaTone.DANGER))
+                            addTimeRange(dl)
+                            dl.repeater?.let { add(AgendaMeta("↻ $it", AgendaMetaTone.MUTED)) }
+                        }
+                    }
+                    addTagsAndFile()
+                }
+                return AgendaRow(
+                    fileName = m.fileName,
+                    lineIndex = m.lineIndex,
+                    title = m.title,
+                    keyword = m.keyword,
+                    isDone = m.isDoneKeyword,
+                    priority = m.priority,
+                    meta = meta.toImmutableList(),
+                    scheduledTs = scheduledTs,
+                    deadlineTs = deadlineTs,
+                    activeTimestamps = allActive,
+                    previewKind = (placement as? RowPlacement.Repeat)?.kind,
                 )
             }
 

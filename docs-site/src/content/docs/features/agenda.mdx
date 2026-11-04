@@ -24,6 +24,14 @@ Agenda pulls every SCHEDULED and DEADLINE item across your whole vault into a si
 - **Today**: everything scheduled or due today, plus an **Overdue** card for anything past its date. Events only ever appear on their own day, never in the Overdue card
 - **Upcoming**: an infinite-scroll timeline of future days, grouped under day headers like "Tuesday, Jul 28 · Today"
 
+A recurring task (`SCHEDULED: <2026-10-21 Wed +1w>`) also shows on each of its future repeats in Upcoming, the way the Emacs agenda previews them. The date written in the file stays the one that counts: if it has passed, the task still sits in the Overdue card, and marking any of its rows done advances the task itself. A repeating DEADLINE previews the same way, and a heading never shows twice on one day. Done tasks don't preview, and previews appear only under the Date grouping.
+
+A SCHEDULED date with a delay (`SCHEDULED: <2026-11-03 Tue -2d>`) keeps the task off the Agenda until that many days after the date, then shows it as overdue. On a recurring task a single dash (`-2d`) delays every repeat, while a double dash (`--2d`) delays only the date written in the file.
+
+## Due soon
+
+Today lists deadlines that are coming up under **Due soon**, just below the Overdue card. Each row shows the deadline's date and how far off it is, for example "⚑ Nov 9 · in 5d". By default a deadline appears 14 days ahead; change that under Settings → Agenda → Deadline warning (0 turns it off). A warning written on the deadline itself wins over the setting: `DEADLINE: <2026-11-20 Fri -3d>` shows up only from three days before. A task already on today's list or in the Overdue card isn't repeated here.
+
 Swipe left on the list's empty space to go from Today to Upcoming, and right to go back. Swipes that start on a task row still trigger that row's swipe actions.
 
 ## Overdue card
@@ -48,7 +56,7 @@ A collapsible panel above the list controls how items are grouped and filtered, 
 
 ## Swipe-to-commit
 
-Swiping an Agenda row left or right triggers a configurable action: by default, swipe left sets a Scheduled date and swipe right marks the item Done. Both directions are reconfigurable in Settings → Agenda (see [Notes Behavior](/features/notes-behavior) for the settings surface). Every swipe mutation is reversible via an [undo snackbar](/features/undo).
+Swiping an Agenda row left or right triggers a configurable action: by default, swipe left sets a Scheduled date and swipe right marks the item Done. Both directions are reconfigurable in Settings → Agenda (see [Notes Behavior](/features/notes-behavior) for the settings surface), which also holds the Deadline warning window for [Due soon](#due-soon). Every swipe mutation is reversible via an [undo snackbar](/features/undo).
 
 On a plain event row, the side configured as Mark as Done offers Add note instead, since there's nothing to complete. A keyword-less row with a repeater still gets the Done cell, advancing the date on swipe.
 
@@ -66,7 +74,7 @@ Mark as Done rides with an **Add note** cell, and Schedule with a **Reveal** cel
 
 Settings → Widget is a dedicated page for the home-screen Agenda ledger widget (not the [quick-capture widget](/features/widget)): background Transparency, how many Days ahead to show, per-row Filename/Tags/Priority toggles, and a Small/Medium/Large Font size, with a live preview below the controls that updates as you change them. These are independent of the in-app Levers panel above — changing how the widget looks never changes the Agenda screen. A shown filename contracts each nested folder to its first letter (`Work/Projects/notes.org` → `W/P/notes.org`); the file's own name stays whole.
 
-The widget lists the same rows as the Today/Upcoming view: scheduled and deadline items, an Overdue section, and bare active `<date>` events on each day they fall. Plain event rows carry no mark-done circle, since an event is not a task, and no repeated day label under the row. A keyword-less row with a repeater still gets the circle — tapping it advances the timestamp, same as in the Agenda screen.
+The widget lists the same rows as the Today/Upcoming view: scheduled and deadline items (with the future repeats of recurring ones), an Overdue section, and bare active `<date>` events on each day they fall. Due soon is an Agenda-screen section only. Plain event rows carry no mark-done circle, since an event is not a task, and no repeated day label under the row. A keyword-less row with a repeater still gets the circle — tapping it advances the timestamp, same as in the Agenda screen.
 
 In the widget's header, tapping the "Agenda" title (or the counts under it) opens the Agenda screen directly; tapping the app icon beside it opens Bloom wherever you left it.
 

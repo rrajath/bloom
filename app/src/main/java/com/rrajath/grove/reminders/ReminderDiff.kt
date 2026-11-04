@@ -36,7 +36,8 @@ object ReminderDiff {
             // straight off the row at notification time, not recomputed on tap.
             if (e == null || e.triggerAtMillis != d.triggerAtMillis ||
                 e.firesOwnNotification != d.firesOwnNotification ||
-                e.isTask != d.isTask || e.hasRepeater != d.hasRepeater
+                e.isTask != d.isTask || e.hasRepeater != d.hasRepeater ||
+                e.repeatStamp != d.repeatStamp
             ) {
                 toSchedule.add(d)
             } else {

@@ -399,4 +399,51 @@ class AgendaViewModelIntegrationTest {
         assertEquals(before, store.read("agenda.org"))
         assertTrue(sync.reindexCalls.any { it.reason == "agenda undo" })
     }
+
+    // --- report phases 4 and 5 ---
+
+    private val parityVault get() = """
+        #+TITLE: Parity
+
+        * TODO Weekly review
+        SCHEDULED: ${orgDate(today.minusDays(14), "+1w")}
+        * TODO File taxes
+        DEADLINE: ${orgDate(inThreeDays)}
+        * TODO Held back
+        SCHEDULED: ${orgDate(yesterday).dropLast(1)} -3d>
+    """.trimIndent() + "\n"
+
+    @Test
+    fun `Today lists a near deadline under Due soon and hides a delayed plan`() = runTest {
+        store.write("parity.org", parityVault)
+        TestVaultSeeder.index(db, store)
+        advanceUntilIdle()
+        val vm = agenda()
+        advanceUntilIdle()
+
+        val dueSoon = vm.state.value.groups.first()
+        assertEquals(AgendaViewModel.DUE_SOON_KEY, dueSoon.key)
+        assertEquals(listOf("File taxes"), dueSoon.rows.map { it.title })
+        val everyTitle = (vm.state.value.overdue + vm.state.value.groups.flatMap { it.rows }).map { it.title }
+        assertFalse("a -3d delay holds yesterday's plan back", everyTitle.contains("Held back"))
+        // The overdue weekly task stays in the overdue card, once.
+        assertEquals(1, vm.state.value.overdue.count { it.title == "Weekly review" })
+    }
+
+    @Test
+    fun `Upcoming previews the next repeats of an overdue weekly task`() = runTest {
+        store.write("parity.org", parityVault)
+        TestVaultSeeder.index(db, store)
+        advanceUntilIdle()
+        val vm = agenda()
+        advanceUntilIdle()
+        vm.setTab(AgendaTab.UPCOMING)
+        advanceUntilIdle()
+
+        val previews = vm.state.value.groups.flatMap { it.rows }.filter { it.title == "Weekly review" }
+        // Repeats on today+7 and today+14 fall inside the 14-day window only for the first.
+        assertEquals(1, previews.size)
+        assertEquals(PlanningKind.SCHEDULED, previews.single().previewKind)
+        assertTrue(vm.state.value.groups.none { it.key == AgendaViewModel.DUE_SOON_KEY })
+    }
 }

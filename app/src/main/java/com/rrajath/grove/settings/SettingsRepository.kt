@@ -230,6 +230,12 @@ data class GroveSettings(
      * alongside whatever DEADLINE indicators a row already always shows.
      */
     val agendaShowTimestamps: Boolean = false,
+    /**
+     * How many days before a DEADLINE the Agenda's Today tab starts listing it
+     * under "Due soon" (Emacs's `org-deadline-warning-days`). A deadline's own
+     * `-Nd` cookie overrides it; 0 turns prewarnings off.
+     */
+    val agendaDeadlineWarningDays: Int = DEFAULT_AGENDA_DEADLINE_WARNING_DAYS,
     /** Agenda ledger home-screen widget background transparency: 0 = opaque, 1 = fully transparent. */
     val agendaWidgetTransparency: Float = 0f,
     /** How many days ahead the Agenda ledger widget shows, beyond Overdue/Today. */
@@ -306,6 +312,8 @@ data class GroveSettings(
         const val DEFAULT_SHARE_TARGET = "inbox.org"
         val DEFAULT_REMINDER_TIME: LocalTime = LocalTime.of(9, 0)
         const val DEFAULT_AGENDA_WIDGET_DAYS_AHEAD = 14
+        const val DEFAULT_AGENDA_DEADLINE_WARNING_DAYS = 14
+        const val MAX_AGENDA_DEADLINE_WARNING_DAYS = 365
     }
 }
 
@@ -401,6 +409,7 @@ class SettingsRepository(
         val agendaShowTags = booleanPreferencesKey("agenda_show_tags")
         val agendaShowFile = booleanPreferencesKey("agenda_show_file")
         val agendaShowTimestamps = booleanPreferencesKey("agenda_show_timestamps")
+        val agendaDeadlineWarningDays = intPreferencesKey("agenda_deadline_warning_days")
         val agendaWidgetTransparency = floatPreferencesKey("agenda_widget_transparency")
         val agendaWidgetDaysAhead = intPreferencesKey("agenda_widget_days_ahead")
         val agendaWidgetShowFileName = booleanPreferencesKey("agenda_widget_show_file_name")
@@ -509,6 +518,8 @@ class SettingsRepository(
             agendaShowTags = prefs[Keys.agendaShowTags] ?: true,
             agendaShowFile = prefs[Keys.agendaShowFile] ?: false,
             agendaShowTimestamps = prefs[Keys.agendaShowTimestamps] ?: false,
+            agendaDeadlineWarningDays = prefs[Keys.agendaDeadlineWarningDays]
+                ?: GroveSettings.DEFAULT_AGENDA_DEADLINE_WARNING_DAYS,
             agendaWidgetTransparency = prefs[Keys.agendaWidgetTransparency] ?: 0f,
             agendaWidgetDaysAhead = prefs[Keys.agendaWidgetDaysAhead] ?: GroveSettings.DEFAULT_AGENDA_WIDGET_DAYS_AHEAD,
             agendaWidgetShowFileName = prefs[Keys.agendaWidgetShowFileName] ?: false,
@@ -642,6 +653,7 @@ class SettingsRepository(
             p[Keys.agendaShowTags] = s.agendaShowTags
             p[Keys.agendaShowFile] = s.agendaShowFile
             p[Keys.agendaShowTimestamps] = s.agendaShowTimestamps
+            p[Keys.agendaDeadlineWarningDays] = s.agendaDeadlineWarningDays
             p[Keys.agendaWidgetTransparency] = s.agendaWidgetTransparency
             p[Keys.agendaWidgetDaysAhead] = s.agendaWidgetDaysAhead
             p[Keys.agendaWidgetShowFileName] = s.agendaWidgetShowFileName
@@ -946,6 +958,12 @@ class SettingsRepository(
 
     suspend fun setAgendaShowTimestamps(show: Boolean) {
         editSettings { it[Keys.agendaShowTimestamps] = show }
+    }
+
+    suspend fun setAgendaDeadlineWarningDays(days: Int) {
+        editSettings {
+            it[Keys.agendaDeadlineWarningDays] = days.coerceIn(0, GroveSettings.MAX_AGENDA_DEADLINE_WARNING_DAYS)
+        }
     }
 
     suspend fun setAgendaWidgetTransparency(transparency: Float) {

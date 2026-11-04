@@ -400,6 +400,70 @@ fun OrgTimestamp.occurrenceCovering(day: LocalDate): LocalDate? {
     return null
 }
 
+/**
+ * The start date of this stamp's first occurrence on or after [day], projected
+ * like [occurrenceCovering]. A non-repeating stamp has one occurrence, its own
+ * [OrgTimestamp.date], so this is null once [day] is past it. An hour repeater
+ * counts each day one of its hourly starts lands on.
+ */
+fun OrgTimestamp.firstOccurrenceOnOrAfter(day: LocalDate): LocalDate? {
+    if (!day.isAfter(date)) return date
+    val rep = repeater?.takeIf { it.value > 0 } ?: return null
+    if (rep.unit == 'h') {
+        var d = day
+        // Hourly starts land at least every `hours / 24 + 1` days, so this ends fast.
+        repeat((rep.value / 24) + 2) {
+            if (hourOccurrenceOn(rep.value.toLong(), d) != null) return d
+            d = d.plusDays(1)
+        }
+        return null
+    }
+    val step = rep.value.toLong()
+    val est = when (rep.unit) {
+        'd' -> ChronoUnit.DAYS.between(date, day) / step
+        'w' -> ChronoUnit.WEEKS.between(date, day) / step
+        'm' -> ChronoUnit.MONTHS.between(date.withDayOfMonth(1), day.withDayOfMonth(1)) / step
+        'y' -> (day.year - date.year).toLong() / step
+        else -> return null
+    }
+    fun start(n: Long) = date.plusOrgUnits(n * step, rep.unit)
+    // The estimate can sit one step off either way around an overflowed month-end.
+    var n = est.coerceAtLeast(0)
+    while (n > 0 && !start(n - 1).isBefore(day)) n--
+    while (start(n).isBefore(day)) n++
+    return start(n)
+}
+
+/**
+ * The warning/delay cookie (`-2d`, `--1w`) as whole days, read the way Emacs's
+ * `org-get-wdays` does: `h` counts 1/24 of a day, `w` 7, `m` 30.4 and `y`
+ * 365.25, rounded down. Null when the stamp has no cookie or it doesn't parse.
+ * On a DEADLINE it is the prewarning window; on a SCHEDULED it is a delay.
+ */
+val OrgTimestamp.cookieDays: Int?
+    get() {
+        val m = COOKIE.matchEntire(warning?.trim() ?: return null) ?: return null
+        val n = m.groupValues[2].toIntOrNull() ?: return null
+        val factor = when (m.groupValues[3][0]) {
+            'h' -> 1.0 / 24
+            'd' -> 1.0
+            'w' -> 7.0
+            'm' -> 30.4
+            'y' -> 365.25
+            else -> return null
+        }
+        return kotlin.math.floor(n * factor).toInt()
+    }
+
+/**
+ * A double-dash cookie (`--2d`): on a repeating SCHEDULED, the delay holds back
+ * only the stored occurrence, not the later repeats (a single dash delays every
+ * repeat).
+ */
+val OrgTimestamp.cookieFirstOnly: Boolean get() = warning?.trim()?.startsWith("--") == true
+
+private val COOKIE = Regex("(--?)(\\d+)([hdwmy])")
+
 /** Whether any occurrence of this stamp ([occurrenceCovering]) touches a day in [from]..[to]. */
 fun OrgTimestamp.occursBetween(from: LocalDate, to: LocalDate): Boolean {
     if (!repeats) return !date.isAfter(to) && !(rangeEnd ?: date).isBefore(from)

@@ -1,11 +1,13 @@
 package com.rrajath.grove.ui.screens.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,6 +31,7 @@ fun SettingsAgendaScreen(
     onBack: () -> Unit,
     onSetAgendaSwipeLeftAction: (AgendaSwipeAction) -> Unit,
     onSetAgendaSwipeRightAction: (AgendaSwipeAction) -> Unit,
+    onSetAgendaDeadlineWarningDays: (Int) -> Unit,
 ) {
     val c = MaterialTheme.grove
     SettingsPageScaffold(title = "Agenda", onBack = onBack) {
@@ -71,6 +74,26 @@ fun SettingsAgendaScreen(
                     onSelect = { onSetAgendaSwipeRightAction(SWIPE_ACTION_OPTIONS[it]) },
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            RowDivider()
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Deadline warning",
+                        fontFamily = PlexSans, fontWeight = FontWeight.Medium,
+                        fontSize = 14.5.sp, color = c.ink,
+                    )
+                    Text(
+                        "Days before a deadline that it shows under Due soon on Today. " +
+                            "A warning on the deadline itself, like -3d, wins. 0 turns this off.",
+                        fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                IntSettingField(settings.agendaDeadlineWarningDays, minValue = 0, onSet = onSetAgendaDeadlineWarningDays)
             }
         }
     }

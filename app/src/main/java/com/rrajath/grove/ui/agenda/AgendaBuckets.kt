@@ -1,7 +1,11 @@
 package com.rrajath.grove.ui.agenda
 
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.PlanningKind
+import com.rrajath.grove.org.cookieDays
+import com.rrajath.grove.org.cookieFirstOnly
 import com.rrajath.grove.org.occurrenceCovering
+import com.rrajath.grove.org.repeats
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.settings.AgendaGrouping
 import com.rrajath.grove.settings.AgendaStateFilter
@@ -32,6 +36,14 @@ import kotlin.math.abs
  * N separate agenda entries, each shown on its own day (and on every repeat of
  * a repeating stamp) via [activeEventsOn], and an event never ages into
  * [overdue] the way a past SCHEDULED does.
+ *
+ * Two more ways a heading reaches a day other than its stored one, both from
+ * the Emacs agenda: a repeating SCHEDULED or DEADLINE previews each later
+ * repeat in Upcoming ([repeatsOn]), and a DEADLINE inside its prewarning
+ * window shows under Today's "Due soon" ([dueSoon]). Neither breaks "one row
+ * per heading per day": a preview never lands on a day the heading is already
+ * planned for. A SCHEDULED delay cookie (`-2d`) hides the plan until N days
+ * after its date ([delayed]).
  */
 internal object AgendaBuckets {
 
@@ -51,6 +63,69 @@ internal object AgendaBuckets {
         AgendaStateFilter.Open -> !m.isDoneKeyword
         is AgendaStateFilter.Keyword -> m.keyword == filter.name
     }
+
+    /**
+     * Whether a SCHEDULED delay cookie still holds this heading's plan back on
+     * [today]: `SCHEDULED: <2026-11-03 Tue -2d>` stays off the agenda until
+     * Nov 5, then shows as overdue (Emacs). Callers drop delayed headings from
+     * their planned rows; the heading's events and deadline prewarning stay.
+     */
+    fun delayed(m: NoteMeta, today: LocalDate): Boolean {
+        val s = m.scheduledTs ?: return false
+        val days = s.cookieDays ?: return false
+        return days > 0 && today.isBefore(s.date.plusDays(days.toLong()))
+    }
+
+    /** A future repeat of a heading's SCHEDULED or DEADLINE, placed on one day. */
+    data class Repeat(val meta: NoteMeta, val kind: PlanningKind, val ts: OrgTimestamp)
+
+    /**
+     * The headings whose repeating SCHEDULED or DEADLINE recurs on [day], for
+     * days after [today]: Emacs previews every later repeat of an open entry
+     * while the stored date stays the one you act on (marking a preview done
+     * runs on the heading). Only repeats after the stored date count; the stored
+     * date itself is the heading's planned row. One entry per heading, the
+     * SCHEDULED repeat winning when both land on [day], and none on the day the
+     * heading is already planned. Done headings never preview, and a
+     * single-dash SCHEDULED delay (`-2d`) holds back every repeat.
+     */
+    fun repeatsOn(notes: List<NoteMeta>, day: LocalDate, today: LocalDate): List<Repeat> {
+        if (!day.isAfter(today)) return emptyList()
+        return notes.mapNotNull { m ->
+            if (m.isDoneKeyword || whenDate(m) == day) return@mapNotNull null
+            val scheduled = m.scheduledTs
+                ?.takeUnless { (it.cookieDays ?: 0) > 0 && !it.cookieFirstOnly }
+                ?.let { repeatOn(it, day) }
+            when {
+                scheduled != null -> Repeat(m, PlanningKind.SCHEDULED, scheduled)
+                else -> m.deadlineTs?.let { repeatOn(it, day) }?.let { Repeat(m, PlanningKind.DEADLINE, it) }
+            }
+        }
+    }
+
+    /** [ts] moved onto [day] when one of its repeats after its stored date starts there. */
+    private fun repeatOn(ts: OrgTimestamp, day: LocalDate): OrgTimestamp? {
+        if (!ts.repeats || !day.isAfter(ts.date)) return null
+        return if (ts.occurrenceCovering(day) == day) ts.copy(date = day, rangeEnd = null) else null
+    }
+
+    /**
+     * Open headings whose DEADLINE falls after [today] but inside its
+     * prewarning window: the deadline's own `-Nd` cookie, else
+     * [defaultWarningDays] (Settings › Agenda, Emacs's
+     * `org-deadline-warning-days`). Soonest first, then priority, then title.
+     */
+    fun dueSoon(notes: List<NoteMeta>, today: LocalDate, defaultWarningDays: Int): List<NoteMeta> =
+        notes.filter { m ->
+            val dl = m.deadlineTs ?: return@filter false
+            if (m.isDoneKeyword || !dl.date.isAfter(today)) return@filter false
+            val window = dl.cookieDays ?: defaultWarningDays
+            ChronoUnit.DAYS.between(today, dl.date) <= window
+        }.sortedWith(
+            compareBy<NoteMeta> { it.deadlineDate }
+                .thenBy { it.priority ?: NO_PRIORITY_SORT_KEY }
+                .thenBy { it.title.lowercase() }
+        )
 
     /** Past-dated headings, oldest first, then priority, then title. */
     fun overdue(notes: List<NoteMeta>, today: LocalDate): List<NoteMeta> =

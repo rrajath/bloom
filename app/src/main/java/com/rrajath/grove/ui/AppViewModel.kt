@@ -518,6 +518,9 @@ class AppViewModel(
     fun setAgendaWidgetTransparency(transparency: Float) =
         viewModelScope.launch { settingsRepository.setAgendaWidgetTransparency(transparency) }
 
+    fun setAgendaDeadlineWarningDays(days: Int) =
+        viewModelScope.launch { settingsRepository.setAgendaDeadlineWarningDays(days) }
+
     fun setAgendaWidgetDaysAhead(days: Int) =
         viewModelScope.launch { settingsRepository.setAgendaWidgetDaysAhead(days) }
 

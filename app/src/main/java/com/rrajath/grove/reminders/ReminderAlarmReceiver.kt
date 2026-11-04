@@ -33,6 +33,8 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                 // is silent here and counted into the daily digest instead.
                 if (reminder.firesOwnNotification) ReminderNotification.show(context, reminder)
                 app.database.reminderDao().markFired(key, System.currentTimeMillis())
+                // A repeating stamp re-arms for its next occurrence.
+                app.reminderReconciler.rollForward(reminder)
             } finally {
                 pending.finish()
             }

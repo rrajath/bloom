@@ -5,26 +5,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -115,7 +108,7 @@ fun SettingsWidgetScreen(
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                DaysAheadField(settings.agendaWidgetDaysAhead, onSetAgendaWidgetDaysAhead)
+                IntSettingField(settings.agendaWidgetDaysAhead, minValue = 2, onSet = onSetAgendaWidgetDaysAhead)
             }
             RowDivider()
             ToggleRow(
@@ -183,28 +176,3 @@ fun SettingsWidgetScreen(
     }
 }
 
-/**
- * Positive-integer-only field (>1): non-digit keystrokes are filtered as typed,
- * and an invalid value (blank, 0, or 1) reverts to the last committed setting
- * on blur rather than showing an inline error.
- */
-@Composable
-private fun DaysAheadField(days: Int, onSet: (Int) -> Unit) {
-    val c = MaterialTheme.grove
-    var text by remember(days) { mutableStateOf(days.toString()) }
-    OutlinedTextField(
-        value = text,
-        onValueChange = { text = it.filter(Char::isDigit).take(4) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        textStyle = TextStyle(fontFamily = PlexMono, fontSize = 14.sp, color = c.accent),
-        modifier = Modifier
-            .width(72.dp)
-            .onFocusChanged { state ->
-                if (!state.isFocused) {
-                    val parsed = text.toIntOrNull()
-                    if (parsed != null && parsed > 1) onSet(parsed) else text = days.toString()
-                }
-            },
-    )
-}

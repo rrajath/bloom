@@ -240,4 +240,92 @@ class ReminderReconcilerTest {
             dao.rows.values.first().firedAt != null,
         )
     }
+
+    // --- repeating reminders roll forward (report phase 8) ---
+
+    private val utc = ZoneId.of("UTC")
+
+    private fun at(d: Int, h: Int) = LocalDateTime.of(2026, 11, d, h, 0).atZone(utc).toInstant().toEpochMilli()
+
+    private fun repeating(key: String, trigger: Long, stamp: String?) =
+        entity(key, triggerAtMillis = trigger).copy(repeatStamp = stamp)
+
+    private fun reconcilerAt(clock: Long, dao: ReminderDao, rec: Recorder) = ReminderReconciler(
+        context = null,
+        dao = dao,
+        clock = { clock },
+        hasPermission = { true },
+        notify = { rec.notified += it.key },
+        scheduleAlarm = { rec.scheduled += it.key },
+        cancelAlarm = { rec.cancelled += it.key },
+        zone = { utc },
+    )
+
+    @Test
+    fun `a fired repeating reminder re-arms for its next occurrence`() = runTest {
+        val dao = FakeReminderDao()
+        val fired = repeating("weekly", at(4, 12), "<2026-10-28 Wed 12:00 +1w>").copy(firedAt = at(4, 12))
+        dao.rows["weekly"] = fired
+        val rec = Recorder()
+
+        reconcilerAt(at(4, 12), dao, rec).rollForward(fired)
+
+        assertEquals(at(11, 12), dao.rows["weekly"]!!.triggerAtMillis)
+        assertNull(dao.rows["weekly"]!!.firedAt)
+        assertEquals(listOf("weekly"), rec.scheduled)
+    }
+
+    @Test
+    fun `a date-only repeat keeps its reminder time of day when it rolls`() = runTest {
+        val dao = FakeReminderDao()
+        // Fired at 08:15 (the default reminder time when it was armed).
+        val trigger = LocalDateTime.of(2026, 11, 4, 8, 15).atZone(utc).toInstant().toEpochMilli()
+        val fired = repeating("daily", trigger, "<2026-11-01 Sun +1d>")
+        dao.rows["daily"] = fired
+
+        reconcilerAt(trigger, dao, Recorder()).rollForward(fired)
+
+        assertEquals(
+            LocalDateTime.of(2026, 11, 5, 8, 15).atZone(utc).toInstant().toEpochMilli(),
+            dao.rows["daily"]!!.triggerAtMillis,
+        )
+    }
+
+    @Test
+    fun `an alarm delivered early never re-arms the same occurrence`() = runTest {
+        val dao = FakeReminderDao()
+        val fired = repeating("weekly", at(4, 12), "<2026-10-28 Wed 12:00 +1w>")
+        dao.rows["weekly"] = fired
+
+        reconcilerAt(at(4, 11), dao, Recorder()).rollForward(fired)
+
+        assertEquals(at(11, 12), dao.rows["weekly"]!!.triggerAtMillis)
+    }
+
+    @Test
+    fun `a one-off reminder is left as fired`() = runTest {
+        val dao = FakeReminderDao()
+        val fired = repeating("once", at(4, 12), null).copy(firedAt = at(4, 12))
+        dao.rows["once"] = fired
+        val rec = Recorder()
+
+        reconcilerAt(at(4, 12), dao, rec).rollForward(fired)
+
+        assertEquals(fired, dao.rows["once"])
+        assertTrue(rec.scheduled.isEmpty())
+    }
+
+    @Test
+    fun `catch-up fires a missed repeating reminder once and re-arms the next occurrence`() = runTest {
+        val dao = FakeReminderDao()
+        dao.rows["weekly"] = repeating("weekly", at(4, 12), "<2026-10-28 Wed 12:00 +1w>")
+        val rec = Recorder()
+
+        reconcilerAt(at(4, 15), dao, rec).catchUpOverdue()
+
+        assertEquals(listOf("weekly"), rec.notified)
+        assertEquals(at(11, 12), dao.rows["weekly"]!!.triggerAtMillis)
+        assertNull(dao.rows["weekly"]!!.firedAt)
+        assertEquals(listOf("weekly"), rec.scheduled)
+    }
 }

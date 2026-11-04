@@ -1052,6 +1052,7 @@ private fun GroveNavigation(
                     onBack = { navController.popBackStack() },
                     onSetAgendaSwipeLeftAction = viewModel::setAgendaSwipeLeftAction,
                     onSetAgendaSwipeRightAction = viewModel::setAgendaSwipeRightAction,
+                    onSetAgendaDeadlineWarningDays = viewModel::setAgendaDeadlineWarningDays,
                 )
             }
             composable(Routes.SETTINGS_WIDGET) {

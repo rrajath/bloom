@@ -59,10 +59,14 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Added
 - Read mode, Outline, editor, Agenda and Search lay out right-to-left text (Persian, Arabic, Hebrew) right-aligned, including tables and quotes.
+- Upcoming and the Agenda widget show each future repeat of recurring SCHEDULED and DEADLINE tasks, like Emacs.
+- Today lists deadlines coming up under Due soon; set how many days ahead in Settings › Agenda.
+- Repeating timestamps remind you on every occurrence, not only on the date written in the file.
 
 ### Changed
 - The Outline's new-note button now has the same soft amber drop shadow as the note editor's menu button.
 - The Capture Editor's Save button is a full-size floating button with the keyboard down, shrinking into the suggestion strip while typing.
+- A SCHEDULED delay like `-2d` keeps a task off the Agenda until the delay has passed, like Emacs.
 
 ### Fixed
 - Heading tags in non-Latin scripts (`:خرید:`, `:été:`) are recognized as tags instead of showing in the title.

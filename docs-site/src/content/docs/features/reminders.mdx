@@ -34,6 +34,10 @@ A heading with a TODO keyword is a task: the notification reads "Your task is du
 
 A heading with no TODO keyword is an event: the notification reads "Your event is starting now" (or "starts in ..." for a lead time) and carries only **Reschedule** — unless the timestamp itself carries a repeater cookie (`<2026-09-11 Fri +1w>`), in which case it also gets **Complete**, which advances the timestamp's own date rather than marking anything DONE, whether the timestamp sits on its own line or inside a sentence. A date-only event doesn't fire its own notification by default; it is folded into the daily digest for its day (turn on "Notify for tasks without a time" below to get a separate notification instead). A date range reminds you once, on its start date.
 
+### Repeating timestamps
+
+A timestamp with a repeater (`+1w`, `++1d`, `.+1m`, `+2h`) reminds you on every occurrence, not only on the date written in the file. A weekly meeting written as `<2026-10-28 Wed 12:00 +1w>` reminds you every Wednesday at noon, and after each reminder fires the next one is set up automatically. This applies to SCHEDULED, DEADLINE and bare active timestamps alike, so a recurring task you haven't marked done keeps reminding you on each repeat. Marking it done (or tapping **Complete**) moves the date in the file forward as usual. The daily digest still counts an unfinished recurring task as overdue, the same way the Agenda does.
+
 Tapping the notification body itself deep-links into the note in Read mode.
 
 ## Reschedule without opening the app

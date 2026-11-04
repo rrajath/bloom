@@ -203,6 +203,11 @@ data class ReminderEntity(
      *  heading's active timestamps and advance just it, leaving any others on
      *  the same line untouched. */
     val activeTimestampDate: String? = null,
+    /** The tracked timestamp exactly as written (`<2026-10-28 Wed 12:00 +1w>`), set
+     *  only when it repeats. The reminder then fires on its next occurrence rather
+     *  than only the stored date, and rolls forward to the one after each time it
+     *  fires (ReminderReconciler.rollForward) without re-reading the notebook. */
+    val repeatStamp: String? = null,
 )
 
 /** Projection of the notebook columns the sync engine diffs against disk. */
@@ -612,6 +617,9 @@ interface ReminderDao {
         NotebookEntity::class, NoteEntity::class, FtsMapEntity::class,
         SyncLogEntity::class, ReminderEntity::class,
     ],
+    // v18: added ReminderEntity.repeatStamp (a repeating reminder fires on each
+    // occurrence, not only the stored date). Destructive migration drops the
+    // rebuildable reminders table; the next reconcile repopulates it from disk.
     // v17: added ReminderEntity.isTask (task vs event is now decided by whether
     // the heading carries a live TODO keyword, not by planning type) and started
     // computing hasRepeater for SCHEDULED/DEADLINE rows too, not just ACTIVE.
@@ -660,7 +668,7 @@ interface ReminderDao {
     // v5: added NotebookEntity.isIndexed (stub vs fully-parsed notebook rows);
     // v4: added NotebookEntity.title (cached #+TITLE: preamble value). Destructive
     // migration drops the index so the next sync rebuilds it from the .org files.
-    version = 17,
+    version = 18,
     exportSchema = false,
 )
 abstract class GroveDatabase : RoomDatabase() {

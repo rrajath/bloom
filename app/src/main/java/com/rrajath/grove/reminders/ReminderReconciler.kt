@@ -4,8 +4,11 @@ import android.content.Context
 import com.rrajath.grove.data.ReminderDao
 import com.rrajath.grove.data.ReminderEntity
 import com.rrajath.grove.org.OrgDocument
+import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.settings.ReminderLeadTime
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 
 /**
  * Android-side orchestration around [ReminderPlanning]/[ReminderDiff]: keeps
@@ -33,6 +36,7 @@ class ReminderReconciler(
     private val notify: (ReminderEntity) -> Unit = { if (it.firesOwnNotification) ReminderNotification.show(context!!, it) },
     private val scheduleAlarm: (ReminderEntity) -> Unit = { AlarmScheduler.schedule(context!!, it) },
     private val cancelAlarm: (ReminderEntity) -> Unit = { AlarmScheduler.cancel(context!!, it) },
+    private val zone: () -> ZoneId = ZoneId::systemDefault,
 ) {
 
     /** Recompute and apply the diff for one file's current headlines. */
@@ -47,6 +51,7 @@ class ReminderReconciler(
         val existing = dao.forFile(fileName)
         val desired = ReminderPlanning.desiredReminders(
             fileName, doc, defaultReminderTime, remindersEnabled, leadTime, notifyUntimed,
+            zone = zone(), nowMillis = clock(),
         )
         applyPlan(ReminderDiff.diff(existing, desired))
     }
@@ -141,6 +146,29 @@ class ReminderReconciler(
             .forEach { arm(it) }
     }
 
+    /**
+     * After [entity] fired: a repeating reminder ([ReminderEntity.repeatStamp])
+     * re-arms for its next occurrence, so a weekly stamp the user never advances
+     * keeps reminding every week. Runs without the vault: the stamp, lead time
+     * and (for a date-only stamp) the reminder time of day all come off the row.
+     * A one-off reminder is left as fired.
+     */
+    suspend fun rollForward(entity: ReminderEntity) {
+        val stamp = entity.repeatStamp?.let { OrgTimestamp.parse(it) } ?: return
+        val z = zone()
+        // A date-only stamp fires at the default reminder time, which the row's
+        // own trigger already carries; a timed stamp ignores this value.
+        val timeOfDay = Instant.ofEpochMilli(entity.triggerAtMillis).atZone(z).toLocalTime()
+        // Never before the trigger that just fired, so an alarm delivered a
+        // little early can't re-arm the same occurrence.
+        val after = maxOf(clock(), entity.triggerAtMillis)
+        val next = ReminderPlanning.nextTriggerMillis(
+            stamp, timeOfDay, after, z, ReminderLeadTime.fromStorage(entity.leadTime),
+        )
+        if (next <= after) return
+        arm(entity.copy(triggerAtMillis = next, firedAt = null))
+    }
+
     private suspend fun applyPlan(plan: ReminderPlan) {
         plan.toCancel.forEach { entity ->
             cancelAlarm(entity)
@@ -177,11 +205,14 @@ class ReminderReconciler(
             // by construction, so genuinely-unfired overdue reminders still fire.
             if (entity.firedAt != null) {
                 dao.upsert(entity.copy(pendingPermission = false))
+                rollForward(entity)
                 return
             }
             dao.upsert(entity.copy(pendingPermission = false))
             if (notifyIfOverdue) notify(entity)
             dao.markFired(entity.key, clock())
+            // A repeating reminder moves on to its next occurrence right away.
+            rollForward(entity)
         } else {
             dao.upsert(entity.copy(pendingPermission = false, firedAt = null))
             scheduleAlarm(entity)
