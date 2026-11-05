@@ -240,9 +240,14 @@ class NotebooksViewModelIntegrationTest {
         val inbox = PinnedItem(PinKind.FILE, "inbox.org")
         val stale = PinnedItem(PinKind.FILE, "gone.org")
         val work = PinnedItem(PinKind.FOLDER, "work")
-        vm.pinNotebook("inbox.org")
-        vm.pinNotebook("gone.org")
-        vm.pinFolder("work")
+        // Seed through awaited repository calls, not vm.pinNotebook/pinFolder: those each
+        // launch a write that hops to Dispatchers.IO on its own, so three fired back to back
+        // reach DataStore's serial writer in whatever order the IO pool schedules them, and
+        // the pin order (which this test is about) comes out random. Awaiting each write
+        // fixes the order to inbox, gone, work.
+        settingsRepository.pinNotebook("inbox.org")
+        settingsRepository.pinNotebook("gone.org")
+        settingsRepository.pinFolder("work")
         settleUntil { (vm.state.value as? NotebooksUiState.Loaded)?.livePins == listOf(inbox, work) }
 
         vm.movePin(work, -1)
