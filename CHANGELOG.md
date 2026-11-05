@@ -57,6 +57,9 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Fixed
+- "Capture from notification" can now be turned on with Android 12 and older.
+
 ## [1.13.0] - 2026-11-05
 
 ### Added

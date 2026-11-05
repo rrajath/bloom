@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Bloom</string>
     <string name="widget_description">One-tap capture into your org notes</string>
     <string name="ledger_widget_description">Agenda ledger: overdue and upcoming tasks grouped by day</string>
@@ -24,7 +24,7 @@
     <string name="widget_open_agenda">Open Agenda in %1$s</string>
     <string name="widget_no_results">No results</string>
     <!-- "+N more" (load the next page in the widget) and "view all" (open the app) are separate tap targets. -->
-    <string name="widget_load_more">+%1$d more</string>
+    <string name="widget_load_more" tools:ignore="PluralsCandidate">+%1$d more</string>
     <string name="widget_more_separator">·</string>
     <string name="widget_view_all">view all</string>
     <!-- View picker subtitle for the Agenda row; %1$d is Settings › Widget › Days ahead. -->

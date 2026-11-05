@@ -48,6 +48,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -559,6 +560,7 @@ fun TemplateEditScreen(
 
                 Spacer(Modifier.height(10.dp))
                 val context = LocalContext.current
+                val configuration = LocalConfiguration.current
                 val pinScope = rememberCoroutineScope()
                 Box(
                     Modifier
@@ -574,7 +576,7 @@ fun TemplateEditScreen(
                                 val app = context.applicationContext as com.rrajath.grove.GroveApplication
                                 val settings = app.settingsRepository.settings.first()
                                 val pinned = ShortcutSyncer.requestPin(
-                                    context, template, settings.themeSelection.resolveFor(context.resources.configuration), settings.syncAppIconWithTheme,
+                                    context, template, settings.themeSelection.resolveFor(configuration), settings.syncAppIconWithTheme,
                                 )
                                 if (!pinned) {
                                     android.widget.Toast.makeText(

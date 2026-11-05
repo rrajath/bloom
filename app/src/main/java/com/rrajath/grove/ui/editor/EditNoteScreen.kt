@@ -63,6 +63,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -627,7 +628,7 @@ fun EditNoteScreen(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(end = 16.dp)
-                            .offset(y = fabDrop),
+                            .offset { IntOffset(0, fabDrop.roundToPx()) },
                     )
                 }
                 GroveUndoSnackbar(

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- tools:ignore UnusedAttribute: the API 31+ sizing attributes are ignored on older launchers, which use minWidth/minHeight. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedAttribute"
     android:minWidth="57dp"
     android:minHeight="57dp"
     android:targetCellWidth="2"

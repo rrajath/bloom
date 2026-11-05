@@ -75,6 +75,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.em
@@ -826,7 +827,7 @@ fun CaptureEditorScreen(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(end = 16.dp)
-                            .offset(y = -saveLift)
+                            .offset { IntOffset(0, -saveLift.roundToPx()) }
                             // Only the compact width matters: that is what the strip reserves.
                             .onSizeChanged { if (slotShown) saveWidth = with(density) { it.width.toDp() } },
                     )

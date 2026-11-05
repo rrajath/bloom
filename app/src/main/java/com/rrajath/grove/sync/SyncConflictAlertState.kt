@@ -1,6 +1,7 @@
 package com.rrajath.grove.sync
 
 import android.content.Context
+import androidx.core.content.edit
 
 /**
  * Tracks whether the current unresolved-conflict episode has already been
@@ -17,7 +18,7 @@ class SyncConflictAlertState(context: Context) {
     fun isActive(): Boolean = prefs.getBoolean(KEY_ACTIVE, false)
 
     fun setActive(active: Boolean) {
-        prefs.edit().putBoolean(KEY_ACTIVE, active).apply()
+        prefs.edit { putBoolean(KEY_ACTIVE, active) }
     }
 
     companion object {

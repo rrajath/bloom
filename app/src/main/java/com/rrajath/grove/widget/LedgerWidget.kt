@@ -202,9 +202,10 @@ class LedgerWidget : GlanceAppWidget() {
         val initialResults = initialSelection?.let { WidgetSearch.runSafely(app, it.query, initialSettings.defaultPriority) }
 
         provideContent {
-            val settings by app.settingsRepository.settings
-                .distinctUntilChangedBy { WidgetPrefs(it) }
-                .collectAsState(initial = initialSettings)
+            val settingsFlow = remember {
+                app.settingsRepository.settings.distinctUntilChangedBy { WidgetPrefs(it) }
+            }
+            val settings by settingsFlow.collectAsState(initial = initialSettings)
             val saved by app.searchRepository.savedSearches.collectAsState(initial = initialSaved)
             val keywords by app.keywords.collectAsState()
             val systemIsDark by app.systemNightMode.collectAsState()

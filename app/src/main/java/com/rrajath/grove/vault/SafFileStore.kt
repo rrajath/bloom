@@ -1,5 +1,6 @@
 package com.rrajath.grove.vault
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.os.Build
@@ -657,6 +658,8 @@ class SafFileStore(
         return DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
     }
 
+    // Recycle: the stream is the return value; FileStore callers close it.
+    @SuppressLint("Recycle")
     override suspend fun openInput(name: String): InputStream = withContext(Dispatchers.IO) {
         val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
         resolver.openInputStream(uri) ?: throw FileNotFoundException(name)
@@ -686,6 +689,8 @@ class SafFileStore(
         true
     }
 
+    // Recycle: the stream is the return value; FileStore callers close it.
+    @SuppressLint("Recycle")
     override suspend fun openOutput(name: String): OutputStream = withContext(Dispatchers.IO) {
         val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
         resolver.openOutputStream(uri, "wt") ?: throw FileNotFoundException(name)

@@ -45,8 +45,13 @@ fun SettingsCaptureTemplatesScreen(
                 label = "Capture from notification",
                 checked = settings.captureNotification,
             ) { enabled ->
-                if (enabled) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                else onSetCaptureNotification(false)
+                when {
+                    !enabled -> onSetCaptureNotification(false)
+                    // No runtime permission below API 33: requesting it is always denied.
+                    android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU ->
+                        onSetCaptureNotification(true)
+                    else -> notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
             }
         }
     }

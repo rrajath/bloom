@@ -1,6 +1,7 @@
 package com.rrajath.grove.ui.components
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +38,9 @@ import kotlinx.coroutines.launch
  * it actually gets scheduled). Requests whichever permission is still missing,
  * then re-runs reconciliation for everything that was pending.
  */
+// InlinedApi: each permission is only requested after AlarmScheduler reports it
+// missing, which it never does below the API level that introduced it.
+@SuppressLint("InlinedApi")
 @Composable
 fun ReminderPermissionBanner(pendingCount: Int, modifier: Modifier = Modifier) {
     if (pendingCount <= 0) return

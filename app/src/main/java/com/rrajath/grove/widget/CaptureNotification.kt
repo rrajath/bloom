@@ -24,8 +24,12 @@ object CaptureNotification {
     private const val CHANNEL_ID = "capture-shortcut"
     private const val NOTIFICATION_ID = 200
 
+    // Below API 33 POST_NOTIFICATIONS isn't a runtime permission, and
+    // checkSelfPermission always reports it denied, so the notification could
+    // never be shown there.
     fun canShow(context: Context): Boolean =
-        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
 
     fun show(context: Context) {

@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -113,6 +114,7 @@ class WidgetViewPickerActivity : ComponentActivity() {
 private fun ViewPickerSheet(appWidgetId: Int, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as GroveApplication
+    val resources = LocalResources.current
     val agendaLabel = stringResource(R.string.widget_view_agenda)
 
     var glanceId by remember { mutableStateOf<GlanceId?>(null) }
@@ -130,7 +132,7 @@ private fun ViewPickerSheet(appWidgetId: Int, onDismiss: () -> Unit) {
         glanceId = id
         items = WidgetViews.pickerItems(
             agendaLabel = agendaLabel,
-            agendaSubtitle = agendaWindowSubtitle(context.resources, settings.agendaWidgetDaysAhead),
+            agendaSubtitle = agendaWindowSubtitle(resources,settings.agendaWidgetDaysAhead),
             saved = app.searchRepository.savedSearches.first(),
             activeStates = app.keywords.value.active,
             names = quickStartNames(context),
