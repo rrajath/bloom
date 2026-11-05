@@ -115,7 +115,11 @@ class DocumentViewModelIntegrationTest {
     private fun headline(vm: DocumentViewModel, titlePrefix: String): OrgHeadline =
         loadedDoc(vm).headlines.first { it.title.startsWith(titlePrefix) }
 
-    private fun TestScope.loaded(fileName: String): DocumentViewModel {
+    private suspend fun TestScope.loaded(fileName: String): DocumentViewModel {
+        // Edits like setState await `settings.first()`, which DataStore serves from its
+        // own IO thread, outside the test scheduler: advanceUntilIdle() can return before
+        // the edit runs. Prime the shared replay cache here so that read is immediate.
+        settingsRepository.settings.first()
         val vm = documentVm()
         vm.load(fileName)
         advanceUntilIdle()
