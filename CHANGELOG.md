@@ -57,6 +57,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-11-05
+
 ### Added
 - Read mode, Outline, editor, Agenda and Search lay out right-to-left text (Persian, Arabic, Hebrew) right-aligned, including tables and quotes.
 - Upcoming and the Agenda widget show each future repeat of recurring SCHEDULED and DEADLINE tasks, like Emacs.
