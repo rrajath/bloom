@@ -1,0 +1,59 @@
+---
+title: 'Bloom 1.13.0: right-to-left layouts and Emacs-accurate repeats'
+# Noon UTC: a bare date is UTC midnight and renders as the previous day when built west of UTC.
+date: 2026-11-05T12:00:00Z
+authors: rrajath
+tags:
+  - release
+excerpt: 1.13.0 lays out Persian, Arabic and Hebrew text right-to-left across the app, brings the Agenda's recurring tasks and reminders in line with Emacs, and fixes a batch of tag and repeater bugs.
+---
+
+1.13.0 is a release about reading your notes the way you actually wrote them. If you write in Persian, Arabic or Hebrew, every screen that shows your text now lays it out right-to-left instead of forcing it into a left-to-right frame. On the Agenda side, recurring tasks, reminders and delays now follow the same rules Emacs does, closing several gaps that showed up the moment you leaned on repeaters day to day.
+
+## Right-to-left language support
+
+Read mode, Outline, the editor, Agenda and Search now detect right-to-left text, Persian, Arabic and Hebrew, and lay it out right-aligned instead of left-aligned. That covers headings, body text, tables and quotes, so a note written entirely in Arabic now reads the way it would in any RTL-aware app. Mixed-direction notes still work: each line lays out by its own content direction, so an English heading over an Arabic body doesn't get forced the wrong way.
+
+## Agenda
+
+### Every future occurrence of a recurring task
+
+Upcoming and the Agenda widget now show each future repeat of a recurring `SCHEDULED` or `DEADLINE` task, not just its next occurrence, matching how Emacs's agenda works. A weekly task now shows up on every week it's due, as far ahead as your view extends.
+
+### Due soon warnings for deadlines
+
+Today now has a **Due soon** section listing deadlines that are coming up but not yet due. How many days ahead it looks is a setting under **Settings › Agenda**, so you can tune how much runway you want before a deadline shows up.
+
+### Reminders on every occurrence
+
+Repeating timestamps now remind you every time they come around, not only on the date originally written in the file. A `+1w` reminder set once now notifies you every week, the way a repeater implies it should.
+
+### SCHEDULED delays keep tasks off the Agenda
+
+A delay on a `SCHEDULED` timestamp, written like `-2d`, now keeps that task off the Agenda until the delay has passed, the same as Emacs. Previously the task showed up immediately regardless of the delay.
+
+## Notebooks
+
+### Renaming keeps a notebook in its folder
+
+Renaming a notebook no longer moves it out of its folder. Names also can't contain `/` anymore, since that was the only way a rename could change a notebook's location; use **Move** when you actually want to change folders.
+
+## Look and feel
+
+Outline's new-note button and the Capture Editor's Save button both got small visual updates this release: the new-note button now carries the same soft amber drop shadow as the note editor's menu button, and the Save button is a full-size floating button while the keyboard is down, shrinking into the suggestion strip once you start typing.
+
+## Fixes
+
+- Heading tags written in non-Latin scripts, like `:خرید:` or `:été:`, are now recognized as tags instead of showing up in the title text.
+- Long or numerous tags no longer squeeze an Outline title; they follow the title's last line or wrap below it instead.
+- Read mode's tag pills wrap onto additional lines instead of running off the edge of the screen.
+- The Agenda widget's Open tasks view, which had been showing nothing, now matches `i.`, `ps.` and `b.` searches regardless of case.
+- Repeating bare timestamps like `<... +1w>` now appear on every occurrence in the Agenda, the widget and `ad.N` searches.
+- Marking done a task whose repeater sits in its body, rather than on the planning line, now repeats it instead of closing it for good.
+- Marking a recurring task done returns it to the first TODO keyword (or its `REPEAT_TO_STATE`) and drops a non-repeating `SCHEDULED`, matching Emacs.
+- Monthly and yearly repeaters on the 29th through 31st now advance the way Emacs does, so `Jan 31 +1m` lands on `Mar 3` instead of an invalid date.
+- The Agenda's Today and Upcoming tabs now keep their own scroll positions instead of sharing one.
+
+## Full changelog
+
+The complete list of changes is in the [1.13.0 release on GitHub](https://github.com/rrajath/bloom/releases/tag/v1.13.0).
