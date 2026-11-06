@@ -29,6 +29,16 @@ class AttachmentPreviewChipsTest {
     }
 
     @Test
+    fun `rendered preview chips index the inline-rendered text`() {
+        val text = "*Note* [[attachment:IMG_1.jpg]] and [[https://x.com][site]] then [[file:a.pdf][the pdf]]"
+        val rendered = com.rrajath.grove.ui.components.orgInlinePlainText(text)
+        val chips = renderedPreviewChips(text)
+        assertEquals(listOf("attachment:IMG_1.jpg", "the pdf"), chips.map { rendered.substring(it.range.first, it.range.last + 1) })
+        assertEquals(listOf("attachment:IMG_1.jpg", "file:a.pdf"), chips.map { it.rawTarget })
+        assertTrue(renderedPreviewChips("no links here").isEmpty())
+    }
+
+    @Test
     fun `link safe take cuts before a link it would split`() {
         val text = "abc [[attachment:receipt.pdf]] tail"
         assertEquals("abc ", linkSafeTake(text, 10))

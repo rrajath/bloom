@@ -6,6 +6,7 @@ import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.ui.attach.HeadingDeleteAttachmentsSheet
 import com.rrajath.grove.ui.attach.linkSafeTake
 import com.rrajath.grove.ui.attach.rawPreviewChips
+import com.rrajath.grove.ui.attach.renderedPreviewChips
 import com.rrajath.grove.ui.attach.rememberPreviewChipText
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
@@ -725,6 +726,7 @@ fun OutlineScreen(
                             item(key = "introRow") {
                                 IntroRow(
                                     doc = doc,
+                                    fileName = notebookId,
                                     onTap = { onOpenNote(NoteRef.intro(notebookId)) },
                                 )
                             }
@@ -1206,11 +1208,17 @@ private fun visibleHeadlines(headlines: List<OrgHeadline>, collapsed: Set<Int>):
  * truncation. Tap-only: opens read mode scoped to that content.
  */
 @Composable
-private fun IntroRow(doc: OrgDocument, onTap: () -> Unit) {
+private fun IntroRow(doc: OrgDocument, fileName: String, onTap: () -> Unit) {
     val c = MaterialTheme.grove
-    val content = remember(doc, c) {
-        annotateOrgInline(doc.introBody.joinToString("\n").trim(), c)
+    val raw = remember(doc) { doc.introBody.joinToString("\n").trim() }
+    val styled = remember(raw, c) { annotateOrgInline(raw, c) }
+    // Attachment links draw as display-only chips at the intro's text size.
+    val chips = remember(raw) {
+        if (FeatureFlags.ATTACHMENTS) renderedPreviewChips(raw) else emptyList()
     }
+    val content = rememberPreviewChipText(
+        styled, chips, fileName, ownerLine = INTRO_LINE_INDEX, fontSize = 13.5.sp, doc = doc,
+    )
     Box(
         Modifier
             .fillMaxWidth()
@@ -1223,7 +1231,8 @@ private fun IntroRow(doc: OrgDocument, onTap: () -> Unit) {
     ) {
         // Full width + content direction: each line reads and aligns by its own script.
         Text(
-            content,
+            content.text,
+            inlineContent = content.inlineContent,
             style = TextStyle(textDirection = TextDirection.Content),
             fontFamily = PlexSans,
             fontSize = 13.5.sp,

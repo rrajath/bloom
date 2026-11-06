@@ -72,6 +72,26 @@ fun rawPreviewChips(text: String): List<PreviewChip> =
     chipLinksIn(text).map { PreviewChip(it.range, it.rawTarget, it.link) }
 
 /**
+ * Every local-attachment link in raw org [text] as a chip over its span in the
+ * string `annotateOrgInline` renders from [text] (links show their label), so
+ * the chips can replace links in already-styled text (the outline's intro row).
+ */
+fun renderedPreviewChips(text: String): List<PreviewChip> {
+    if (!text.contains("[[") && !text.contains("file:")) return emptyList()
+    var offset = 0
+    val chips = mutableListOf<PreviewChip>()
+    for (token in InlineTokenizer.tokenize(text)) {
+        val start = offset
+        offset += token.text.length
+        val target = token.target
+        if (token.type != InlineType.LINK || target == null || token.text.isEmpty()) continue
+        val link = AttachmentLink.classify(target, linkDescription(text, token.range, token.text)) ?: continue
+        chips += PreviewChip(start until offset, target, link)
+    }
+    return chips
+}
+
+/**
  * [line] rendered the way search snippets read (links show their label, markup
  * dropped), trimmed, with each attachment link's span: the chip label stands in
  * for the link so a term can match inside it.
