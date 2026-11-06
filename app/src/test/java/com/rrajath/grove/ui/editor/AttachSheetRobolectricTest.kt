@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachKind
 import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.AttachScope
 import com.rrajath.grove.attach.ScopedAttachment
 import com.rrajath.grove.attach.scopesFor
 import com.rrajath.grove.org.OrgParser
@@ -44,6 +45,11 @@ class AttachSheetRobolectricTest {
     private val appName: String
         get() = ApplicationProvider.getApplicationContext<Context>().getString(R.string.app_name)
 
+    private fun str(id: Int): String = ApplicationProvider.getApplicationContext<Context>().getString(id)
+
+    private val scopesPicked = mutableListOf<AttachScope>()
+    private var loadMoreTaps = 0
+
     private val picked = mutableListOf<AttachKind>()
     private val inserted = mutableListOf<String>()
     private val opened = mutableListOf<String>()
@@ -66,6 +72,8 @@ class AttachSheetRobolectricTest {
                     onInsert = { inserted += it.file.name },
                     onOpen = { opened += it.name },
                     onDelete = { deleted += it.name },
+                    onSelectScope = { scopesPicked += it },
+                    onLoadMore = { loadMoreTaps++ },
                 )
             }
         }
@@ -77,7 +85,7 @@ class AttachSheetRobolectricTest {
         composeRule.onNodeWithText("Attach to").assertIsDisplayed()
         composeRule.onNodeWithText("**").assertIsDisplayed()
         composeRule.onNodeWithTag("attach_owner_title").assertTextEquals("Lunch")
-        composeRule.onNodeWithText("In this heading").assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.attach_scope_label)).assertIsDisplayed()
         composeRule.onNodeWithText("182 KB").assertIsDisplayed()
         composeRule.onNodeWithText("2.4 MB").assertIsDisplayed()
         composeRule.onNodeWithText("PDF").assertIsDisplayed()
@@ -116,7 +124,7 @@ class AttachSheetRobolectricTest {
         show(sheetModel(AttachOwner.File(null, null), "#+", "travel.org", null, emptyList()))
         composeRule.onNodeWithText("#+").assertIsDisplayed()
         composeRule.onNodeWithTag("attach_owner_title").assertTextEquals("travel.org")
-        composeRule.onNodeWithText("In this file").assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.attach_scope_label)).assertIsDisplayed()
         composeRule.onNodeWithTag("attach_empty")
             .assertTextEquals("No attachments yet. $appName adds an :ID: to this file the first time you attach.")
     }
@@ -124,7 +132,73 @@ class AttachSheetRobolectricTest {
     @Test
     fun `heading owner empty state is short`() {
         show(sheetModel(lunch, "**", "Lunch", null, emptyList()))
-        composeRule.onNodeWithTag("attach_empty").assertTextEquals("No attachments yet.")
+        composeRule.onNodeWithTag("attach_empty").assertTextEquals(str(R.string.attach_empty_heading))
+    }
+
+    @Test
+    fun `header shows the scope control without a dir label`() {
+        show(sheetModel(lunch, "**", "Lunch", "data/8B/41D2F0-1C9E", files))
+        composeRule.onNodeWithText(str(R.string.attach_scope_label)).assertIsDisplayed()
+        composeRule.onNodeWithTag("attach_dir_label").assertDoesNotExist()
+        composeRule.onNodeWithTag("attach_scope").assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.attach_scope_heading)).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.attach_scope_file)).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.attach_scope_vault)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `file owner shows two scopes`() {
+        show(sheetModel(AttachOwner.File("F1", null), "#+", "travel.org", null, emptyList()))
+        composeRule.onNodeWithText(str(R.string.attach_scope_file)).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.attach_scope_vault)).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.attach_scope_heading)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `tapping vault reports the scope`() {
+        show(sheetModel(lunch, "**", "Lunch", null, emptyList()))
+        composeRule.onNodeWithText(str(R.string.attach_scope_vault)).performClick()
+        assertEquals(listOf(AttachScope.VAULT), scopesPicked)
+    }
+
+    @Test
+    fun `rows outside this heading show their source and no delete`() {
+        val rows = files.map { ScopedAttachment(it, "data/8B/41D2F0-1C9E", "travel.org", "Dinner", "Dinner") }
+        val scopes = scopesFor(lunch)
+        show(AttachSheetModel(lunch, "**", "Lunch", "data/AA/other", scopes, AttachScope.FILE, rows, AttachController.PAGE_SIZE))
+        composeRule.onNodeWithText("182 KB · Dinner").assertIsDisplayed()
+        composeRule.onNodeWithTag("attach_insert_receipt.pdf").assertIsDisplayed()
+        composeRule.onNodeWithTag("attach_delete_receipt.pdf").assertDoesNotExist()
+        composeRule.onNodeWithTag("attach_row_data/8B/41D2F0-1C9E/receipt.pdf").assertIsDisplayed()
+    }
+
+    @Test
+    fun `load more shows only when more remain and reports taps`() {
+        val many = (1..11).map { FileEntry("data/8B/41D2F0-1C9E/f$it.txt", 0, 10) }
+        show(sheetModel(lunch, "**", "Lunch", "data/8B/41D2F0-1C9E", many))
+        composeRule.onNodeWithTag("attach_load_more").assertTextEquals(str(R.string.attach_load_more))
+        composeRule.onNodeWithTag("attach_load_more").performClick()
+        assertEquals(1, loadMoreTaps)
+    }
+
+    @Test
+    fun `no load more when everything is shown`() {
+        show(sheetModel(lunch, "**", "Lunch", "data/8B/41D2F0-1C9E", files))
+        composeRule.onNodeWithTag("attach_load_more").assertDoesNotExist()
+    }
+
+    @Test
+    fun `vault and file empty states`() {
+        val scopes = scopesFor(lunch)
+        show(AttachSheetModel(lunch, "**", "Lunch", null, scopes, AttachScope.VAULT, emptyList(), AttachController.PAGE_SIZE))
+        composeRule.onNodeWithTag("attach_empty").assertTextEquals(str(R.string.attach_empty_vault))
+    }
+
+    @Test
+    fun `file scope empty state`() {
+        val scopes = scopesFor(lunch)
+        show(AttachSheetModel(lunch, "**", "Lunch", null, scopes, AttachScope.FILE, emptyList(), AttachController.PAGE_SIZE))
+        composeRule.onNodeWithTag("attach_empty").assertTextEquals(str(R.string.attach_empty_file))
     }
 
     @Test

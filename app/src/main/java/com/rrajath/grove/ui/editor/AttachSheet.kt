@@ -72,6 +72,7 @@ import coil3.request.ImageRequest
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachKind
 import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.AttachScope
 import com.rrajath.grove.attach.ScopedAttachment
 import com.rrajath.grove.attach.AttachmentCategory
 import com.rrajath.grove.attach.CopyProgress
@@ -83,6 +84,7 @@ import com.rrajath.grove.attach.formatCopyBytes
 import com.rrajath.grove.ui.attach.attachmentMemoryCacheKey
 import com.rrajath.grove.ui.components.GroveProgressSnackbar
 import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.components.SegmentedControl
 import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
@@ -148,6 +150,8 @@ fun BoxScope.AttachOverlays(controller: AttachController, bottomInset: Dp) {
             onDismiss = controller::close,
             onPick = controller::pick,
             onInsert = controller::insertExisting,
+            onSelectScope = controller::selectScope,
+            onLoadMore = controller::loadMore,
             onOpen = controller::openWith,
             onDelete = { controller.confirmDelete = it },
             thumbnailUri = controller::thumbnailUri,
@@ -175,6 +179,8 @@ internal fun AttachSheet(
     onInsert: (ScopedAttachment) -> Unit,
     onOpen: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
+    onSelectScope: (AttachScope) -> Unit = {},
+    onLoadMore: () -> Unit = {},
     thumbnailUri: suspend (FileEntry) -> Uri? = { null },
 ) {
     val c = MaterialTheme.grove
@@ -195,7 +201,7 @@ internal fun AttachSheet(
         },
     ) {
         Box {
-            AttachSheetContent(model, cameraAvailable, onPick, onInsert, onOpen, onDelete, thumbnailUri)
+            AttachSheetContent(model, cameraAvailable, onPick, onInsert, onOpen, onDelete, onSelectScope, onLoadMore, thumbnailUri)
             // The sheet is its own window, so list-action toasts are drawn inside it.
             GroveToast(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
         }
@@ -211,6 +217,8 @@ internal fun AttachSheetContent(
     onInsert: (ScopedAttachment) -> Unit,
     onOpen: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
+    onSelectScope: (AttachScope) -> Unit = {},
+    onLoadMore: () -> Unit = {},
     thumbnailUri: suspend (FileEntry) -> Uri? = { null },
 ) {
     val c = MaterialTheme.grove
@@ -262,35 +270,47 @@ internal fun AttachSheetContent(
                 .background(c.surface2)
                 .padding(vertical = 6.dp),
         ) {
-            Row(
-                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    if (model.owner is AttachOwner.File) "In this file" else "In this heading",
-                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = c.ink2,
-                )
-            }
+            Text(
+                stringResource(R.string.attach_scope_label),
+                fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = c.ink2,
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp),
+            )
+            SegmentedControl(
+                options = model.scopes.map { stringResource(it.labelRes) },
+                selectedIndex = model.scopes.indexOf(model.scope),
+                onSelect = { onSelectScope(model.scopes[it]) },
+                containerColor = c.line,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, end = 14.dp, bottom = 6.dp)
+                    .testTag("attach_scope"),
+            )
             val rows = model.rows
             when {
                 rows == null -> Spacer(Modifier.height(40.dp))
                 rows.isEmpty() -> Text(
-                    if (model.owner is AttachOwner.File && model.owner.id == null && model.owner.dirProperty == null) {
-                        stringResource(R.string.attach_empty_file_no_id, stringResource(R.string.app_name))
-                    } else {
-                        "No attachments yet."
+                    when {
+                        model.scope == AttachScope.VAULT -> stringResource(R.string.attach_empty_vault)
+                        model.owner is AttachOwner.File && model.owner.id == null && model.owner.dirProperty == null ->
+                            stringResource(R.string.attach_empty_file_no_id, stringResource(R.string.app_name))
+                        model.scope == AttachScope.FILE -> stringResource(R.string.attach_empty_file)
+                        else -> stringResource(R.string.attach_empty_heading)
                     },
                     fontFamily = PlexSans, fontSize = 13.sp, lineHeight = 1.5.em, color = c.ink2,
                     modifier = Modifier
                         .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 14.dp)
                         .testTag("attach_empty"),
                 )
-                else -> model.visibleRows.forEach { row ->
-                    val f = row.file
-                    AttachmentRow(
-                        f, thumbnailUri,
-                        onInsert = { onInsert(row) }, onOpen = { onOpen(f) }, onDelete = { onDelete(f) },
-                    )
+                else -> {
+                    model.visibleRows.forEach { row ->
+                        val f = row.file
+                        AttachmentRow(
+                            f, row.source, thumbnailUri,
+                            onInsert = { onInsert(row) }, onOpen = { onOpen(f) },
+                            onDelete = if (model.canDelete(row)) ({ onDelete(f) }) else null,
+                        )
+                    }
+                    if (model.hasMore) LoadMoreButton(onLoadMore)
                 }
             }
         }
@@ -341,10 +361,13 @@ private fun SourcePill(
 @Composable
 private fun AttachmentRow(
     file: FileEntry,
+    /** Where the file lives (This file / Vault); empty for the owner's own rows. */
+    source: String,
     thumbnailUri: suspend (FileEntry) -> Uri?,
     onInsert: () -> Unit,
     onOpen: () -> Unit,
-    onDelete: () -> Unit,
+    /** Null hides Delete (another owner's file). */
+    onDelete: (() -> Unit)?,
 ) {
     val c = MaterialTheme.grove
     val name = file.name.substringAfterLast('/')
@@ -354,7 +377,7 @@ private fun AttachmentRow(
         Modifier
             .fillMaxWidth()
             .padding(start = 14.dp, end = 4.dp, top = 5.dp, bottom = 5.dp)
-            .testTag("attach_row_$name"),
+            .testTag("attach_row_${file.name}"),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -375,7 +398,13 @@ private fun AttachmentRow(
                 fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            Text(formatAttachmentSize(file.size), fontFamily = PlexMono, fontSize = 11.sp, color = c.ink3)
+            val size = formatAttachmentSize(file.size)
+            Text(
+                // i18n: separator glyph, not translated
+                if (source.isEmpty()) size else "$size · $source",
+                fontFamily = PlexMono, fontSize = 11.sp, color = c.ink3,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
         RowIconButton(
             R.drawable.ic_attach_insert_link, 17.dp, c.accent, c.surface3, c.accent,
@@ -385,9 +414,33 @@ private fun AttachmentRow(
             R.drawable.ic_attach_open_with, 16.dp, c.ink2, c.surface3, c.ink2,
             "Open with…", "attach_open_$name", onOpen,
         )
-        RowIconButton(
-            R.drawable.ic_attach_delete, 16.dp, c.ink3, c.redSoft, c.red,
-            "Delete", "attach_delete_$name", onDelete,
+        if (onDelete != null) {
+            RowIconButton(
+                R.drawable.ic_attach_delete, 16.dp, c.ink3, c.redSoft, c.red,
+                "Delete", "attach_delete_$name", onDelete,
+            )
+        }
+    }
+}
+
+/** Shows the next page of rows: an outlined pill under the list. */
+@Composable
+private fun LoadMoreButton(onClick: () -> Unit) {
+    val c = MaterialTheme.grove
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, c.line, RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp)
+            .testTag("attach_load_more"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            stringResource(R.string.attach_load_more),
+            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.accent,
         )
     }
 }
