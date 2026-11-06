@@ -63,6 +63,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -149,10 +150,23 @@ class AttachController internal constructor(
     internal var launchPhotos: () -> Unit = {}
     internal var launchFiles: () -> Unit = {}
     private var toastId = 0L
-    /** Rows per scope for the open sheet; cleared on open, attach and delete. */
+    /** Rows per scope for the open sheet. */
     private val cache = mutableMapOf<AttachScope, List<ScopedAttachment>>()
-    /** Bumped on open and close, so a scan from an earlier sheet never lands in this one. */
-    private var session = 0
+    /** In-flight scans, at most one per scope, so toggling back to a loading scope doesn't rescan it. */
+    private val scans = mutableMapOf<AttachScope, Job>()
+    /**
+     * Bumped by [invalidate] (open, close, delete), so a scan started before the
+     * rows went stale never lands in the cache or on screen.
+     */
+    private var generation = 0
+
+    /** Drops cached rows and in-flight scans: the sheet's file lists may have changed. */
+    private fun invalidate() {
+        generation++
+        cache.clear()
+        scans.values.forEach { it.cancel() }
+        scans.clear()
+    }
 
     val cameraAvailable: Boolean by lazy {
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(context.packageManager) != null
@@ -185,14 +199,13 @@ class AttachController internal constructor(
             rows = null,
             shown = PAGE_SIZE,
         )
-        cache.clear()
-        session++
+        invalidate()
         sheet = model
         load(model.scope)
     }
 
     fun close() {
-        session++
+        invalidate()
         sheet = null
     }
 
@@ -210,29 +223,33 @@ class AttachController internal constructor(
     }
 
     /**
-     * Scans [target] on IO. The result is cached for this sheet, but only shown
-     * when the sheet is still open (same session) and still on [target].
+     * Scans [target] on IO unless a scan for it is already running. The result
+     * is cached for this sheet, but only shown while the sheet is still on [target];
+     * a result from before the last [invalidate] is dropped.
      */
     private fun load(target: AttachScope) {
         val model = sheet ?: return
+        if (scans[target]?.isActive == true) return
         val store = storeProvider() ?: return
-        val started = session
+        val started = generation
         val text = textState.text.toString()
-        scope.launch {
+        scans[target] = scope.launch {
             val (dir, rows) = withContext(Dispatchers.IO) {
                 val files = AttachmentFiles(store)
+                // Shard listings are read once per scan instead of one query per candidate dir.
+                val scanner = AttachmentScopeScanner(files, AttachDirResolver(ListedDirs(store)))
                 val ownDir = AttachDirResolver(files).readDir(orgFile, model.owner)
                 val rows = when (target) {
                     AttachScope.HEADING -> ownDir?.let { files.list(it) }.orEmpty()
                         .sortedBy { it.name.substringAfterLast('/').lowercase() }
                         .map { ScopedAttachment(it, ownDir!!, orgFile, (model.owner as? AttachOwner.Heading)?.title, "") }
-                    AttachScope.FILE -> AttachmentScopeScanner(files).scanFile(orgFile, OrgParser.parse(text))
-                    AttachScope.VAULT -> AttachmentScopeScanner(files, AttachDirResolver(ListedDirs(store)))
-                        .scanVault(orgFile, OrgParser.parse(text), indexedOwners())
+                    AttachScope.FILE -> scanner.scanFile(orgFile, OrgParser.parse(text))
+                    AttachScope.VAULT -> scanner.scanVault(orgFile, OrgParser.parse(text), indexedOwners())
                 }
                 ownDir to rows
             }
-            if (session != started) return@launch
+            if (generation != started) return@launch
+            scans.remove(target)
             cache[target] = rows
             val current = sheet ?: return@launch
             sheet = if (current.scope == target) current.copy(dir = dir, rows = rows) else current.copy(dir = dir)
@@ -355,7 +372,6 @@ class AttachController internal constructor(
         when (val r = done.result) {
             is ImportResult.Failed -> showToast(failureMessage(r))
             is ImportResult.Success -> {
-                cache.clear()
                 val edit = insertAttachmentLinksInBuffer(
                     textState.text.toString(), textState.selection.start,
                     done.request.owner, done.request.newId, r.names,
@@ -394,7 +410,8 @@ class AttachController internal constructor(
             return
         }
         if (!linkableName(row.file.name)) {
-            showToast(context.getString(R.string.attach_link_bracket_refused))
+            val reason = if ("::" in row.file.name) R.string.attach_link_colons_refused else R.string.attach_link_bracket_refused
+            showToast(context.getString(reason))
             return
         }
         val link = fileLinkText(relativeLinkPath(orgFile, row.file.name))
@@ -439,7 +456,7 @@ class AttachController internal constructor(
                 deleted
             }
             showToast(if (ok) "Deleted $name" else "Couldn't delete $name")
-            cache.clear()
+            invalidate()
             sheet?.let { load(it.scope) }
         }
     }

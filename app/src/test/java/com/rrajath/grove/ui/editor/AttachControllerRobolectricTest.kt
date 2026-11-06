@@ -20,6 +20,7 @@ import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.ui.theme.GroveTheme
 import com.rrajath.grove.vault.FileEntry
+import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.JvmFileStore
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -153,6 +154,7 @@ class AttachControllerRobolectricTest {
         text: String,
         cursor: Int,
         indexedOwners: suspend () -> List<IndexedAttachOwner> = { emptyList() },
+        fileStore: FileStore = store,
     ): Pair<AttachController, TextFieldState> {
         val textState = TextFieldState(text, TextRange(cursor))
         lateinit var controller: AttachController
@@ -160,7 +162,7 @@ class AttachControllerRobolectricTest {
             GroveTheme {
                 controller = rememberAttachController(
                     textState, "x.org", bufferReady = true, manager, indexedOwners = indexedOwners,
-                ) { store }
+                ) { fileStore }
             }
         }
         return controller to textState
@@ -298,6 +300,68 @@ class AttachControllerRobolectricTest {
         assertEquals(twoHeadings, textState.text.toString())
         assertNotNull("sheet stays open", c.sheet)
         assertEquals(context.getString(R.string.attach_link_bracket_refused), c.toast?.message)
+    }
+
+    @Test
+    fun `a vault scan that finishes after a delete does not bring the file back`() {
+        put("data/AA/0001", "gone.jpg")
+        put("data/AA/0001", "kept.jpg")
+        // Holds a listing after it has read the dir: the Vault scan sees the file, then waits.
+        var hold: CompletableDeferred<Unit>? = null
+        val slowStore = object : FileStore by store {
+            override suspend fun listDirRaw(dir: String): List<FileEntry> {
+                val listed = store.listDirRaw(dir)
+                hold?.await()
+                return listed
+            }
+        }
+        val (c, _) = controllerFor(twoHeadings, cursor = 2, fileStore = slowStore)
+        c.openAndLoad()
+        val gate = CompletableDeferred<Unit>()
+        hold = gate
+        composeRule.runOnIdle { c.selectScope(AttachScope.VAULT) }
+        repeat(5) { shadowOf(Looper.getMainLooper()).idle(); composeRule.waitForIdle(); Thread.sleep(20) }
+        hold = null
+        composeRule.runOnIdle {
+            c.selectScope(AttachScope.HEADING)
+            c.delete(c.sheet!!.visibleRows.first { it.file.name.endsWith("gone.jpg") }.file)
+        }
+        settleUntil { c.sheet?.rows?.size == 1 }
+        gate.complete(Unit)
+        repeat(5) { shadowOf(Looper.getMainLooper()).idle(); composeRule.waitForIdle(); Thread.sleep(20) }
+
+        composeRule.runOnIdle { c.selectScope(AttachScope.VAULT) }
+        settleUntil { c.sheet?.rows != null }
+        assertEquals(listOf("kept.jpg"), c.sheet!!.visibleRows.map { it.file.name.substringAfterLast('/') })
+    }
+
+    @Test
+    fun `switching back to a scope that is still loading does not scan it twice`() {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val gate = CompletableDeferred<List<IndexedAttachOwner>>()
+        val (c, _) = controllerFor(twoHeadings, cursor = 2, indexedOwners = { calls.incrementAndGet(); gate.await() })
+        c.openAndLoad()
+        composeRule.runOnIdle {
+            c.selectScope(AttachScope.VAULT)
+            c.selectScope(AttachScope.HEADING)
+            c.selectScope(AttachScope.VAULT)
+        }
+        gate.complete(emptyList())
+        settleUntil { c.sheet?.rows != null }
+        assertEquals(1, calls.get())
+    }
+
+    @Test
+    fun `names with a double colon are refused`() {
+        put("data/BB/0002", "a::b.pdf")
+        val (c, textState) = controllerFor(twoHeadings, cursor = 2)
+        c.openAndLoad()
+        composeRule.runOnIdle { c.selectScope(AttachScope.FILE) }
+        settleUntil { c.sheet?.rows != null }
+        composeRule.runOnIdle { c.insertExisting(c.sheet!!.visibleRows.single()) }
+
+        assertEquals(twoHeadings, textState.text.toString())
+        assertEquals(context.getString(R.string.attach_link_colons_refused), c.toast?.message)
     }
 
     @Test

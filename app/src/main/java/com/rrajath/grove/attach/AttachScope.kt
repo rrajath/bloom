@@ -41,8 +41,11 @@ fun relativeLinkPath(fromOrgFile: String, target: String): String {
 // i18n: org syntax, never translate
 fun fileLinkText(path: String): String = "[[file:$path]]"
 
-/** Org link syntax can't hold `[` or `]` in a bare path. */
-fun linkableName(path: String): Boolean = '[' !in path && ']' !in path
+/**
+ * Whether [path] can go in a `[[file:…]]` link: org link syntax can't hold `[` or `]`,
+ * and `::` starts a search option, so the link would open the wrong file.
+ */
+fun linkableName(path: String): Boolean = '[' !in path && ']' !in path && "::" !in path
 
 /** Vault row source: the org file's name, then the heading title when there is one. */
 fun vaultSource(orgFile: String, title: String?): String {

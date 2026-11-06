@@ -28,6 +28,8 @@ class AttachScopeTest {
         assertTrue(linkableName("data/9B/x/photo.jpg"))
         assertFalse(linkableName("data/9B/x/pic[1].jpg"))
         assertFalse(linkableName("data/9B/x/pic]1.jpg"))
+        assertFalse(linkableName("data/9B/x/a::b.pdf"))
+        assertTrue(linkableName("data/9B/x/a:b.pdf"))
     }
 
     @Test fun `vault source label`() {

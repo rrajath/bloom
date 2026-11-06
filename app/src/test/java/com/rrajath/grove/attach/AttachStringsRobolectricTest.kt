@@ -29,6 +29,7 @@ class AttachStringsRobolectricTest {
         assertEquals("Linked photo.jpg", c.getString(R.string.attach_linked, "photo.jpg"))
         assertEquals("Linked photo.jpg from B", c.getString(R.string.attach_linked_from, "photo.jpg", "B"))
         assertEquals("Can't link a file name with [ or ]", c.getString(R.string.attach_link_bracket_refused))
+        assertEquals("Can't link a file name with ::", c.getString(R.string.attach_link_colons_refused))
     }
 
     @Test fun `scope labels point at their resources`() {
