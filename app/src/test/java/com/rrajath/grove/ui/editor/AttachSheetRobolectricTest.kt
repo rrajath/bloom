@@ -12,6 +12,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachKind
 import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.ScopedAttachment
+import com.rrajath.grove.attach.scopesFor
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.ui.theme.GroveTheme
@@ -47,6 +49,13 @@ class AttachSheetRobolectricTest {
     private val opened = mutableListOf<String>()
     private val deleted = mutableListOf<String>()
 
+    /** A sheet model listing [files] as the owner's own rows. */
+    private fun sheetModel(owner: AttachOwner, stars: String, title: String, dir: String?, files: List<FileEntry>): AttachSheetModel {
+        val scopes = scopesFor(owner)
+        val rows = files.map { ScopedAttachment(it, dir ?: "d", "travel.org", (owner as? AttachOwner.Heading)?.title, "") }
+        return AttachSheetModel(owner, stars, title, dir, scopes, scopes.first(), rows, AttachController.PAGE_SIZE)
+    }
+
     private fun show(model: AttachSheetModel, camera: Boolean = true) {
         composeRule.setContent {
             GroveTheme {
@@ -54,7 +63,7 @@ class AttachSheetRobolectricTest {
                     model = model,
                     cameraAvailable = camera,
                     onPick = { picked += it },
-                    onInsert = { inserted += it.name },
+                    onInsert = { inserted += it.file.name },
                     onOpen = { opened += it.name },
                     onDelete = { deleted += it.name },
                 )
@@ -64,12 +73,11 @@ class AttachSheetRobolectricTest {
 
     @Test
     fun `heading owner shows stars, title, dir label and rows with sizes`() {
-        show(AttachSheetModel(lunch, "**", "Lunch", "data/8B/41D2F0-1C9E", "data/8B/41D2F0…", files))
+        show(sheetModel(lunch, "**", "Lunch", "data/8B/41D2F0-1C9E", files))
         composeRule.onNodeWithText("Attach to").assertIsDisplayed()
         composeRule.onNodeWithText("**").assertIsDisplayed()
         composeRule.onNodeWithTag("attach_owner_title").assertTextEquals("Lunch")
         composeRule.onNodeWithText("In this heading").assertIsDisplayed()
-        composeRule.onNodeWithTag("attach_dir_label").assertTextEquals("data/8B/41D2F0…")
         composeRule.onNodeWithText("182 KB").assertIsDisplayed()
         composeRule.onNodeWithText("2.4 MB").assertIsDisplayed()
         composeRule.onNodeWithText("PDF").assertIsDisplayed()
@@ -78,7 +86,7 @@ class AttachSheetRobolectricTest {
 
     @Test
     fun `row actions report the file`() {
-        show(AttachSheetModel(lunch, "**", "Lunch", "d", "d", files))
+        show(sheetModel(lunch, "**", "Lunch", "d", files))
         composeRule.onNodeWithTag("attach_insert_receipt.pdf").performClick()
         composeRule.onNodeWithTag("attach_open_soba-menu.jpg").performClick()
         composeRule.onNodeWithTag("attach_delete_receipt.pdf").performClick()
@@ -89,7 +97,7 @@ class AttachSheetRobolectricTest {
 
     @Test
     fun `source pills pick their kind`() {
-        show(AttachSheetModel(lunch, "**", "Lunch", null, "x", emptyList()))
+        show(sheetModel(lunch, "**", "Lunch", null, emptyList()))
         composeRule.onNodeWithTag("attach_camera").performClick()
         composeRule.onNodeWithTag("attach_photos").performClick()
         composeRule.onNodeWithTag("attach_files").performClick()
@@ -98,25 +106,24 @@ class AttachSheetRobolectricTest {
 
     @Test
     fun `camera pill is disabled when no camera app exists`() {
-        show(AttachSheetModel(lunch, "**", "Lunch", null, "x", emptyList()), camera = false)
+        show(sheetModel(lunch, "**", "Lunch", null, emptyList()), camera = false)
         composeRule.onNodeWithContentDescription("Camera · No camera app found").performClick()
         assertTrue(picked.isEmpty())
     }
 
     @Test
     fun `file owner without an ID explains the ID it will get`() {
-        show(AttachSheetModel(AttachOwner.File(null, null), "#+", "travel.org", null, "no :ID: yet", emptyList()))
+        show(sheetModel(AttachOwner.File(null, null), "#+", "travel.org", null, emptyList()))
         composeRule.onNodeWithText("#+").assertIsDisplayed()
         composeRule.onNodeWithTag("attach_owner_title").assertTextEquals("travel.org")
         composeRule.onNodeWithText("In this file").assertIsDisplayed()
-        composeRule.onNodeWithTag("attach_dir_label").assertTextEquals("no :ID: yet")
         composeRule.onNodeWithTag("attach_empty")
             .assertTextEquals("No attachments yet. $appName adds an :ID: to this file the first time you attach.")
     }
 
     @Test
     fun `heading owner empty state is short`() {
-        show(AttachSheetModel(lunch, "**", "Lunch", null, "data/8B/41D2F0…", emptyList()))
+        show(sheetModel(lunch, "**", "Lunch", null, emptyList()))
         composeRule.onNodeWithTag("attach_empty").assertTextEquals("No attachments yet.")
     }
 
@@ -149,11 +156,7 @@ class AttachSheetRobolectricTest {
     }
 
     @Test
-    fun `dir label and stars helpers`() {
-        assertEquals("data/8B/41D2F0…", dirLabel("travel.org", "data/8B/41D2F0-1C9E-4A57"))
-        assertEquals("data/8B/41D2F0…", dirLabel("trips/travel.org", "trips/data/8B/41D2F0-1C9E"))
-        assertEquals("__/X/XY", dirLabel("t.org", "__/X/XY"))
-        assertEquals("att", dirLabel("t.org", "att"))
+    fun `stars helper`() {
         val doc = OrgParser.parse("* Kyoto\n** Lunch\n")
         assertEquals("**", starsFor(doc, AttachOwner.Heading(1, listOf("Kyoto", "Lunch"), null, null)))
         assertEquals("#+", starsFor(doc, AttachOwner.File(null, null)))

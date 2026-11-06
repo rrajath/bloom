@@ -8,17 +8,28 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.text.TextRange
+import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.R
+import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.AttachScope
 import com.rrajath.grove.attach.AttachmentCopyManager
+import com.rrajath.grove.attach.ScopedAttachment
+import com.rrajath.grove.attach.scopesFor
+import com.rrajath.grove.data.IndexedAttachOwner
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.ui.theme.GroveTheme
+import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.JvmFileStore
 import java.io.File
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -120,6 +131,190 @@ class AttachControllerRobolectricTest {
         assertTrue(File(vaultDir, "data/AB/12345/a.jpg").isFile)
         assertTrue(textState.text.toString(), textState.text.contains(":END:\n[[attachment:a.jpg]]\n[[attachment:b.jpg]]\nbody"))
         assertEquals("2 photos attached to Lunch", controller.toast?.message)
+    }
+
+    // ---- Scopes, paging and cross-owner links ----
+
+    private val context get() = ApplicationProvider.getApplicationContext<android.app.Application>()
+
+    private fun drawer(id: String) = ":PROPERTIES:\n:ID: $id\n:END:\n"
+
+    /** `* A` (ID AA0001, cursor here) and `* B` (ID BB0002) in x.org. */
+    private val twoHeadings = "* A\n" + drawer("AA0001") + "a body\n* B\n" + drawer("BB0002") + "b body\n"
+
+    private fun put(dir: String, name: String, modified: Long = 1_000_000) {
+        val f = File(vaultDir, "$dir/$name")
+        f.parentFile!!.mkdirs()
+        f.writeText(name)
+        f.setLastModified(modified)
+    }
+
+    private fun controllerFor(
+        text: String,
+        cursor: Int,
+        indexedOwners: suspend () -> List<IndexedAttachOwner> = { emptyList() },
+    ): Pair<AttachController, TextFieldState> {
+        val textState = TextFieldState(text, TextRange(cursor))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "x.org", bufferReady = true, manager, indexedOwners = indexedOwners,
+                ) { store }
+            }
+        }
+        return controller to textState
+    }
+
+    private fun AttachController.openAndLoad() {
+        composeRule.runOnIdle { open() }
+        settleUntil { sheet?.rows != null }
+    }
+
+    @Test
+    fun `opens on this heading with three scopes`() {
+        val (c, _) = controllerFor(twoHeadings, cursor = 2)
+        c.openAndLoad()
+        assertEquals(AttachScope.HEADING, c.sheet!!.scope)
+        assertEquals(listOf(AttachScope.HEADING, AttachScope.FILE, AttachScope.VAULT), c.sheet!!.scopes)
+    }
+
+    @Test
+    fun `file owner opens on this file with two scopes`() {
+        val (c, _) = controllerFor("intro\n* A\n", cursor = 0)
+        c.openAndLoad()
+        assertEquals(AttachScope.FILE, c.sheet!!.scope)
+        assertEquals(listOf(AttachScope.FILE, AttachScope.VAULT), c.sheet!!.scopes)
+    }
+
+    @Test
+    fun `this file scope lists rows from other headings`() {
+        put("data/AA/0001", "mine.jpg", 1_000_000)
+        put("data/BB/0002", "theirs.pdf", 2_000_000)
+        val (c, _) = controllerFor(twoHeadings, cursor = 2)
+        c.openAndLoad()
+        assertEquals(listOf("mine.jpg"), c.sheet!!.visibleRows.map { it.file.name.substringAfterLast('/') })
+
+        composeRule.runOnIdle { c.selectScope(AttachScope.FILE) }
+        settleUntil { c.sheet?.rows != null }
+        assertEquals(listOf("theirs.pdf", "mine.jpg"), c.sheet!!.visibleRows.map { it.file.name.substringAfterLast('/') })
+        assertEquals(listOf("B", "A"), c.sheet!!.visibleRows.map { it.source })
+    }
+
+    @Test
+    fun `load more shows the next ten`() {
+        repeat(23) { put("data/AA/0001", "f%02d.txt".format(it)) }
+        val (c, _) = controllerFor(twoHeadings, cursor = 2)
+        c.openAndLoad()
+        assertEquals(10, c.sheet!!.visibleRows.size)
+        assertTrue(c.sheet!!.hasMore)
+        composeRule.runOnIdle { c.loadMore() }
+        assertEquals(20, c.sheet!!.visibleRows.size)
+        composeRule.runOnIdle { c.loadMore() }
+        assertEquals(23, c.sheet!!.visibleRows.size)
+        assertFalse(c.sheet!!.hasMore)
+
+        composeRule.runOnIdle { c.selectScope(AttachScope.FILE) }
+        settleUntil { c.sheet?.rows != null }
+        assertEquals(10, c.sheet!!.visibleRows.size)
+    }
+
+    @Test
+    fun `stale vault result does not replace the selected scope`() {
+        put("data/AA/0001", "mine.jpg")
+        val gate = CompletableDeferred<List<IndexedAttachOwner>>()
+        val (c, _) = controllerFor(twoHeadings, cursor = 2, indexedOwners = { gate.await() })
+        c.openAndLoad()
+        composeRule.runOnIdle {
+            c.selectScope(AttachScope.VAULT)
+            c.selectScope(AttachScope.HEADING)
+        }
+        gate.complete(emptyList())
+        repeat(5) { shadowOf(Looper.getMainLooper()).idle(); composeRule.waitForIdle(); Thread.sleep(20) }
+
+        assertEquals(AttachScope.HEADING, c.sheet!!.scope)
+        assertEquals(listOf("mine.jpg"), c.sheet!!.visibleRows.map { it.file.name.substringAfterLast('/') })
+        composeRule.runOnIdle { c.selectScope(AttachScope.VAULT) }
+        assertEquals("vault result was cached", 1, c.sheet!!.rows?.size)
+    }
+
+    @Test
+    fun `closing the sheet mid-scan leaves it closed`() {
+        val gate = CompletableDeferred<List<IndexedAttachOwner>>()
+        val (c, _) = controllerFor(twoHeadings, cursor = 2, indexedOwners = { gate.await() })
+        c.openAndLoad()
+        composeRule.runOnIdle {
+            c.selectScope(AttachScope.VAULT)
+            c.close()
+        }
+        gate.complete(emptyList())
+        repeat(5) { shadowOf(Looper.getMainLooper()).idle(); composeRule.waitForIdle(); Thread.sleep(20) }
+        assertNull(c.sheet)
+    }
+
+    @Test
+    fun `inserting another heading's file writes a relative file link and names the source`() {
+        put("data/BB/0002", "photo.jpg")
+        val (c, textState) = controllerFor(twoHeadings, cursor = twoHeadings.indexOf("a body") + 6)
+        c.openAndLoad()
+        composeRule.runOnIdle { c.selectScope(AttachScope.FILE) }
+        settleUntil { c.sheet?.rows != null }
+        composeRule.runOnIdle { c.insertExisting(c.sheet!!.visibleRows.single()) }
+
+        assertTrue(textState.text.toString(), textState.text.contains("a body[[file:data/BB/0002/photo.jpg]]\n"))
+        assertNull(c.sheet)
+        assertEquals(context.getString(R.string.attach_linked_from, "photo.jpg", "B"), c.toast?.message)
+    }
+
+    @Test
+    fun `same-named files insert their own dir`() {
+        put("data/AA/0001", "photo.jpg", 1_000_000)
+        put("data/BB/0002", "photo.jpg", 2_000_000)
+        val (c, textState) = controllerFor(twoHeadings, cursor = twoHeadings.indexOf("a body") + 6)
+        c.openAndLoad()
+        composeRule.runOnIdle { c.selectScope(AttachScope.FILE) }
+        settleUntil { c.sheet?.rows != null }
+        val rows = c.sheet!!.visibleRows
+        assertEquals(listOf("data/BB/0002", "data/AA/0001"), rows.map { it.dir })
+
+        composeRule.runOnIdle { c.insertExisting(rows[0]) }
+        assertTrue(textState.text.toString(), textState.text.contains("[[file:data/BB/0002/photo.jpg]]"))
+        composeRule.runOnIdle { c.open() }
+        settleUntil { c.sheet?.rows != null }
+        composeRule.runOnIdle { c.insertExisting(rows[1]) }
+        assertTrue(textState.text.toString(), textState.text.contains("[[attachment:photo.jpg]]"))
+        assertEquals(context.getString(R.string.attach_linked, "photo.jpg"), c.toast?.message)
+    }
+
+    @Test
+    fun `bracketed names are refused`() {
+        put("data/BB/0002", "pic[1].jpg")
+        val (c, textState) = controllerFor(twoHeadings, cursor = 2)
+        c.openAndLoad()
+        composeRule.runOnIdle { c.selectScope(AttachScope.FILE) }
+        settleUntil { c.sheet?.rows != null }
+        composeRule.runOnIdle { c.insertExisting(c.sheet!!.visibleRows.single()) }
+
+        assertEquals(twoHeadings, textState.text.toString())
+        assertNotNull("sheet stays open", c.sheet)
+        assertEquals(context.getString(R.string.attach_link_bracket_refused), c.toast?.message)
+    }
+
+    @Test
+    fun `canDelete only in this heading, and for a file owner only file-level rows in this file`() {
+        val file = FileEntry("data/AA/0001/a.jpg", 0, 1)
+        val heading = AttachOwner.Heading(0, listOf("A"), "AA0001", null)
+        fun row(dir: String) = ScopedAttachment(file, dir, "x.org", "A", "")
+        val m = AttachSheetModel(heading, "*", "A", "data/AA/0001", scopesFor(heading), AttachScope.HEADING, emptyList(), 10)
+        assertTrue(m.canDelete(row("data/AA/0001")))
+        assertFalse(m.copy(scope = AttachScope.FILE).canDelete(row("data/AA/0001")))
+        assertFalse(m.copy(scope = AttachScope.VAULT).canDelete(row("data/AA/0001")))
+
+        val fileOwner = AttachOwner.File("FF0003", null)
+        val f = AttachSheetModel(fileOwner, "#+", "x.org", "data/FF/0003", scopesFor(fileOwner), AttachScope.FILE, emptyList(), 10)
+        assertTrue(f.canDelete(row("data/FF/0003")))
+        assertFalse(f.canDelete(row("data/AA/0001")))
+        assertFalse(f.copy(scope = AttachScope.VAULT).canDelete(row("data/FF/0003")))
     }
 
     @Test

@@ -22,28 +22,38 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachDirResolver
 import com.rrajath.grove.attach.AttachDone
 import com.rrajath.grove.attach.AttachKind
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachRequest
+import com.rrajath.grove.attach.AttachScope
 import com.rrajath.grove.attach.AttachSource
 import com.rrajath.grove.attach.AttachmentCopyManager
 import com.rrajath.grove.attach.AttachmentFileProvider
 import com.rrajath.grove.attach.AttachmentFiles
 import com.rrajath.grove.attach.AttachmentIntents
+import com.rrajath.grove.attach.AttachmentScopeScanner
 import com.rrajath.grove.attach.ImportResult
+import com.rrajath.grove.attach.ListedDirs
+import com.rrajath.grove.attach.ScopedAttachment
 import com.rrajath.grove.attach.failureMessage
+import com.rrajath.grove.attach.fileLinkText
 import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.attach.headingAtLine
 import com.rrajath.grove.attach.insertAttachmentLinksInBuffer
 import com.rrajath.grove.attach.lineOfOffset
+import com.rrajath.grove.attach.linkableName
 import com.rrajath.grove.attach.ownerOf
 import com.rrajath.grove.attach.ownerToastLabel
+import com.rrajath.grove.attach.relativeLinkPath
 import com.rrajath.grove.attach.resolveOwner
+import com.rrajath.grove.attach.scopesFor
 import com.rrajath.grove.attach.successMessage
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgParser
+import com.rrajath.grove.data.IndexedAttachOwner
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.ui.vault.OutlineToast
 import com.rrajath.grove.vault.FileEntry
@@ -59,20 +69,37 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** What the attach sheet shows: the owner, its dir, and the files already in it. */
+/** What the attach sheet shows: the owner, its dir, and the files listed for the selected scope. */
 data class AttachSheetModel(
     val owner: AttachOwner,
     /** `**` for a level-2 heading, `#+` for the file owner. */
     val stars: String,
     /** Heading title, or the org file's name for the file owner. */
     val title: String,
-    /** Vault-relative attach dir when it exists, else null. */
+    /** The owner's vault-relative attach dir when it exists, else null. */
     val dir: String?,
-    /** `data/8B/41D2F0…` or `no :ID: yet`. */
-    val dirLabel: String,
-    /** Null while loading. */
-    val files: List<FileEntry>?,
+    /** Scopes the switch offers: no This heading for the file owner. */
+    val scopes: List<AttachScope>,
+    val scope: AttachScope,
+    /** Every row for [scope], sorted; null while loading. */
+    val rows: List<ScopedAttachment>?,
+    /** How many of [rows] are shown (grows by [AttachController.PAGE_SIZE] per Load more). */
+    val shown: Int,
 )
+
+/** The rows on screen: the first [AttachSheetModel.shown]. */
+val AttachSheetModel.visibleRows: List<ScopedAttachment> get() = rows.orEmpty().take(shown)
+
+val AttachSheetModel.hasMore: Boolean get() = rows.orEmpty().size > shown
+
+/**
+ * Delete is offered only for the owner's own files in its own scope: This heading,
+ * or This file for the file owner. Deleting another owner's file would silently
+ * break that owner's links.
+ */
+fun AttachSheetModel.canDelete(row: ScopedAttachment): Boolean =
+    scope == AttachScope.HEADING ||
+        (owner is AttachOwner.File && scope == AttachScope.FILE && row.dir == dir)
 
 /**
  * The owner an attach started for, saved across process death next to the
@@ -108,6 +135,7 @@ class AttachController internal constructor(
     val orgFile: String,
     internal val manager: AttachmentCopyManager?,
     private val storeProvider: () -> FileStore?,
+    private val indexedOwners: suspend () -> List<IndexedAttachOwner> = { emptyList() },
 ) {
     var sheet by mutableStateOf<AttachSheetModel?>(null)
         private set
@@ -121,6 +149,10 @@ class AttachController internal constructor(
     internal var launchPhotos: () -> Unit = {}
     internal var launchFiles: () -> Unit = {}
     private var toastId = 0L
+    /** Rows per scope for the open sheet; cleared on open, attach and delete. */
+    private val cache = mutableMapOf<AttachScope, List<ScopedAttachment>>()
+    /** Bumped on open and close, so a scan from an earlier sheet never lands in this one. */
+    private var session = 0
 
     val cameraAvailable: Boolean by lazy {
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(context.packageManager) != null
@@ -139,6 +171,7 @@ class AttachController internal constructor(
         val text = textState.text.toString()
         val doc = OrgParser.parse(text)
         val owner = resolveOwner(doc, textState.selection.start)
+        val scopes = scopesFor(owner)
         val model = AttachSheetModel(
             owner = owner,
             stars = starsFor(doc, owner),
@@ -147,31 +180,63 @@ class AttachController internal constructor(
                 is AttachOwner.File -> orgFile.substringAfterLast('/')
             },
             dir = null,
-            dirLabel = if (owner.id == null && owner.dirProperty == null) NO_ID_LABEL else "",
-            files = null,
+            scopes = scopes,
+            scope = scopes.first(),
+            rows = null,
+            shown = PAGE_SIZE,
         )
+        cache.clear()
+        session++
         sheet = model
-        scope.launch { refreshList(model) }
+        load(model.scope)
     }
 
     fun close() {
+        session++
         sheet = null
     }
 
-    private suspend fun refreshList(model: AttachSheetModel) {
+    /** Switch the list to [target]: the switch moves now, rows follow from the cache or a background scan. */
+    fun selectScope(target: AttachScope) {
+        val model = sheet ?: return
+        if (target == model.scope || target !in model.scopes) return
+        val cached = cache[target]
+        sheet = model.copy(scope = target, rows = cached, shown = PAGE_SIZE)
+        if (cached == null) load(target)
+    }
+
+    fun loadMore() {
+        sheet = sheet?.let { it.copy(shown = it.shown + PAGE_SIZE) }
+    }
+
+    /**
+     * Scans [target] on IO. The result is cached for this sheet, but only shown
+     * when the sheet is still open (same session) and still on [target].
+     */
+    private fun load(target: AttachScope) {
+        val model = sheet ?: return
         val store = storeProvider() ?: return
-        val files = AttachmentFiles(store)
-        val resolver = AttachDirResolver(files)
-        val (dir, list, label) = withContext(Dispatchers.IO) {
-            val read = resolver.readDir(orgFile, model.owner)
-            val shown = read ?: resolver.writeDir(orgFile, model.owner)
-            Triple(
-                read,
-                read?.let { files.list(it) }.orEmpty().sortedBy { it.name.substringAfterLast('/').lowercase() },
-                shown?.let { dirLabel(orgFile, it) } ?: NO_ID_LABEL,
-            )
+        val started = session
+        val text = textState.text.toString()
+        scope.launch {
+            val (dir, rows) = withContext(Dispatchers.IO) {
+                val files = AttachmentFiles(store)
+                val ownDir = AttachDirResolver(files).readDir(orgFile, model.owner)
+                val rows = when (target) {
+                    AttachScope.HEADING -> ownDir?.let { files.list(it) }.orEmpty()
+                        .sortedBy { it.name.substringAfterLast('/').lowercase() }
+                        .map { ScopedAttachment(it, ownDir!!, orgFile, (model.owner as? AttachOwner.Heading)?.title, "") }
+                    AttachScope.FILE -> AttachmentScopeScanner(files).scanFile(orgFile, OrgParser.parse(text))
+                    AttachScope.VAULT -> AttachmentScopeScanner(files, AttachDirResolver(ListedDirs(store)))
+                        .scanVault(orgFile, OrgParser.parse(text), indexedOwners())
+                }
+                ownDir to rows
+            }
+            if (session != started) return@launch
+            cache[target] = rows
+            val current = sheet ?: return@launch
+            sheet = if (current.scope == target) current.copy(dir = dir, rows = rows) else current.copy(dir = dir)
         }
-        if (sheet?.owner == model.owner) sheet = model.copy(dir = dir, dirLabel = label, files = list)
     }
 
     /** One of the three source pills. */
@@ -290,6 +355,7 @@ class AttachController internal constructor(
         when (val r = done.result) {
             is ImportResult.Failed -> showToast(failureMessage(r))
             is ImportResult.Success -> {
+                cache.clear()
                 val edit = insertAttachmentLinksInBuffer(
                     textState.text.toString(), textState.selection.start,
                     done.request.owner, done.request.newId, r.names,
@@ -308,19 +374,38 @@ class AttachController internal constructor(
         }
     }
 
-    /** List row: insert `[[attachment:name]]` at the cursor (no ID change). */
-    fun insertExisting(file: FileEntry) {
+    /**
+     * List row: the owner's own file gets `[[attachment:name]]` (no ID change);
+     * another owner's file gets a `[[file:…]]` link relative to this org file.
+     */
+    fun insertExisting(row: ScopedAttachment) {
         val model = sheet ?: return
-        val name = file.name.substringAfterLast('/')
-        val edit = insertAttachmentLinksInBuffer(
-            textState.text.toString(), textState.selection.start, model.owner, null, listOf(name),
-        ) ?: return
+        val name = row.file.name.substringAfterLast('/')
+        if (row.dir == model.dir) {
+            val edit = insertAttachmentLinksInBuffer(
+                textState.text.toString(), textState.selection.start, model.owner, null, listOf(name),
+            ) ?: return
+            sheet = null
+            textState.edit {
+                replace(0, length, edit.text)
+                selection = TextRange(edit.cursor)
+            }
+            showToast(context.getString(R.string.attach_linked, name))
+            return
+        }
+        if (!linkableName(row.file.name)) {
+            showToast(context.getString(R.string.attach_link_bracket_refused))
+            return
+        }
+        val link = fileLinkText(relativeLinkPath(orgFile, row.file.name))
+        val cursor = textState.selection.start
         sheet = null
         textState.edit {
-            replace(0, length, edit.text)
-            selection = TextRange(edit.cursor)
+            replace(cursor, cursor, link)
+            selection = TextRange(cursor + link.length)
         }
-        showToast("Linked $name")
+        val source = row.ownerTitle ?: row.ownerOrgFile.substringAfterLast('/')
+        showToast(context.getString(R.string.attach_linked_from, name, source))
     }
 
     /** A content URI the sheet's image thumbnails load from; null when the file can't be resolved. */
@@ -354,12 +439,13 @@ class AttachController internal constructor(
                 deleted
             }
             showToast(if (ok) "Deleted $name" else "Couldn't delete $name")
-            sheet?.let { refreshList(it) }
+            cache.clear()
+            sheet?.let { load(it.scope) }
         }
     }
 
     companion object {
-        const val NO_ID_LABEL = "no :ID: yet"
+        const val PAGE_SIZE = 10
         private val CAMERA_STAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     }
 }
@@ -368,20 +454,6 @@ class AttachController internal constructor(
 internal fun starsFor(doc: OrgDocument, owner: AttachOwner): String = when (owner) {
     is AttachOwner.File -> "#+"
     is AttachOwner.Heading -> "*".repeat(doc.headlines.firstOrNull { it.lineIndex == owner.lineIndex }?.level ?: 1)
-}
-
-/**
- * The sheet's dir label (1c): the attach dir relative to the org file's
- * folder, with the last segment cut to 6 characters plus an ellipsis, e.g.
- * `data/8B/41D2F0…`.
- */
-internal fun dirLabel(orgFile: String, dir: String): String {
-    val orgDir = orgFile.substringBeforeLast('/', "")
-    val rel = if (orgDir.isNotEmpty() && dir.startsWith("$orgDir/")) dir.removePrefix("$orgDir/") else dir
-    val head = rel.substringBeforeLast('/', "")
-    val leaf = rel.substringAfterLast('/')
-    val cut = if (leaf.length > 6) leaf.take(6) + "…" else leaf
-    return if (head.isEmpty()) cut else "$head/$cut"
 }
 
 /** Name and size of a picked document. */
@@ -416,6 +488,7 @@ fun rememberAttachController(textState: TextFieldState, orgFile: String, bufferR
     return rememberAttachController(
         textState, orgFile, bufferReady,
         manager = app?.attachmentCopyManager,
+        indexedOwners = { app?.database?.indexDao()?.attachOwners().orEmpty() },
         storeProvider = { app?.fileStore?.value },
     )
 }
@@ -426,12 +499,13 @@ internal fun rememberAttachController(
     orgFile: String,
     bufferReady: Boolean,
     manager: AttachmentCopyManager?,
+    indexedOwners: suspend () -> List<IndexedAttachOwner> = { emptyList() },
     storeProvider: () -> FileStore?,
 ): AttachController {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val controller = remember(textState, orgFile) {
-        AttachController(context, scope, textState, orgFile, manager, storeProvider)
+        AttachController(context, scope, textState, orgFile, manager, storeProvider, indexedOwners)
     }
     // Saved as JSON so it survives process death without the parcelize plugin.
     var saved by rememberSaveable { mutableStateOf<String?>(null) }

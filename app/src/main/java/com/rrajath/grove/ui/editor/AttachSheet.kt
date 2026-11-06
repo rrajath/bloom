@@ -72,6 +72,7 @@ import coil3.request.ImageRequest
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachKind
 import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.ScopedAttachment
 import com.rrajath.grove.attach.AttachmentCategory
 import com.rrajath.grove.attach.CopyProgress
 import com.rrajath.grove.attach.attachmentExtension
@@ -171,7 +172,7 @@ internal fun AttachSheet(
     toast: OutlineToast?,
     onDismiss: () -> Unit,
     onPick: (AttachKind) -> Unit,
-    onInsert: (FileEntry) -> Unit,
+    onInsert: (ScopedAttachment) -> Unit,
     onOpen: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
     thumbnailUri: suspend (FileEntry) -> Uri? = { null },
@@ -207,7 +208,7 @@ internal fun AttachSheetContent(
     model: AttachSheetModel,
     cameraAvailable: Boolean,
     onPick: (AttachKind) -> Unit,
-    onInsert: (FileEntry) -> Unit,
+    onInsert: (ScopedAttachment) -> Unit,
     onOpen: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
     thumbnailUri: suspend (FileEntry) -> Uri? = { null },
@@ -269,18 +270,11 @@ internal fun AttachSheetContent(
                     if (model.owner is AttachOwner.File) "In this file" else "In this heading",
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = c.ink2,
                 )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    model.dirLabel,
-                    fontFamily = PlexMono, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = c.ink3,
-                    maxLines = 1,
-                    modifier = Modifier.testTag("attach_dir_label"),
-                )
             }
-            val files = model.files
+            val rows = model.rows
             when {
-                files == null -> Spacer(Modifier.height(40.dp))
-                files.isEmpty() -> Text(
+                rows == null -> Spacer(Modifier.height(40.dp))
+                rows.isEmpty() -> Text(
                     if (model.owner is AttachOwner.File && model.owner.id == null && model.owner.dirProperty == null) {
                         stringResource(R.string.attach_empty_file_no_id, stringResource(R.string.app_name))
                     } else {
@@ -291,10 +285,11 @@ internal fun AttachSheetContent(
                         .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 14.dp)
                         .testTag("attach_empty"),
                 )
-                else -> files.forEach { f ->
+                else -> model.visibleRows.forEach { row ->
+                    val f = row.file
                     AttachmentRow(
                         f, thumbnailUri,
-                        onInsert = { onInsert(f) }, onOpen = { onOpen(f) }, onDelete = { onDelete(f) },
+                        onInsert = { onInsert(row) }, onOpen = { onOpen(f) }, onDelete = { onDelete(f) },
                     )
                 }
             }
