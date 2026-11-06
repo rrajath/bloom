@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -190,6 +193,12 @@ internal fun AttachSheet(
     val c = MaterialTheme.grove
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        // Keep the sheet below the status bar. M3 pads the content by however much of the
+        // status bar the sheet's current offset overlaps, so a sheet nearly as tall as the
+        // screen (Vault scope) changes height as it is dragged, which moves its Expanded
+        // anchor, which changes the offset again: the sheet jitters under a swipe up.
+        // Reserving the inset outside the sheet makes its height independent of its offset.
+        modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top)),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = c.surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
