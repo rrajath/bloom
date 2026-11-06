@@ -279,7 +279,6 @@ internal fun AttachSheetContent(
                 options = model.scopes.map { stringResource(it.labelRes) },
                 selectedIndex = model.scopes.indexOf(model.scope),
                 onSelect = { onSelectScope(model.scopes[it]) },
-                containerColor = c.line,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 14.dp, end = 14.dp, bottom = 6.dp)

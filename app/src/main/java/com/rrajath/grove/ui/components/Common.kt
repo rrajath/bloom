@@ -163,9 +163,7 @@ fun SegmentedControl(
     modifier: Modifier = Modifier,
     optionIcons: List<ImageVector?>? = null,
     leadingIcons: List<ImageVector?>? = null,
-    /** Track color; pass `line` when the control sits on a `surface2` card. */
-    containerColor: Color = MaterialTheme.grove.surface2,
-) = SegmentedControlImpl(options, selectedIndex, onSelect, modifier, optionIcons, onControlClick = null, leadingIcons, containerColor)
+) = SegmentedControlImpl(options, selectedIndex, onSelect, modifier, optionIcons, onControlClick = null, leadingIcons)
 
 /**
  * The Read/Edit mode switch every note, file, Dailies and capture top bar carries:
@@ -207,13 +205,12 @@ private fun SegmentedControlImpl(
     optionIcons: List<ImageVector?>?,
     onControlClick: (() -> Unit)?,
     leadingIcons: List<ImageVector?>? = null,
-    containerColor: Color = MaterialTheme.grove.surface2,
 ) {
     val c = MaterialTheme.grove
     Row(
         modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(containerColor)
+            .background(c.surface2)
             .then(if (onControlClick != null) Modifier.clickable(onClick = onControlClick) else Modifier)
             .padding(3.dp),
         verticalAlignment = Alignment.CenterVertically,
