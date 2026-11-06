@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithContentDescription
 import android.content.Context
@@ -54,6 +56,7 @@ class AttachSheetRobolectricTest {
     private val inserted = mutableListOf<String>()
     private val opened = mutableListOf<String>()
     private val deleted = mutableListOf<String>()
+    private val hints = mutableListOf<String>()
 
     /** A sheet model listing [files] as the owner's own rows. */
     private fun sheetModel(owner: AttachOwner, stars: String, title: String, dir: String?, files: List<FileEntry>): AttachSheetModel {
@@ -74,6 +77,7 @@ class AttachSheetRobolectricTest {
                     onDelete = { deleted += it.name },
                     onSelectScope = { scopesPicked += it },
                     onLoadMore = { loadMoreTaps++ },
+                    onHint = { hints += it },
                 )
             }
         }
@@ -101,6 +105,23 @@ class AttachSheetRobolectricTest {
         assertEquals(listOf("data/8B/41D2F0-1C9E/receipt.pdf"), inserted)
         assertEquals(listOf("data/8B/41D2F0-1C9E/soba-menu.jpg"), opened)
         assertEquals(listOf("data/8B/41D2F0-1C9E/receipt.pdf"), deleted)
+    }
+
+    @Test
+    fun `long-pressing row actions names them without running them`() {
+        show(sheetModel(lunch, "**", "Lunch", "d", files))
+        composeRule.onNodeWithTag("attach_insert_receipt.pdf").performTouchInput { longClick() }
+        composeRule.onNodeWithTag("attach_open_receipt.pdf").performTouchInput { longClick() }
+        composeRule.onNodeWithTag("attach_delete_receipt.pdf").performTouchInput { longClick() }
+        assertEquals(
+            listOf(
+                str(R.string.attach_action_insert_link),
+                str(R.string.attach_action_open_with),
+                str(R.string.attach_action_delete),
+            ),
+            hints,
+        )
+        assertTrue(inserted.isEmpty() && opened.isEmpty() && deleted.isEmpty())
     }
 
     @Test

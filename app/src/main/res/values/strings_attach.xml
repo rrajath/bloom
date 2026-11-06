@@ -22,4 +22,8 @@
     <string name="attach_link_bracket_refused">Can\'t link a file name with [ or ]</string>
     <!-- Toast when a file name contains "::", which org reads as a search option and would open the wrong file. Keep :: as it is. -->
     <string name="attach_link_colons_refused">Can\'t link a file name with ::</string>
+    <!-- Toasts shown on long-pressing an attachment row's icon buttons, naming what each does. -->
+    <string name="attach_action_insert_link">Insert link</string>
+    <string name="attach_action_open_with">Open with</string>
+    <string name="attach_action_delete">Delete file</string>
 </resources>

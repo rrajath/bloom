@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -155,6 +156,7 @@ fun BoxScope.AttachOverlays(controller: AttachController, bottomInset: Dp) {
             onOpen = controller::openWith,
             onDelete = { controller.confirmDelete = it },
             thumbnailUri = controller::thumbnailUri,
+            onHint = controller::showToast,
         )
     }
     controller.confirmDelete?.let { file ->
@@ -182,6 +184,8 @@ internal fun AttachSheet(
     onSelectScope: (AttachScope) -> Unit = {},
     onLoadMore: () -> Unit = {},
     thumbnailUri: suspend (FileEntry) -> Uri? = { null },
+    /** Long-press on a row's icon button: names the action in a toast. */
+    onHint: (String) -> Unit = {},
 ) {
     val c = MaterialTheme.grove
     ModalBottomSheet(
@@ -201,7 +205,7 @@ internal fun AttachSheet(
         },
     ) {
         Box {
-            AttachSheetContent(model, cameraAvailable, onPick, onInsert, onOpen, onDelete, onSelectScope, onLoadMore, thumbnailUri)
+            AttachSheetContent(model, cameraAvailable, onPick, onInsert, onOpen, onDelete, onSelectScope, onLoadMore, thumbnailUri, onHint)
             // The sheet is its own window, so list-action toasts are drawn inside it.
             GroveToast(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
         }
@@ -220,6 +224,7 @@ internal fun AttachSheetContent(
     onSelectScope: (AttachScope) -> Unit = {},
     onLoadMore: () -> Unit = {},
     thumbnailUri: suspend (FileEntry) -> Uri? = { null },
+    onHint: (String) -> Unit = {},
 ) {
     val c = MaterialTheme.grove
     Column(
@@ -309,6 +314,7 @@ internal fun AttachSheetContent(
                             f, row.source, thumbnailUri,
                             onInsert = { onInsert(row) }, onOpen = { onOpen(f) },
                             onDelete = if (model.canDelete(row)) ({ onDelete(f) }) else null,
+                            onHint = onHint,
                         )
                     }
                     if (model.hasMore) LoadMoreButton(onLoadMore)
@@ -369,6 +375,7 @@ private fun AttachmentRow(
     onOpen: () -> Unit,
     /** Null hides Delete (another owner's file). */
     onDelete: (() -> Unit)?,
+    onHint: (String) -> Unit,
 ) {
     val c = MaterialTheme.grove
     val name = file.name.substringAfterLast('/')
@@ -410,15 +417,18 @@ private fun AttachmentRow(
         RowIconButton(
             R.drawable.ic_attach_insert_link, 17.dp, c.accent, c.surface3, c.accent,
             "Insert link at cursor", "attach_insert_$name", onInsert,
+            hint = stringResource(R.string.attach_action_insert_link), onHint = onHint,
         )
         RowIconButton(
             R.drawable.ic_attach_open_with, 16.dp, c.ink2, c.surface3, c.ink2,
             "Open with…", "attach_open_$name", onOpen,
+            hint = stringResource(R.string.attach_action_open_with), onHint = onHint,
         )
         if (onDelete != null) {
             RowIconButton(
                 R.drawable.ic_attach_delete, 16.dp, c.ink3, c.redSoft, c.red,
                 "Delete", "attach_delete_$name", onDelete,
+                hint = stringResource(R.string.attach_action_delete), onHint = onHint,
             )
         }
     }
@@ -485,6 +495,9 @@ private fun RowIconButton(
     description: String,
     tag: String,
     onClick: () -> Unit,
+    /** Long-press label, passed to [onHint] (shown as a toast). */
+    hint: String,
+    onHint: (String) -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -493,7 +506,10 @@ private fun RowIconButton(
             .size(36.dp)
             .clip(CircleShape)
             .background(if (pressed) pressedBg else Color.Transparent)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .combinedClickable(
+                interactionSource = interaction, indication = null,
+                onLongClick = { onHint(hint) }, onClick = onClick,
+            )
             .semantics { contentDescription = description }
             .testTag(tag),
         contentAlignment = Alignment.Center,
