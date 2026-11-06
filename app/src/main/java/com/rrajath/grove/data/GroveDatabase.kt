@@ -221,6 +221,9 @@ data class NotebookSyncState(
 /** A file holding an `:ID:` (see [IndexDao.filesHoldingOrgIds]). */
 data class FileOrgId(val fileName: String, val orgId: String)
 
+/** An indexed `:ID:` holder (see [IndexDao.attachOwners]); [title] is null for a file-level drawer. */
+data class IndexedAttachOwner(val fileName: String, val title: String?, val orgId: String)
+
 /** Primary key of a `notes` row: what an FTS lookup hands back. */
 data class NoteKey(val fileName: String, val lineIndex: Int)
 
@@ -361,6 +364,17 @@ abstract class IndexDao {
             "UNION SELECT fileName, orgId FROM notebooks WHERE orgId IN (:ids)"
     )
     abstract suspend fun filesHoldingOrgIds(ids: List<String>): List<FileOrgId>
+
+    /**
+     * Every heading and file-level drawer with an `:ID:`, vault-wide: the owners the
+     * attach sheet's Vault scope lists (attachments, experimental). Headings carry
+     * their title; file-level owners have a null title.
+     */
+    @Query(
+        "SELECT fileName, title, orgId FROM notes WHERE orgId IS NOT NULL AND lineIndex >= 0 " +
+            "UNION SELECT fileName, NULL AS title, orgId FROM notebooks WHERE orgId IS NOT NULL"
+    )
+    abstract suspend fun attachOwners(): List<IndexedAttachOwner>
 
     /** Where a heading with this `:CUSTOM_ID:` lives, for resolving `[[#id]]` links vault-wide. */
     @Query("SELECT fileName, lineIndex FROM notes WHERE customId = :customId LIMIT 1")
