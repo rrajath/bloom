@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Attach sheet (ui/editor/AttachSheet.kt): label above the scope switch. The switch's
+         options follow it; keep the colon if your language uses one there. -->
+    <string name="attach_scope_label">Show attachments in:</string>
+    <!-- Scope switch option: attachments of the heading being edited. Short, it shares one row with two other options. -->
+    <string name="attach_scope_heading">This heading</string>
+    <!-- Scope switch option: attachments of every heading in the open .org file. Short. -->
+    <string name="attach_scope_file">This file</string>
+    <!-- Scope switch option: attachments across every .org file in the notes folder. Kept in English by decision. -->
+    <string name="attach_scope_vault" translatable="false">Vault</string>
+    <!-- Button under the attachment list: shows the next 10 files. -->
+    <string name="attach_load_more">Load more</string>
+    <string name="attach_empty_heading">No attachments yet.</string>
+    <string name="attach_empty_file">No attachments in this file.</string>
+    <string name="attach_empty_vault">No attachments in the vault.</string>
+    <!-- Toast after inserting a link to a file. %1$s = file name (e.g. photo.jpg). -->
+    <string name="attach_linked">Linked %1$s</string>
+    <!-- Toast after linking a file attached somewhere else. %1$s = file name, %2$s = heading title or .org file name it belongs to. -->
+    <string name="attach_linked_from">Linked %1$s from %2$s</string>
+    <!-- Toast when a file name contains square brackets, which would break the org link. Keep [ and ] as they are. -->
+    <string name="attach_link_bracket_refused">Can\'t link a file name with [ or ]</string>
+</resources>
