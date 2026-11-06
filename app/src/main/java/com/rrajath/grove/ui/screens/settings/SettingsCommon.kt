@@ -64,6 +64,8 @@ import com.rrajath.grove.ui.theme.grove
 internal fun SettingsPageScaffold(
     title: String,
     onBack: () -> Unit,
+    /** Drawn right after the title, e.g. the "Experimental" pill. */
+    titleBadge: (@Composable () -> Unit)? = null,
     content: @Composable (ScrollState) -> Unit,
 ) {
     val c = MaterialTheme.grove
@@ -78,12 +80,17 @@ internal fun SettingsPageScaffold(
                 // place over the previous screen while this page fades out from under it.
                 leading = { IconGlyph("←", onClick = { focusManager.clearFocus(force = true); onBack() }) },
                 title = {
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = c.ink,
-                        modifier = Modifier.padding(start = 4.dp),
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = c.ink,
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                        if (titleBadge != null) {
+                            Box(Modifier.padding(start = 10.dp)) { titleBadge() }
+                        }
+                    }
                 },
             )
         },

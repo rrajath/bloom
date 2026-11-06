@@ -279,6 +279,8 @@ internal fun AttachSheetContent(
                 options = model.scopes.map { stringResource(it.labelRes) },
                 selectedIndex = model.scopes.indexOf(model.scope),
                 onSelect = { onSelectScope(model.scopes[it]) },
+                // The scope panel is surface2, so the track takes the sheet's own surface.
+                containerColor = c.surface,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 14.dp, end = 14.dp, bottom = 6.dp)

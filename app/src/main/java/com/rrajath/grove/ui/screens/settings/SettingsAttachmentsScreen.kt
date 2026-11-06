@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.settings.AttachImageWidth
 import com.rrajath.grove.settings.AttachPhotoSize
 import com.rrajath.grove.settings.GroveSettings
+import com.rrajath.grove.ui.components.Pill
 import com.rrajath.grove.ui.components.SegmentedControl
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
@@ -48,8 +48,17 @@ fun SettingsAttachmentsScreen(
     onSetImageWidthPx: (Int) -> Unit,
 ) {
     val c = MaterialTheme.grove
-    SettingsPageScaffold(title = "Attachments", onBack = onBack) {
-        Box(Modifier.height(18.dp))
+    SettingsPageScaffold(
+        title = "Attachments",
+        onBack = onBack,
+        titleBadge = { Pill(text = "Experimental", fg = c.amber, bg = c.amberSoft) },
+    ) {
+        // Same note style as Settings § Roam Features.
+        Text(
+            "Attachments are experimental. Expect changes to how they look and work in future releases.",
+            fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 20.dp),
+        )
         SectionLabel("ATTACHMENTS")
         SettingsGroup {
             Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp)) {
