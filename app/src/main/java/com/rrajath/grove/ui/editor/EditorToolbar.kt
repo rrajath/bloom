@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.ui.newbadge.NewAnchors
+import com.rrajath.grove.ui.newbadge.NewDotBadge
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.grove
 import java.time.LocalDateTime
@@ -112,12 +114,14 @@ fun EditorToolbar(
             // The thin, 45-degree paperclip reads small next to the square
             // glyphs at the shared 20dp, so 22dp matches the checkbox's visual
             // height. The Box centers it on both axes like every other button.
-            ToolButton(
-                icon = R.drawable.ic_attach_file, color = c.ink, iconSize = 22.dp,
-                contentDescription = "Attach",
-                modifier = fixed.testTag("editor_attach"),
-                onClick = onAttach,
-            )
+            NewDotBadge(NewAnchors.EDITOR_ATTACH, ringColor = c.surface) {
+                ToolButton(
+                    icon = R.drawable.ic_attach_file, color = c.ink, iconSize = 22.dp,
+                    contentDescription = "Attach",
+                    modifier = fixed.testTag("editor_attach"),
+                    onClick = onAttach,
+                )
+            }
             ToolButton("[[]]", c.synLink, fixed, onLongClick = onLinkLongPress, onClick = onLink)
             ToolButton("◷", c.synTs, fixed, fontSize = 27.sp, onLongClick = timestampLongPress, onClick = insertDate)
             ToolButton("*", c.synStar, fixed, bold = true) { onHeading() }

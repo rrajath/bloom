@@ -62,7 +62,6 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.rrajath.grove.FeatureFlags
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
@@ -231,8 +230,8 @@ fun EditRegionScreen(
     // False until the region has been loaded into the text field: the field's
     // pre-load contents are not the user's edits and must not be reported.
     var fieldLoaded by remember { mutableStateOf(false) }
-    // Experimental attachments (debug builds only), for the whole-file editor.
-    val attach = if (FeatureFlags.ATTACHMENTS && region == EditRegion.WHOLE_FILE) {
+    // Attachments, for the whole-file editor.
+    val attach = if (region == EditRegion.WHOLE_FILE) {
         rememberAttachController(textState, fileName, fieldLoaded)
     } else {
         null

@@ -89,6 +89,8 @@ import com.rrajath.grove.ui.attach.attachmentMemoryCacheKey
 import com.rrajath.grove.ui.components.GroveProgressSnackbar
 import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.components.SegmentedControl
+import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
+import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
@@ -191,6 +193,7 @@ internal fun AttachSheet(
     onHint: (String) -> Unit = {},
 ) {
     val c = MaterialTheme.grove
+    MarkNewFeatureSeen(NewAnchors.EDITOR_ATTACH_SHEET)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         // Keep the sheet below the status bar. M3 pads the content by however much of the

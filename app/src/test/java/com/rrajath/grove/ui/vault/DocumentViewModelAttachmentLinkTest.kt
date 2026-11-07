@@ -7,7 +7,6 @@ import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
-import com.rrajath.grove.FeatureFlags
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.attach.AttachmentIntents
 import com.rrajath.grove.data.FavoritesRepository
@@ -35,7 +34,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -89,7 +87,6 @@ class DocumentViewModelAttachmentLinkTest {
 
     @Before
     fun setUp() {
-        assumeTrue(FeatureFlags.ATTACHMENTS)
         shadowOf(MimeTypeMap.getSingleton()).apply {
             addExtensionMimeTypeMapping("jpg", "image/jpeg")
             addExtensionMimeTypeMapping("pdf", "application/pdf")

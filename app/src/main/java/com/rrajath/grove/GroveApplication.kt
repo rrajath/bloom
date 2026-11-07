@@ -246,7 +246,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     }
 
     /**
-     * Runs attach copies (experimental, debug-only) on the main thread with I/O
+     * Runs attach copies on the main thread with I/O
      * on [AppDispatchers.io], so a copy finishes even after its editor closed;
      * then the links go into the file on disk instead of the editor buffer.
      */
@@ -267,8 +267,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     }
 
     /**
-     * Read-mode attachment existence and image-size cache (experimental,
-     * debug-only). Each finished sync drops its Missing entries, so a file that
+     * Read-mode attachment existence and image-size cache. Each finished sync drops its Missing entries, so a file that
      * Syncthing delivers later appears without reopening the note. Everything
      * is dropped when the app comes back to the foreground (files may have
      * changed outside it), after attachment moves and deletes, and Missing
@@ -298,8 +297,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
     /**
      * Keeps attach dirs with their notes on notebook/folder moves and deletes,
-     * heading deletes, and refiles (experimental, debug-only: null in release
-     * builds and before a vault is picked). One instance per store, so its
+     * heading deletes, and refiles (null before a vault is picked). One instance per store, so its
      * operations stay serialized. Read synchronously from [fileStore]'s current
      * value; see [com.rrajath.grove.attach.AttachmentLifecycleSource] for why it
      * is not a StateFlow.
@@ -307,7 +305,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     fun attachmentLifecycle(): com.rrajath.grove.attach.AttachmentLifecycle? = attachmentLifecycles.current()
 
     private val attachmentLifecycles = com.rrajath.grove.attach.AttachmentLifecycleSource(
-        enabled = FeatureFlags.ATTACHMENTS,
+        enabled = true,
         store = { fileStore.value },
         create = { store ->
             com.rrajath.grove.attach.AttachmentLifecycle(
@@ -327,7 +325,6 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     /** Moves attach dirs after refiles and archives across directories; see [attachmentLifecycle]. */
     val attachmentFollow: com.rrajath.grove.attach.AttachmentFollow =
         com.rrajath.grove.attach.AttachmentFollow { writes, verb ->
-            if (!FeatureFlags.ATTACHMENTS) return@AttachmentFollow
             appScope.launch {
                 val lifecycle = attachmentLifecycle() ?: return@launch
                 // The lifecycle's onChanged drops the status cache.

@@ -17,7 +17,6 @@ import com.rrajath.grove.data.NoteEntity
 import com.rrajath.grove.data.NoteFacetRow
 import com.rrajath.grove.data.toNoteMeta
 import com.rrajath.grove.org.INTRO_LINE_INDEX
-import com.rrajath.grove.org.InlineTokenizer
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
@@ -39,8 +38,6 @@ import com.rrajath.grove.search.SearchQuery
 import com.rrajath.grove.search.Snippets
 import com.rrajath.grove.search.Term
 import com.rrajath.grove.search.textTerms
-import com.rrajath.grove.FeatureFlags
-import com.rrajath.grove.ui.attach.ChipLine
 import com.rrajath.grove.ui.attach.PreviewChip
 import com.rrajath.grove.ui.attach.renderedWithChips
 import com.rrajath.grove.ui.vault.OutlineSnack
@@ -886,10 +883,7 @@ class SearchViewModel(
         return note.searchText.substringAfter('\n', "").lineSequence()
             // Most body lines can't match; only those that might get rendered.
             .filter { raw -> raw.contains("[[") || groupProbes.any { LineProbe.mayMatch(raw, it) } }
-            .map { raw ->
-                if (FeatureFlags.ATTACHMENTS) renderedWithChips(raw)
-                else ChipLine(InlineTokenizer.tokenize(raw).joinToString("") { it.text }.trim(), emptyList())
-            }
+            .map { raw -> renderedWithChips(raw) }
             .flatMap { (line, chips) ->
                 // A term found in the note's own tags is already satisfied, so
                 // a line only needs the rest; it highlights what it contains.

@@ -4,7 +4,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.vault.TestVaultHook
 import org.junit.After
-import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -34,7 +33,6 @@ class GroveApplicationAttachmentLifecycleTest {
 
     @Test
     fun `first read after the store is up returns the lifecycle, and the same one after`() {
-        assumeTrue("attachments are debug-only", FeatureFlags.ATTACHMENTS)
         val app = ApplicationProvider.getApplicationContext<TestGroveApplication>()
         TestVaultHook.useDirectory(tmp.root)
         val deadline = System.currentTimeMillis() + 10_000

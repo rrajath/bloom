@@ -75,7 +75,6 @@ import androidx.exifinterface.media.ExifInterface
 import coil3.compose.AsyncImage
 import coil3.decode.BitmapFactoryDecoder
 import coil3.request.ImageRequest
-import com.rrajath.grove.FeatureFlags
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentFiles
@@ -244,7 +243,7 @@ fun ProvideAttachmentRendering(
     content: @Composable () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as? GroveApplication
-    if (!FeatureFlags.ATTACHMENTS || app == null) return content()
+    if (app == null) return content()
     val store by app.fileStore.collectAsState()
     val settings by app.settingsRepository.settings.collectAsState(initial = null)
     val s = store

@@ -53,7 +53,7 @@ object Routes {
     const val SETTINGS_SHARING = "settings/sharing"
     /** Experimental Roam-style features: backlinks bar, auto-link suggestions while typing. */
     const val SETTINGS_ROAM = "settings/roam"
-    /** Experimental attachments: photo size and default image width (debug builds only). */
+    /** Experimental attachments: photo size and default image width */
     const val SETTINGS_ATTACHMENTS = "settings/attachments"
     /**
      * Full-screen image viewer (attachments 1h): [path] is the image's vault

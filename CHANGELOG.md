@@ -57,6 +57,9 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+- Attach photos and files to notes from the editor toolbar's paperclip; tune image sizes in Settings › Attachments.
+
 ### Changed
 - The editor's `*` button now inserts a subheading; further taps step it up a level, then wrap.
 

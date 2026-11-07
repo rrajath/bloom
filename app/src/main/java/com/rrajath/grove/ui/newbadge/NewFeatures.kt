@@ -109,6 +109,18 @@ object NewAnchors {
     /** The "Ignore list" block inside Settings § Notebooks. */
     const val SETTINGS_NOTEBOOKS_IGNORE_LIST = "settings.notebooks.ignoreList"
 
+    /** The Settings hub row leading to the Attachments page. */
+    const val SETTINGS_ATTACHMENTS = "settings.attachments"
+
+    /** The Attachments settings page itself (photo size, default image width). */
+    const val SETTINGS_ATTACHMENTS_PAGE = "settings.attachments.page"
+
+    /** The editor toolbar's paperclip button. */
+    const val EDITOR_ATTACH = "editor.attach"
+
+    /** The attach sheet the paperclip opens; retires the paperclip's dot. */
+    const val EDITOR_ATTACH_SHEET = "editor.attach.sheet"
+
     /** A Tips & Tricks section, keyed by its [TipGroup] id. */
     fun tipsGroup(id: String) = "tips.group.$id"
 
@@ -443,5 +455,29 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING,
         ),
         destination = NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING,
+    ),
+    NewFeature(
+        // Attachments left the debug-only gate: Settings gained an Attachments
+        // page (photo size, default image width). `since` is the versionCode of
+        // the release that ships it: bump it to match `gradle.properties`
+        // versionName when cutting the release.
+        id = "attachments-settings",
+        since = 11400,
+        anchors = setOf(
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_ATTACHMENTS,
+            NewAnchors.SETTINGS_ATTACHMENTS_PAGE,
+        ),
+        destination = NewAnchors.SETTINGS_ATTACHMENTS_PAGE,
+    ),
+    NewFeature(
+        // The editor toolbar gained a paperclip that opens the attach sheet:
+        // add photos and files to the note, or insert existing attachments.
+        // `since` is the versionCode of the release that ships it: bump it to
+        // match `gradle.properties` versionName when cutting the release.
+        id = "attachments-editor",
+        since = 11400,
+        anchors = setOf(NewAnchors.EDITOR_ATTACH, NewAnchors.EDITOR_ATTACH_SHEET),
+        destination = NewAnchors.EDITOR_ATTACH_SHEET,
     ),
 )

@@ -9,7 +9,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
-import com.rrajath.grove.FeatureFlags
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentBase
@@ -223,7 +222,7 @@ class NotebooksViewModel(
     private val settingsRepository: SettingsRepository,
     private val sync: SyncTrigger,
     private val dispatchers: AppDispatchers,
-    /** Attach-dir lifecycle (experimental, debug-only); null keeps today's behavior. */
+    /** Attach-dir lifecycle; null skips attach-dir bookkeeping. */
     private val attachments: () -> AttachmentLifecycle? = { null },
 ) : ViewModel() {
 
@@ -1078,7 +1077,7 @@ class DocumentViewModel(
             // `attachment:` link that isn't there stops at a toast; a `file:` or
             // path link still gets the org resolution below (it may name a
             // notebook without its `.org`), and only its toast names the file.
-            val attachment = if (FeatureFlags.ATTACHMENTS) AttachmentLink.classify(rawTarget, null) else null
+            val attachment = AttachmentLink.classify(rawTarget, null)
             if (attachment != null) {
                 if (openAttachmentLink(attachment, rawTarget, currentFile, doc, scopeNote)) return@launch
                 if (attachment.base == AttachmentBase.ATTACH_DIR) {

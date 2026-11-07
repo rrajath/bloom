@@ -1,6 +1,5 @@
 package com.rrajath.grove.ui.screens
 
-import com.rrajath.grove.FeatureFlags
 import androidx.compose.ui.text.AnnotatedString
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.ui.attach.HeadingDeleteAttachmentsSheet
@@ -1214,7 +1213,7 @@ private fun IntroRow(doc: OrgDocument, fileName: String, onTap: () -> Unit) {
     val styled = remember(raw, c) { annotateOrgInline(raw, c) }
     // Attachment links draw as display-only chips at the intro's text size.
     val chips = remember(raw) {
-        if (FeatureFlags.ATTACHMENTS) renderedPreviewChips(raw) else emptyList()
+        renderedPreviewChips(raw)
     }
     val content = rememberPreviewChipText(
         styled, chips, fileName, ownerLine = INTRO_LINE_INDEX, fontSize = 13.5.sp, doc = doc,
@@ -1421,7 +1420,7 @@ private fun OutlineNode(
             if (preview.isNotEmpty()) {
                 // 1i: attachment links draw as display-only preview chips.
                 val chips = remember(preview) {
-                    if (FeatureFlags.ATTACHMENTS) rawPreviewChips(preview) else emptyList()
+                    rawPreviewChips(preview)
                 }
                 val previewText = rememberPreviewChipText(
                     remember(preview) { AnnotatedString(preview) }, chips, fileName,

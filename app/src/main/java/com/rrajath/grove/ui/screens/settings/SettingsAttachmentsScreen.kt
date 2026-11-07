@@ -30,12 +30,14 @@ import com.rrajath.grove.settings.AttachPhotoSize
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.components.Pill
 import com.rrajath.grove.ui.components.SegmentedControl
+import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
+import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 
 /**
- * Settings § Attachments (experimental, debug builds only), prototype 1o:
+ * Settings § Attachments (experimental), prototype 1o:
  * Photo size for Camera/Photos imports, and the default read-mode image width
  * with a px stepper when Fixed. All three values are in Settings import/export.
  */
@@ -48,6 +50,7 @@ fun SettingsAttachmentsScreen(
     onSetImageWidthPx: (Int) -> Unit,
 ) {
     val c = MaterialTheme.grove
+    MarkNewFeatureSeen(NewAnchors.SETTINGS_ATTACHMENTS_PAGE)
     SettingsPageScaffold(
         title = "Attachments",
         onBack = onBack,

@@ -1,7 +1,6 @@
 package com.rrajath.grove.vault
 
 import android.net.Uri
-import com.rrajath.grove.FeatureFlags
 import com.rrajath.grove.attach.AttachConfig
 import java.io.InputStream
 import java.io.OutputStream
@@ -160,12 +159,8 @@ interface FileStore {
 private fun unsupported(): Nothing =
     throw UnsupportedOperationException("This FileStore doesn't support attachment file access")
 
-/**
- * Whether vault traversal skips attachment shards. Debug-only while
- * attachments are experimental, so release builds list folders exactly as
- * before.
- */
-internal val SKIP_ATTACH_SHARDS: Boolean = FeatureFlags.ATTACHMENTS
+/** Whether vault traversal skips attachment shards by default. */
+internal const val SKIP_ATTACH_SHARDS: Boolean = true
 
 /**
  * Directory names never descended into during vault traversal: dot-dirs,
