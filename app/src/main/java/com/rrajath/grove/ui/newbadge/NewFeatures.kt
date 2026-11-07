@@ -464,6 +464,7 @@ val NEW_FEATURES: List<NewFeature> = listOf(
         id = "attachments-settings",
         since = 11400,
         anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
             NewAnchors.DRAWER_SETTINGS,
             NewAnchors.SETTINGS_ATTACHMENTS,
             NewAnchors.SETTINGS_ATTACHMENTS_PAGE,
