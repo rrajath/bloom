@@ -173,7 +173,7 @@ internal fun SettingsRow(
                     fontSize = 14.5.sp, color = MaterialTheme.grove.ink,
                 )
                 if (labelBadge != null) {
-                    Box(Modifier.padding(start = 8.dp)) { labelBadge() }
+                    Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) { labelBadge() }
                 }
             }
             if (descriptionContent != null) {
@@ -222,7 +222,7 @@ internal fun ToggleRow(
                     fontSize = 14.5.sp, color = c.ink,
                 )
                 if (labelBadge != null) {
-                    Box(Modifier.padding(start = 8.dp)) { labelBadge() }
+                    Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) { labelBadge() }
                 }
             }
             if (description != null) {
