@@ -14,6 +14,7 @@ object LineEditing {
     private val LIST_ITEM = Regex("""^(\s*)([-+]|\d+[.)])( +)(\[[ Xx-]\])?( *)(.*)$""")
     private val NUMBERED = Regex("""^(\d+)([.)])$""")
     private val EMPTY_HEADING = Regex("""^\*+ ?$""")
+    private val TITLED_HEADING = Regex("""^(\*+) +\S""")
 
     /**
      * Org/markdown style list continuation. The caller (see `OrgInputTransformation`)
@@ -194,8 +195,13 @@ object LineEditing {
     }
 
     /**
-     * Toolbar `*` button: on an empty heading line (`* `, `** `…) demote it by
-     * one star; anywhere else start a new heading on the next line.
+     * Toolbar `*` button, contextual to the nearest titled heading at or above
+     * the cursor (level L, or 0 when there is none).
+     *
+     * From any line that isn't an empty heading it starts a subheading (L+1
+     * stars) on the next line. Tapping again on that still-empty heading line
+     * steps it up one level at a time (L, L-1, ... 1) and then wraps back to
+     * L+1, so for L = 3 the sequence is `****`, `***`, `**`, `*`, `****`.
      */
     fun insertHeadingStar(text: String, cursor: Int): TextEdit {
         val at = cursor.coerceIn(0, text.length)
@@ -203,16 +209,33 @@ object LineEditing {
         val lineEnd = text.indexOf('\n', at).let { if (it == -1) text.length else it }
         val line = text.substring(lineStart, lineEnd)
         if (EMPTY_HEADING.matches(line)) {
-            val newLine = "*".repeat(line.trimEnd().length + 1) + " "
+            val stars = line.trimEnd().length
+            val next = if (stars > 1) stars - 1 else contextHeadingLevel(text, lineStart) + 1
+            val newLine = "*".repeat(next) + " "
             return TextEdit(
                 text.substring(0, lineStart) + newLine + text.substring(lineEnd),
                 lineStart + newLine.length,
             )
         }
-        val snippet = "\n* "
+        val level = contextHeadingLevel(text, lineEnd)
+        val snippet = "\n" + "*".repeat(level + 1) + " "
         return TextEdit(
             text.substring(0, at) + snippet + text.substring(at),
             at + snippet.length,
         )
+    }
+
+    /**
+     * Level of the nearest titled heading on a line ending at or before [end]
+     * (empty `** ` placeholders are skipped), or 0 when there is none.
+     */
+    private fun contextHeadingLevel(text: String, end: Int): Int {
+        var lineEnd = end
+        while (true) {
+            val lineStart = text.lastIndexOf('\n', lineEnd - 1) + 1
+            TITLED_HEADING.find(text.substring(lineStart, lineEnd))?.let { return it.groupValues[1].length }
+            if (lineStart == 0) return 0
+            lineEnd = lineStart - 1
+        }
     }
 }

@@ -57,6 +57,9 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Changed
+- The editor's `*` button now inserts a subheading; further taps step it up a level, then wrap.
+
 ### Fixed
 - "Capture from notification" can now be turned on with Android 12 and older.
 

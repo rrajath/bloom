@@ -144,31 +144,51 @@ class LineEditingTest {
     }
 
     @Test
-    fun `heading button demotes an empty heading`() {
-        val once = LineEditing.insertHeadingStar("* ", 2)
-        assertEquals("** ", once.text)
-        assertEquals(3, once.cursor)
-        val twice = LineEditing.insertHeadingStar(once.text, once.cursor)
-        assertEquals("*** ", twice.text)
-    }
-
-    @Test
-    fun `heading button demotes an empty heading without trailing space`() {
-        val edit = LineEditing.insertHeadingStar("*", 1)
-        assertEquals("** ", edit.text)
-    }
-
-    @Test
-    fun `heading demote works on a middle line`() {
-        val edit = LineEditing.insertHeadingStar("* top\n* \nbody", 8)
-        assertEquals("* top\n** \nbody", edit.text)
-        assertEquals(9, edit.cursor)
-    }
-
-    @Test
-    fun `non-empty heading line inserts a new heading instead of demoting`() {
+    fun `heading button on a heading line inserts a subheading`() {
         val edit = LineEditing.insertHeadingStar("* title", 7)
-        assertEquals("* title\n* ", edit.text)
+        assertEquals("* title\n** ", edit.text)
+        assertEquals(edit.text.length, edit.cursor)
+    }
+
+    @Test
+    fun `heading button in body text inserts a subheading of the owning heading`() {
+        val text = "* a\n** b\n*** c\nsome body"
+        val edit = LineEditing.insertHeadingStar(text, text.length)
+        assertEquals("$text\n**** ", edit.text)
+    }
+
+    @Test
+    fun `heading button cycles subheading, same level, up to one star, then wraps`() {
+        val base = "*** c"
+        var edit = LineEditing.insertHeadingStar(base, base.length)
+        val seen = mutableListOf(edit.text.removePrefix("$base\n"))
+        repeat(4) {
+            edit = LineEditing.insertHeadingStar(edit.text, edit.cursor)
+            seen += edit.text.removePrefix("$base\n")
+            assertEquals(edit.text.length, edit.cursor)
+        }
+        assertEquals(listOf("**** ", "*** ", "** ", "* ", "**** "), seen)
+    }
+
+    @Test
+    fun `heading cycle without trailing space`() {
+        val edit = LineEditing.insertHeadingStar("** c\n***", 8)
+        assertEquals("** c\n** ", edit.text)
+    }
+
+    @Test
+    fun `heading cycle works on a middle line and skips empty headings for context`() {
+        val edit = LineEditing.insertHeadingStar("** top\n* \nbody", 9)
+        assertEquals("** top\n*** \nbody", edit.text)
+        assertEquals(11, edit.cursor)
+    }
+
+    @Test
+    fun `heading button with no heading above stays at one star`() {
+        val first = LineEditing.insertHeadingStar("some text", 9)
+        assertEquals("some text\n* ", first.text)
+        val again = LineEditing.insertHeadingStar(first.text, first.cursor)
+        assertEquals("some text\n* ", again.text)
     }
 
     // --- new-note caret ---
