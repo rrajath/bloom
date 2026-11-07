@@ -1,18 +1,18 @@
 ---
 title: Settings Overview
-description: The Settings hub and its ten sub-pages, at a glance.
+description: The Settings hub and its sub-pages, at a glance.
 ---
 
 import ThemeShot from '../../../components/ThemeShot.astro';
 import settingsLight from '../assets/light/settings.png';
 import settingsDark from '../assets/dark/settings.png';
 
-Settings is reachable from the navigation drawer. It's a single hub screen linking out to ten focused sub-pages, each documented in its own page linked below.
+Settings is reachable from the navigation drawer. It's a single hub screen linking out to focused sub-pages, each documented in its own page linked below.
 
 <ThemeShot
   light={settingsLight}
   dark={settingsDark}
-  alt="Settings hub listing Look and Feel, Notebooks, Capture Templates, Sync, Notes, Agenda, Widget, Reminders, Roam Features (Experimental), Sharing, and Backup"
+  alt="Settings hub listing Look and Feel, Notebooks, Capture Templates, Sync, Notes, Agenda, Widget, Reminders, Roam Features (Experimental), Attachments (Experimental), and Sharing"
   widths={[340, 680]}
   sizes="340px"
 />
@@ -29,6 +29,7 @@ Settings is reachable from the navigation drawer. It's a single hub screen linki
 | **Agenda** | Swipe-left/swipe-right action bindings | [Agenda](/features/agenda) |
 | **Widget** | Home-screen Agenda widget: transparency, days ahead, per-row Filename/Tags/Priority, font size, live preview | [Agenda](/features/agenda#home-screen-widget-appearance) |
 | **Reminders** | Enable toggle, lead time, notify for tasks without a time, daily digest, default reminder time | [Reminders](/features/reminders) |
+| **Attachments** *(Experimental)* | Photo size, default inline image width | [Attachments](/features/attachments#settings) |
 | **Sharing** | Default target file for shared content, link-title fetching | [Share Intake](/features/share-intake) |
 | **Roam Features** *(Experimental)* | Master toggle plus backlinks / typing-suggestions / open-roam-files-in-read-mode sub-toggles | See below |
 | **Backup** | Export/import all preferences as JSON | [Backup](/features/backup-export-import) |

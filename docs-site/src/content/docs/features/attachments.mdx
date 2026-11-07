@@ -1,0 +1,114 @@
+---
+title: Attachments
+description: Attach photos and files to a heading or file, org-attach style, and see them inline in Read mode.
+---
+
+import ThemeShot from '../../../components/ThemeShot.astro';
+import readLight from '../assets/light/attachments-read-mode.png';
+import readDark from '../assets/dark/attachments-read-mode.png';
+import sheetLight from '../assets/light/attach-sheet.png';
+import sheetDark from '../assets/dark/attach-sheet.png';
+import settingsLight from '../assets/light/settings-attachments.png';
+import settingsDark from '../assets/dark/settings-attachments.png';
+
+:::caution[Experimental]
+Attachments are experimental. Expect changes to how they look and work in future releases.
+:::
+
+Attachments let you keep photos, PDFs and other files next to the note they belong to. Bloom stores them the way Emacs [org-attach](https://orgmode.org/manual/Attachments.html) does: each heading gets its own folder inside your vault, named from the heading's `:ID:`, and the note links to the file with an `[[attachment:...]]` link. Since the files are plain files in your synced folder, Emacs on your laptop sees the same attachments, and attachments you add in Emacs show up in Bloom.
+
+<ThemeShot
+  light={readLight}
+  dark={readDark}
+  alt='Read mode for "Hakone: Day 9" showing a short paragraph, an inline photo of a mountain at sunrise with its file name below, and a "Ryokan booking:" line with a PDF chip for ryokan-confirmation.pdf'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+## Attaching a file
+
+In [Edit mode](/features/edit-mode), tap the paperclip on the formatting toolbar. The attach sheet opens with the heading (or file) the cursor is in as the target, shown next to **Attach to**. Pick a source:
+
+- **Camera** takes a new photo. It's greyed out when the device has no camera app.
+- **Photos** opens the system photo picker. You can pick up to 20 at once.
+- **Files** opens the system file picker for any kind of file, several at a time.
+
+Bloom copies each file into the target's attachment folder and inserts an `[[attachment:<name>]]` link at the cursor, one per line. A progress bar shows while larger files copy. If a file with the same name is already there, the new one gets a number added (`photo-1.jpg`, `photo-2.jpg`, ...).
+
+If the target doesn't have an `:ID:` yet, Bloom adds one to its property drawer the first time you attach, since the folder name comes from it. A heading or file with a `:DIR:` property uses that folder instead, as in Emacs.
+
+The original file is never moved or changed. Photos from **Camera** and **Photos** are resized according to the [Photo size](#settings) setting, and HEIC photos are always saved as JPEG so they display everywhere. Files from **Files** are copied exactly as they are.
+
+## The attach sheet
+
+<ThemeShot
+  light={sheetLight}
+  dark={sheetDark}
+  alt='The attach sheet over the editor, attaching to "Hakone: Day 9", with Camera, Photos and Files buttons, a "Show attachments in" switch set to This heading, and two rows: a photo thumbnail and a PDF, each with insert, open and delete buttons'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+Below the source buttons, the sheet lists attachments that already exist. Switch what it shows with **Show attachments in**:
+
+- **This heading**: the current heading's own attachments. Not offered when the cursor is above the first heading.
+- **This file**: attachments of every heading in the file, plus the file's own.
+- **Vault**: attachments across the whole vault.
+
+Each row has three buttons. Long-press any of them to see its name.
+
+- **Insert link at cursor** adds a link to that file. A file from the current heading gets an `[[attachment:...]]` link; a file that belongs to another heading or file gets a `[[file:...]]` link relative to the note you're editing.
+- **Open with…** hands the file to another app.
+- **Delete** removes the file from the attachment folder after you confirm. Links to it stay in your notes and show as missing.
+
+## In Read mode
+
+Attachment links display as the files they point to:
+
+- **Images** (`jpg`, `png`, `gif`, `webp`, `bmp`, `heic`) on a line of their own show inline, with the file name underneath. Tap one to open it full screen, where you can pinch or double-tap to zoom and use **Share** or **Open in…**.
+- **Other files** show as a chip with a colored badge for the file type. Tap the chip to open the file in another app. An image link with a description (`[[attachment:photo.jpg][Photo]]`) also shows as a chip.
+- A **missing** file (deleted, or not synced to this device yet) shows a placeholder. Tapping it tells you which file can't be found. Files that arrive with a later sync show up without reopening the note.
+
+The same applies to `[[file:...]]` links and plain relative paths that point at a non-`.org` file, so links you made in Emacs with `org-insert-link` work too.
+
+To size one image, put an `#+ATTR_ORG: :width 300` line directly above its link. The [Default image width](#settings) setting covers the rest.
+
+In the [Outline](/features/outline-view) and in [Search](/features/search) results, attachment links in note previews show as small chips instead of raw link text.
+
+## Moving and deleting notes
+
+Attachment folders follow the notes they belong to:
+
+- **Refiling or archiving** a heading to a file in another folder moves its attachment folder along with it.
+- **Moving a notebook** to another folder asks whether to move its attachments too (the default) or move only the notebook.
+- **Deleting a notebook** offers to delete its attachments as well, checked by default.
+- **Deleting a heading** in the Outline offers to delete its attachments, unchecked by default. The heading delete can be undone; deleting the files can't.
+
+An attachment folder that's also used by a note somewhere else is never moved or deleted out from under it. It's copied or kept instead, and the confirmation tells you how many.
+
+Attachment folders (the `data/` folder org-attach uses) never show up as notebooks, and sync doesn't scan inside them.
+
+## Settings
+
+<ThemeShot
+  light={settingsLight}
+  dark={settingsDark}
+  alt="Settings › Attachments with an Experimental tag, a Photo size switch (Original, Large, Medium, Small) set to Original, and a Default image width switch (Fit column, Fixed) set to Fit column"
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+**Settings › Attachments** has two settings. Both are included in [Backup](/features/backup-export-import).
+
+| Setting | Options |
+|---|---|
+| **Photo size** | **Original** (full resolution), **Large** (long edge 2560 px), **Medium** (1920 px), **Small** (1280 px). Applies to Camera and Photos only. |
+| **Default image width** | **Fit column** fills the width of the note. **Fixed** shows a stepper for a set width, 120 to 1200 px in steps of 40. An `#+ATTR_ORG: :width` line overrides it for one image. |
+
+Images are never shown wider than their own size, and tall images are scaled down to fit on screen.
+
+## Related
+
+- [Edit Mode](/features/edit-mode): the formatting toolbar and its paperclip
+- [Read Mode](/features/read-mode): how links are followed
+- [Sync](/features/sync): attachments travel with your vault folder

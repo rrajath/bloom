@@ -85,6 +85,7 @@ export default defineConfig({
             { label: 'Edit Mode', link: '/features/edit-mode' },
             { label: 'Metadata Sheet', link: '/features/metadata-sheet' },
             { label: 'Planning Dates', link: '/features/planning-dates' },
+            { label: 'Attachments', link: '/features/attachments' },
             { label: 'Refile', link: '/features/refile' },
             { label: 'Undo', link: '/features/undo' },
           ],
