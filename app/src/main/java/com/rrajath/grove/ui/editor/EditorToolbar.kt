@@ -109,7 +109,6 @@ fun EditorToolbar(
             ToolButton(icon = R.drawable.ic_format_underlined, color = c.ink, modifier = fixed) { onWrap('_') }
             ToolButton(icon = R.drawable.ic_code, color = c.ink, modifier = fixed) { onWrap('~') }
             ToolButton(icon = R.drawable.ic_check_box, color = c.ink, modifier = fixed) { onInsert("\n- [ ] ") }
-            ToolButton("[[]]", c.synLink, fixed, onLongClick = onLinkLongPress, onClick = onLink)
             // The thin, 45-degree paperclip reads small next to the square
             // glyphs at the shared 20dp, so 22dp matches the checkbox's visual
             // height. The Box centers it on both axes like every other button.
@@ -119,6 +118,7 @@ fun EditorToolbar(
                 modifier = fixed.testTag("editor_attach"),
                 onClick = onAttach,
             )
+            ToolButton("[[]]", c.synLink, fixed, onLongClick = onLinkLongPress, onClick = onLink)
             ToolButton("◷", c.synTs, fixed, fontSize = 27.sp, onLongClick = timestampLongPress, onClick = insertDate)
             ToolButton("*", c.synStar, fixed, bold = true) { onHeading() }
             ToolButton("«", c.ink, fixed) { onIndent(-1) }
