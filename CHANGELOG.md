@@ -57,6 +57,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-11-08
+
 ### Added
 - Attach photos and files to notes from the editor toolbar's paperclip; tune image sizes in Settings › Attachments.
 
