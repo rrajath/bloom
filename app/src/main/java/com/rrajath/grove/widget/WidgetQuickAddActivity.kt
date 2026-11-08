@@ -54,8 +54,11 @@ import androidx.glance.appwidget.updateAll
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.capture.CaptureInserter
 import com.rrajath.grove.org.DateShorthandParser
+import com.rrajath.grove.org.OrgDocument
+import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgMutations
+import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
@@ -74,6 +77,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 /**
  * Host for the widget's "+" button: a small composer overlaid on whatever app the
@@ -366,30 +370,64 @@ private suspend fun submitQuickAdd(
     val notebook = target.fileName
     val vault = app.vault.filterNotNull().first()
     if (vault.open(notebook) == null) vault.createNotebook(notebook)
-    val orgKeywords = OrgKeywords.parse(app.settingsRepository.settings.first().todoKeywords)
-    var headingFound = true
-    val text = withContext(Dispatchers.Default) {
-        val baseText = vault.open(notebook)?.text ?: ""
-        val entry = "$keyword $title"
-        val insertion = CaptureInserter.insertUnderPath(baseText, target.headingPath, entry, orgKeywords)
-            ?: CaptureInserter.insertUnderPath(baseText, emptyList(), entry, orgKeywords)!!
-                .also { headingFound = false }
-        var text = insertion.newText
-        var doc = OrgParser.parse(text, orgKeywords)
-        var headline = doc.headlineAtLine(insertion.insertedAtLine)
-        if (priority != null && headline != null) {
-            text = OrgMutations.setPriority(doc, headline, priority)
-            doc = OrgParser.parse(text, orgKeywords)
-            headline = doc.headlineAtLine(insertion.insertedAtLine)
-        }
-        if (date != null && headline != null) {
-            text = OrgMutations.setScheduled(doc, headline, date)
-        }
-        text
+    val settings = app.settingsRepository.settings.first()
+    val orgKeywords = OrgKeywords.parse(settings.todoKeywords)
+    val (text, headingFound) = withContext(Dispatchers.Default) {
+        composeQuickAdd(
+            baseText = vault.open(notebook)?.text ?: "",
+            headingPath = target.headingPath,
+            entry = "$keyword $title",
+            keywords = orgKeywords,
+            priority = priority,
+            date = date,
+            id = if (settings.addIdToNewNotes) newOrgId() else null,
+            createdAt = if (settings.addCreatedToNewNotes) LocalDateTime.now() else null,
+        )
     }
     vault.save(notebook, text)
     app.reindexNow(notebook, text)
     app.syncManager.requestReindex(notebook, text, "widget quick add")
     LedgerWidget().updateAll(app)
     return headingFound
+}
+
+/**
+ * Pure text side of [submitQuickAdd]: inserts [entry] under [headingPath] (or at
+ * the bottom of the file when that heading is gone), then applies priority,
+ * SCHEDULED, and the "add ID / CREATED to new notes" properties. Returns the new
+ * file text and whether the target heading was found. Properties go last so the
+ * drawer lands after the planning line, matching org's required order.
+ */
+internal fun composeQuickAdd(
+    baseText: String,
+    headingPath: List<String>,
+    entry: String,
+    keywords: OrgKeywords,
+    priority: Char?,
+    date: OrgTimestamp?,
+    id: String?,
+    createdAt: LocalDateTime?,
+): Pair<String, Boolean> {
+    var headingFound = true
+    val insertion = CaptureInserter.insertUnderPath(baseText, headingPath, entry, keywords)
+        ?: CaptureInserter.insertUnderPath(baseText, emptyList(), entry, keywords)!!
+            .also { headingFound = false }
+    val line = insertion.insertedAtLine
+    var text = insertion.newText
+    fun apply(edit: (OrgDocument, OrgHeadline) -> String) {
+        val doc = OrgParser.parse(text, keywords)
+        doc.headlineAtLine(line)?.let { text = edit(doc, it) }
+    }
+    if (priority != null) apply { d, h -> OrgMutations.setPriority(d, h, priority) }
+    if (date != null) apply { d, h -> OrgMutations.setScheduled(d, h, date) }
+    if (id != null) apply { d, h -> OrgMutations.upsertProperty(d, h, "ID", id) }
+    if (createdAt != null) {
+        val stamp = OrgTimestamp(
+            createdAt.toLocalDate(),
+            time = createdAt.toLocalTime().withSecond(0).withNano(0),
+            active = false,
+        ).format()
+        apply { d, h -> OrgMutations.upsertProperty(d, h, "CREATED", stamp) }
+    }
+    return text to headingFound
 }

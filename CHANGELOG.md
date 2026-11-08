@@ -65,6 +65,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Fixed
 - "Capture from notification" can now be turned on with Android 12 and older.
+- Widget quick-add tasks now get :ID: and :CREATED: properties when those new-note settings are on.
 
 ## [1.13.0] - 2026-11-05
 
