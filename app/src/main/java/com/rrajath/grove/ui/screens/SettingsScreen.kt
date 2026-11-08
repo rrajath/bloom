@@ -125,7 +125,7 @@ fun SettingsScreen(
             "Photo size, default image width",
             onClick = onOpenAttachments,
             badge = {
-                Pill(text = "Experimental", fg = c.amber, bg = c.amberSoft)
+                Pill(text = "Preview", fg = c.amber, bg = c.amberSoft)
                 NewDot(NewAnchors.SETTINGS_ATTACHMENTS, Modifier.padding(start = 6.dp))
             },
         ),

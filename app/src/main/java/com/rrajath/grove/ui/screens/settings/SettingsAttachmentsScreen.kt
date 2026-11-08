@@ -37,7 +37,7 @@ import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 
 /**
- * Settings § Attachments (experimental), prototype 1o:
+ * Settings § Attachments (preview), prototype 1o:
  * Photo size for Camera/Photos imports, and the default read-mode image width
  * with a px stepper when Fixed. All three values are in Settings import/export.
  */
@@ -54,11 +54,11 @@ fun SettingsAttachmentsScreen(
     SettingsPageScaffold(
         title = "Attachments",
         onBack = onBack,
-        titleBadge = { Pill(text = "Experimental", fg = c.amber, bg = c.amberSoft) },
+        titleBadge = { Pill(text = "Preview", fg = c.amber, bg = c.amberSoft) },
     ) {
         // Same note style as Settings § Roam Features.
         Text(
-            "Attachments are experimental. Expect changes to how they look and work in future releases.",
+            "Early preview. Expect changes as this feature develops.",
             fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2,
             modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 20.dp),
         )
