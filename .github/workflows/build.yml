@@ -382,6 +382,12 @@ jobs:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
           disable-animations: true
+          # Pinned to emulator 37.2.12 (build 16428233). Since 37.2.13 reached
+          # the runners (2026-10-30), the API 36 emulator process dies silently
+          # mid-run on ~4 of 10 nights ("device offline", "Expected 46 tests,
+          # received N"); 37.2.12 never did. Re-test unpinning when a newer
+          # emulator ships, using the crash data uploaded below.
+          emulator-build: 16428233
           # android-emulator-runner runs each line of `script` as its own
           # `sh -c`, so this must stay a single compound command: logcat is
           # streamed to a file for the whole run and the gradle exit status is
@@ -404,6 +410,15 @@ jobs:
             adb pull /data/tombstones "$RUNNER_TEMP/tombstones-api${{ matrix.api-level }}" 2>/dev/null || true;
             exit $STATUS
 
+      # Host-side evidence for an emulator that died mid-run: the kernel log
+      # shows whether the OOM killer took qemu, and free/df show the runner's
+      # memory and disk headroom at the end of the run.
+      - name: Capture host diagnostics
+        if: always()
+        run: |
+          sudo dmesg -T > "$RUNNER_TEMP/dmesg-api${{ matrix.api-level }}.txt" 2>&1 || true
+          { free -m; echo; df -h; } > "$RUNNER_TEMP/host-api${{ matrix.api-level }}.txt" 2>&1 || true
+
       - name: Upload UI test report
         if: always()
         uses: actions/upload-artifact@v4
@@ -412,12 +427,17 @@ jobs:
           # reports/ is the HTML; outputs/androidTest-results/ holds the raw
           # per-test .txt / logcat / protobuf UTP writes (where a process-crash
           # note actually lands); the logcat and tombstones are the run-wide
-          # capture from the step above.
+          # capture from the step above. The emu-crash db is the emulator's own
+          # crash record (named per emulator version), and dmesg/host are the
+          # host diagnostics, for a run where the emulator itself died.
           path: |
             app/build/reports/androidTests/connected/**
             app/build/outputs/androidTest-results/connected/**
             ${{ runner.temp }}/logcat-api${{ matrix.api-level }}.txt
             ${{ runner.temp }}/tombstones-api${{ matrix.api-level }}/**
+            ${{ runner.temp }}/dmesg-api${{ matrix.api-level }}.txt
+            ${{ runner.temp }}/host-api${{ matrix.api-level }}.txt
+            /tmp/android-runner/emu-crash-*
           if-no-files-found: warn
 
   # Layer-3 Maestro end-to-end journeys (internal/test-suite-03-e2e-maestro.md).
