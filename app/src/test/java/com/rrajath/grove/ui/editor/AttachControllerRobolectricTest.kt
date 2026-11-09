@@ -459,4 +459,30 @@ class AttachControllerRobolectricTest {
         repeat(5) { shadowOf(Looper.getMainLooper()).idle(); composeRule.waitForIdle(); Thread.sleep(20) }
         assertNull(c.sheet)
     }
+
+    @Test
+    fun `new Roam node capture attaches under the ID the saved file will get, not a fresh one`() {
+        val text = "#+title: Kyoto\nTrip notes"
+        val textState = TextFieldState(text, TextRange(text.length))
+        lateinit var c: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                c = rememberAttachController(
+                    textState, "roam/kyoto.org", bufferReady = true, manager, pendingFileId = "AB12CD34",
+                ) { store }
+            }
+        }
+        c.openAndLoad()
+        assertEquals("AB12CD34", c.sheet!!.owner.id)
+
+        composeRule.runOnIdle {
+            c.pending = PendingAttach("Files", isFile = true, id = null, titlePath = emptyList(), lineIndex = -1, cursor = text.length)
+            c.onPickerResult(listOf(picked("map.pdf")))
+        }
+        settleUntil { textState.text.contains("[[attachment:map.pdf]]") }
+
+        assertTrue(File(vaultDir, "roam/data/AB/12CD34/map.pdf").isFile)
+        // No second :ID: in the buffer: the capture adds AB12CD34 itself on save.
+        assertEquals("#+title: Kyoto\nTrip notes\n[[attachment:map.pdf]]", textState.text.toString())
+    }
 }

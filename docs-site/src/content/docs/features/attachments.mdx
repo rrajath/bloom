@@ -45,7 +45,9 @@ A capture is new text that lands in the template's target file when you save, so
 
 - With the cursor under a heading in the capture, the files attach to that heading. Its new `:ID:` and the links are part of the capture and land in the target file with it.
 - With no heading in the capture, a toast says the files attach to the target file instead. Bloom adds an `:ID:` to the target file if it has none and inserts `[[file:...]]` links relative to it. This needs the target file to exist already.
-- A new Roam node capture is the whole new file, so with no heading the files attach to the node's own file.
+- A new Roam node capture is the whole new file, so with no heading the files attach to the node's own file, under the `:ID:` the node gets when you save.
+
+The capture editor's Read toggle shows attached images inline, the same as a saved note.
 
 The original file is never moved or changed. Photos from **Camera** and **Photos** are resized according to the [Photo size](#settings) setting, and HEIC photos are always saved as JPEG so they display everywhere. Files from **Files** are copied exactly as they are.
 

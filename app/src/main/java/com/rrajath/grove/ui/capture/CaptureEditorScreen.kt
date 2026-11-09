@@ -121,6 +121,7 @@ import com.rrajath.grove.ui.editor.KeepCursorClearOfBottom
 import com.rrajath.grove.ui.editor.MetadataSheet
 import com.rrajath.grove.ui.editor.RoamNodeSuggestionStrip
 import com.rrajath.grove.ui.editor.SuggestionSlot
+import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
 import com.rrajath.grove.ui.editor.SuggestionSlotHeight
 import com.rrajath.grove.ui.editor.rememberAttachController
 import com.rrajath.grove.ui.editor.AttachOverlays
@@ -195,6 +196,8 @@ fun CaptureEditorScreen(
      * every capture kind while the keyboard is up.
      */
     roamSuggestionsEnabled: Boolean = false,
+    /** Opens an inline image from the Read preview in the full-screen viewer. */
+    onOpenImage: ((path: String, name: String) -> Unit)? = null,
     viewModel: CaptureViewModel = viewModel(factory = CaptureViewModel.Factory),
 ) {
     val c = MaterialTheme.grove
@@ -414,6 +417,9 @@ fun CaptureEditorScreen(
     val attach = rememberAttachController(
         textState, attachTarget, bufferReady = true,
         addDiskFileId = if (roamNewFile) null else viewModel::addFileId,
+        // The new node's :ID: is added on save (RoamFileId.withFileId), not shown in
+        // the field, so attach must use that same ID rather than mint another one.
+        pendingFileId = if (roamNewFile) context.id else null,
     )
     val keyboard = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
@@ -691,16 +697,30 @@ fun CaptureEditorScreen(
                 (imeVisible || roamNodeSuggestionActive)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (readMode) {
+                  // Inline images and attachment chips, resolved against the target file.
+                  // A new Roam node's :ID: only lands on save, so the preview sees it added.
+                  val previewDoc = remember(draftDoc, roamNewFile) {
+                      if (roamNewFile) OrgParser.parse(RoamFileId.withFileId(draftText, context.id), keywords) else draftDoc
+                  }
+                  val previewHeadline = previewDoc.headlines.firstOrNull()
+                  ProvideAttachmentRendering(
+                    orgFile = attachTarget,
+                    doc = previewDoc,
+                    preferLines = null,
+                    openTarget = {},
+                    toast = attach::showToast,
+                    openImage = onOpenImage,
+                  ) {
                     if (bodyOnly) {
                         DraftIntroPreview(
-                            doc = draftDoc,
+                            doc = previewDoc,
                             showTitle = false,
                             modifier = Modifier.fillMaxSize().padding(bottom = 80.dp),
                         )
-                    } else if (draftHeadline != null) {
+                    } else if (previewHeadline != null) {
                         DraftPreview(
-                            doc = draftDoc,
-                            headline = draftHeadline,
+                            doc = previewDoc,
+                            headline = previewHeadline,
                             modifier = Modifier.fillMaxSize().padding(bottom = 80.dp),
                         )
                     } else {
@@ -708,10 +728,11 @@ fun CaptureEditorScreen(
                         // body, no leading "* " yet), so
                         // there's no OrgHeadline for DraftPreview to key off of.
                         DraftIntroPreview(
-                            doc = draftDoc,
+                            doc = previewDoc,
                             modifier = Modifier.fillMaxSize().padding(bottom = 80.dp),
                         )
                     }
+                  }
                 } else if (roamAppendState !is RoamAppendState.Checking) {
                     ContentFontScale(editModeFontSize) {
                         // The field owns its own vertical scrolling (rather than
@@ -1062,14 +1083,17 @@ private fun DraftPreview(doc: OrgDocument, headline: OrgHeadline, modifier: Modi
         val body = doc.bodyOf(headline)
         if (body.any { it.isNotBlank() }) {
             Spacer(Modifier.height(16.dp))
-            body.forEach { line ->
-                if (line.isBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                } else {
-                    Text(
-                        annotateOrgInline(line, c),
-                        fontFamily = PlexSans, fontSize = 14.sp, color = c.ink, lineHeight = 1.5.em,
-                        modifier = Modifier.padding(vertical = 2.dp),
+            // The Read-mode block renderer, as in DraftIntroPreview, so attachment
+            // images show inline and lists/tables render structured.
+            SelectionContainer {
+                Column {
+                    BodyBlocks(
+                        bodyLines = body,
+                        lineOffset = headline.bodyStart,
+                        onToggleCheckbox = { _, _ -> },
+                        openTarget = {},
+                        onLinkLongPress = { _, _, _ -> },
+                        onEditAt = {},
                     )
                 }
             }

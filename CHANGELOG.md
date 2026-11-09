@@ -60,6 +60,9 @@ re-uploads the APKs to the existing release instead of failing.
 ### Added
 - The attach paperclip is now in Dailies and the capture editor; captures without a heading attach to the target file.
 
+### Fixed
+- Dailies Read mode now shows attached images inline.
+
 ## [1.14.0] - 2026-11-08
 
 ### Added

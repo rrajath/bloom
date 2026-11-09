@@ -638,6 +638,7 @@ private fun GroveNavigation(
                     showPropertyDrawers = settings.showPropertyDrawers,
                     readModeFontSize = settings.readModeFontSize,
                     editModeFontSize = settings.editModeFontSize,
+                    onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                 )
             }
             composable(
@@ -909,6 +910,7 @@ private fun GroveNavigation(
                     },
                     editModeFontSize = settings.editModeFontSize,
                     roamSuggestionsEnabled = settings.roamSuggestionsActive,
+                    onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                 )
             }
             composable(Routes.TEMPLATE_EDIT) { entry ->

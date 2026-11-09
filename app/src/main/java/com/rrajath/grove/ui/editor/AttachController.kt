@@ -52,6 +52,7 @@ import com.rrajath.grove.attach.resolveOwner
 import com.rrajath.grove.attach.scopesFor
 import com.rrajath.grove.attach.successMessage
 import com.rrajath.grove.org.OrgDocument
+import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.data.IndexedAttachOwner
 import com.rrajath.grove.org.newOrgId
@@ -148,6 +149,13 @@ class AttachController internal constructor(
      * when it couldn't). Null everywhere else: the buffer is the whole file.
      */
     private val addDiskFileId: (suspend (orgFile: String, id: String) -> Boolean)? = null,
+    /**
+     * The file-level `:ID:` the buffer will get when it's saved, though it isn't
+     * in the text yet: a new Roam node capture adds its `%(id)` at write time.
+     * An in-buffer file owner with no `:ID:` or `:DIR:` uses it instead of a
+     * fresh ID, so the files land in the folder the saved file points at.
+     */
+    private val pendingFileId: String? = null,
 ) {
     var sheet by mutableStateOf<AttachSheetModel?>(null)
         private set
@@ -206,11 +214,28 @@ class AttachController internal constructor(
         android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
     }
 
+    /** [owner] with [pendingFileId] filled in, for a file owner that has neither `:ID:` nor `:DIR:`. */
+    private fun withPendingFileId(owner: AttachOwner): AttachOwner =
+        if (pendingFileId != null && owner is AttachOwner.File && owner.id == null && owner.dirProperty == null) {
+            owner.copy(id = pendingFileId)
+        } else {
+            owner
+        }
+
+    /** The buffer as the scans should see it: with [pendingFileId] as its file `:ID:` when it has none yet. */
+    private fun bufferWithPendingFileId(): String {
+        val text = textState.text.toString()
+        val id = pendingFileId ?: return text
+        val doc = OrgParser.parse(text)
+        val file = doc.fileOwner()
+        return if (file.id == null && file.dirProperty == null) OrgMutations.upsertFileProperty(doc, "ID", id) else text
+    }
+
     /** Paperclip: resolve the owner at the cursor and open the sheet. */
     fun open() {
         val text = textState.text.toString()
         val doc = OrgParser.parse(text)
-        val owner = resolveOwner(doc, textState.selection.start)
+        val owner = withPendingFileId(resolveOwner(doc, textState.selection.start))
         if (addDiskFileId != null && owner is AttachOwner.File) {
             openOnDisk()
             return
@@ -291,7 +316,7 @@ class AttachController internal constructor(
         if (scans[target]?.isActive == true) return
         val store = storeProvider() ?: return
         val started = generation
-        val text = if (model.onDisk) diskText.orEmpty() else textState.text.toString()
+        val text = if (model.onDisk) diskText.orEmpty() else bufferWithPendingFileId()
         scans[target] = scope.launch {
             val (dir, rows) = withContext(Dispatchers.IO) {
                 val files = AttachmentFiles(store)
@@ -393,7 +418,7 @@ class AttachController internal constructor(
             }
             OrgParser.parse(text).fileOwner() to false
         } else {
-            relocatePending(OrgParser.parse(textState.text.toString()), p)
+            relocatePending(OrgParser.parse(textState.text.toString()), p).let { (o, ch) -> withPendingFileId(o) to ch }
         }
         val sources = withContext(Dispatchers.IO) {
             if (cameraFile != null) {
@@ -604,6 +629,8 @@ fun rememberAttachController(
     bufferReady: Boolean,
     /** Quick capture only: see [AttachController]'s `addDiskFileId`. */
     addDiskFileId: (suspend (orgFile: String, id: String) -> Boolean)? = null,
+    /** Quick capture only: see [AttachController]'s `pendingFileId`. */
+    pendingFileId: String? = null,
 ): AttachController {
     val app = LocalContext.current.applicationContext as? GroveApplication
     return rememberAttachController(
@@ -612,6 +639,7 @@ fun rememberAttachController(
         indexedOwners = { app?.database?.indexDao()?.attachOwners().orEmpty() },
         storeProvider = { app?.fileStore?.value },
         addDiskFileId = addDiskFileId,
+        pendingFileId = pendingFileId,
     )
 }
 
@@ -623,12 +651,13 @@ internal fun rememberAttachController(
     manager: AttachmentCopyManager?,
     indexedOwners: suspend () -> List<IndexedAttachOwner> = { emptyList() },
     addDiskFileId: (suspend (orgFile: String, id: String) -> Boolean)? = null,
+    pendingFileId: String? = null,
     storeProvider: () -> FileStore?,
 ): AttachController {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val controller = remember(textState, orgFile) {
-        AttachController(context, scope, textState, orgFile, manager, storeProvider, indexedOwners, addDiskFileId)
+        AttachController(context, scope, textState, orgFile, manager, storeProvider, indexedOwners, addDiskFileId, pendingFileId)
     }
     // Saved as JSON so it survives process death without the parcelize plugin.
     var saved by rememberSaveable { mutableStateOf<String?>(null) }

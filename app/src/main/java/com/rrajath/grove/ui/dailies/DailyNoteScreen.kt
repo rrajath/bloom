@@ -56,6 +56,8 @@ import com.rrajath.grove.ui.components.LinkedReferencesSheet
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.ui.components.InsertTimestampScreen
 import com.rrajath.grove.ui.components.rememberImeVisible
+import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
+import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.editor.EditRegion
 import com.rrajath.grove.ui.editor.rememberAttachController
 import com.rrajath.grove.ui.editor.LinkIdChoice
@@ -104,6 +106,8 @@ fun DailyNoteScreen(
     showPropertyDrawers: Boolean,
     readModeFontSize: FontSizePreference,
     editModeFontSize: FontSizePreference,
+    /** Opens an inline image in the full-screen viewer. */
+    onOpenImage: ((path: String, name: String) -> Unit)? = null,
     dailiesViewModel: DailiesViewModel = viewModel(factory = DailiesViewModel.Factory),
     documentViewModel: DocumentViewModel = viewModel(factory = DocumentViewModel.Factory),
     editorViewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
@@ -432,6 +436,15 @@ fun DailyNoteScreen(
                         }
                         is DocumentUiState.Loaded -> {
                             ContentFontScale(readModeFontSize) {
+                              // Inline images and attachment chips, as on ReadFileScreen.
+                              ProvideAttachmentRendering(
+                                orgFile = n.fileName,
+                                doc = s.document,
+                                preferLines = null,
+                                openTarget = { target -> documentViewModel.openOrgLink(target, n.fileName, onOpenNote, onOpenOutline) },
+                                toast = documentViewModel::showToast,
+                                openImage = onOpenImage,
+                              ) {
                                 FileContent(
                                     doc = s.document,
                                     fileName = n.fileName,
@@ -458,6 +471,7 @@ fun DailyNoteScreen(
                                             detectTapGestures(onDoubleTap = { startEditing(n) })
                                         },
                                 )
+                              }
                             }
                         }
                         else -> {}
@@ -656,6 +670,12 @@ fun DailyNoteScreen(
             // Hidden while typing: with the keyboard up the bottom of this Box is the
             // formatting toolbar's row, and the pills would only crowd it.
             if (!contentImeVisible && !editorStripShown) nav?.let { DateNavPills(it, ::navigateDate) }
+            // Read mode's toasts (missing attachments, unresolvable links), above the
+            // date pills (16dp off the bottom, about 36dp tall).
+            if (mode == "read") {
+                val readToast by documentViewModel.toast.collectAsStateWithLifecycle()
+                GroveToast(readToast, Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 62.dp))
+            }
         }
     }
 
