@@ -1,0 +1,80 @@
+---
+title: 'Bloom 1.14.0: attachments arrive'
+# Noon UTC: a bare date is UTC midnight and renders as the previous day when built west of UTC.
+date: 2026-11-08T12:00:00Z
+authors: rrajath
+tags:
+  - release
+excerpt: 1.14.0 lets you attach photos and files to your notes, org-attach style, adds a smarter heading button to the editor, and fixes two capture bugs.
+---
+
+import ThemeShot from '../../../components/ThemeShot.astro';
+import readShot from '../../../assets/blog/bloom-1-14-0/read.png';
+import sheetShot from '../../../assets/blog/bloom-1-14-0/attach-sheet.png';
+import headingShot from '../../../assets/blog/bloom-1-14-0/heading-button.png';
+
+Notes are rarely just text. There's the photo you took at the trailhead, the PDF of a booking confirmation, the receipt you'll need in April. Until now Bloom could only hold the words around those things. 1.14.0 lets you attach the things themselves, stored the same way Emacs stores them, so a note with pictures looks the same on your phone and on your laptop. The editor's heading button also got smarter, and two capture bugs are gone.
+
+## Attachments
+
+Attachments ship in this release as a **Preview**. Everything below works and is safe to use on your real notes, but expect the feature to keep changing as it develops. The [Attachments guide](/features/attachments) covers every detail.
+
+### Attach from the editor
+
+In Edit mode, tap the new paperclip on the formatting toolbar. The attach sheet opens with the heading your cursor is in as the target, and you pick a source: **Camera** for a new photo, **Photos** to pick up to 20 from your library, or **Files** for anything else. Bloom copies each file into your vault and drops an `[[attachment:...]]` link at the cursor, one per line. Your original file is never moved or changed.
+
+### Stored the org-attach way
+
+Bloom doesn't invent its own storage format. It follows Emacs [org-attach](https://orgmode.org/manual/Attachments.html): each heading gets its own folder under `data/`, named from the heading's `:ID:`, and Bloom adds an `:ID:` the first time you attach if the heading doesn't have one. A `:DIR:` property is honored too. Since the files are ordinary files in your synced folder, attachments you add on your phone show up in Emacs, and the ones you add with `org-attach` show up in Bloom.
+
+### Photos inline in Read mode
+
+<ThemeShot
+  light={readShot}
+  alt='Read mode for a journal heading, "2026-10-18 Sunday", with a short paragraph about a farm visit, an inline photo of a highland calf captioned highland-calf.jpg, a second paragraph, and an inline photo of a pink heart plush on a shelf captioned heart-plush.jpg'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+In Read mode, an image link on its own line shows the picture itself, with the file name underneath. Tap it to open the image full screen, where you can pinch to zoom, share it, or open it in another app. Other files, like PDFs, show as a chip with a colored badge for the file type, and a tap hands the file to whichever app opens it. Links you made in Emacs with `org-insert-link`, `[[file:...]]` or a plain relative path, render the same way. If a file hasn't synced to your phone yet, you see a placeholder, and the image appears on its own once the file arrives.
+
+### See what's already attached
+
+<ThemeShot
+  light={sheetShot}
+  alt='The attach sheet over the editor, attaching to "2026-10-18 Sunday", with Camera, Photos and Files buttons and a "Show attachments in" switch set to Vault, listing heart-plush.jpg and highland-calf.jpg from journal.org and ryokan-confirmation.pdf and IMG_20250411_0612.jpg from travel.org › Hakone: Day 9'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+Below the source buttons, the attach sheet lists the attachments that already exist, and **Show attachments in** switches between **This heading**, **This file** and the whole **Vault**. Rows from another note show which file and heading they belong to. Each row can insert a link at your cursor, open the file in another app, or delete it, and a long press on any of those buttons shows its name. That makes it easy to reuse a photo you already attached somewhere else: insert it from the Vault list, and Bloom writes a `[[file:...]]` link that points at the original instead of making a second copy.
+
+### Attachments follow their notes
+
+Refile or archive a heading into a file in another folder, and its attachment folder moves with it. Moving or deleting a notebook asks what to do with its attachments, and deleting a heading in the Outline offers to delete its files too. A folder that another note still uses is never moved or deleted out from under it.
+
+### Tune image sizes
+
+**Settings › Attachments** has two options. **Photo size** downsizes photos from the Camera and Photos sources as they're copied, from Original down to Small (1280 px on the long edge), so a vault full of pictures doesn't eat your sync storage. **Default image width** chooses whether images in Read mode fill the column or use a fixed width. To size a single image, put an `#+ATTR_ORG: :width 300` line right above its link, the same as in Emacs.
+
+## Editor
+
+### A heading button that knows where you are
+
+<ThemeShot
+  light={headingShot}
+  alt='The editor with the keyboard up: under a top-level journal heading, a new line reads "** Pumpkin patch next weekend", inserted by the * button on the formatting toolbar'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+The `*` button on the formatting toolbar used to start every new heading at the top level, so a subheading three levels down took a tap for each extra star. Now it looks at the nearest heading above your cursor and starts a heading one level deeper. If you're under a `*` heading, you get `**`. Tap again while the new heading is still empty and it steps up a level, all the way to a single star, then wraps back around. Most of the time the first tap is already the level you wanted.
+
+## Fixes
+
+- **Capture from notification** can now be turned on with Android 12 and older. It was asking for a notification permission that only exists on Android 13 and newer, so the switch never stuck.
+- Tasks added with the Agenda widget's quick add now get `:ID:` and `:CREATED:` properties when those new-note settings are on, the same as notes created anywhere else in the app.
+
+## Full changelog
+
+The complete list of changes is in the [1.14.0 release on GitHub](https://github.com/rrajath/bloom/releases/tag/v1.14.0).
