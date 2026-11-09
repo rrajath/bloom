@@ -66,6 +66,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Pressing back in the capture editor now asks before discarding unsaved text.
 - Favorites keep working after their file is renamed or moved, in Bloom or outside it.
 - Headings deleted in the editor after an auto-save no longer linger in the file or get duplicated.
+- The attach sheet's This file and Vault views now offer Delete on the current heading's own files.
 
 ## [1.14.0] - 2026-11-08
 

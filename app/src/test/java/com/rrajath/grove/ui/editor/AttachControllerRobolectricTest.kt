@@ -367,20 +367,24 @@ class AttachControllerRobolectricTest {
     }
 
     @Test
-    fun `canDelete only in this heading, and for a file owner only file-level rows in this file`() {
+    fun `canDelete only the owner's own files, in every scope`() {
         val file = FileEntry("data/AA/0001/a.jpg", 0, 1)
         val heading = AttachOwner.Heading(0, listOf("A"), "AA0001", null)
         fun row(dir: String) = ScopedAttachment(file, dir, "x.org", "A", "")
         val m = AttachSheetModel(heading, "*", "A", "data/AA/0001", scopesFor(heading), AttachScope.HEADING, emptyList(), 10)
-        assertTrue(m.canDelete(row("data/AA/0001")))
-        assertFalse(m.copy(scope = AttachScope.FILE).canDelete(row("data/AA/0001")))
-        assertFalse(m.copy(scope = AttachScope.VAULT).canDelete(row("data/AA/0001")))
+        for (scope in AttachScope.entries) {
+            assertTrue("own file, $scope", m.copy(scope = scope).canDelete(row("data/AA/0001")))
+            assertFalse("other owner's file, $scope", m.copy(scope = scope).canDelete(row("data/BB/0002")))
+        }
 
         val fileOwner = AttachOwner.File("FF0003", null)
         val f = AttachSheetModel(fileOwner, "#+", "x.org", "data/FF/0003", scopesFor(fileOwner), AttachScope.FILE, emptyList(), 10)
         assertTrue(f.canDelete(row("data/FF/0003")))
         assertFalse(f.canDelete(row("data/AA/0001")))
-        assertFalse(f.copy(scope = AttachScope.VAULT).canDelete(row("data/FF/0003")))
+        assertTrue(f.copy(scope = AttachScope.VAULT).canDelete(row("data/FF/0003")))
+
+        // No attach dir yet: nothing is the owner's own.
+        assertFalse(m.copy(dir = null, scope = AttachScope.VAULT).canDelete(row("data/AA/0001")))
     }
 
     @Test

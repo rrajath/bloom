@@ -97,13 +97,11 @@ val AttachSheetModel.visibleRows: List<ScopedAttachment> get() = rows.orEmpty().
 val AttachSheetModel.hasMore: Boolean get() = rows.orEmpty().size > shown
 
 /**
- * Delete is offered only for the owner's own files in its own scope: This heading,
- * or This file for the file owner. Deleting another owner's file would silently
- * break that owner's links.
+ * Delete is offered only for the owner's own files (rows in its attach [dir]), in
+ * every scope. Deleting another owner's file would silently break that owner's links.
  */
 fun AttachSheetModel.canDelete(row: ScopedAttachment): Boolean =
-    scope == AttachScope.HEADING ||
-        (owner is AttachOwner.File && scope == AttachScope.FILE && row.dir == dir)
+    dir != null && row.dir == dir
 
 /**
  * The owner an attach started for, saved across process death next to the
