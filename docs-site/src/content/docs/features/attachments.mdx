@@ -37,6 +37,14 @@ Bloom copies each file into the target's attachment folder and inserts an `[[att
 
 If the target doesn't have an `:ID:` yet, Bloom adds one to its property drawer the first time you attach, since the folder name comes from it. A heading or file with a `:DIR:` property uses that folder instead, as in Emacs.
 
+### Changing :DIR: later
+
+If a heading or file already has attachments and you add, change or remove its `:DIR:` property, Bloom moves the files when you save or leave the editor. A popup tells you where they're going, for example *":DIR: property detected. Attachment(s) will be moved to photos"*. Tap **OK**. Removing `:DIR:` moves the files back to the `:ID:` folder. If another heading still uses the old folder, the files are copied instead, so its links keep working.
+
+If you remove the last `:ID:` or `:DIR:` from something that has attachments, the popup says *"Image link broken. Couldn't find :ID: or :DIR: property"*. The files stay where they are, so put the property back to fix the links.
+
+This works in the note editor, the Intro and whole-file editors, the property drawer editors, Dailies and the capture editor. Auto-save never moves files, so a half-typed `:DIR:` is safe. The check runs when you tap Save or leave.
+
 The paperclip is also there when you edit a file's Intro (the text above its first heading). Files attach to the file itself, using the `:DIR:` or `:ID:` from the file's property drawer (`:DIR:` wins when both are set). If the file has neither, Bloom adds an `:ID:` to the file's property drawer.
 
 ### In Dailies and the capture editor

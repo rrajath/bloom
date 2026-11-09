@@ -162,6 +162,11 @@ class AttachController internal constructor(
      * `[[attachment:…]]`, since the Intro belongs to that file owner.
      */
     private val introOfFile: Boolean = false,
+    /**
+     * Told the owner of each finished attach, with the `:ID:` it got: the editor
+     * records it so a later `:DIR:` edit on that owner moves these files.
+     */
+    private val onOwnerAttached: ((AttachOwner) -> Unit)? = null,
 ) {
     var sheet by mutableStateOf<AttachSheetModel?>(null)
         private set
@@ -497,6 +502,7 @@ class AttachController internal constructor(
             is ImportResult.Failed -> showToast(failureMessage(r))
             is ImportResult.Success -> {
                 r.names.forEach { added += "${done.request.dir}/$it" }
+                onOwnerAttached?.invoke(done.request.owner.withId(done.request.newId))
                 if (done.request.onDisk) {
                     scope.launch { linkOnDisk(done.request, r) }
                     return
@@ -634,6 +640,14 @@ class AttachController internal constructor(
     }
 }
 
+/** This owner with [newId] as its `:ID:` when it gets one. */
+private fun AttachOwner.withId(newId: String?): AttachOwner = when {
+    newId == null -> this
+    this is AttachOwner.Heading -> copy(id = newId)
+    this is AttachOwner.File -> copy(id = newId)
+    else -> this
+}
+
 /** `**` for a level-2 heading owner, `#+` for the file owner. */
 internal fun starsFor(doc: OrgDocument, owner: AttachOwner): String = when (owner) {
     is AttachOwner.File -> "#+"
@@ -677,6 +691,8 @@ fun rememberAttachController(
     pendingFileId: String? = null,
     /** Intro editor only: see [AttachController]'s `introOfFile`. */
     introOfFile: Boolean = false,
+    /** See [AttachController]'s `onOwnerAttached`. */
+    onOwnerAttached: ((AttachOwner) -> Unit)? = null,
 ): AttachController {
     val app = LocalContext.current.applicationContext as? GroveApplication
     return rememberAttachController(
@@ -687,6 +703,7 @@ fun rememberAttachController(
         addDiskFileId = addDiskFileId,
         pendingFileId = pendingFileId,
         introOfFile = introOfFile,
+        onOwnerAttached = onOwnerAttached,
     )
 }
 
@@ -700,6 +717,7 @@ internal fun rememberAttachController(
     addDiskFileId: (suspend (orgFile: String, id: String) -> Boolean)? = null,
     pendingFileId: String? = null,
     introOfFile: Boolean = false,
+    onOwnerAttached: ((AttachOwner) -> Unit)? = null,
     storeProvider: () -> FileStore?,
 ): AttachController {
     val context = LocalContext.current
@@ -707,6 +725,7 @@ internal fun rememberAttachController(
     val controller = remember(textState, orgFile) {
         AttachController(
             context, scope, textState, orgFile, manager, storeProvider, indexedOwners, addDiskFileId, pendingFileId, introOfFile,
+            onOwnerAttached,
         )
     }
     // Saved as JSON so it survives process death without the parcelize plugin.

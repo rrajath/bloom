@@ -2,12 +2,17 @@ package com.rrajath.grove.ui.editor
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.attach.AttachDirChange
+import com.rrajath.grove.attach.AttachDirMoves
+import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.DefaultTemplates
 import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplateKind
 import com.rrajath.grove.capture.TemplatesRepository
 import com.rrajath.grove.data.GroveDatabase
+import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.testing.FakeFileStore
@@ -27,6 +32,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -59,7 +66,7 @@ class EditorViewModelIntegrationTest {
     private val templatesRepository =
         TemplatesRepository(ApplicationProvider.getApplicationContext<Application>())
 
-    private fun editor() = EditorViewModel(
+    private fun editor(attachDirMoves: AttachDirMoves = AttachDirMoves.None) = EditorViewModel(
         vaultFlow = vaultFlow,
         sync = sync,
         database = db,
@@ -67,7 +74,19 @@ class EditorViewModelIntegrationTest {
         keywords = keywords,
         dispatchers = mainDispatcherRule.appDispatchers,
         templatesRepository = templatesRepository,
+        attachDirMoves = attachDirMoves,
     )
+
+    /** Records what the editor asks of [AttachDirMoves]; reports one broken change per detect when [changes]. */
+    private class RecordingDirMoves(var changes: Boolean = true) : AttachDirMoves {
+        val detected = mutableListOf<Pair<List<AttachOwner>, String>>()
+        val applied = mutableListOf<List<AttachDirChange>>()
+        override suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument): List<AttachDirChange> {
+            detected += baseline to after.text
+            return if (changes) listOf(AttachDirChange.Broken(after.fileOwner(), orgFile, "dir")) else emptyList()
+        }
+        override fun apply(changes: List<AttachDirChange>) { applied += changes }
+    }
 
     /** Line index of the first headline whose title starts with [prefix], in [file]. */
     private fun headlineLine(file: String, prefix: String): Int =
@@ -212,6 +231,50 @@ class EditorViewModelIntegrationTest {
         val vm = editor()
         assertTrue(vm.addFileId("trip.org", "trip-id"))
         assertEquals(original, store.read("trip.org"))
+    }
+
+    @Test
+    fun `explicit save shows the attach dir notice and OK applies it before continuing`() = runTest {
+        store.write("trip.org", "* Day 1\n:PROPERTIES:\n:ID: AA11\n:END:\n")
+        val moves = RecordingDirMoves()
+        val vm = editor(moves)
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+
+        vm.onBufferChange("* Day 1\n:PROPERTIES:\n:ID: AA11\n:DIR: photos\n:END:\n")
+        var left = false
+        vm.save(onSaved = { left = true })
+        advanceUntilIdle()
+
+        // The baseline is the file as loaded; the notice holds back onSaved.
+        assertEquals(listOf("AA11"), moves.detected.single().first.mapNotNull { it.id })
+        assertNotNull(vm.attachDirNotice.value)
+        assertFalse(left)
+        vm.acknowledgeAttachDirNotice()
+        assertTrue(left)
+        assertEquals(1, moves.applied.size)
+        assertNull(vm.attachDirNotice.value)
+    }
+
+    @Test
+    fun `idle auto-save never checks attach dirs, leaving without changes still does`() = runTest {
+        store.write("trip.org", "* Day 1\n")
+        val moves = RecordingDirMoves(changes = false)
+        val vm = editor(moves)
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+
+        vm.onBufferChange("* Day 1\n:PROPERTIES:\n:DIR: pho\n:END:\n")
+        vm.save(explicit = false)
+        advanceUntilIdle()
+        assertTrue(moves.detected.isEmpty())
+
+        // Leaving (nothing dirty now) checks what the auto-save wrote.
+        var left = false
+        vm.save(onSaved = { left = true })
+        advanceUntilIdle()
+        assertEquals(1, moves.detected.size)
+        assertTrue(left)
     }
 
     @Test

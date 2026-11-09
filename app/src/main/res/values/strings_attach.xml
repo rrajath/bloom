@@ -32,4 +32,14 @@
     <string name="attach_capture_no_target">%1$s doesn\'t exist yet. Add a heading to attach files</string>
     <!-- Quick capture: toast when files were attached but the target file couldn't be given its ID. %1$s = target file name. -->
     <string name="attach_capture_id_failed">Attached, but couldn\'t add an ID to %1$s</string>
+    <!-- Notice after saving a note whose :DIR: property was added while it already had attachments under its :ID: folder. %1$s = the new folder (the :DIR: value). Keep :DIR: as it is. -->
+    <string name="attach_dir_added">:DIR: property detected. Attachment(s) will be moved to %1$s</string>
+    <!-- Notice after saving a note whose :DIR: property was removed: its attachments move back to the :ID: folder. %1$s = that folder. Keep :DIR: as it is. -->
+    <string name="attach_dir_removed">:DIR: property removed. Attachment(s) will be moved to %1$s</string>
+    <!-- Notice after saving a note whose :DIR: property changed to a different folder. %1$s = the new folder. Keep :DIR: as it is. -->
+    <string name="attach_dir_changed">:DIR: property changed. Attachment(s) will be moved to %1$s</string>
+    <!-- Notice after saving a note that has attachments but no :ID: or :DIR: property left, so its attachment links point nowhere. Keep :ID: and :DIR: as they are. -->
+    <string name="attach_dir_broken">Image link broken. Couldn\'t find :ID: or :DIR: property</string>
+    <!-- Title of the attachment-folder notice dialog. -->
+    <string name="attach_dir_notice_title">Attachments</string>
 </resources>

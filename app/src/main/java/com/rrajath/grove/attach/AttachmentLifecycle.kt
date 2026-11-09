@@ -236,6 +236,20 @@ class AttachmentLifecycle(
         result.reported()
     }
 
+    /**
+     * Carries out [changes] from an editor save (a `:DIR:` added, removed or
+     * changed): each move merges its dir into the new one (collisions renamed),
+     * or copies it when another owner still uses it. [AttachDirChange.Broken]
+     * entries leave their files where they are.
+     */
+    suspend fun applyDirChanges(changes: List<AttachDirChange>): LifecycleResult = mutex.withLock {
+        var result = LifecycleResult.None
+        for (c in changes.filterIsInstance<AttachDirChange.Move>()) {
+            result = relocate(c.from, c.to, c.copy, pruneStop = dirOf(c.orgFile), result)
+        }
+        result.reported()
+    }
+
     /** True when any attach dir exists at or under [dir]. */
     suspend fun folderHasAttachments(dir: String): Boolean = attachRoots(dir.trim('/'), limit = 1).isNotEmpty()
 

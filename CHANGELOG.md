@@ -64,6 +64,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Read mode's breadcrumb now starts with Notebooks, which jumps straight back to the Notebooks screen.
 - The metadata sheet now names the heading it edits at the top, led by its org stars.
 - The Intro editor now has the attach paperclip; files attach to the file using its `:DIR:` or `:ID:`.
+- Adding, changing or removing `:DIR:` on save moves existing attachments, after a popup; losing both `:ID:` and `:DIR:` warns.
 
 ### Changed
 - Attach sheet rows drop the file size and wrap long names and sources instead of cutting them off.

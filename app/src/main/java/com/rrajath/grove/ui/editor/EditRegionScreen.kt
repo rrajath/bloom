@@ -69,6 +69,7 @@ import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.LineEditing
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.settings.FontSizePreference
+import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.KeyboardHiddenLinkedReferencesBar
@@ -234,11 +235,14 @@ fun EditRegionScreen(
     // file's own :DIR: / :ID:, read from disk since the Intro buffer leaves out
     // the file's property drawer).
     val attach = when (region) {
-        EditRegion.WHOLE_FILE -> rememberAttachController(textState, fileName, fieldLoaded)
+        EditRegion.WHOLE_FILE -> rememberAttachController(
+            textState, fileName, fieldLoaded, onOwnerAttached = viewModel::noteAttachedOwner,
+        )
         EditRegion.INTRO -> rememberAttachController(
             textState, fileName, fieldLoaded,
             addDiskFileId = viewModel::addFileId,
             introOfFile = true,
+            onOwnerAttached = viewModel::noteAttachedOwner,
         )
         else -> null
     }
@@ -262,7 +266,8 @@ fun EditRegionScreen(
             // showing the unsaved buffer; only leaving that view asks to save.
             onSwitchToRead != null -> onSwitchToRead()
             state.dirty -> confirmLeave = true
-            else -> onBack()
+            // Nothing unsaved, but an auto-save may have written a :DIR: edit: check first.
+            else -> viewModel.save(onSaved = onBack)
         }
     }
     fun openNote(target: NoteRef) {
@@ -490,6 +495,9 @@ fun EditRegionScreen(
             },
         )
     }
+
+    val attachDirNotice by viewModel.attachDirNotice.collectAsStateWithLifecycle()
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, onOk = viewModel::acknowledgeAttachDirNotice) }
 
     if (linkedRefsOpen) {
         LinkedReferencesSheet(

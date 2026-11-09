@@ -1,6 +1,11 @@
 package com.rrajath.grove.ui.editor
 
+import com.rrajath.grove.attach.AttachDirChange
+import com.rrajath.grove.attach.AttachDirMoves
+import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.attachOwners
+import com.rrajath.grove.attach.withAttachedOwner
 import com.rrajath.grove.attach.FileRewrite
 import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.attach.rewritesFor
@@ -143,6 +148,7 @@ class EditorViewModel(
     private val dispatchers: AppDispatchers,
     private val templatesRepository: TemplatesRepository,
     private val attachFollow: AttachmentFollow = AttachmentFollow.None,
+    private val attachDirMoves: AttachDirMoves = AttachDirMoves.None,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EditorUiState())
@@ -150,6 +156,20 @@ class EditorViewModel(
 
     /** Serializes writes so an idle auto-save and an explicit save can't race. */
     private val saveMutex = Mutex()
+
+    /**
+     * Attach owners (`:ID:` / `:DIR:`) of [attachBaselineFile] as of the last
+     * explicit save (or the load), plus owners an attach just gave an `:ID:`.
+     * An explicit save compares the file against it to find attach dirs a
+     * `:DIR:` edit moved; idle auto-saves don't, so a half-typed `:DIR:` never
+     * moves anything.
+     */
+    private var attachBaseline: List<AttachOwner> = emptyList()
+    private var attachBaselineFile: String? = null
+
+    private val _attachDirNotice = MutableStateFlow<AttachDirNotice?>(null)
+    /** Attach dirs an explicit save moved (or orphaned), waiting for the user's OK. */
+    val attachDirNotice: StateFlow<AttachDirNotice?> = _attachDirNotice
 
     private val _snack = MutableStateFlow<OutlineSnack?>(null)
     val snack: StateFlow<OutlineSnack?> = _snack
@@ -191,7 +211,7 @@ class EditorViewModel(
                 .collectLatest { (_, dirty) ->
                     if (!dirty) return@collectLatest
                     delay(5_000)
-                    if (settings.settings.first().autoSaveNotes) save()
+                    if (settings.settings.first().autoSaveNotes) save(explicit = false)
                 }
         }
     }
@@ -261,6 +281,7 @@ class EditorViewModel(
                 .distinct()
                 .sorted()
                 .toImmutableList()
+            setAttachBaseline(ref.fileName, doc)
             _state.value = EditorUiState(
                 loading = false,
                 fileName = ref.fileName,
@@ -346,6 +367,7 @@ class EditorViewModel(
                 // only (writeBuffer replaces the file rather than splicing a range).
                 EditRegion.WHOLE_FILE -> doc.text to doc.lines.indices
             }
+            setAttachBaseline(fileName, doc)
             _state.value = EditorUiState(
                 loading = false,
                 fileName = fileName,
@@ -369,6 +391,8 @@ class EditorViewModel(
      * WHOLE_FILE branch, which no longer requires [Vault.open] to succeed.
      */
     fun loadNewWholeFile(fileName: String, seedText: String, cursor: Int) {
+        attachBaseline = emptyList()
+        attachBaselineFile = fileName
         _state.value = EditorUiState(
             loading = false,
             fileName = fileName,
@@ -390,6 +414,8 @@ class EditorViewModel(
      * idle auto-save below would still write it 5s later.
      */
     fun reset() {
+        attachBaseline = emptyList()
+        attachBaselineFile = null
         _state.value = EditorUiState()
     }
 
@@ -600,11 +626,19 @@ class EditorViewModel(
      * back into [_state] therefore goes through `update`, touching only the
      * fields this save actually owns, and [dirty] is recomputed by comparing the
      * text that reached disk against the text the buffer holds *now*.
+     *
+     * [explicit] (Save, the leave paths) also checks for attach dirs a `:DIR:`
+     * edit moved, even when nothing is dirty; the idle auto-save passes false.
      */
-    fun save(force: Boolean = false, onSaved: () -> Unit = {}) {
+    fun save(force: Boolean = false, explicit: Boolean = true, onSaved: () -> Unit = {}) {
         val initial = _state.value
-        if (!initial.dirty || initial.error != null) {
+        if (initial.error != null || (!explicit && !initial.dirty)) {
             onSaved()
+            return
+        }
+        if (!initial.dirty) {
+            // An idle auto-save may already have written a `:DIR:` edit.
+            checkAttachDirs(onSaved)
             return
         }
         viewModelScope.launch {
@@ -612,8 +646,54 @@ class EditorViewModel(
             // text from the same on-disk revision, and the slower one would
             // silently undo the faster one.
             val saved = saveMutex.withLock { writeBuffer(force) }
-            if (saved) onSaved()
+            if (saved) if (explicit) checkAttachDirs(onSaved) else onSaved()
         }
+    }
+
+    private fun setAttachBaseline(fileName: String, doc: OrgDocument) {
+        attachBaseline = doc.attachOwners()
+        attachBaselineFile = fileName
+    }
+
+    /** An attach gave [owner] its `:ID:` (or used it): a later `:DIR:` edit must move its files. */
+    fun noteAttachedOwner(owner: AttachOwner) {
+        if (attachBaselineFile == null) attachBaselineFile = _state.value.fileName
+        attachBaseline = withAttachedOwner(attachBaseline, owner)
+    }
+
+    /**
+     * After an explicit save: finds attach dirs a `:DIR:` edit moved away from
+     * their files. None runs [then] now; otherwise the notice waits for OK
+     * ([acknowledgeAttachDirNotice]), which moves the files and runs [then].
+     */
+    private fun checkAttachDirs(then: () -> Unit) {
+        viewModelScope.launch {
+            val changes = runCatching { detectAttachDirChanges() }.getOrDefault(emptyList())
+            if (changes.isEmpty()) then() else _attachDirNotice.value = AttachDirNotice(changes, then)
+        }
+    }
+
+    private suspend fun detectAttachDirChanges(): List<AttachDirChange> {
+        val s = _state.value
+        if (s.error != null || s.fileName.isEmpty()) return emptyList()
+        val vault = vaultFlow.value ?: return emptyList()
+        val doc = vault.open(s.fileName) ?: return emptyList()
+        if (attachBaselineFile != s.fileName) {
+            // The note moved to another file (refile): start over from there.
+            setAttachBaseline(s.fileName, doc)
+            return emptyList()
+        }
+        val changes = attachDirMoves.detect(s.fileName, attachBaseline, doc)
+        setAttachBaseline(s.fileName, doc)
+        return changes
+    }
+
+    /** OK on the attach-dir notice: move the files, then continue (e.g. leave the editor). */
+    fun acknowledgeAttachDirNotice() {
+        val notice = _attachDirNotice.value ?: return
+        _attachDirNotice.value = null
+        attachDirMoves.apply(notice.changes)
+        notice.then()
     }
 
     /** @return true when the buffer is on disk (including "already was"). */
@@ -931,7 +1011,11 @@ class EditorViewModel(
                 it.vault, it.syncManager, it.database, it.settingsRepository, it.keywords, it.dispatchers,
                 it.templatesRepository,
                 attachFollow = it.attachmentFollow,
+                attachDirMoves = it.attachDirMoves,
             )
         }
     }
 }
+
+/** Attach dir changes found by an explicit save, and what to do once the user taps OK. */
+class AttachDirNotice(val changes: List<AttachDirChange>, val then: () -> Unit)

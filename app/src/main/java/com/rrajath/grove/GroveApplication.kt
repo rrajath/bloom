@@ -340,6 +340,43 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             }
         }
 
+    /** Moves attach dirs after an editor save changed a `:DIR:`; see [com.rrajath.grove.attach.AttachDirChange]. */
+    val attachDirMoves: com.rrajath.grove.attach.AttachDirMoves = object : com.rrajath.grove.attach.AttachDirMoves {
+        override suspend fun detect(
+            orgFile: String,
+            baseline: List<com.rrajath.grove.attach.AttachOwner>,
+            after: com.rrajath.grove.org.OrgDocument,
+        ): List<com.rrajath.grove.attach.AttachDirChange> {
+            val store = fileStore.value ?: return emptyList()
+            return withContext(dispatchers.io) {
+                runCatching {
+                    com.rrajath.grove.attach.AttachDirChangeDetector(
+                        com.rrajath.grove.attach.AttachmentFiles(store),
+                        indexedOwners = { database.indexDao().attachOwners() },
+                    ).detect(orgFile, baseline, after)
+                }.getOrDefault(emptyList())
+            }
+        }
+
+        override fun apply(changes: List<com.rrajath.grove.attach.AttachDirChange>) {
+            if (changes.none { it is com.rrajath.grove.attach.AttachDirChange.Move }) return
+            appScope.launch {
+                val lifecycle = attachmentLifecycle() ?: return@launch
+                // The lifecycle's onChanged drops the status cache.
+                val result = runCatching { lifecycle.applyDirChanges(changes) }.getOrNull()
+                val failed = result?.failed ?: changes.size
+                if (failed > 0) {
+                    val folders = if (failed == 1) "1 attachment folder" else "$failed attachment folders"
+                    withContext(dispatchers.main) {
+                        android.widget.Toast.makeText(
+                            this@GroveApplication, "$folders couldn't be moved", android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            }
+        }
+    }
+
     private suspend fun applyAttachToFile(done: com.rrajath.grove.attach.AttachDone): String? {
         val request = done.request
         val result = done.result as? com.rrajath.grove.attach.ImportResult.Success ?: return null

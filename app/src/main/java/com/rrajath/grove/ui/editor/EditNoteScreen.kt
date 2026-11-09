@@ -76,6 +76,7 @@ import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.NewNoteCursor
+import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
 import com.rrajath.grove.ui.components.EditorFabCompactWidth
 import com.rrajath.grove.ui.components.EditorFabMorphMillis
 import com.rrajath.grove.ui.components.ReadEditToggle
@@ -252,7 +253,8 @@ fun EditNoteScreen(
             // first rather than silently dropping whatever was typed.
             isNewNote && viewModel.isCurrentHeadingBlank() -> confirmDiscardBlankHeading = true
             state.dirty -> confirmLeave = true
-            else -> onBack()
+            // Nothing unsaved, but an auto-save may have written a :DIR: edit: check first.
+            else -> viewModel.save(onSaved = onBack)
         }
     }
     androidx.activity.compose.BackHandler { leave() }
@@ -385,7 +387,9 @@ fun EditNoteScreen(
         }
     }
     // Attachments: paperclip, sheet, copies.
-    val attach = rememberAttachController(textState, state.fileName, fieldLoaded)
+    val attach = rememberAttachController(
+        textState, state.fileName, fieldLoaded, onOwnerAttached = viewModel::noteAttachedOwner,
+    )
     val keyboard = LocalSoftwareKeyboardController.current
     val blockTrigger by rememberBlockTrigger(textState)
     val highlight = remember(c, state.keywords) {
@@ -808,6 +812,9 @@ fun EditNoteScreen(
             onDismiss = { confirmLeave = false },
         )
     }
+
+    val attachDirNotice by viewModel.attachDirNotice.collectAsStateWithLifecycle()
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, onOk = viewModel::acknowledgeAttachDirNotice) }
 
     if (confirmDiscardBlankHeading) {
         DiscardBlankHeadingDialog(

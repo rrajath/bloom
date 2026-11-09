@@ -56,6 +56,7 @@ import com.rrajath.grove.ui.components.LinkedReferencesSheet
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.ui.components.InsertTimestampScreen
 import com.rrajath.grove.ui.components.rememberImeVisible
+import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
 import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
 import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.editor.EditRegion
@@ -149,7 +150,8 @@ fun DailyNoteScreen(
             pendingAction = action
             confirmLeave = true
         } else {
-            action()
+            // Nothing unsaved, but an auto-save may have written a :DIR: edit: check first.
+            editorViewModel.save(onSaved = action)
         }
     }
     fun leave() = runGuarded(onBack)
@@ -564,7 +566,9 @@ fun DailyNoteScreen(
                     }
 
                     // Attachments: paperclip + sheet, as in the whole-file editor.
-                    val attach = rememberAttachController(textState, n.fileName, fieldLoaded)
+                    val attach = rememberAttachController(
+                        textState, n.fileName, fieldLoaded, onOwnerAttached = editorViewModel::noteAttachedOwner,
+                    )
 
                     WholeFileEditorBody(
                         state = editState,
@@ -727,6 +731,9 @@ fun DailyNoteScreen(
             },
         )
     }
+
+    val attachDirNotice by editorViewModel.attachDirNotice.collectAsStateWithLifecycle()
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, onOk = editorViewModel::acknowledgeAttachDirNotice) }
 
     if (linkedRefsOpen) {
         val title = (docState as? DocumentUiState.Loaded)?.document

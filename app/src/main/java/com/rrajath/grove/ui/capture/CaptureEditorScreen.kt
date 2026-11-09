@@ -95,6 +95,10 @@ import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplateKind
 import com.rrajath.grove.capture.formatLink
 import com.rrajath.grove.capture.templateSlug
+import com.rrajath.grove.attach.AttachDirChange
+import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.fileOwner
+import com.rrajath.grove.attach.withAttachedOwner
 import com.rrajath.grove.org.LineEditing
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
@@ -121,6 +125,7 @@ import com.rrajath.grove.ui.editor.KeepCursorClearOfBottom
 import com.rrajath.grove.ui.editor.MetadataSheet
 import com.rrajath.grove.ui.editor.RoamNodeSuggestionStrip
 import com.rrajath.grove.ui.editor.SuggestionSlot
+import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
 import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
 import androidx.activity.compose.BackHandler
 import com.rrajath.grove.ui.attach.DeleteAttachmentsCheckbox
@@ -218,11 +223,13 @@ fun CaptureEditorScreen(
             as com.rrajath.grove.GroveApplication
     val keywords by app.keywords.collectAsStateWithLifecycle()
 
+    // An explicit save finished; the attach-dir check below runs before onSaved.
+    var savedEvent by remember { mutableStateOf<CaptureSavedEvent?>(null) }
     LaunchedEffect(saveState) {
         val saved = saveState as? SaveState.Saved
         if (saved != null) {
             viewModel.resetSaveState()
-            onSaved(saved.filePath.takeIf { template?.kind == TemplateKind.ROAM_NODE })
+            savedEvent = CaptureSavedEvent(saved.filePath.takeIf { template?.kind == TemplateKind.ROAM_NODE })
         }
     }
 
@@ -416,13 +423,51 @@ fun CaptureEditorScreen(
             }
         }
     }
+    // Owners this capture attached files to, so a :DIR: added, removed or changed
+    // before Save moves those files (see AttachDirChange). The no-heading fallback's
+    // owner is the target file on disk, which the snippet can't edit, so it's left out.
+    var attachBaseline by remember(textState) { mutableStateOf(emptyList<AttachOwner>()) }
     val attach = rememberAttachController(
         textState, attachTarget, bufferReady = true,
         addDiskFileId = if (roamNewFile) null else viewModel::addFileId,
         // The new node's :ID: is added on save (RoamFileId.withFileId), not shown in
         // the field, so attach must use that same ID rather than mint another one.
         pendingFileId = if (roamNewFile) context.id else null,
+        onOwnerAttached = { owner ->
+            if (owner !is AttachOwner.File || roamNewFile) attachBaseline = withAttachedOwner(attachBaseline, owner)
+        },
     )
+    var attachDirNotice by remember { mutableStateOf<Pair<List<AttachDirChange>, CaptureSavedEvent>?>(null) }
+    LaunchedEffect(savedEvent) {
+        val event = savedEvent ?: return@LaunchedEffect
+        val changes = if (attachBaseline.isEmpty()) {
+            emptyList()
+        } else {
+            runCatching {
+                var doc = OrgParser.parse(draftText)
+                // A new Roam node gets its file :ID: on save, not in the field.
+                val file = doc.fileOwner()
+                if (roamNewFile && file.id == null && file.dirProperty == null) {
+                    doc = OrgParser.parse(OrgMutations.upsertFileProperty(doc, "ID", context.id))
+                }
+                app.attachDirMoves.detect(attachTarget, attachBaseline, doc)
+            }.getOrDefault(emptyList())
+        }
+        if (changes.isEmpty()) {
+            savedEvent = null
+            onSaved(event.roamFilePath)
+        } else {
+            attachDirNotice = changes to event
+        }
+    }
+    attachDirNotice?.let { (changes, event) ->
+        AttachDirNoticeDialog(changes) {
+            attachDirNotice = null
+            savedEvent = null
+            app.attachDirMoves.apply(changes)
+            onSaved(event.roamFilePath)
+        }
+    }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(roamAppendState) {
@@ -1484,6 +1529,9 @@ private fun CaptureSaveButton(
  * `, and the :ID: added to inbox.org` when the no-heading fallback gave the
  * target file one.
  */
+/** A finished explicit save, waiting on the attach-dir check before the screen closes. */
+private class CaptureSavedEvent(val roamFilePath: String?)
+
 internal fun captureAttachmentsDetail(fileCount: Int, idAddedTo: String?): String {
     val files = when (fileCount) {
         0 -> "The file still copying"
