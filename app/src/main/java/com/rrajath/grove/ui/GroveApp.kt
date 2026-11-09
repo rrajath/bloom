@@ -461,6 +461,8 @@ private fun GroveNavigation(
                             popUpTo(Routes.OUTLINE) { inclusive = true }
                         }
                     },
+                    // Pushed, not replaced: Back returns to the wider outline.
+                    onNarrow = { line -> navController.navigate(Routes.outline(notebookId, narrowTo = line)) },
                     onOpenNote = { ref ->
                         // Always open in the mode configured in Settings.
                         navController.navigate(Routes.note(ref.encode(), settings.defaultNoteOpenMode.storageKey))

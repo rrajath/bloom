@@ -1,6 +1,10 @@
 package com.rrajath.grove.ui.screens
 
 import androidx.activity.ComponentActivity
+import com.rrajath.grove.testing.OrgFixtures
+import com.rrajath.grove.org.OrgParser
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -50,6 +54,8 @@ class OutlineScreenTest {
         notebookId: String = "projects.org",
         onOpenNote: (NoteRef) -> Unit = {},
         onCreateNote: (NoteRef) -> Unit = {},
+        narrowLineIndex: Int? = null,
+        onNarrow: (Int) -> Unit = {},
     ) {
         composeRule.setGroveContent {
             OutlineScreen(
@@ -57,6 +63,8 @@ class OutlineScreenTest {
                 onBack = {},
                 onOpenNote = onOpenNote,
                 onCreateNote = onCreateNote,
+                narrowLineIndex = narrowLineIndex,
+                onNarrow = onNarrow,
                 viewModel = vm,
             )
         }
@@ -145,5 +153,32 @@ class OutlineScreenTest {
 
         composeRule.waitUntil(timeoutMillis = 3_000) { created != null }
         assertEquals("projects.org", created?.fileName)
+    }
+
+    @Test
+    fun swipeNarrowNarrowsToThatHeading() {
+        var narrowedTo: Int? = null
+        content(onNarrow = { narrowedTo = it })
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Backlog", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Backlog", substring = true).performTouchInput { swipeLeft() }
+        composeRule.onNodeWithText("Narrow").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 3_000) { narrowedTo != null }
+        val backlog = OrgParser.parse(OrgFixtures.PROJECTS).headlines.first { it.title.startsWith("Backlog") }
+        assertEquals(backlog.lineIndex, narrowedTo)
+    }
+
+    @Test
+    fun narrowedRootRowHasNoNarrowAction() {
+        val backlog = OrgParser.parse(OrgFixtures.PROJECTS).headlines.first { it.title.startsWith("Backlog") }
+        content(narrowLineIndex = backlog.lineIndex)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Backlog", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodesWithText("Backlog", substring = true)[0].performTouchInput { swipeLeft() }
+        composeRule.onNodeWithText("Above").assertIsDisplayed()
+        composeRule.onNodeWithText("Narrow").assertDoesNotExist()
     }
 }

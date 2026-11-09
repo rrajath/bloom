@@ -174,6 +174,8 @@ fun OutlineScreen(
     revealLineIndex: Int? = null,
     /** Return to the full, unnarrowed outline. */
     onWiden: () -> Unit = {},
+    /** Swipe panel's Narrow: open this notebook's outline narrowed to the heading at the given line. */
+    onNarrow: (lineIndex: Int) -> Unit = {},
     /** Top-bar ⌕: opens Search with the notebook filter already pinned to this file. */
     onSearchInNotebook: () -> Unit = {},
     /** Adds a favorite; [customId] is resolved (via [DocumentViewModel.ensureStableId]) before this is called. */
@@ -770,9 +772,14 @@ fun OutlineScreen(
                                     ),
                                 )
                             }
-                            // Left-swipe panel: insert above / below / sub-note / refile.
-                            val rightActions = remember(h.lineIndex, c) {
-                                listOf(
+                            // Left-swipe panel: narrow / insert above / below / sub-note / refile.
+                            // Narrow is left out on the narrowed root, where it would reopen this view.
+                            val isNarrowRoot = h.lineIndex == narrowTarget?.lineIndex
+                            val rightActions = remember(h.lineIndex, c, isNarrowRoot) {
+                                listOfNotNull(
+                                    if (isNarrowRoot) null else SwipeAction("→ ←", "Narrow", c.violet, c.violetSoft) {
+                                        onNarrow(h.lineIndex)
+                                    },
                                     SwipeAction("↑+", "Above", c.amber, c.amberSoft) {
                                         viewModel.insertSiblingAbove(h) { line ->
                                             onCreateNote(NoteRef(notebookId, line))

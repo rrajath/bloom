@@ -48,6 +48,7 @@ Swiping a row left or right reveals quick actions without opening the note:
 - **Schedule**: opens [Planning Dates](/features/planning-dates) to set SCHEDULED/DEADLINE
 - **Note**: appends a timestamped note to the heading's `:LOGBOOK:` via a small dialog, without leaving the outline
 - **Favorite** (★): toggles the heading as a favorite, surfaced in the nav drawer
+- **Narrow** (→ ←): narrows the outline to this heading and its subheadings. See [Narrowing to a subtree](#narrowing-to-a-subtree)
 - **Add heading above / below**: inserts a new sibling heading
 - **Add subheading**: inserts a new child heading, nested one level deeper
 - **Refile**: opens the [Refile](/features/refile) picker to move this subtree elsewhere
@@ -76,7 +77,10 @@ Each bulk change is its own undo step.
 
 ## Narrowing to a subtree
 
-If you arrive at Outline View from a breadcrumb link inside a note (tapping a parent heading), the view can narrow to just that subtree instead of showing the whole file, useful for focusing on one section of a large notebook.
+Narrowing shows just one heading and its subheadings instead of the whole file, useful for focusing on one section of a large notebook. There are two ways in:
+
+- Swipe a row left and tap **Narrow**. Back returns to the outline you narrowed from, so you can narrow step by step into a deep tree and back out again. The narrowed heading's own row has no Narrow button.
+- Tap a parent heading in a note's breadcrumb.
 
 ## Opening a note
 
