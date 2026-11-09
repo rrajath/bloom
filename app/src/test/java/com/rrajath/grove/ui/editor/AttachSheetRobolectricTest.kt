@@ -3,6 +3,7 @@ package com.rrajath.grove.ui.editor
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -84,14 +85,14 @@ class AttachSheetRobolectricTest {
     }
 
     @Test
-    fun `heading owner shows stars, title, dir label and rows with sizes`() {
+    fun `heading owner shows stars, title, dir label and rows without sizes`() {
         show(sheetModel(lunch, "**", "Lunch", "data/8B/41D2F0-1C9E", files))
         composeRule.onNodeWithText("Attach to").assertIsDisplayed()
         composeRule.onNodeWithText("**").assertIsDisplayed()
         composeRule.onNodeWithTag("attach_owner_title").assertTextEquals("Lunch")
         composeRule.onNodeWithText(str(R.string.attach_scope_label)).assertIsDisplayed()
-        composeRule.onNodeWithText("182 KB").assertIsDisplayed()
-        composeRule.onNodeWithText("2.4 MB").assertIsDisplayed()
+        composeRule.onNodeWithText("182 KB").assertDoesNotExist()
+        composeRule.onNodeWithText("2.4 MB").assertDoesNotExist()
         composeRule.onNodeWithText("PDF").assertIsDisplayed()
         composeRule.onNodeWithText("JPG").assertIsDisplayed()
     }
@@ -187,7 +188,8 @@ class AttachSheetRobolectricTest {
         val rows = files.map { ScopedAttachment(it, "data/8B/41D2F0-1C9E", "travel.org", "Dinner", "Dinner") }
         val scopes = scopesFor(lunch)
         show(AttachSheetModel(lunch, "**", "Lunch", "data/AA/other", scopes, AttachScope.FILE, rows, AttachController.PAGE_SIZE))
-        composeRule.onNodeWithText("182 KB · Dinner").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Dinner")[0].assertIsDisplayed()
+        composeRule.onNodeWithText("182 KB · Dinner").assertDoesNotExist()
         composeRule.onNodeWithTag("attach_insert_receipt.pdf").assertIsDisplayed()
         composeRule.onNodeWithTag("attach_delete_receipt.pdf").assertDoesNotExist()
         composeRule.onNodeWithTag("attach_row_data/8B/41D2F0-1C9E/receipt.pdf").assertIsDisplayed()
