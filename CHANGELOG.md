@@ -67,6 +67,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Dailies Read mode now shows attached images inline.
 - Pressing back in the capture editor now asks before discarding unsaved text.
 - Favorites keep working after their file is renamed or moved, in Bloom or outside it.
+- Quickly double-tapping Back no longer leaves a blank white screen; taps during a screen transition are ignored.
 - Headings deleted in the editor after an auto-save no longer linger in the file or get duplicated.
 - The attach sheet's This file and Vault views now offer Delete on the current heading's own files.
 
