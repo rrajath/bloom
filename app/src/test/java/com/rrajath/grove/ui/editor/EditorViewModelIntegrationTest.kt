@@ -188,6 +188,33 @@ class EditorViewModelIntegrationTest {
     }
 
     @Test
+    fun `addFileId writes a file ID and the Intro still saves without going stale`() = runTest {
+        store.write("trip.org", "#+TITLE: Trip\nPlans.\n* Day 1\n")
+        val vm = editor()
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.INTRO)
+        advanceUntilIdle()
+
+        assertTrue(vm.addFileId("trip.org", "trip-id"))
+        vm.onBufferChange("Plans.\n[[attachment:map.pdf]]")
+        vm.save()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.staleFile)
+        val saved = store.read("trip.org")
+        assertEquals("trip-id", OrgParser.parse(saved).fileId)
+        assertTrue(saved, saved.contains("Plans.\n[[attachment:map.pdf]]\n* Day 1"))
+    }
+
+    @Test
+    fun `addFileId leaves a file with a DIR alone`() = runTest {
+        val original = ":PROPERTIES:\n:DIR: files\n:END:\nPlans.\n"
+        store.write("trip.org", original)
+        val vm = editor()
+        assertTrue(vm.addFileId("trip.org", "trip-id"))
+        assertEquals(original, store.read("trip.org"))
+    }
+
+    @Test
     fun `loadRegion FILE_PROPERTIES loads the leading file drawer with its markers`() = runTest {
         store.write("regions.org", regionsFile)
         val vm = editor()

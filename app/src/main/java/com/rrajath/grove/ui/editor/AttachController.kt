@@ -38,6 +38,7 @@ import com.rrajath.grove.attach.AttachmentScopeScanner
 import com.rrajath.grove.attach.ImportResult
 import com.rrajath.grove.attach.ListedDirs
 import com.rrajath.grove.attach.ScopedAttachment
+import com.rrajath.grove.attach.attachmentLinkText
 import com.rrajath.grove.attach.failureMessage
 import com.rrajath.grove.attach.fileLinkText
 import com.rrajath.grove.attach.fileOwner
@@ -154,6 +155,13 @@ class AttachController internal constructor(
      * fresh ID, so the files land in the folder the saved file points at.
      */
     private val pendingFileId: String? = null,
+    /**
+     * The buffer is [orgFile]'s Intro, which leaves out the file's `:PROPERTIES:`
+     * drawer and `#+KEY:` lines. Attach always uses [orgFile]'s file owner as read
+     * from disk ([addDiskFileId] writes a new `:ID:` there), and links go in as
+     * `[[attachment:…]]`, since the Intro belongs to that file owner.
+     */
+    private val introOfFile: Boolean = false,
 ) {
     var sheet by mutableStateOf<AttachSheetModel?>(null)
         private set
@@ -304,7 +312,7 @@ class AttachController internal constructor(
                 shown = PAGE_SIZE,
                 onDisk = true,
             )
-            systemToast(context.getString(R.string.attach_capture_file_fallback, orgFileName))
+            if (!introOfFile) systemToast(context.getString(R.string.attach_capture_file_fallback, orgFileName))
             load(scopes.first())
         }
     }
@@ -519,20 +527,26 @@ class AttachController internal constructor(
     private suspend fun linkOnDisk(request: AttachRequest, result: ImportResult.Success) {
         val idSaved = request.newId?.let { id -> addDiskFileId?.invoke(orgFile, id) == true } ?: true
         if (idSaved && request.newId != null) addedDiskFileId = request.newId
-        val block = result.names.joinToString("\n") { fileLinkText(relativeLinkPath(orgFile, "${request.dir}/$it")) }
-        val cursor = textState.selection.start.coerceIn(0, textState.text.length)
-        val text = textState.text.toString()
-        val prefix = if (cursor == 0 || text[cursor - 1] == '\n') "" else "\n"
-        val suffix = if (cursor == text.length || text[cursor] == '\n') "" else "\n"
-        val inserted = prefix + block + suffix
-        textState.edit {
-            replace(cursor, cursor, inserted)
-            selection = TextRange(cursor + prefix.length + block.length)
+        val block = result.names.joinToString("\n") { name ->
+            if (introOfFile) attachmentLinkText(name) else fileLinkText(relativeLinkPath(orgFile, "${request.dir}/$name"))
         }
+        insertBlockAtCursor(block)
         showToast(
             if (idSaved) successMessage(request, result)
             else context.getString(R.string.attach_capture_id_failed, orgFileName),
         )
+    }
+
+    /** Inserts [block] at the cursor on its own line(s), leaving the cursor after it. */
+    private fun insertBlockAtCursor(block: String) {
+        val cursor = textState.selection.start.coerceIn(0, textState.text.length)
+        val text = textState.text.toString()
+        val prefix = if (cursor == 0 || text[cursor - 1] == '\n') "" else "\n"
+        val suffix = if (cursor == text.length || text[cursor] == '\n') "" else "\n"
+        textState.edit {
+            replace(cursor, cursor, prefix + block + suffix)
+            selection = TextRange(cursor + prefix.length + block.length)
+        }
     }
 
     /**
@@ -542,6 +556,13 @@ class AttachController internal constructor(
     fun insertExisting(row: ScopedAttachment) {
         val model = sheet ?: return
         val name = row.file.name.substringAfterLast('/')
+        // The Intro's owner is the file on disk: its own files get attachment links at the cursor.
+        if (row.dir == model.dir && introOfFile) {
+            sheet = null
+            insertBlockAtCursor(attachmentLinkText(name))
+            showToast(context.getString(R.string.attach_linked, name))
+            return
+        }
         // The capture fallback's owner isn't in the buffer, so even its own files get file links.
         if (row.dir == model.dir && !model.onDisk) {
             val edit = insertAttachmentLinksInBuffer(
@@ -654,6 +675,8 @@ fun rememberAttachController(
     addDiskFileId: (suspend (orgFile: String, id: String) -> Boolean)? = null,
     /** Quick capture only: see [AttachController]'s `pendingFileId`. */
     pendingFileId: String? = null,
+    /** Intro editor only: see [AttachController]'s `introOfFile`. */
+    introOfFile: Boolean = false,
 ): AttachController {
     val app = LocalContext.current.applicationContext as? GroveApplication
     return rememberAttachController(
@@ -663,6 +686,7 @@ fun rememberAttachController(
         storeProvider = { app?.fileStore?.value },
         addDiskFileId = addDiskFileId,
         pendingFileId = pendingFileId,
+        introOfFile = introOfFile,
     )
 }
 
@@ -675,12 +699,15 @@ internal fun rememberAttachController(
     indexedOwners: suspend () -> List<IndexedAttachOwner> = { emptyList() },
     addDiskFileId: (suspend (orgFile: String, id: String) -> Boolean)? = null,
     pendingFileId: String? = null,
+    introOfFile: Boolean = false,
     storeProvider: () -> FileStore?,
 ): AttachController {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val controller = remember(textState, orgFile) {
-        AttachController(context, scope, textState, orgFile, manager, storeProvider, indexedOwners, addDiskFileId, pendingFileId)
+        AttachController(
+            context, scope, textState, orgFile, manager, storeProvider, indexedOwners, addDiskFileId, pendingFileId, introOfFile,
+        )
     }
     // Saved as JSON so it survives process death without the parcelize plugin.
     var saved by rememberSaveable { mutableStateOf<String?>(null) }

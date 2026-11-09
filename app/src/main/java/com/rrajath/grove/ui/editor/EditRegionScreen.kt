@@ -230,11 +230,17 @@ fun EditRegionScreen(
     // False until the region has been loaded into the text field: the field's
     // pre-load contents are not the user's edits and must not be reported.
     var fieldLoaded by remember { mutableStateOf(false) }
-    // Attachments, for the whole-file editor.
-    val attach = if (region == EditRegion.WHOLE_FILE) {
-        rememberAttachController(textState, fileName, fieldLoaded)
-    } else {
-        null
+    // Attachments, for the whole-file editor and the Intro (which attaches to the
+    // file's own :DIR: / :ID:, read from disk since the Intro buffer leaves out
+    // the file's property drawer).
+    val attach = when (region) {
+        EditRegion.WHOLE_FILE -> rememberAttachController(textState, fileName, fieldLoaded)
+        EditRegion.INTRO -> rememberAttachController(
+            textState, fileName, fieldLoaded,
+            addDiskFileId = viewModel::addFileId,
+            introOfFile = true,
+        )
+        else -> null
     }
     // Text last written into the field programmatically (initial load only, here).
     // The snapshotFlow below echoes every write straight back; that echo must not

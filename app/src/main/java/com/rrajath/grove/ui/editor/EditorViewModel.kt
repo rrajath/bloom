@@ -2,6 +2,7 @@ package com.rrajath.grove.ui.editor
 
 import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.attach.rewritesFor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -711,6 +712,28 @@ class EditorViewModel(
             )
         }
         return true
+    }
+
+    /**
+     * Intro attach: writes file-level `:ID: [id]` into [path] on disk (a no-op when
+     * the file already has an `:ID:` or `:DIR:`). Runs under the save lock, and
+     * when the file was still the revision this editor loaded, moves the editor to
+     * the new revision so the next save of the Intro isn't flagged as stale.
+     */
+    suspend fun addFileId(path: String, id: String): Boolean = saveMutex.withLock {
+        val vault = vaultFlow.value ?: return@withLock false
+        val before = vault.revision(path)
+        val doc = withContext(dispatchers.default) { vault.open(path) } ?: return@withLock false
+        val owner = doc.fileOwner()
+        if (owner.id != null || owner.dirProperty != null) return@withLock true
+        val newText = withContext(dispatchers.default) { OrgMutations.upsertFileProperty(doc, "ID", id) }
+        vault.save(path, newText)
+        sync.requestReindex(path, newText, "attach file id")
+        val after = vault.revision(path)
+        _state.update { s ->
+            if (s.fileName == path && s.loadedRevision == before) s.copy(loadedRevision = after) else s
+        }
+        true
     }
 
     /** [EditorUiState.ownedSpan], if the file is still the revision it describes and the span fits it. */

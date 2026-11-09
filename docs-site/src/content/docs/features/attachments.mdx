@@ -37,6 +37,8 @@ Bloom copies each file into the target's attachment folder and inserts an `[[att
 
 If the target doesn't have an `:ID:` yet, Bloom adds one to its property drawer the first time you attach, since the folder name comes from it. A heading or file with a `:DIR:` property uses that folder instead, as in Emacs.
 
+The paperclip is also there when you edit a file's Intro (the text above its first heading). Files attach to the file itself, using the `:DIR:` or `:ID:` from the file's property drawer (`:DIR:` wins when both are set). If the file has neither, Bloom adds an `:ID:` to the file's property drawer.
+
 ### In Dailies and the capture editor
 
 The paperclip is also on the toolbar in [Dailies](/features/dailies) and in the [capture editor](/features/capture). Dailies works the same way as any note.

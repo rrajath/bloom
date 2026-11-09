@@ -63,6 +63,10 @@ re-uploads the APKs to the existing release instead of failing.
 - A Narrow button in the Outline swipe panel narrows the outline to that heading; Back widens again.
 - Read mode's breadcrumb now starts with Notebooks, which jumps straight back to the Notebooks screen.
 - The metadata sheet now names the heading it edits at the top, led by its org stars.
+- The Intro editor now has the attach paperclip; files attach to the file using its `:DIR:` or `:ID:`.
+
+### Changed
+- Attach sheet rows drop the file size and wrap long names and sources instead of cutting them off.
 
 ### Fixed
 - Dailies Read mode now shows attached images inline.

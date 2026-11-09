@@ -423,6 +423,64 @@ class AttachControllerRobolectricTest {
         return controller to textState
     }
 
+    /** Intro editor: the buffer is `notes/trip.org`'s Intro, without its property drawer. */
+    private fun introController(text: String, cursor: Int): Pair<AttachController, TextFieldState> {
+        val textState = TextFieldState(text, TextRange(cursor))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/trip.org", bufferReady = true, manager,
+                    addDiskFileId = { file, id ->
+                        store.write(file, OrgMutations.upsertFileProperty(OrgParser.parse(store.read(file)), "ID", id))
+                        true
+                    },
+                    introOfFile = true,
+                ) { store }
+            }
+        }
+        return controller to textState
+    }
+
+    private fun attachToIntro(c: AttachController, textState: TextFieldState, cursor: Int) {
+        composeRule.runOnIdle {
+            c.pending = PendingAttach("Files", isFile = true, id = null, titlePath = emptyList(), lineIndex = -1, cursor = cursor, onDisk = true)
+            c.onPickerResult(listOf(picked("map.pdf")))
+        }
+        settleUntil { textState.text.contains("map.pdf]]") }
+    }
+
+    @Test
+    fun `intro without ID or DIR adds a file ID on disk and links with attachment links`() {
+        File(vaultDir, "notes").mkdirs()
+        val target = File(vaultDir, "notes/trip.org").apply { writeText("#+title: Trip\nPlans.\n* Day 1\n") }
+        val (c, textState) = introController("Plans.", cursor = 6)
+        c.openAndLoad()
+        assertTrue(c.sheet!!.onDisk)
+        assertTrue(c.sheet!!.owner is AttachOwner.File)
+        assertNull(c.toast)
+
+        attachToIntro(c, textState, 6)
+        val id = OrgParser.parse(target.readText()).fileOwner().id!!
+        assertTrue("copied", File(vaultDir, "notes/data/${id.take(2)}/${id.drop(2)}/map.pdf").isFile)
+        assertEquals("Plans.\n[[attachment:map.pdf]]", textState.text.toString())
+    }
+
+    @Test
+    fun `intro attach uses the file's DIR over its ID`() {
+        File(vaultDir, "notes").mkdirs()
+        val original = ":PROPERTIES:\n:ID: abc-123\n:DIR: trip-files\n:END:\nPlans.\n"
+        val target = File(vaultDir, "notes/trip.org").apply { writeText(original) }
+        val (c, textState) = introController("Plans.", cursor = 6)
+        c.openAndLoad()
+        assertEquals("trip-files", c.sheet!!.owner.dirProperty)
+
+        attachToIntro(c, textState, 6)
+        assertTrue("copied", File(vaultDir, "notes/trip-files/map.pdf").isFile)
+        assertEquals(original, target.readText())
+        assertEquals("Plans.\n[[attachment:map.pdf]]", textState.text.toString())
+    }
+
     @Test
     fun `capture with a heading at the cursor attaches to that heading in the snippet`() {
         File(vaultDir, "inbox").mkdirs()
