@@ -38,9 +38,11 @@ private fun OrgDocument.fileProp(key: String): String? =
     filePropertyDrawer.firstOrNull { it.first.equals(":$key:", ignoreCase = true) }
         ?.second?.takeIf { it.isNotBlank() }
 
-private fun OrgHeadline.dirProp(): String? = properties.prop("DIR") ?: properties.prop("ATTACH_DIR")
+/** The heading's own `:DIR:` (or legacy `:ATTACH_DIR:`); the index stores it for the Vault scope. */
+fun OrgHeadline.attachDirProperty(): String? = properties.prop("DIR") ?: properties.prop("ATTACH_DIR")
 
-private fun OrgDocument.fileDirProp(): String? = fileProp("DIR") ?: fileProp("ATTACH_DIR")
+/** The file-level `:DIR:` (or legacy `:ATTACH_DIR:`); the index stores it for the Vault scope. */
+fun OrgDocument.fileAttachDirProperty(): String? = fileProp("DIR") ?: fileProp("ATTACH_DIR")
 
 /** Titles from the root ancestor down to [h] itself. */
 fun OrgDocument.titlePath(h: OrgHeadline): List<String> {
@@ -55,11 +57,11 @@ fun OrgDocument.titlePath(h: OrgHeadline): List<String> {
 
 /** The owner object for heading [h] (no inheritance). */
 fun OrgDocument.ownerOf(h: OrgHeadline): AttachOwner.Heading =
-    AttachOwner.Heading(h.lineIndex, titlePath(h), h.properties.prop("ID"), h.dirProp())
+    AttachOwner.Heading(h.lineIndex, titlePath(h), h.properties.prop("ID"), h.attachDirProperty())
 
 /** The file-level owner (no inheritance). */
 fun OrgDocument.fileOwner(): AttachOwner.File =
-    AttachOwner.File(fileProp("ID"), fileDirProp())
+    AttachOwner.File(fileProp("ID"), fileAttachDirProperty())
 
 /** The heading whose section contains [lineIndex], or null above the first heading. */
 fun OrgDocument.headingAtLine(lineIndex: Int): OrgHeadline? =

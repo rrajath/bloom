@@ -54,4 +54,42 @@ class IndexDaoAttachOwnersTest {
             db.indexDao().attachOwners().toSet(),
         )
     }
+
+    @Test
+    fun `DIR holders are owners and carry their DIR`() = runTest {
+        val dirs = FakeFileStore(
+            mapOf(
+                "b.org" to """
+                    :PROPERTIES:
+                    :DIR: file-dir
+                    :END:
+                    * Both
+                    :PROPERTIES:
+                    :ID: B1
+                    :DIR: data/photos
+                    :END:
+                    * Only dir
+                    :PROPERTIES:
+                    :dir: only
+                    :END:
+                    * Legacy
+                    :PROPERTIES:
+                    :ATTACH_DIR: legacy
+                    :END:
+                    * Plain
+                """.trimIndent() + "\n",
+            )
+        )
+        TestVaultSeeder.index(db, dirs)
+
+        assertEquals(
+            setOf(
+                IndexedAttachOwner("b.org", null, null, "file-dir"),
+                IndexedAttachOwner("b.org", "Both", "B1", "data/photos"),
+                IndexedAttachOwner("b.org", "Only dir", null, "only"),
+                IndexedAttachOwner("b.org", "Legacy", null, "legacy"),
+            ),
+            db.indexDao().attachOwners().toSet(),
+        )
+    }
 }
