@@ -246,6 +246,14 @@ private fun GroveNavigation(
     val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    // Read mode's breadcrumb "Notebooks" segment: drop everything above the
+    // Notebooks home in one step. Notebooks is the start destination, so it is
+    // normally on the stack; if it isn't, start a fresh stack at it.
+    val openNotebooksHome: () -> Unit = {
+        if (!navController.popBackStack(Routes.NOTEBOOKS, inclusive = false)) {
+            navController.navigate(Routes.NOTEBOOKS) { popUpTo(navController.graph.id) { inclusive = true } }
+        }
+    }
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext
             as com.rrajath.grove.GroveApplication
@@ -552,20 +560,23 @@ private fun GroveNavigation(
                 val hasPendingEdit = pendingKey.dirty && pendingKey.region == EditRegion.WHOLE_FILE &&
                     pendingKey.fileName == fileName
                 var confirmLeavePending by remember(fileName) { mutableStateOf(false) }
-                val leaveRead: () -> Unit = {
-                    if (hasPendingEdit) confirmLeavePending = true else navController.popBackStack()
+                // How the confirm dialog finishes leaving: Back, or the breadcrumb's Notebooks.
+                var pendingExit by remember(fileName) { mutableStateOf<() -> Unit>({ navController.popBackStack() }) }
+                val leaveVia: (() -> Unit) -> Unit = { exit ->
+                    if (hasPendingEdit) { pendingExit = exit; confirmLeavePending = true } else exit()
                 }
+                val leaveRead: () -> Unit = { leaveVia { navController.popBackStack() } }
                 androidx.activity.compose.BackHandler(enabled = mode == "read" && hasPendingEdit) { leaveRead() }
                 if (confirmLeavePending) {
                     UnsavedNoteDialog(
                         message = "This file has unsaved changes.",
                         onSave = {
                             confirmLeavePending = false
-                            editorViewModel.save { navController.popBackStack() }
+                            editorViewModel.save { pendingExit() }
                         },
                         onDiscard = {
                             confirmLeavePending = false
-                            navController.popBackStack()
+                            pendingExit()
                         },
                         onDismiss = { confirmLeavePending = false },
                     )
@@ -601,6 +612,7 @@ private fun GroveNavigation(
                         // Explicit outline (no autoOpen): the filename tap must land
                         // on the outline even when this file would auto-open whole.
                         onOpenOutline = { target -> navController.navigate(Routes.outline(target)) },
+                        onOpenNotebooks = { leaveVia(openNotebooksHome) },
                         onOpenDrawer = { kind, drawerRef ->
                             navController.navigate(Routes.drawer(drawerRef.fileName, kind, drawerRef.encode()))
                         },
@@ -710,13 +722,18 @@ private fun GroveNavigation(
                     var confirmLeavePending by remember(noteId) { mutableStateOf(false) }
                     var confirmDiscardBlankHeadingRead by remember(noteId) { mutableStateOf(false) }
                     var showEmptyHeadingAlertRead by remember(noteId) { mutableStateOf(false) }
-                    val leaveRead: () -> Unit = {
+                    // How the confirm dialogs finish leaving: Back (leaveNote), or the
+                    // breadcrumb's Notebooks segment.
+                    var pendingExit by remember(noteId) { mutableStateOf(leaveNote) }
+                    val leaveVia: (() -> Unit) -> Unit = { exit ->
+                        pendingExit = exit
                         when {
                             isNew && editorViewModel.isCurrentHeadingBlank() -> confirmDiscardBlankHeadingRead = true
                             hasPendingEdit -> confirmLeavePending = true
-                            else -> leaveNote()
+                            else -> exit()
                         }
                     }
+                    val leaveRead: () -> Unit = { leaveVia(leaveNote) }
                     androidx.activity.compose.BackHandler(
                         // A brand-new, still-blank note has nothing dirty (nothing was
                         // ever typed), so hasPendingEdit alone would miss it and let the
@@ -735,12 +752,12 @@ private fun GroveNavigation(
                                 if (editorViewModel.isCurrentHeadingBlank()) {
                                     showEmptyHeadingAlertRead = true
                                 } else {
-                                    editorViewModel.save { leaveNote() }
+                                    editorViewModel.save { pendingExit() }
                                 }
                             },
                             onDiscard = {
                                 confirmLeavePending = false
-                                leaveNote()
+                                pendingExit()
                             },
                             onDismiss = { confirmLeavePending = false },
                         )
@@ -749,7 +766,7 @@ private fun GroveNavigation(
                         DiscardBlankHeadingDialog(
                             onDiscard = {
                                 confirmDiscardBlankHeadingRead = false
-                                editorViewModel.deleteSubtree(onDeleted = { leaveNote() })
+                                editorViewModel.deleteSubtree(onDeleted = { pendingExit() })
                             },
                             // Send the user into edit mode to actually fix the heading,
                             // rather than strand them on a read view with nothing to show.
@@ -814,6 +831,7 @@ private fun GroveNavigation(
                             onOpenBreadcrumb = { targetLine ->
                                 navController.navigate(Routes.outline(ref.fileName, targetLine))
                             },
+                            onOpenNotebooks = { leaveVia(openNotebooksHome) },
                             onOpenDrawer = { kind, drawerRef ->
                                 navController.navigate(Routes.drawer(drawerRef.fileName, kind, drawerRef.encode()))
                             },

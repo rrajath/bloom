@@ -54,7 +54,11 @@ Id and custom-id links resolve across the whole vault from the rebuildable index
 
 ## Breadcrumbs
 
-Above the title, a breadcrumb trail (`tasks › Finish Q3 roadmap deck`) shows the notebook and heading path. Tapping the notebook name jumps back to Outline View, narrowed to this note's position.
+Above the title, a breadcrumb trail (`Notebooks › tasks › Finish Q3 roadmap deck`) shows the notebook and heading path. Every segment is tappable:
+
+- **Notebooks** goes straight back to the Notebooks screen, however deep you are, skipping everything in between. If the note has unsaved changes, you're asked to save or discard first, the same as with Back.
+- The **notebook name** opens Outline View for the whole file.
+- A **parent heading** opens Outline View narrowed to that heading.
 
 ## Top bar
 
@@ -65,7 +69,7 @@ A floating **☰** button at the bottom-right opens the [Metadata bottom sheet](
 
 ## The whole file as one note
 
-Read mode normally shows one heading and its subtree. The Outline's **View file** (and, for an org-roam file with the "Open roam files directly in read mode" setting on, opening a small notebook at all) shows the entire file instead: the preface, the intro and every heading in one scroll, rendered exactly like a note, with headings foldable and the same Read/Edit toggle. The header shows the file name as a breadcrumb, same style as the notebook/heading trail above — tap it for the outline — and there is no ☰ button, since its actions belong to a single heading. A file nested two or more folders deep shows each folder's first letter only (`work/ideas/app.org` → `w/i/app.org`), and a long name wraps onto a second line rather than getting cut off. Edit mode there is the whole file in one editor, with the same wrapping, folder-compacted file name below the top bar. Switching back to Read, with the toggle or Back, never saves: Read shows your unsaved text until you tap the green save icon, and leaving the file asks whether to save or discard. For an org-roam file, the Backlinks bar (see [Settings](/features/settings-overview#roam-features-experimental)) shows at the bottom of both. See [Outline View](/features/outline-view#viewing-the-whole-file) for the line limit that keeps this off for very large files.
+Read mode normally shows one heading and its subtree. The Outline's **View file** (and, for an org-roam file with the "Open roam files directly in read mode" setting on, opening a small notebook at all) shows the entire file instead: the preface, the intro and every heading in one scroll, rendered exactly like a note, with headings foldable and the same Read/Edit toggle. The header shows the file name as a breadcrumb, led by **Notebooks** like the notebook/heading trail above. Tap the file name for the outline, or **Notebooks** to go home, and there is no ☰ button, since its actions belong to a single heading. A file nested two or more folders deep shows each folder's first letter only (`work/ideas/app.org` → `w/i/app.org`), and a long name wraps onto a second line rather than getting cut off. Edit mode there is the whole file in one editor, with the same wrapping, folder-compacted file name below the top bar. Switching back to Read, with the toggle or Back, never saves: Read shows your unsaved text until you tap the green save icon, and leaving the file asks whether to save or discard. For an org-roam file, the Backlinks bar (see [Settings](/features/settings-overview#roam-features-experimental)) shows at the bottom of both. See [Outline View](/features/outline-view#viewing-the-whole-file) for the line limit that keeps this off for very large files.
 
 ## Favoriting
 
