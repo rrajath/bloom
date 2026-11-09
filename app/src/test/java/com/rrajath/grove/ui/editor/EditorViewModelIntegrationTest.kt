@@ -336,6 +336,58 @@ class EditorViewModelIntegrationTest {
     }
 
     @Test
+    fun `a heading typed at the top level and deleted after an intermediate save leaves the file`() = runTest {
+        store.write("test.org", "* A\nbody\n* Z\n")
+        val vm = editor()
+        vm.load(NoteRef("test.org", 0))
+        advanceUntilIdle()
+
+        // Grows past the original subtree: after this save `* B` is A's sibling on disk.
+        vm.onBufferChange("* A\nbody\n** A.1\n* B")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("* A\nbody\n** A.1\n* B\n* Z\n", store.read("test.org"))
+
+        vm.onBufferChange("* A\nbody")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("* A\nbody\n* Z\n", store.read("test.org"))
+    }
+
+    @Test
+    fun `replacing the first heading line between saves does not duplicate the buffer`() = runTest {
+        store.write("test.org", "* A\nbody\n* Z\n")
+        val vm = editor()
+        vm.load(NoteRef("test.org", 0))
+        advanceUntilIdle()
+
+        vm.onBufferChange("just prose")
+        vm.save()
+        advanceUntilIdle()
+        vm.onBufferChange("* A2\nbody")
+        vm.save()
+        advanceUntilIdle()
+
+        assertEquals("* A2\nbody\n* Z\n", store.read("test.org"))
+    }
+
+    @Test
+    fun `deleteSubtree after an intermediate save removes every line the editor wrote`() = runTest {
+        store.write("test.org", "* A\n* Z\n")
+        val vm = editor()
+        vm.load(NoteRef("test.org", 0))
+        advanceUntilIdle()
+
+        vm.onBufferChange("* \n* B")
+        vm.save()
+        advanceUntilIdle()
+        vm.deleteSubtree()
+        advanceUntilIdle()
+
+        assertEquals("* Z\n", store.read("test.org"))
+    }
+
+    @Test
     fun `setTags rewrites the heading's tags and marks the buffer dirty`() = runTest {
         val line = headlineLine("projects.org", "Ship v2")
         val vm = editor()

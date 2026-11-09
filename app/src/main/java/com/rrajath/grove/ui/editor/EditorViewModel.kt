@@ -79,6 +79,16 @@ data class EditorUiState(
     /** The line range the region was loaded from, markers included; the save path
      *  recomputes it from the fresh file and falls back to this. */
     val regionRange: IntRange? = null,
+    /**
+     * Subtree editor only: the file lines the buffer occupies on disk, as of
+     * [loadedRevision]. Set to the subtree at load and to exactly the lines each
+     * save wrote, so the next save replaces those lines and nothing else. The
+     * subtree can't be re-derived from the file after a save: a top-level heading
+     * typed into the buffer becomes a sibling on disk and would survive being
+     * deleted from the buffer. Null (or a stale revision) falls back to the
+     * subtree at [lineIndex].
+     */
+    val ownedSpan: IntRange? = null,
     /** The note's subtree text being edited (or the scoped region's raw text, when [region] is set). */
     val buffer: String = "",
     /** Explicit initial cursor offset into [buffer], set only by [EditorViewModel.loadNewWholeFile]'s
@@ -161,6 +171,7 @@ class EditorViewModel(
         val fileName: String,
         val lineIndex: Int,
         val buffer: String,
+        val ownedSpan: IntRange?,
     )
 
     private var archiveUndo: ArchiveUndo? = null
@@ -212,6 +223,7 @@ class EditorViewModel(
                     fileName = snap.fileName,
                     lineIndex = snap.lineIndex,
                     buffer = snap.buffer,
+                    ownedSpan = snap.ownedSpan,
                     dirty = false,
                     loadedRevision = revision,
                     bufferRevision = it.bufferRevision + 1,
@@ -254,6 +266,7 @@ class EditorViewModel(
                 lineIndex = headline.lineIndex,
                 fileOrgId = doc.fileId,
                 buffer = OrgMutations.subtreeText(doc, headline),
+                ownedSpan = headline.lineIndex until doc.subtreeEndLine(headline),
                 loadedRevision = vault.revision(ref.fileName),
                 keywords = keywords.value,
                 allTags = tags,
@@ -407,7 +420,8 @@ class EditorViewModel(
         viewModelScope.launch {
             val fileName = _state.value.fileName
             val revision = vaultFlow.value?.revision(fileName)
-            _state.update { it.copy(dirty = false, loadedRevision = revision) }
+            // The mutation may have moved the buffer's lines; fall back to the subtree.
+            _state.update { it.copy(dirty = false, loadedRevision = revision, ownedSpan = null) }
         }
     }
 
@@ -488,6 +502,7 @@ class EditorViewModel(
                     _state.update {
                         it.copy(
                             buffer = newHeadline?.let { h -> OrgMutations.subtreeText(result.doc, h) } ?: it.buffer,
+                            ownedSpan = newHeadline?.let { h -> h.lineIndex until result.doc.subtreeEndLine(h) },
                             dirty = false,
                             loadedRevision = revision,
                             bufferRevision = it.bufferRevision + 1,
@@ -501,6 +516,7 @@ class EditorViewModel(
                             fileName = s.fileName,
                             lineIndex = s.lineIndex,
                             buffer = s.buffer,
+                            ownedSpan = s.ownedSpan,
                         )
                         showSnack(markedDoneMessage(next, LocalDate.now()))
                     }
@@ -515,6 +531,7 @@ class EditorViewModel(
                         fileName = s.fileName,
                         lineIndex = s.lineIndex,
                         buffer = s.buffer,
+                        ownedSpan = s.ownedSpan,
                     )
                     vault.save(s.fileName, result.sourceText)
                     sync.requestReindex(s.fileName, result.sourceText, "note state set")
@@ -537,6 +554,7 @@ class EditorViewModel(
                             fileName = result.destFile,
                             lineIndex = result.destLineIndex,
                             buffer = destHeadline?.let { h -> OrgMutations.subtreeText(destDoc, h) } ?: it.buffer,
+                            ownedSpan = destHeadline?.let { h -> h.lineIndex until destDoc.subtreeEndLine(h) },
                             dirty = false,
                             loadedRevision = destRevision,
                             bufferRevision = it.bufferRevision + 1,
@@ -617,6 +635,8 @@ class EditorViewModel(
         // Parsing and the subtree splice are pure CPU on a whole file; keep them
         // off the main thread so a large notebook can't stall the keyboard
         // mid-keystroke while an auto-save runs.
+        // Subtree editor: the file lines this save wrote, which become the next ownedSpan.
+        var writtenSpan: IntRange? = null
         val newText = if (s.region == EditRegion.WHOLE_FILE) {
             // The buffer *is* the file: nothing to open, nothing to splice —
             // and, for a brand-new file (see loadNewWholeFile), there is
@@ -652,8 +672,20 @@ class EditorViewModel(
                     if (range != null) OrgMutations.replaceLines(doc, range, savedBuffer) else appendFallback
                 }
                 null -> {
-                    val headline = doc.headlines.firstOrNull { it.lineIndex == s.lineIndex }
-                    if (headline != null) OrgMutations.replaceSubtree(doc, headline, savedBuffer) else appendFallback
+                    val span = ownedSpanIn(doc, s, currentRevision)
+                        ?: doc.headlines.firstOrNull { it.lineIndex == s.lineIndex }
+                            ?.let { it.lineIndex until doc.subtreeEndLine(it) }
+                    if (span != null) {
+                        val (text, count) = OrgMutations.replaceSpan(doc, span.first, span.last + 1, savedBuffer)
+                        writtenSpan = span.first until span.first + count
+                        text
+                    } else {
+                        // Own the appended lines so the next save replaces them
+                        // instead of appending another copy.
+                        val start = doc.text.trimEnd('\n').split("\n").size
+                        writtenSpan = start until start + savedBuffer.trimEnd('\n').split("\n").size
+                        appendFallback
+                    }
                 }
                 // Unreachable: handled by the outer `if` above, before this
                 // withContext block (and its vault.open) ever runs.
@@ -671,6 +703,8 @@ class EditorViewModel(
                 // those characters are only in memory, and the idle timer (keyed
                 // on the buffer) will have already re-armed for them.
                 dirty = current.buffer != savedBuffer,
+                lineIndex = writtenSpan?.first ?: current.lineIndex,
+                ownedSpan = writtenSpan ?: current.ownedSpan,
                 staleFile = false,
                 loadedRevision = newRevision,
                 lastSavedAt = LocalDateTime.now(),
@@ -678,6 +712,10 @@ class EditorViewModel(
         }
         return true
     }
+
+    /** [EditorUiState.ownedSpan], if the file is still the revision it describes and the span fits it. */
+    private fun ownedSpanIn(doc: OrgDocument, s: EditorUiState, revision: String?): IntRange? =
+        s.ownedSpan?.takeIf { revision == s.loadedRevision && it.first >= 0 && it.last < doc.lines.size }
 
     fun dismissStale() {
         _state.update { it.copy(staleFile = false) }
@@ -694,9 +732,11 @@ class EditorViewModel(
         viewModelScope.launch {
             val vault = vaultFlow.value ?: run { onDeleted(); return@launch }
             val doc = vault.open(s.fileName) ?: run { onDeleted(); return@launch }
-            val headline = doc.headlines.firstOrNull { it.lineIndex == s.lineIndex }
-            if (headline != null) {
-                val newText = OrgMutations.deleteSubtree(doc, headline)
+            val span = ownedSpanIn(doc, s, vault.revision(s.fileName))
+                ?: doc.headlines.firstOrNull { it.lineIndex == s.lineIndex }
+                    ?.let { it.lineIndex until doc.subtreeEndLine(it) }
+            if (span != null) {
+                val newText = doc.lines.filterIndexed { i, _ -> i !in span }.joinToString("\n")
                 vault.save(s.fileName, newText)
                 sync.requestReindex(s.fileName, newText, "empty note discarded")
             }

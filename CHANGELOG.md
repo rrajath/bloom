@@ -65,6 +65,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Dailies Read mode now shows attached images inline.
 - Pressing back in the capture editor now asks before discarding unsaved text.
 - Favorites keep working after their file is renamed or moved, in Bloom or outside it.
+- Headings deleted in the editor after an auto-save no longer linger in the file or get duplicated.
 
 ## [1.14.0] - 2026-11-08
 
