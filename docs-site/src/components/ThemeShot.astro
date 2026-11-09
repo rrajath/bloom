@@ -17,7 +17,8 @@ const { light, dark, alt, widths, sizes } = Astro.props;
 ---
 
 <span class="shot-card">
-  <Image src={light} alt={alt} widths={widths} sizes={sizes} class="shot-card__img shot-card__img--light" />
+  {/* Without a dark capture the light one stays visible in both themes. */}
+  <Image src={light} alt={alt} widths={widths} sizes={sizes} class={dark ? 'shot-card__img shot-card__img--light' : 'shot-card__img'} />
   {dark && <Image src={dark} alt={alt} widths={widths} sizes={sizes} class="shot-card__img shot-card__img--dark" />}
 </span>
 
