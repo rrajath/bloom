@@ -2,6 +2,8 @@ package com.rrajath.grove.ui.editor
 
 import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachDirMoves
+import com.rrajath.grove.attach.AttachMoveOutcome
+import com.rrajath.grove.attach.renameAttachmentLinks
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.attachOwners
@@ -167,6 +169,18 @@ class EditorViewModel(
     private var attachBaseline: List<AttachOwner> = emptyList()
     private var attachBaselineFile: String? = null
 
+    /**
+     * The buffer as of the load or the last explicit save: what Discard puts
+     * back when an idle auto-save (or a keyword change) wrote since. Null for a
+     * brand-new whole file, which had nothing on disk to go back to.
+     */
+    private var lastExplicitBuffer: String? = null
+    private var autoSavedSinceExplicit = false
+
+    /** True once an explicit save went through in this session. */
+    var explicitlySaved = false
+        private set
+
     private val _attachDirNotice = MutableStateFlow<AttachDirNotice?>(null)
     /** Attach dirs an explicit save moved (or orphaned), waiting for the user's OK. */
     val attachDirNotice: StateFlow<AttachDirNotice?> = _attachDirNotice
@@ -282,6 +296,7 @@ class EditorViewModel(
                 .sorted()
                 .toImmutableList()
             setAttachBaseline(ref.fileName, doc)
+            startExplicitBaseline(OrgMutations.subtreeText(doc, headline))
             _state.value = EditorUiState(
                 loading = false,
                 fileName = ref.fileName,
@@ -368,6 +383,7 @@ class EditorViewModel(
                 EditRegion.WHOLE_FILE -> doc.text to doc.lines.indices
             }
             setAttachBaseline(fileName, doc)
+            startExplicitBaseline(buffer)
             _state.value = EditorUiState(
                 loading = false,
                 fileName = fileName,
@@ -393,6 +409,7 @@ class EditorViewModel(
     fun loadNewWholeFile(fileName: String, seedText: String, cursor: Int) {
         attachBaseline = emptyList()
         attachBaselineFile = fileName
+        startExplicitBaseline(null)
         _state.value = EditorUiState(
             loading = false,
             fileName = fileName,
@@ -416,6 +433,7 @@ class EditorViewModel(
     fun reset() {
         attachBaseline = emptyList()
         attachBaselineFile = null
+        startExplicitBaseline(null)
         _state.value = EditorUiState()
     }
 
@@ -509,7 +527,7 @@ class EditorViewModel(
                 mutateBuffer { d, h -> OrgMutations.changeKeyword(d, h, keyword, d.keywords, LocalDateTime.now()) }
                 return@launch
             }
-            saveMutex.withLock { writeBuffer(force = true) }
+            saveMutex.withLock { writeBuffer(force = true, explicit = false) }
             val s = _state.value
             val doc = vault.open(s.fileName)
             val headline = doc?.headlines?.firstOrNull { it.lineIndex == s.lineIndex }
@@ -645,8 +663,36 @@ class EditorViewModel(
             // Serialized: two overlapping saves would both compute a new file
             // text from the same on-disk revision, and the slower one would
             // silently undo the faster one.
-            val saved = saveMutex.withLock { writeBuffer(force) }
+            val saved = saveMutex.withLock { writeBuffer(force, explicit) }
             if (saved) if (explicit) checkAttachDirs(onSaved) else onSaved()
+        }
+    }
+
+    /** A fresh session: [buffer] is what's on disk, nothing auto-saved yet. */
+    private fun startExplicitBaseline(buffer: String?) {
+        lastExplicitBuffer = buffer
+        autoSavedSinceExplicit = false
+        explicitlySaved = false
+    }
+
+    /**
+     * Discard: drop the unsaved buffer and, when an auto-save wrote since the
+     * load or the last explicit save, write that state back so nothing the user
+     * discarded (a `:DIR:` edit included) stays on disk. If the file changed
+     * underneath (the stale case) it's left alone. Then runs [then].
+     */
+    fun discardChanges(then: () -> Unit) {
+        viewModelScope.launch {
+            saveMutex.withLock {
+                val base = lastExplicitBuffer
+                if (autoSavedSinceExplicit && base != null && _state.value.error == null) {
+                    _state.update { it.copy(buffer = base, dirty = true) }
+                    writeBuffer(force = false, explicit = true)
+                }
+                // Never let the idle auto-save write the discarded text afterwards.
+                _state.update { it.copy(dirty = false, staleFile = false) }
+            }
+            then()
         }
     }
 
@@ -691,13 +737,47 @@ class EditorViewModel(
     /** OK on the attach-dir notice: move the files, then continue (e.g. leave the editor). */
     fun acknowledgeAttachDirNotice() {
         val notice = _attachDirNotice.value ?: return
-        _attachDirNotice.value = null
-        attachDirMoves.apply(notice.changes)
-        notice.then()
+        if (notice.busy) return
+        _attachDirNotice.value = notice.copy(busy = true)
+        viewModelScope.launch {
+            val outcome = attachDirMoves.apply(notice.changes)
+            if (outcome.renames.isNotEmpty()) applyLinkRenames(outcome)
+            _attachDirNotice.value = null
+            notice.then()
+        }
+    }
+
+    /**
+     * A move renamed files that clashed with one already in the target: point
+     * the owners' links at the new names, on disk and in this buffer (same
+     * lines, since the edit is line-preserving), so nothing is left broken.
+     */
+    private suspend fun applyLinkRenames(outcome: AttachMoveOutcome) = saveMutex.withLock {
+        val s = _state.value
+        val vault = vaultFlow.value ?: return@withLock
+        val before = vault.revision(s.fileName)
+        val doc = vault.open(s.fileName) ?: return@withLock
+        val newText = renameAttachmentLinks(doc, outcome.renames.map { (move, map) -> move.owner to map })
+        if (newText == doc.text) return@withLock
+        vault.save(s.fileName, newText)
+        sync.requestReindex(s.fileName, newText, "attachment renamed")
+        val after = vault.revision(s.fileName)
+        val patched = patchBufferLines(s.buffer, doc.lines, newText.split("\n"))
+        _state.update { cur ->
+            if (cur.fileName != s.fileName || cur.loadedRevision != before) return@update cur
+            val buffer = patched?.takeIf { cur.buffer == s.buffer } ?: cur.buffer
+            cur.copy(
+                loadedRevision = after,
+                buffer = buffer,
+                bufferRevision = if (buffer != cur.buffer) cur.bufferRevision + 1 else cur.bufferRevision,
+            )
+        }
+        // The rename is now part of the saved state Discard returns to.
+        if (lastExplicitBuffer == s.buffer && patched != null) lastExplicitBuffer = patched
     }
 
     /** @return true when the buffer is on disk (including "already was"). */
-    private suspend fun writeBuffer(force: Boolean): Boolean {
+    private suspend fun writeBuffer(force: Boolean, explicit: Boolean): Boolean {
         val s = _state.value
         if (s.error != null) return false
         // Another save (e.g. the idle auto-save that fired while the leave
@@ -790,6 +870,13 @@ class EditorViewModel(
                 loadedRevision = newRevision,
                 lastSavedAt = LocalDateTime.now(),
             )
+        }
+        if (explicit) {
+            lastExplicitBuffer = savedBuffer
+            explicitlySaved = true
+            autoSavedSinceExplicit = false
+        } else {
+            autoSavedSinceExplicit = true
         }
         return true
     }
@@ -1018,4 +1105,28 @@ class EditorViewModel(
 }
 
 /** Attach dir changes found by an explicit save, and what to do once the user taps OK. */
-class AttachDirNotice(val changes: List<AttachDirChange>, val then: () -> Unit)
+data class AttachDirNotice(
+    val changes: List<AttachDirChange>,
+    val then: () -> Unit,
+    /** OK was tapped: files are moving. */
+    val busy: Boolean = false,
+)
+
+/**
+ * [buffer] with the lines that changed between [oldFile] and [newFile] (same
+ * line count) replaced, found by where [buffer]'s lines sit in [oldFile]. Null
+ * when the buffer can't be placed in the old file.
+ */
+internal fun patchBufferLines(buffer: String, oldFile: List<String>, newFile: List<String>): String? {
+    if (oldFile.size != newFile.size) return null
+    val lines = buffer.split("\n")
+    // A trailing newline leaves an empty last element that needn't match.
+    val n = if (lines.size > 1 && lines.last().isEmpty()) lines.size - 1 else lines.size
+    val changed = oldFile.indices.filter { oldFile[it] != newFile[it] }.toSet()
+    for (k in 0..(oldFile.size - n)) {
+        if ((0 until n).all { lines[it] == oldFile[k + it] } && (k until k + n).any { it in changed }) {
+            return lines.mapIndexed { i, l -> if (i < n) newFile[k + i] else l }.joinToString("\n")
+        }
+    }
+    return null
+}

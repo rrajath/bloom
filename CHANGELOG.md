@@ -67,6 +67,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Adding, changing or removing `:DIR:` on save moves existing attachments, after a popup; losing both `:ID:` and `:DIR:` warns.
 
 ### Changed
+- Discard when leaving an editor now also undoes changes auto-save already wrote since you opened it or last saved.
 - Attach sheet rows drop the file size and wrap long names and sources instead of cutting them off.
 
 ### Fixed

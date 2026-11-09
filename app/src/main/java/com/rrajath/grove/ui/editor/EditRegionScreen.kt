@@ -487,17 +487,20 @@ fun EditRegionScreen(
                 androidx.compose.material3.TextButton(onClick = {
                     confirmLeave = false
                     val target = pendingOpenNote.also { pendingOpenNote = null }
-                    // Drop the buffer: a hoisted view model (whole-file editor) would
-                    // otherwise bring the discarded text back on return.
-                    viewModel.reset()
-                    if (target != null) onOpenNote(target) else onBack()
+                    // Undo what an idle auto-save wrote since the last Save, then drop the
+                    // buffer: a hoisted view model (whole-file editor) would otherwise
+                    // bring the discarded text back on return.
+                    viewModel.discardChanges {
+                        viewModel.reset()
+                        if (target != null) onOpenNote(target) else onBack()
+                    }
                 }) { Text("Discard", color = c.red) }
             },
         )
     }
 
     val attachDirNotice by viewModel.attachDirNotice.collectAsStateWithLifecycle()
-    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, onOk = viewModel::acknowledgeAttachDirNotice) }
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, busy = it.busy, onOk = viewModel::acknowledgeAttachDirNotice) }
 
     if (linkedRefsOpen) {
         LinkedReferencesSheet(

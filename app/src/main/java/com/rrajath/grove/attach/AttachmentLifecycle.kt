@@ -96,6 +96,10 @@ class AttachmentLifecycle(
         also { if (moved + copied + deleted + failed > 0) onChanged() }
     private val resolver = AttachDirResolver(files, config)
 
+    private companion object {
+        const val COMPARE_BUFFER = 64 * 1024
+    }
+
     /** Serializes moves, so an UNDO can't race the refile it reverses. */
     private val mutex = Mutex()
 
@@ -238,16 +242,102 @@ class AttachmentLifecycle(
 
     /**
      * Carries out [changes] from an editor save (a `:DIR:` added, removed or
-     * changed): each move merges its dir into the new one (collisions renamed),
-     * or copies it when another owner still uses it. [AttachDirChange.Broken]
-     * entries leave their files where they are.
+     * changed). A whole-dir move carries every file in the dir; otherwise only
+     * the owner's linked files go. A name already in the target keeps the
+     * existing file when the content is the same, else the moved file gets a
+     * `-1` suffix and is reported in [AttachMoveOutcome.renames] so the caller
+     * can fix the link. [AttachDirChange.Broken] entries leave their files alone.
      */
-    suspend fun applyDirChanges(changes: List<AttachDirChange>): LifecycleResult = mutex.withLock {
+    suspend fun applyDirChanges(changes: List<AttachDirChange>): AttachMoveOutcome = mutex.withLock {
+        val renames = mutableListOf<Pair<AttachDirChange.Move, Map<String, String>>>()
         var result = LifecycleResult.None
         for (c in changes.filterIsInstance<AttachDirChange.Move>()) {
-            result = relocate(c.from, c.to, c.copy, pruneStop = dirOf(c.orgFile), result)
+            val (ok, renamed) = moveOwnerFiles(c)
+            result = when {
+                !ok -> result.copy(failed = result.failed + 1)
+                c.copy -> result.copy(copied = result.copied + 1)
+                else -> result.copy(moved = result.moved + 1)
+            }
+            if (renamed.isNotEmpty()) renames += c to renamed
         }
         result.reported()
+        AttachMoveOutcome(renames, result.failed)
+    }
+
+    private suspend fun moveOwnerFiles(c: AttachDirChange.Move): Pair<Boolean, Map<String, String>> {
+        // Fast path: an exclusive dir going to a fresh place with the same leaf is one move.
+        if (c.wholeDir && !c.copy && !store.dirExists(c.to) &&
+            c.to.substringAfterLast('/') == c.from.substringAfterLast('/') &&
+            store.moveDir(c.from, c.to.substringBeforeLast('/', ""))
+        ) {
+            files.pruneEmpty(parentOf(c.from), stopAt = dirOf(c.orgFile))
+            return true to emptyMap()
+        }
+        val paths = if (c.wholeDir) filesUnder(c.from) else c.linkedNames.filter { store.statRaw(joinPath(c.from, it)) != null }
+        var ok = true
+        val renamed = mutableMapOf<String, String>()
+        for (rel in paths) {
+            val src = joinPath(c.from, rel)
+            val dstDir = joinPath(c.to, rel.substringBeforeLast('/', ""))
+            val leaf = rel.substringAfterLast('/')
+            val dst = joinPath(dstDir, leaf)
+            val target = when {
+                store.statRaw(dst) == null -> dst
+                sameContent(src, dst) -> null
+                else -> joinPath(dstDir, uniqueAttachmentName(store.listDirRaw(dstDir).map { it.name.substringAfterLast('/') }, leaf))
+            }
+            if (target != null) {
+                if (!files.copyFile(src, target)) {
+                    ok = false
+                    continue
+                }
+                if (target != dst) renamed[rel] = target.removePrefix("${c.to}/")
+            }
+            if (!c.copy && !store.deleteRaw(src)) ok = false
+        }
+        if (ok && !c.copy && c.wholeDir) {
+            store.deleteDir(c.from)
+            files.pruneEmpty(parentOf(c.from), stopAt = dirOf(c.orgFile))
+        }
+        return ok to renamed
+    }
+
+    /** Every file under [dir], as paths relative to it. */
+    private suspend fun filesUnder(dir: String, prefix: String = ""): List<String> =
+        store.listDirRaw(dir).map { joinPath(prefix, it.name.substringAfterLast('/')) } +
+            store.listSubdirs(dir).flatMap { filesUnder(joinPath(dir, it), joinPath(prefix, it)) }
+
+    private suspend fun sameContent(a: String, b: String): Boolean {
+        val sa = store.statRaw(a) ?: return false
+        val sb = store.statRaw(b) ?: return false
+        if (sa.size != sb.size) return false
+        return runCatching {
+            store.openInput(a).use { ia ->
+                store.openInput(b).use { ib ->
+                    val ba = ByteArray(COMPARE_BUFFER)
+                    val bb = ByteArray(COMPARE_BUFFER)
+                    var same = true
+                    while (same) {
+                        val na = readFully(ia, ba)
+                        val nb = readFully(ib, bb)
+                        same = na == nb && (0 until na).all { ba[it] == bb[it] }
+                        if (na == 0) break
+                    }
+                    same
+                }
+            }
+        }.getOrDefault(false)
+    }
+
+    /** Fills [buf] from [input] as far as it can; the count read (0 at the end). */
+    private fun readFully(input: java.io.InputStream, buf: ByteArray): Int {
+        var n = 0
+        while (n < buf.size) {
+            val r = input.read(buf, n, buf.size - n)
+            if (r < 0) break
+            n += r
+        }
+        return n
     }
 
     /** True when any attach dir exists at or under [dir]. */

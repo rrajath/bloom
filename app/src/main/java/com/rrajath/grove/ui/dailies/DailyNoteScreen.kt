@@ -726,14 +726,15 @@ fun DailyNoteScreen(
                 androidx.compose.material3.TextButton(onClick = {
                     confirmLeave = false
                     val action = pendingAction.also { pendingAction = null }
-                    action?.invoke()
+                    // Also undoes what an idle auto-save wrote since the last Save.
+                    editorViewModel.discardChanges { action?.invoke() }
                 }) { Text("Discard", color = c.red) }
             },
         )
     }
 
     val attachDirNotice by editorViewModel.attachDirNotice.collectAsStateWithLifecycle()
-    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, onOk = editorViewModel::acknowledgeAttachDirNotice) }
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, busy = it.busy, onOk = editorViewModel::acknowledgeAttachDirNotice) }
 
     if (linkedRefsOpen) {
         val title = (docState as? DocumentUiState.Loaded)?.document

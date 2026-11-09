@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachDirMoves
+import com.rrajath.grove.attach.AttachMoveOutcome
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.fileOwner
+import com.rrajath.grove.attach.ownerOf
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.DefaultTemplates
 import com.rrajath.grove.capture.TargetLocation
@@ -85,7 +87,10 @@ class EditorViewModelIntegrationTest {
             detected += baseline to after.text
             return if (changes) listOf(AttachDirChange.Broken(after.fileOwner(), orgFile, "dir")) else emptyList()
         }
-        override fun apply(changes: List<AttachDirChange>) { applied += changes }
+        override suspend fun apply(changes: List<AttachDirChange>): AttachMoveOutcome {
+            applied += changes
+            return AttachMoveOutcome()
+        }
     }
 
     /** Line index of the first headline whose title starts with [prefix], in [file]. */
@@ -251,6 +256,9 @@ class EditorViewModelIntegrationTest {
         assertNotNull(vm.attachDirNotice.value)
         assertFalse(left)
         vm.acknowledgeAttachDirNotice()
+        // The move runs first; the notice stays (busy) until it's done.
+        assertTrue(vm.attachDirNotice.value!!.busy)
+        advanceUntilIdle()
         assertTrue(left)
         assertEquals(1, moves.applied.size)
         assertNull(vm.attachDirNotice.value)
@@ -275,6 +283,78 @@ class EditorViewModelIntegrationTest {
         advanceUntilIdle()
         assertEquals(1, moves.detected.size)
         assertTrue(left)
+    }
+
+    @Test
+    fun `discard undoes what an idle auto-save wrote since the last save`() = runTest {
+        val original = "* Day 1\n:PROPERTIES:\n:DIR: photos\n:END:\n[[attachment:a.jpg]]\n"
+        store.write("trip.org", original)
+        val vm = editor()
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+
+        vm.onBufferChange(original.replace("photos", "kyoto"))
+        vm.save(explicit = false)
+        advanceUntilIdle()
+        assertTrue(store.read("trip.org").contains(":DIR: kyoto"))
+
+        vm.onBufferChange(original.replace("photos", "kyoto") + "more\n")
+        var left = false
+        vm.discardChanges { left = true }
+        advanceUntilIdle()
+        assertTrue(left)
+        assertEquals(original, store.read("trip.org"))
+        assertFalse(vm.state.value.dirty)
+    }
+
+    @Test
+    fun `discard after an explicit save keeps that save`() = runTest {
+        store.write("trip.org", "* Day 1\n")
+        val vm = editor()
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+        vm.onBufferChange("* Day 1\nsaved\n")
+        vm.save()
+        advanceUntilIdle()
+        vm.onBufferChange("* Day 1\nsaved\nauto\n")
+        vm.save(explicit = false)
+        advanceUntilIdle()
+
+        vm.discardChanges {}
+        advanceUntilIdle()
+        assertEquals("* Day 1\nsaved\n", store.read("trip.org"))
+    }
+
+    @Test
+    fun `a renamed clash rewrites the link on disk and in the open buffer`() = runTest {
+        val text = "* Day 1\n:PROPERTIES:\n:ID: AA11\n:END:\n[[attachment:a.jpg]]\n"
+        store.write("trip.org", text)
+        val withDir = text.replace(":ID: AA11\n", ":ID: AA11\n:DIR: photos\n")
+        val moves = object : AttachDirMoves {
+            override suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument) =
+                listOf(
+                    AttachDirChange.Move(
+                        after.ownerOf(after.headlines.single()), orgFile, "data/AA/11", "photos",
+                        AttachDirChange.Kind.DIR_ADDED, copy = false,
+                    ),
+                )
+            override suspend fun apply(changes: List<AttachDirChange>) =
+                AttachMoveOutcome(renames = listOf(changes.single() as AttachDirChange.Move to mapOf("a.jpg" to "a-1.jpg")))
+        }
+        val vm = editor(moves)
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+        vm.onBufferChange(withDir)
+        vm.save()
+        advanceUntilIdle()
+        vm.acknowledgeAttachDirNotice()
+        advanceUntilIdle()
+
+        val fixed = withDir.replace("a.jpg", "a-1.jpg")
+        assertEquals(fixed, store.read("trip.org"))
+        assertEquals(fixed, vm.state.value.buffer)
+        assertFalse(vm.state.value.dirty)
+        assertNull(vm.attachDirNotice.value)
     }
 
     @Test

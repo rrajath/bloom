@@ -438,6 +438,8 @@ fun CaptureEditorScreen(
         },
     )
     var attachDirNotice by remember { mutableStateOf<Pair<List<AttachDirChange>, CaptureSavedEvent>?>(null) }
+    var attachDirMoving by remember { mutableStateOf(false) }
+    val attachDirScope = rememberCoroutineScope()
     LaunchedEffect(savedEvent) {
         val event = savedEvent ?: return@LaunchedEffect
         val changes = if (attachBaseline.isEmpty()) {
@@ -461,11 +463,20 @@ fun CaptureEditorScreen(
         }
     }
     attachDirNotice?.let { (changes, event) ->
-        AttachDirNoticeDialog(changes) {
-            attachDirNotice = null
-            savedEvent = null
-            app.attachDirMoves.apply(changes)
-            onSaved(event.roamFilePath)
+        AttachDirNoticeDialog(changes, busy = attachDirMoving) {
+            if (attachDirMoving) return@AttachDirNoticeDialog
+            attachDirMoving = true
+            attachDirScope.launch {
+                val outcome = app.attachDirMoves.apply(changes)
+                // A clash renamed a file: point the saved entry's link at the new name.
+                if (outcome.renames.isNotEmpty()) {
+                    viewModel.renameLinksAfterMove(event.roamFilePath ?: attachTarget, outcome)
+                }
+                attachDirNotice = null
+                attachDirMoving = false
+                savedEvent = null
+                onSaved(event.roamFilePath)
+            }
         }
     }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -641,7 +652,8 @@ fun CaptureEditorScreen(
     // a heading-less entry the user hasn't confirmed.
     LaunchedEffect(draftText) {
         delay(5_000)
-        if (dirty) saveNow()
+        // Not once Save went through (the attach-folder notice can keep the screen up).
+        if (dirty && savedEvent == null) saveNow()
     }
 
     fun trySave() {

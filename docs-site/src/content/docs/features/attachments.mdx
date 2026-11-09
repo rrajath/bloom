@@ -39,11 +39,11 @@ If the target doesn't have an `:ID:` yet, Bloom adds one to its property drawer 
 
 ### Changing :DIR: later
 
-If a heading or file already has attachments and you add, change or remove its `:DIR:` property, Bloom moves the files when you save or leave the editor. A popup tells you where they're going, for example *":DIR: property detected. Attachment(s) will be moved to photos"*. Tap **OK**. Removing `:DIR:` moves the files back to the `:ID:` folder. If another heading still uses the old folder, the files are copied instead, so its links keep working.
+If a heading or file already has attachments and you add, change or remove its `:DIR:` property, Bloom moves the files when you save or leave the editor. A popup tells you where they're going, for example *":DIR: property detected. Attachment(s) will be moved to photos"*. Tap **OK** and the popup shows **Moving…** until the files are in place. Removing `:DIR:` moves the files back to the `:ID:` folder. If another heading still uses the old folder, or the folder also holds your notes (`:DIR: .`), only the files that heading links to move, and they're copied when another heading still needs them. If the new folder already has a file with the same name, an identical file is reused. A different one gets a number added (`photo-1.jpg`) and Bloom updates the link to match.
 
 If you remove the last `:ID:` or `:DIR:` from something that has attachments, the popup says *"Image link broken. Couldn't find :ID: or :DIR: property"*. The files stay where they are, so put the property back to fix the links.
 
-This works in the note editor, the Intro and whole-file editors, the property drawer editors, Dailies and the capture editor. Auto-save never moves files, so a half-typed `:DIR:` is safe. The check runs when you tap Save or leave.
+This works in the note editor, the Intro and whole-file editors, the property drawer editors, Dailies and the capture editor. Auto-save never moves files, so a half-typed `:DIR:` is safe. The check runs when you tap Save or leave. Choosing **Discard** when you leave puts the note back the way it was when you opened it or last tapped Save, even if auto-save already wrote your changes.
 
 The paperclip is also there when you edit a file's Intro (the text above its first heading). Files attach to the file itself, using the `:DIR:` or `:ID:` from the file's property drawer (`:DIR:` wins when both are set). If the file has neither, Bloom adds an `:ID:` to the file's property drawer.
 

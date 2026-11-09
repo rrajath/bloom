@@ -807,14 +807,20 @@ fun EditNoteScreen(
             },
             onDiscard = {
                 confirmLeave = false
-                onBack()
+                if (isNewNote && !viewModel.explicitlySaved) {
+                    // Never saved: discarding a new note means it was never made.
+                    viewModel.deleteSubtree(onDeleted = onBack)
+                } else {
+                    // Also undoes what an idle auto-save wrote since the last Save.
+                    viewModel.discardChanges(onBack)
+                }
             },
             onDismiss = { confirmLeave = false },
         )
     }
 
     val attachDirNotice by viewModel.attachDirNotice.collectAsStateWithLifecycle()
-    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, onOk = viewModel::acknowledgeAttachDirNotice) }
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, busy = it.busy, onOk = viewModel::acknowledgeAttachDirNotice) }
 
     if (confirmDiscardBlankHeading) {
         DiscardBlankHeadingDialog(

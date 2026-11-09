@@ -255,6 +255,22 @@ class CaptureViewModelIntegrationTest {
     }
 
     @Test
+    fun `an autosave after the explicit save never adds a second copy`() = runTest {
+        // Regression: the attach-folder notice keeps the screen up after Save, and
+        // the idle autosave fired then, re-inserting the entry with no draft to replace.
+        val vm = capture()
+        vm.autosave(quickNote, "* Entry", context)
+        advanceUntilIdle()
+        vm.save(quickNote, "* Entry\n:PROPERTIES:\n:DIR: photos\n:END:", context)
+        advanceUntilIdle()
+        vm.autosave(quickNote, "* Entry\n:PROPERTIES:\n:DIR: photos\n:END:", context)
+        advanceUntilIdle()
+
+        val saved = store.read("inbox.org")
+        assertEquals(1, Regex("""(?m)^\*+ Entry$""").findAll(saved).count())
+    }
+
+    @Test
     fun `addFileId on a missing file is refused`() = runTest {
         assertFalse(capture().addFileId("nope.org", "F1LE1D"))
     }

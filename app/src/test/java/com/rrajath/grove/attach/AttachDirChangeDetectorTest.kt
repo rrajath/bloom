@@ -132,9 +132,78 @@ class AttachDirChangeDetectorTest {
     }
 
     @Test
-    fun `a DIR of dot (the notes folder) is never moved`() = runTest {
-        put("Notes/a.jpg")
-        assertTrue(detect(heading("Trip", "DIR" to "."), heading("Trip", "DIR" to "photos")).isEmpty())
+    fun `a DIR of dot (the notes folder) moves only the linked files`() = runTest {
+        put("Notes/n.org")
+        put("Notes/a.jpg", "jpg")
+        put("Notes/other.png")
+        val move = detect(heading("Trip", "DIR" to "."), heading("Trip", "DIR" to "photos")).single() as AttachDirChange.Move
+        assertFalse(move.wholeDir)
+        assertEquals(listOf("a.jpg"), move.linkedNames)
+        val outcome = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(listOf(move))
+        assertEquals(0, outcome.failed)
+        assertEquals("jpg", File(tmp.root, "Notes/photos/a.jpg").readText())
+        assertFalse(exists("Notes/a.jpg"))
+        assertTrue("the note and unlinked files stay", exists("Notes/n.org") && exists("Notes/other.png"))
+    }
+
+    @Test
+    fun `moving into the notes folder itself works`() = runTest {
+        put("Notes/data/AA/11/a.jpg", "jpg")
+        val move = detect(heading("Trip", "ID" to "AA11"), heading("Trip", "ID" to "AA11", "DIR" to "."))
+            .single() as AttachDirChange.Move
+        assertEquals("Notes", move.to)
+        AttachmentLifecycle(store, IdHolders.None).applyDirChanges(listOf(move))
+        assertEquals("jpg", File(tmp.root, "Notes/a.jpg").readText())
+        assertFalse(exists("Notes/data"))
+    }
+
+    @Test
+    fun `a DIR moved into its own subfolder moves the linked files`() = runTest {
+        put("Notes/photos/a.jpg", "jpg")
+        val move = detect(heading("Trip", "DIR" to "photos"), heading("Trip", "DIR" to "photos/2026")).single() as AttachDirChange.Move
+        assertFalse(move.wholeDir)
+        AttachmentLifecycle(store, IdHolders.None).applyDirChanges(listOf(move))
+        assertEquals("jpg", File(tmp.root, "Notes/photos/2026/a.jpg").readText())
+        assertFalse(exists("Notes/photos/a.jpg"))
+    }
+
+    @Test
+    fun `a clash with an identical file keeps it and needs no rename`() = runTest {
+        put("Notes/data/AA/11/a.jpg", "same")
+        put("Notes/photos/a.jpg", "same")
+        val changes = detect(heading("Trip", "ID" to "AA11"), heading("Trip", "ID" to "AA11", "DIR" to "photos"))
+        val outcome = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(changes)
+        assertTrue(outcome.renames.isEmpty())
+        assertEquals("same", File(tmp.root, "Notes/photos/a.jpg").readText())
+        assertFalse(exists("Notes/data/AA/11/a.jpg"))
+    }
+
+    @Test
+    fun `a clash with a different file renames it and the link follows`() = runTest {
+        put("Notes/data/AA/11/a.jpg", "mine")
+        put("Notes/photos/a.jpg", "theirs")
+        val after = heading("Trip", "ID" to "AA11", "DIR" to "photos")
+        val changes = detect(heading("Trip", "ID" to "AA11"), after)
+        val outcome = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(changes)
+        val (move, map) = outcome.renames.single()
+        assertEquals(mapOf("a.jpg" to "a-1.jpg"), map)
+        assertEquals("mine", File(tmp.root, "Notes/photos/a-1.jpg").readText())
+        assertEquals("theirs", File(tmp.root, "Notes/photos/a.jpg").readText())
+
+        val fixed = renameAttachmentLinks(OrgParser.parse(after), listOf(move.owner to map))
+        assertTrue(fixed, fixed.contains("[[attachment:a-1.jpg]]"))
+        assertFalse(fixed.contains("[[attachment:a.jpg]]"))
+    }
+
+    @Test
+    fun `renaming links leaves other owners and descriptions intact`() {
+        val text = "* Trip\n:PROPERTIES:\n:DIR: photos\n:END:\n[[attachment:a.jpg][A photo]] [[attachment:b.jpg]]\n" +
+            "* Other\n:PROPERTIES:\n:DIR: x\n:END:\n[[attachment:a.jpg]]\n"
+        val doc = OrgParser.parse(text)
+        val trip = doc.ownerOf(doc.headlines.first())
+        val fixed = renameAttachmentLinks(doc, listOf(trip to mapOf("a.jpg" to "a-1.jpg")))
+        assertTrue(fixed.contains("[[attachment:a-1.jpg][A photo]] [[attachment:b.jpg]]"))
+        assertTrue(fixed.endsWith("* Other\n:PROPERTIES:\n:DIR: x\n:END:\n[[attachment:a.jpg]]\n"))
     }
 
     @Test
@@ -154,7 +223,7 @@ class AttachDirChangeDetectorTest {
         put("Notes/data/AA/11/a.jpg", "jpg")
         val changes = detect(heading("Trip", "ID" to "AA11"), heading("Trip", "ID" to "AA11", "DIR" to "photos"))
         val result = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(changes)
-        assertEquals(1, result.moved)
+        assertEquals(0, result.failed)
         assertEquals("jpg", File(tmp.root, "Notes/photos/a.jpg").readText())
         assertFalse(exists("Notes/data"))
     }
@@ -165,7 +234,7 @@ class AttachDirChangeDetectorTest {
         val other = heading("Other", "DIR" to "photos")
         val changes = detect(heading("Trip", "DIR" to "photos") + other, heading("Trip", "DIR" to "kyoto") + other)
         val result = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(changes)
-        assertEquals(1, result.copied)
+        assertEquals(0, result.failed)
         assertTrue(exists("Notes/photos/a.jpg"))
         assertTrue(exists("Notes/kyoto/a.jpg"))
     }

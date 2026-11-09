@@ -25,12 +25,13 @@ import com.rrajath.grove.ui.theme.grove
 /**
  * After an explicit save: which attach dirs a `:DIR:` edit moved (or orphaned).
  * OK is the only choice; dismissing counts as OK, so the files always follow.
+ * [busy]: OK was tapped and the move is running; the dialog stays until it's done.
  */
 @Composable
-fun AttachDirNoticeDialog(changes: List<AttachDirChange>, onOk: () -> Unit) {
+fun AttachDirNoticeDialog(changes: List<AttachDirChange>, busy: Boolean = false, onOk: () -> Unit) {
     val c = MaterialTheme.grove
     AlertDialog(
-        onDismissRequest = onOk,
+        onDismissRequest = { if (!busy) onOk() },
         containerColor = c.surface,
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier.testTag("attach_dir_notice"),
@@ -60,8 +61,13 @@ fun AttachDirNoticeDialog(changes: List<AttachDirChange>, onOk: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onOk, modifier = Modifier.testTag("attach_dir_notice_ok")) {
-                Text("OK", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.accent)
+            // While the files move, OK reads "Moving…" and does nothing.
+            TextButton(onClick = onOk, enabled = !busy, modifier = Modifier.testTag("attach_dir_notice_ok")) {
+                Text(
+                    if (busy) "Moving…" else "OK",
+                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                    color = if (busy) c.ink3 else c.accent,
+                )
             }
         },
     )

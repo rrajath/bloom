@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
+import com.rrajath.grove.attach.AttachMoveOutcome
 import com.rrajath.grove.attach.fileOwner
+import com.rrajath.grove.attach.renameAttachmentLinks
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureInserter
@@ -144,6 +146,13 @@ class CaptureViewModel(
     // final Save replaces it in place instead of inserting a duplicate copy.
     private var draftInsertion: CaptureInserter.Insertion? = null
 
+    /**
+     * Set once an explicit Save wrote the capture. Later autosaves are dropped:
+     * the screen can stay open after Save (the attach-folder notice), and an
+     * autosave then would find no tracked draft and insert a second copy.
+     */
+    private var committed = false
+
     // Draft writes are read-modify-write over the whole target file and are
     // triggered from two places (the 5s idle autosave and the Save button), so
     // they must not interleave: the loser would re-insert against a stale
@@ -162,9 +171,13 @@ class CaptureViewModel(
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
             try {
-                val (fileName, newText) = writeMutex.withLock { upsertEntry(template, entryText, context, bodyOnly) }
+                val (fileName, newText) = writeMutex.withLock {
+                    upsertEntry(template, entryText, context, bodyOnly).also {
+                        draftInsertion = null
+                        committed = true
+                    }
+                }
                 sync.requestReindex(fileName, newText, "capture saved")
-                draftInsertion = null
                 _saveState.value = SaveState.Saved(fileName)
             } catch (e: Exception) {
                 _saveState.value = SaveState.Failed(e.message ?: "Capture failed")
@@ -181,7 +194,7 @@ class CaptureViewModel(
         if (entryText.isBlank()) return
         viewModelScope.launch {
             try {
-                writeMutex.withLock { upsertEntry(template, entryText, context, bodyOnly) }
+                writeMutex.withLock { if (!committed) upsertEntry(template, entryText, context, bodyOnly) }
             } catch (_: Exception) {
                 // Best-effort: a failed autosave just waits for the next tick
                 // or the explicit Save tap, which surfaces errors to the user.
@@ -250,6 +263,16 @@ class CaptureViewModel(
             sync.requestReindex(path, new, "attach file id")
         }
         true
+    }
+
+    /** Points renamed attachments' links at their new names in the saved [path] (see [AttachMoveOutcome]). */
+    suspend fun renameLinksAfterMove(path: String, outcome: AttachMoveOutcome) = writeMutex.withLock {
+        val vault = vaultFlow.value ?: return@withLock
+        val doc = withContext(dispatchers.default) { vault.open(path) } ?: return@withLock
+        val newText = renameAttachmentLinks(doc, outcome.renames.map { (move, map) -> move.owner to map })
+        if (newText == doc.text) return@withLock
+        vault.save(path, newText)
+        sync.requestReindex(path, newText, "attachment renamed")
     }
 
     private suspend fun upsertEntry(
@@ -331,9 +354,13 @@ class CaptureViewModel(
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
             try {
-                val (fileName, newText) = writeMutex.withLock { upsertRoamEntry(resolvedPath, fullDraftText, context) }
+                val (fileName, newText) = writeMutex.withLock {
+                    upsertRoamEntry(resolvedPath, fullDraftText, context).also {
+                        roamDraft = null
+                        committed = true
+                    }
+                }
                 sync.requestReindex(fileName, newText, "capture saved")
-                roamDraft = null
                 _saveState.value = SaveState.Saved(fileName)
             } catch (e: Exception) {
                 _saveState.value = SaveState.Failed(e.message ?: "Capture failed")
@@ -346,7 +373,7 @@ class CaptureViewModel(
         if (fullDraftText.isBlank()) return
         viewModelScope.launch {
             try {
-                writeMutex.withLock { upsertRoamEntry(resolvedPath, fullDraftText, context) }
+                writeMutex.withLock { if (!committed) upsertRoamEntry(resolvedPath, fullDraftText, context) }
             } catch (_: Exception) {
                 // Best-effort, same rationale as autosave().
             }

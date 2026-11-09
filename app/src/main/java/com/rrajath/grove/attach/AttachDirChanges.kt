@@ -28,6 +28,14 @@ sealed interface AttachDirChange {
         val kind: Kind,
         /** Another owner still resolves to [from]: copy instead of move, so its links keep working. */
         val copy: Boolean,
+        /**
+         * True: carry all of [from] (it's this owner's alone). False: only the
+         * files the owner links ([linkedNames]), because [from] is shared, holds
+         * the org file itself (`:DIR: .`), or contains [to].
+         */
+        val wholeDir: Boolean = true,
+        /** Paths relative to [from] that the owner's `[[attachment:]]` links name. */
+        val linkedNames: List<String> = emptyList(),
     ) : AttachDirChange
 
     /** The owner lost both `:ID:` and `:DIR:`: its `[[attachment:]]` links now resolve nowhere. */
@@ -37,6 +45,13 @@ sealed interface AttachDirChange {
         override val from: String,
     ) : AttachDirChange
 }
+
+/** What [AttachDirMoves.apply] did: files renamed on a name clash, per move, and dirs that failed. */
+data class AttachMoveOutcome(
+    /** For each move with clashes: old path (relative to the dir) to the new one. */
+    val renames: List<Pair<AttachDirChange.Move, Map<String, String>>> = emptyList(),
+    val failed: Int = 0,
+)
 
 /** [to] as the notice shows it: relative to the org file's directory, like a `:DIR:` value. */
 fun AttachDirChange.Move.shownTarget(): String {
@@ -109,7 +124,7 @@ class AttachDirChangeDetector(
                 out += AttachDirChange.Broken(now, orgFile, from)
                 continue
             }
-            if (to == from || !safeMove(orgDir, from, to)) continue
+            if (to == from) continue
             val kind = when {
                 oldDirProp == null -> AttachDirChange.Kind.DIR_ADDED
                 newDirProp == null -> AttachDirChange.Kind.DIR_REMOVED
@@ -122,8 +137,12 @@ class AttachDirChangeDetector(
             val shared = otherOwners.any { (file, o) -> !o.sameAs(now) && from in resolver.candidates(file, o) } ||
                 // The ID dir is also the old ID's: another heading may carry the same ID.
                 (oldId != null && afterOwners.count { it.id?.trim() == oldId } > 1)
+            val linked = after.attachmentLinkTargets(now)
+            val whole = !shared && wholeDirMovable(orgDir, from, to)
+            // Copying or moving just the owner's own files: nothing to do when it links none.
+            if (!whole && linked.isEmpty()) continue
             seenFrom += from
-            out += AttachDirChange.Move(now, orgFile, from, to, kind, copy = shared)
+            out += AttachDirChange.Move(now, orgFile, from, to, kind, copy = shared, wholeDir = whole, linkedNames = linked)
         }
         return out
     }
@@ -139,13 +158,15 @@ class AttachDirChangeDetector(
 
     companion object {
         /**
-         * Never move the vault root, a folder holding the org file (e.g. `:DIR: .`),
-         * or between nested folders: that would carry notes along or loop.
+         * Whether all of [from] can be carried to [to]: not the vault root or a
+         * folder holding the org file (e.g. `:DIR: .`, which would carry notes
+         * along), and [to] not inside [from] (the walk would chase its own
+         * output). Otherwise only the owner's linked files move.
          */
-        internal fun safeMove(orgDir: String, from: String, to: String): Boolean {
-            if (from.isEmpty() || to.isEmpty()) return false
+        internal fun wholeDirMovable(orgDir: String, from: String, to: String): Boolean {
+            if (from.isEmpty()) return false
             if (from == orgDir || orgDir.startsWith("$from/")) return false
-            if (to.startsWith("$from/") || from.startsWith("$to/")) return false
+            if (to.startsWith("$from/")) return false
             return true
         }
     }
@@ -158,14 +179,68 @@ class AttachDirChangeDetector(
 interface AttachDirMoves {
     suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument): List<AttachDirChange>
 
-    fun apply(changes: List<AttachDirChange>)
+    /**
+     * Moves the files. Runs in the app scope, so leaving the editor can't cut it
+     * short, but the caller waits: renamed clashes must have their links fixed.
+     */
+    suspend fun apply(changes: List<AttachDirChange>): AttachMoveOutcome
 
     companion object {
         val None = object : AttachDirMoves {
             override suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument) =
                 emptyList<AttachDirChange>()
 
-            override fun apply(changes: List<AttachDirChange>) = Unit
+            override suspend fun apply(changes: List<AttachDirChange>) = AttachMoveOutcome()
         }
     }
+}
+
+/** Lines of [owner]'s own section: a heading's line through the line before the next heading; the file's preamble. */
+private fun OrgDocument.sectionLines(owner: AttachOwner): IntRange? = when (owner) {
+    is AttachOwner.File -> 0 until preambleEnd
+    is AttachOwner.Heading -> {
+        val h = headlines.firstOrNull { it.lineIndex == owner.lineIndex } ?: return null
+        val next = headlines.firstOrNull { it.lineIndex > h.lineIndex }?.lineIndex ?: lines.size
+        h.lineIndex until next
+    }
+}
+
+// `[[attachment:NAME]]` or `[[attachment:NAME][desc]]`; group 1 is NAME (with any `::search`).
+private val ATTACHMENT_LINK = Regex("""\[\[attachment:([^\]]+)\](\[|\])""")
+
+/** Paths (relative to the owner's attach dir) its `[[attachment:]]` links name, in order, without repeats. */
+fun OrgDocument.attachmentLinkTargets(owner: AttachOwner): List<String> {
+    val range = sectionLines(owner) ?: return emptyList()
+    return range.flatMap { i -> ATTACHMENT_LINK.findAll(lines[i]).map { it.groupValues[1].substringBefore("::") }.toList() }
+        .filter { it.isNotBlank() }
+        .distinct()
+}
+
+/**
+ * [doc]'s text with each owner's `[[attachment:old]]` links (in its own
+ * section) pointing at the renamed file instead. Line-preserving. Owners are
+ * re-found by `:ID:`, then title path; one that's gone is skipped.
+ */
+fun renameAttachmentLinks(doc: OrgDocument, renames: List<Pair<AttachOwner, Map<String, String>>>): String {
+    val lines = doc.lines.toMutableList()
+    for ((owner, map) in renames) {
+        if (map.isEmpty()) continue
+        val current = relocateOwner(doc, owner)
+            // A capture's owner came from the snippet, so its title path may lack the target's ancestors.
+            ?: (owner as? AttachOwner.Heading)?.let { o ->
+                doc.headlines.singleOrNull { it.title == o.title && doc.ownerOf(it).dirProperty == o.dirProperty }
+                    ?.let { doc.ownerOf(it) }
+            }
+            ?: continue
+        val range = doc.sectionLines(current) ?: continue
+        for (i in range) {
+            lines[i] = ATTACHMENT_LINK.replace(lines[i]) { m ->
+                val target = m.groupValues[1]
+                val name = target.substringBefore("::")
+                val renamed = map[name] ?: return@replace m.value
+                "[[attachment:" + renamed + target.removePrefix(name) + "]" + m.groupValues[2]
+            }
+        }
+    }
+    return lines.joinToString("\n")
 }

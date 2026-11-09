@@ -60,6 +60,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -358,22 +359,29 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             }
         }
 
-        override fun apply(changes: List<com.rrajath.grove.attach.AttachDirChange>) {
-            if (changes.none { it is com.rrajath.grove.attach.AttachDirChange.Move }) return
-            appScope.launch {
-                val lifecycle = attachmentLifecycle() ?: return@launch
+        override suspend fun apply(
+            changes: List<com.rrajath.grove.attach.AttachDirChange>,
+        ): com.rrajath.grove.attach.AttachMoveOutcome {
+            if (changes.none { it is com.rrajath.grove.attach.AttachDirChange.Move }) {
+                return com.rrajath.grove.attach.AttachMoveOutcome()
+            }
+            // The app scope owns the work, so leaving the editor can't cancel a half-done move.
+            val job = appScope.async(dispatchers.io) {
+                val lifecycle = attachmentLifecycle() ?: return@async com.rrajath.grove.attach.AttachMoveOutcome(failed = changes.size)
                 // The lifecycle's onChanged drops the status cache.
-                val result = runCatching { lifecycle.applyDirChanges(changes) }.getOrNull()
-                val failed = result?.failed ?: changes.size
-                if (failed > 0) {
-                    val folders = if (failed == 1) "1 attachment folder" else "$failed attachment folders"
-                    withContext(dispatchers.main) {
-                        android.widget.Toast.makeText(
-                            this@GroveApplication, "$folders couldn't be moved", android.widget.Toast.LENGTH_SHORT,
-                        ).show()
-                    }
+                runCatching { lifecycle.applyDirChanges(changes) }
+                    .getOrElse { com.rrajath.grove.attach.AttachMoveOutcome(failed = changes.size) }
+            }
+            val outcome = job.await()
+            if (outcome.failed > 0) {
+                val folders = if (outcome.failed == 1) "1 attachment folder" else "${outcome.failed} attachment folders"
+                withContext(dispatchers.main) {
+                    android.widget.Toast.makeText(
+                        this@GroveApplication, "$folders couldn't be moved", android.widget.Toast.LENGTH_SHORT,
+                    ).show()
                 }
             }
+            return outcome
         }
     }
 

@@ -26,7 +26,7 @@ class AttachDirNoticeDialogTest {
     private val trip = AttachOwner.Heading(0, listOf("Trip"), "AA11", "photos")
 
     private fun show(changes: List<AttachDirChange>, onOk: () -> Unit = {}) {
-        composeRule.setContent { GroveTheme { AttachDirNoticeDialog(changes, onOk) } }
+        composeRule.setContent { GroveTheme { AttachDirNoticeDialog(changes, onOk = onOk) } }
     }
 
     @Test
