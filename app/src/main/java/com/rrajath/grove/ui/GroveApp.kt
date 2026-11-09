@@ -109,6 +109,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.dropUnlessResumed
+import com.rrajath.grove.ui.nav.popToNotebooksHome
 
 @Composable
 fun GroveApp(
@@ -246,14 +248,8 @@ private fun GroveNavigation(
     val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    // Read mode's breadcrumb "Notebooks" segment: drop everything above the
-    // Notebooks home in one step. Notebooks is the start destination, so it is
-    // normally on the stack; if it isn't, start a fresh stack at it.
-    val openNotebooksHome: () -> Unit = {
-        if (!navController.popBackStack(Routes.NOTEBOOKS, inclusive = false)) {
-            navController.navigate(Routes.NOTEBOOKS) { popUpTo(navController.graph.id) { inclusive = true } }
-        }
-    }
+    // Read mode's breadcrumb "Notebooks" segment (see popToNotebooksHome).
+    val openNotebooksHome: () -> Unit = { navController.popToNotebooksHome() }
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext
             as com.rrajath.grove.GroveApplication
@@ -612,7 +608,9 @@ private fun GroveNavigation(
                         // Explicit outline (no autoOpen): the filename tap must land
                         // on the outline even when this file would auto-open whole.
                         onOpenOutline = { target -> navController.navigate(Routes.outline(target)) },
-                        onOpenNotebooks = { leaveVia(openNotebooksHome) },
+                        // dropUnlessResumed: during the exit fade this screen is still composed and
+                        // tappable; a second tap must not navigate again from a leaving entry.
+                        onOpenNotebooks = dropUnlessResumed { leaveVia(openNotebooksHome) },
                         onOpenDrawer = { kind, drawerRef ->
                             navController.navigate(Routes.drawer(drawerRef.fileName, kind, drawerRef.encode()))
                         },
@@ -831,7 +829,9 @@ private fun GroveNavigation(
                             onOpenBreadcrumb = { targetLine ->
                                 navController.navigate(Routes.outline(ref.fileName, targetLine))
                             },
-                            onOpenNotebooks = { leaveVia(openNotebooksHome) },
+                            // dropUnlessResumed: during the exit fade this screen is still composed and
+                            // tappable; a second tap must not navigate again from a leaving entry.
+                            onOpenNotebooks = dropUnlessResumed { leaveVia(openNotebooksHome) },
                             onOpenDrawer = { kind, drawerRef ->
                                 navController.navigate(Routes.drawer(drawerRef.fileName, kind, drawerRef.encode()))
                             },
