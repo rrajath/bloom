@@ -48,6 +48,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -95,6 +96,27 @@ class AppViewModel(
 
     val favorites: StateFlow<List<FavoriteNote>> = favoritesRepository.favorites
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        // In-app renames/moves re-key favorites directly (NotebooksViewModel). This catches the
+        // rest: a file renamed or moved outside the app (Emacs, then Syncthing) only shows up as
+        // an index change, so whenever the indexed file set changes, re-point any favorite whose
+        // file is gone at wherever its heading's stable id now lives.
+        viewModelScope.launch {
+            database.indexDao().notebooksFlow()
+                .map { list -> list.mapTo(HashSet()) { it.fileName } }
+                .distinctUntilChanged()
+                .collect { files ->
+                    if (files.isEmpty()) return@collect
+                    val dao = database.indexDao()
+                    runCatching {
+                        favoritesRepository.relocateMissing(files) { id ->
+                            dao.noteLocationByOrgId(id) ?: dao.noteLocationByCustomId(id)
+                        }
+                    }
+                }
+        }
+    }
 
     private var captureSavedSnackId = 0L
     private val _captureSavedSnack = MutableStateFlow<CaptureSavedSnack?>(null)

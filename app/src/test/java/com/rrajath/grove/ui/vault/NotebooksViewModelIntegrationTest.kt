@@ -2,6 +2,8 @@ package com.rrajath.grove.ui.vault
 
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.data.FavoriteNote
+import com.rrajath.grove.data.FavoritesRepository
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.settings.PinKind
 import com.rrajath.grove.settings.PinnedItem
@@ -72,6 +74,7 @@ class NotebooksViewModelIntegrationTest {
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
     private val repoScope = CoroutineScope(mainDispatcherRule.dispatcher)
     private val settingsRepository = SettingsRepository(app, repoScope)
+    private val favoritesRepository = FavoritesRepository(app)
 
     private val liveVms = mutableListOf<NotebooksViewModel>()
 
@@ -81,7 +84,19 @@ class NotebooksViewModelIntegrationTest {
         settingsRepository = settingsRepository,
         sync = sync,
         dispatchers = mainDispatcherRule.appDispatchers,
+        favoritesRepository = favoritesRepository,
     ).also { liveVms += it }
+
+    private suspend fun favoriteFiles(): List<String> = favoritesRepository.favorites.first().map { it.fileName }
+
+    /** Replace whatever favorites a previous test left in the process-wide DataStore with [favs]. */
+    private suspend fun TestScope.seedFavorites(vararg favs: FavoriteNote) {
+        favoritesRepository.favorites.first().forEach {
+            favoritesRepository.removeFavorite(it.fileName, it.lineIndex, it.customId)
+        }
+        favs.forEach { favoritesRepository.addFavorite(it) }
+        settleUntil { favoriteFiles() == favs.map { it.fileName } }
+    }
 
     private suspend fun indexedFileNames(): Set<String> =
         db.indexDao().notebooks().map { it.fileName }.toSet()
@@ -232,6 +247,33 @@ class NotebooksViewModelIntegrationTest {
         settleUntil { store.exists("office/status.org") && store.exists("office/notes/standup.org") }
 
         assertFalse(store.exists("work/status.org"))
+    }
+
+    @Test
+    fun `renameNotebook and moveNotebook keep favorites pointing at the file`() = runTest {
+        val vm = seededVm()
+        seedFavorites(
+            FavoriteNote("work/status.org", 2, "Draft the update", customId = "S"),
+            FavoriteNote("inbox.org", 0, "Untouched"),
+        )
+
+        vm.renameNotebook("work/status.org", "renamed")
+        settleUntil { favoriteFiles() == listOf("work/renamed.org", "inbox.org") }
+
+        vm.moveNotebook("work/renamed.org", "")
+        settleUntil { favoriteFiles() == listOf("renamed.org", "inbox.org") }
+    }
+
+    @Test
+    fun `renameFolder re-bases favorites in descendant files`() = runTest {
+        val vm = seededVm()
+        seedFavorites(
+            FavoriteNote("work/status.org", 2, "Draft", customId = "S"),
+            FavoriteNote("work/notes/standup.org", 2, "Blockers"),
+        )
+
+        vm.renameFolder("work", "office")
+        settleUntil { favoriteFiles() == listOf("office/status.org", "office/notes/standup.org") }
     }
 
     @Test

@@ -40,6 +40,57 @@ fun FavoriteNote.matches(h: OrgHeadline): Boolean {
 fun Set<String>.containsIdOf(h: OrgHeadline): Boolean =
     (h.id != null && h.id in this) || (h.customId != null && h.customId in this)
 
+/**
+ * Re-points every favorite whose file is [oldPath] (a notebook rename or move) at [newPath].
+ * Returns the same list instance when nothing changed, so callers can skip the write.
+ */
+fun List<FavoriteNote>.rebasedFile(oldPath: String, newPath: String): List<FavoriteNote> =
+    rebased { if (it == oldPath) newPath else null }
+
+/**
+ * Re-points every favorite under folder [oldDir] (the folder itself is never a favorite, only
+ * files inside it) at the same relative path under [newDir], for a folder rename.
+ */
+fun List<FavoriteNote>.rebasedFolder(oldDir: String, newDir: String): List<FavoriteNote> {
+    val oldPrefix = "${oldDir.trim('/')}/"
+    val newPrefix = "${newDir.trim('/')}/"
+    return rebased { if (it.startsWith(oldPrefix)) newPrefix + it.removePrefix(oldPrefix) else null }
+}
+
+private fun List<FavoriteNote>.rebased(newPathFor: (String) -> String?): List<FavoriteNote> {
+    var changed = false
+    val out = map { fav ->
+        val newPath = newPathFor(fav.fileName)
+        if (newPath != null && newPath != fav.fileName) {
+            changed = true
+            fav.copy(fileName = newPath)
+        } else fav
+    }
+    return if (changed) out else this
+}
+
+/**
+ * Heals favorites whose file no longer exists in the vault (renamed or moved outside the app, e.g.
+ * in Emacs and synced over) by finding the heading's stable id elsewhere. [existingFiles] is every
+ * vault file the index knows; [locate] returns where a heading carrying that `:ID:` or `:CUSTOM_ID:`
+ * now lives, or null. Favorites with no id, or whose id can't be found, are left untouched (never
+ * dropped), so a half-built index can't destroy them. Returns the same instance when nothing moved.
+ */
+suspend fun List<FavoriteNote>.relocatedMissing(
+    existingFiles: Set<String>,
+    locate: suspend (id: String) -> NoteKey?,
+): List<FavoriteNote> {
+    var changed = false
+    val out = map { fav ->
+        val id = fav.customId
+        if (id == null || fav.fileName in existingFiles) return@map fav
+        val found = locate(id) ?: return@map fav
+        changed = true
+        fav.copy(fileName = found.fileName, lineIndex = found.lineIndex)
+    }
+    return if (changed) out else this
+}
+
 object FavoriteNoteSerializer {
     private val json = Json { ignoreUnknownKeys = true }
 

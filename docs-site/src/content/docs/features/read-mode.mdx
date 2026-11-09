@@ -73,6 +73,8 @@ Tap the star in the metadata area (or use the swipe action from Outline View) to
 
 If the heading has no `ID` or `CUSTOM_ID` yet, favoriting adds an `ID` property so the favorite keeps pointing at the right heading after edits move it.
 
+Favorites also follow their file. Renaming or moving a notebook, or renaming the folder it sits in, updates its favorites right away. If the file is renamed or moved outside Bloom (in Emacs, say, then synced), the favorite finds its heading again by `ID` after the next sync.
+
 ## Related
 
 - [Notes Behavior → Font size](/features/notes-behavior#font-size): scale the rendered note (Small / Medium / Large) without touching the rest of the app

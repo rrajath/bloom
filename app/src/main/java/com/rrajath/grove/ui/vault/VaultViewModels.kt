@@ -224,6 +224,8 @@ class NotebooksViewModel(
     private val dispatchers: AppDispatchers,
     /** Attach-dir lifecycle; null skips attach-dir bookkeeping. */
     private val attachments: () -> AttachmentLifecycle? = { null },
+    /** Favorites to re-key when a notebook or folder is renamed/moved; null skips that bookkeeping. */
+    private val favoritesRepository: FavoritesRepository? = null,
 ) : ViewModel() {
 
     // One-shot create/rename outcomes for the name dialogs (see NotebookEditEvent).
@@ -538,6 +540,7 @@ class NotebooksViewModel(
                     _editEvents.emit(NotebookEditEvent.Message(message))
                 }
                 settingsRepository.moveNotebookStyle(path, newPath)
+                favoritesRepository?.rebaseFile(path, newPath)
                 sync.requestSync("notebook moved")
             }
         }
@@ -580,6 +583,7 @@ class NotebooksViewModel(
             if (vault.renameNotebook(oldName, newName)) {
                 database.indexDao().removeNotebook(oldName)
                 settingsRepository.moveNotebookStyle(oldName, target)
+                favoritesRepository?.rebaseFile(oldName, target)
                 _editEvents.emit(NotebookEditEvent.Succeeded)
             } else {
                 _editEvents.emit(
@@ -689,6 +693,7 @@ class NotebooksViewModel(
                 }
                 affected.forEach { database.indexDao().removeNotebook(it) }
                 settingsRepository.renameFolderStyle(dir, renamedTo)
+                favoritesRepository?.rebaseFolder(trimmed, renamedTo)
                 _editEvents.emit(NotebookEditEvent.Succeeded)
                 sync.requestSync("folder renamed")
             } else {
@@ -730,6 +735,7 @@ class NotebooksViewModel(
             NotebooksViewModel(
                 it.vault, it.database, it.settingsRepository, it.syncManager, it.dispatchers,
                 attachments = { it.attachmentLifecycle() },
+                favoritesRepository = it.favoritesRepository,
             )
         }
     }
