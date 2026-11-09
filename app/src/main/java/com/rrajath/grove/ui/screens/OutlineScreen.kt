@@ -966,6 +966,7 @@ fun OutlineScreen(
                                 },
                                 stateMixed = summary.stateMixed,
                                 priorityMixed = summary.priorityMixed,
+                                targetLabel = "${selected.size} headings",
                                 onDismiss = { metadataOpen = false },
                             )
                         }

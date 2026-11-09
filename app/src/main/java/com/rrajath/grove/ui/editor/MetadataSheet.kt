@@ -42,6 +42,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -56,6 +57,7 @@ import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.ui.components.PlanningDatesScreen
+import com.rrajath.grove.ui.components.orgInlinePlainText
 import com.rrajath.grove.ui.screens.NoteDialog
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
@@ -103,8 +105,15 @@ fun MetadataSheet(
     onSetPlanningDatesBulk: (
         (OrgTimestamp?, OrgTimestamp?, List<OrgTimestamp>, Set<PlanningKind>) -> Unit
     )? = null,
+    /**
+     * Header naming what the sheet edits, in place of [headline]'s title: e.g.
+     * "3 headings" for a multi-select, or the intro's not-yet-created heading.
+     */
+    targetLabel: String? = null,
 ) {
     val c = MaterialTheme.grove
+    val header = targetLabel
+        ?: headline?.let { h -> orgInlinePlainText(h.title).trim().ifEmpty { "Untitled heading" } }
     var planningOpen by remember { mutableStateOf(false) }
     var noteDialogOpen by remember { mutableStateOf(false) }
 
@@ -130,6 +139,18 @@ fun MetadataSheet(
             // never assigns it, so the target isn't needed there.
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
                 Box(Modifier.clearAndSetSemantics {}.focusable())
+            }
+            // Names the heading every chip below acts on, so it's clear which one
+            // the sheet edits (the cursor's heading in Edit mode, a row in Outline).
+            if (header != null) {
+                Text(
+                    header,
+                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp, lineHeight = 20.sp, color = c.ink,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 14.dp),
+                )
+                HorizontalDivider(color = c.line)
             }
             SheetLabel("State")
             // FlowRow, not Row: vaults can define arbitrarily many TODO keywords,

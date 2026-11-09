@@ -538,6 +538,7 @@ fun ReadNoteScreen(
                 showFavorite = true,
                 isFavorite = favorites.any { it.lineIndex == INTRO_LINE_INDEX },
                 onToggleFavorite = { viewModel.toggleIntroFavorite() },
+                targetLabel = "New heading above intro",
                 onDismiss = { metadataOpen = false },
             )
         } else if (headline != null && doc != null) {

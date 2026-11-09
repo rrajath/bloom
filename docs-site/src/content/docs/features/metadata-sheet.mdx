@@ -9,6 +9,8 @@ The metadata sheet is a structured, tap-driven alternative to hand-editing a hea
 
 ## Sections
 
+The top of the sheet names the heading your changes apply to. When several headings are selected in Outline View it shows how many (for example "3 headings"), and for a note's intro, which has no heading yet, it reads "New heading above intro".
+
 - **State**: tap any configured TODO keyword (none, TODO, IN-PROGRESS, DONE, KILL, or your own custom set from Settings → Notes) to cycle the heading's state. Moving from a todo keyword (or none) to a done keyword stamps `CLOSED: [date time]` and adds a `- State "DONE" from "TODO" [date time]` entry at the top of the `:LOGBOOK:` drawer, the way Emacs does with `org-log-done`. The same applies to marking done from Outline, Search, Agenda, the widget, and reminder notifications
 - **Priority**: none, `#A`, `#B`, `#C`
 - **Tags**: free-text field, space-separated; suggestion chips surface tags already used elsewhere in your vault as you type
