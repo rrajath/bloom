@@ -450,6 +450,14 @@ class AttachControllerRobolectricTest {
         assertTrue("copied", File(vaultDir, "inbox/$rel").isFile)
         assertEquals("just a thought\n[[file:$rel]]", textState.text.toString())
         assertEquals("Attached to capture.org", c.toast?.message)
+
+        // Discard with "Also delete attachments": the session's files go.
+        assertEquals(listOf("inbox/$rel"), c.addedFiles)
+        assertEquals(id, c.addedDiskFileId)
+        composeRule.runOnIdle { c.discardSessionAttachments() }
+        settleUntil { !File(vaultDir, "inbox/$rel").exists() }
+        assertFalse(File(vaultDir, "inbox/data").exists())
+        assertTrue(c.addedFiles.isEmpty())
     }
 
     @Test

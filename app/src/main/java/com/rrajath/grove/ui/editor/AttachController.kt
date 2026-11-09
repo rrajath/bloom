@@ -199,6 +199,29 @@ class AttachController internal constructor(
         if (toast?.id == id) toast = null
     }
 
+    /** Vault paths of the files this editor copied in, oldest first (capture's discard deletes them). */
+    private val added = androidx.compose.runtime.mutableStateListOf<String>()
+    val addedFiles: List<String> get() = added
+
+    /** The file-level `:ID:` the capture fallback wrote into [orgFile] on disk, or null. */
+    var addedDiskFileId by mutableStateOf<String?>(null)
+        private set
+
+    /** Whether discarding would leave anything behind: files copied in, or a copy still running. */
+    val hasSessionAttachments: Boolean
+        get() = added.isNotEmpty() || manager?.isBusyFor(orgFile) == true
+
+    /**
+     * Capture's discard with "Also delete attachments": stops a running copy for
+     * [orgFile] (its files are removed) and deletes every file this editor copied
+     * in. The `:ID:` in [addedDiskFileId] is the caller's to remove.
+     */
+    fun discardSessionAttachments() {
+        manager?.cancelFor(orgFile)
+        manager?.discard(added.toList(), orgFile.substringBeforeLast('/', ""))
+        added.clear()
+    }
+
     /** [orgFile]'s text on disk, as last read by the capture fallback; null otherwise. */
     private var diskText: String? = null
 
@@ -467,6 +490,7 @@ class AttachController internal constructor(
         when (val r = done.result) {
             is ImportResult.Failed -> showToast(failureMessage(r))
             is ImportResult.Success -> {
+                r.names.forEach { added += "${done.request.dir}/$it" }
                 if (done.request.onDisk) {
                     scope.launch { linkOnDisk(done.request, r) }
                     return
@@ -496,6 +520,7 @@ class AttachController internal constructor(
      */
     private suspend fun linkOnDisk(request: AttachRequest, result: ImportResult.Success) {
         val idSaved = request.newId?.let { id -> addDiskFileId?.invoke(orgFile, id) == true } ?: true
+        if (idSaved && request.newId != null) addedDiskFileId = request.newId
         val block = result.names.joinToString("\n") { fileLinkText(relativeLinkPath(orgFile, "${request.dir}/$it")) }
         val cursor = textState.selection.start.coerceIn(0, textState.text.length)
         val text = textState.text.toString()

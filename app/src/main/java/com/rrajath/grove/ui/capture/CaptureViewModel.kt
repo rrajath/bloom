@@ -206,6 +206,24 @@ class CaptureViewModel(
     }
 
     /**
+     * Capture discard with "Also delete attachments": takes back the file-level
+     * `:ID:` [addFileId] wrote into [path], dropping the drawer too when that
+     * leaves it empty. Left alone when the file's ID is no longer [id].
+     */
+    fun removeAddedFileId(path: String, id: String) {
+        viewModelScope.launch {
+            writeMutex.withLock {
+                val vault = vaultFlow.value ?: return@withLock
+                val newText = withContext(dispatchers.default) {
+                    val text = vault.open(path)?.text ?: return@withContext null
+                    withoutFileId(text, id)?.also { vault.save(path, it) }
+                } ?: return@withLock
+                sync.requestReindex(path, newText, "capture discarded")
+            }
+        }
+    }
+
+    /**
      * Gives [path] a file-level `:ID:` for an attach that fell back to the
      * capture's target file (no heading in the snippet). Runs under the draft
      * lock and shifts the autosaved draft's line offsets by the lines the drawer
@@ -545,4 +563,21 @@ internal fun shiftForEdit(old: String, new: String): (CaptureInserter.Insertion)
     val firstChanged = a.indices.firstOrNull { it >= b.size || a[it] != b[it] } ?: a.size
     val delta = b.size - a.size
     return { ins -> if (ins.insertedAtLine >= firstChanged) ins.copy(insertedAtLine = ins.insertedAtLine + delta) else ins }
+}
+
+/**
+ * [text] without its file-level `:ID: [id]` line, and without the whole drawer
+ * when no other property is left in it. Null when the file-level drawer
+ * doesn't hold that ID.
+ */
+internal fun withoutFileId(text: String, id: String): String? {
+    val doc = OrgParser.parse(text)
+    val range = OrgMutations.fileDrawerRange(doc) ?: return null
+    val lines = doc.lines
+    val idLine = (range.first + 1 until range.last).firstOrNull {
+        lines[it].trim().let { l -> l.startsWith(":ID:", ignoreCase = true) && l.substring(4).trim() == id }
+    } ?: return null
+    val othersLeft = (range.first + 1 until range.last).any { it != idLine && lines[it].isNotBlank() }
+    val drop = if (othersLeft) idLine..idLine else range
+    return lines.filterIndexed { i, _ -> i !in drop }.joinToString("\n")
 }

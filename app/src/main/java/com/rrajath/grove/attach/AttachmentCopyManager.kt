@@ -89,6 +89,8 @@ class AttachmentCopyManager(
     private val sinks = mutableMapOf<String, MutableList<AttachSink>>()
     private var job: Job? = null
     private var jobId = 0L
+    /** [AttachRequest.orgFile] of the running copy, for [cancelFor]. */
+    private var jobOrgFile: String? = null
 
     val isBusy: Boolean get() = job?.isActive == true
 
@@ -112,6 +114,7 @@ class AttachmentCopyManager(
         val startedAt = clock()
         val importer = AttachmentImporter(fs, opener, photoProcessor)
         val pruneStop = request.orgFile.substringBeforeLast('/', "")
+        jobOrgFile = request.orgFile
         job = scope.launch {
             try {
                 val processPhotos = request.kind != AttachKind.Files
@@ -136,6 +139,33 @@ class AttachmentCopyManager(
     fun cancel() {
         job?.cancel()
         _progress.value = null
+    }
+
+    /** Whether a copy for [orgFile] is still running. */
+    fun isBusyFor(orgFile: String): Boolean = isBusy && jobOrgFile == orgFile
+
+    /** [cancel], but only when the running copy is for [orgFile]. */
+    fun cancelFor(orgFile: String) {
+        if (isBusyFor(orgFile)) cancel()
+    }
+
+    /**
+     * Deletes [paths] (vault-relative files an editor copied in) and prunes the
+     * folders they leave empty, up to [pruneStop]. Runs on the app scope, so it
+     * finishes after the editor that asked for it has closed (capture's discard).
+     */
+    fun discard(paths: List<String>, pruneStop: String) {
+        if (paths.isEmpty()) return
+        val fs = store() ?: return
+        scope.launch {
+            withContext(io) {
+                val files = AttachmentFiles(fs)
+                paths.forEach { runCatching { files.delete(it) } }
+                paths.map { it.substringBeforeLast('/', "") }.toSet().forEach { dir ->
+                    runCatching { files.pruneEmpty(dir, pruneStop) }
+                }
+            }
+        }
     }
 
     private suspend fun deliver(done: AttachDone) {

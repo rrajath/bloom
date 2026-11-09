@@ -136,6 +136,34 @@ class CaptureScreenTest {
     }
 
     @Test
+    fun systemBackWithUnsavedTextAsksBeforeDiscarding() {
+        var closed = false
+        editor("builtin-quick-note", onClose = { closed = true })
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("capture_body_field").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("capture_body_field").performTextInput("Buy milk")
+
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+
+        composeRule.onNodeWithText("Discard note?").assertIsDisplayed()
+        assertFalse(closed)
+        composeRule.onNodeWithText("Discard").performClick()
+        composeRule.waitUntil(timeoutMillis = 3_000) { closed }
+    }
+
+    @Test
+    fun systemBackWithNoChangesClosesStraightAway() {
+        var closed = false
+        editor("builtin-quick-note", onClose = { closed = true })
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("capture_body_field").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitUntil(timeoutMillis = 3_000) { closed }
+    }
+
+    @Test
     fun savingABlankHeadingIsBlocked() {
         var saved = false
         editor("builtin-quick-note", onSaved = { saved = true })

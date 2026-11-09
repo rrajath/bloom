@@ -122,6 +122,8 @@ import com.rrajath.grove.ui.editor.MetadataSheet
 import com.rrajath.grove.ui.editor.RoamNodeSuggestionStrip
 import com.rrajath.grove.ui.editor.SuggestionSlot
 import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
+import androidx.activity.compose.BackHandler
+import com.rrajath.grove.ui.attach.DeleteAttachmentsCheckbox
 import com.rrajath.grove.ui.editor.SuggestionSlotHeight
 import com.rrajath.grove.ui.editor.rememberAttachController
 import com.rrajath.grove.ui.editor.AttachOverlays
@@ -432,6 +434,8 @@ fun CaptureEditorScreen(
     KeepCursorClearOfBottom(textState, scrollState, { textLayout }, EditorBottomMarginLines)
 
     var showDiscardDialog by remember { mutableStateOf(false) }
+    // The discard dialog's "Also delete attachments" box; starts checked, as in the notebook delete sheet.
+    var deleteAttachmentsOnDiscard by remember { mutableStateOf(true) }
     var showEmptyHeadingAlert by remember { mutableStateOf(false) }
     var showEmptyTitleAlert by remember { mutableStateOf(false) }
     var metadataOpen by remember { mutableStateOf(false) }
@@ -559,17 +563,31 @@ fun CaptureEditorScreen(
     }
 
     fun tryClose() {
-        if (draftText != initialText) showDiscardDialog = true else onClose()
+        if (draftText != initialText || attach.hasSessionAttachments) showDiscardDialog = true else onClose()
     }
 
-    fun discard() {
+    /**
+     * [deleteAttachments]: also delete the files attached during this capture
+     * (stopping a copy still running) and the file-level :ID: the no-heading
+     * fallback added to the target file. Queued after the draft removal (the
+     * view model's draft lock is first come, first served).
+     */
+    fun discard(deleteAttachments: Boolean) {
         if (template.kind == TemplateKind.ROAM_NODE) {
             resolvedRoamPath()?.let { viewModel.discardRoamDraft(it) }
         } else {
             viewModel.discardDraft(template)
         }
+        if (deleteAttachments) {
+            attach.addedDiskFileId?.let { viewModel.removeAddedFileId(attachTarget, it) }
+            attach.discardSessionAttachments()
+        }
         onClose()
     }
+
+    // System back asks too, not just the close button: leaving silently loses the
+    // draft (and, with attachments, leaves their files behind).
+    BackHandler { tryClose() }
 
     // Idle auto-save: wait for a 5s pause in typing before persisting the
     // draft. A note with no heading yet (just the auto-inserted "* ") is
@@ -924,10 +942,21 @@ fun CaptureEditorScreen(
                 )
             },
             text = {
-                Text(
-                    "Your changes will be lost.",
-                    fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
-                )
+                Column {
+                    Text(
+                        "Your changes will be lost.",
+                        fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
+                    )
+                    if (attach.hasSessionAttachments) {
+                        DeleteAttachmentsCheckbox(
+                            checked = deleteAttachmentsOnDiscard,
+                            detail = captureAttachmentsDetail(
+                                attach.addedFiles.size,
+                                attach.addedDiskFileId?.let { attachTarget.substringAfterLast('/') },
+                            ),
+                        ) { deleteAttachmentsOnDiscard = it }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -938,7 +967,10 @@ fun CaptureEditorScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardDialog = false; discard() }) {
+                TextButton(onClick = {
+                    showDiscardDialog = false
+                    discard(deleteAttachments = attach.hasSessionAttachments && deleteAttachmentsOnDiscard)
+                }) {
                     Text("Discard", color = c.red)
                 }
             },
@@ -1445,4 +1477,18 @@ private fun CaptureSaveButton(
             fontSize = (15f - 1.5f * t).sp, color = c.accentInk,
         )
     }
+}
+
+/**
+ * The discard dialog's checkbox detail: `2 files added in this capture`, plus
+ * `, and the :ID: added to inbox.org` when the no-heading fallback gave the
+ * target file one.
+ */
+internal fun captureAttachmentsDetail(fileCount: Int, idAddedTo: String?): String {
+    val files = when (fileCount) {
+        0 -> "The file still copying"
+        1 -> "1 file added in this capture"
+        else -> "$fileCount files added in this capture"
+    }
+    return if (idAddedTo == null) files else "$files, and the :ID: added to $idAddedTo"
 }

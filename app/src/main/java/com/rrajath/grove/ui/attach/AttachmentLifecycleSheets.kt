@@ -303,7 +303,7 @@ private fun ChoiceCard(
 
 /** 1n checkbox row: 22dp box (6dp radius, 2dp border); checked is a `red` fill with the Material check icon. */
 @Composable
-private fun DeleteAttachmentsCheckbox(checked: Boolean, detail: String, onChange: (Boolean) -> Unit) {
+internal fun DeleteAttachmentsCheckbox(checked: Boolean, detail: String, onChange: (Boolean) -> Unit) {
     val c = MaterialTheme.grove
     val shape = RoundedCornerShape(6.dp)
     Row(

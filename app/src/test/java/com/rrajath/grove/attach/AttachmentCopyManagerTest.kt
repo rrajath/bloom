@@ -210,4 +210,26 @@ class AttachmentCopyManagerTest {
         assertEquals(1, editor.size)
         assertTrue(fallbacks.isEmpty())
     }
+
+    @Test
+    fun `discard deletes the files and prunes the folders they leave empty`() = testScope.runTest {
+        val f = java.io.File(tmp.root, "data/8B/41D2F0/a.pdf").apply { parentFile!!.mkdirs(); writeText("x") }
+        manager.discard(listOf("data/8B/41D2F0/a.pdf"), "")
+        advanceUntilIdle()
+        assertFalse(f.exists())
+        assertFalse(java.io.File(tmp.root, "data/8B").exists())
+    }
+
+    @Test
+    fun `cancelFor only stops a copy for that file`() = testScope.runTest {
+        manager.start(request("a.pdf"))
+        assertTrue(manager.isBusyFor("travel.org"))
+        manager.cancelFor("other.org")
+        assertTrue(manager.isBusy)
+        manager.cancelFor("travel.org")
+        advanceUntilIdle()
+        assertFalse(manager.isBusy)
+        assertFalse(java.io.File(tmp.root, "data/8B/41D2F0/a.pdf").exists())
+    }
 }
+
