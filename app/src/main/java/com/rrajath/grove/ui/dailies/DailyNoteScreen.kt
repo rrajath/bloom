@@ -57,6 +57,7 @@ import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.ui.components.InsertTimestampScreen
 import com.rrajath.grove.ui.components.rememberImeVisible
 import com.rrajath.grove.ui.editor.EditRegion
+import com.rrajath.grove.ui.editor.rememberAttachController
 import com.rrajath.grove.ui.editor.LinkIdChoice
 import com.rrajath.grove.ui.editor.LinkIdChoiceDialog
 import com.rrajath.grove.ui.editor.LinkPick
@@ -548,6 +549,9 @@ fun DailyNoteScreen(
                         }
                     }
 
+                    // Attachments: paperclip + sheet, as in the whole-file editor.
+                    val attach = rememberAttachController(textState, n.fileName, fieldLoaded)
+
                     WholeFileEditorBody(
                         state = editState,
                         textState = textState,
@@ -588,6 +592,9 @@ fun DailyNoteScreen(
                         createOrLinkRoamNode = editorViewModel::createOrLinkRoamNode,
                         onSuggestionSlotShownChange = { editorStripShown = it },
                         bottomMarginLines = EditorBottomMarginLines,
+                        attach = attach,
+                        // The date pills float 16dp off the bottom and stand about 36dp tall.
+                        attachBottomInset = 52.dp,
                     )
 
                     // Toolbar long-press pickers, as in EditNoteScreen: the file/heading

@@ -30,6 +30,12 @@ data class AttachRequest(
     val ownerLabel: String,
     /** True when the owner seen after the picker isn't the one the sheet was opened for. */
     val ownerChanged: Boolean = false,
+    /**
+     * Capture's file-level fallback: the owner is [orgFile]'s own file owner on
+     * disk, not anything in the editor buffer, so a live editor links the files
+     * with relative `[[file:…]]` links and writes [newId] to the file on disk.
+     */
+    val onDisk: Boolean = false,
 )
 
 /** A finished attach, handed to the editor (or the file fallback) to write the links. */
@@ -75,7 +81,12 @@ class AttachmentCopyManager(
     private val _progress = MutableStateFlow<CopyProgress?>(null)
     val progress: StateFlow<CopyProgress?> = _progress
 
-    private val sinks = mutableMapOf<String, AttachSink>()
+    /**
+     * Listening editors per org file, newest last. Capture can sit on top of an
+     * editor for its own target file; the newest one gets the result, and
+     * closing it hands delivery back to the one below.
+     */
+    private val sinks = mutableMapOf<String, MutableList<AttachSink>>()
     private var job: Job? = null
     private var jobId = 0L
 
@@ -83,8 +94,14 @@ class AttachmentCopyManager(
 
     /** Registers [sink] for [orgFile]; close the handle when the editor goes away. */
     fun register(orgFile: String, sink: AttachSink): AutoCloseable {
-        synchronized(sinks) { sinks[orgFile] = sink }
-        return AutoCloseable { synchronized(sinks) { if (sinks[orgFile] === sink) sinks.remove(orgFile) } }
+        synchronized(sinks) { sinks.getOrPut(orgFile) { mutableListOf() }.add(sink) }
+        return AutoCloseable {
+            synchronized(sinks) {
+                val list = sinks[orgFile] ?: return@synchronized
+                list.removeAll { it === sink }
+                if (list.isEmpty()) sinks.remove(orgFile)
+            }
+        }
     }
 
     /** Starts [request]. False when another copy is still running or there's no vault. */
@@ -122,7 +139,7 @@ class AttachmentCopyManager(
     }
 
     private suspend fun deliver(done: AttachDone) {
-        val sink = synchronized(sinks) { sinks[done.request.orgFile] }
+        val sink = synchronized(sinks) { sinks[done.request.orgFile]?.lastOrNull() }
         if (sink != null) {
             sink.deliver(done)
             return

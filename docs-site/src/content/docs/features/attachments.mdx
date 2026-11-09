@@ -37,6 +37,16 @@ Bloom copies each file into the target's attachment folder and inserts an `[[att
 
 If the target doesn't have an `:ID:` yet, Bloom adds one to its property drawer the first time you attach, since the folder name comes from it. A heading or file with a `:DIR:` property uses that folder instead, as in Emacs.
 
+### In Dailies and the capture editor
+
+The paperclip is also on the toolbar in [Dailies](/features/dailies) and in the [capture editor](/features/capture). Dailies works the same way as any note.
+
+A capture is new text that lands in the template's target file when you save, so its target works a little differently:
+
+- With the cursor under a heading in the capture, the files attach to that heading. Its new `:ID:` and the links are part of the capture and land in the target file with it.
+- With no heading in the capture, a toast says the files attach to the target file instead. Bloom adds an `:ID:` to the target file if it has none and inserts `[[file:...]]` links relative to it. This needs the target file to exist already.
+- A new Roam node capture is the whole new file, so with no heading the files attach to the node's own file.
+
 The original file is never moved or changed. Photos from **Camera** and **Photos** are resized according to the [Photo size](#settings) setting, and HEIC photos are always saved as JPEG so they display everywhere. Files from **Files** are copied exactly as they are.
 
 ## The attach sheet

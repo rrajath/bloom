@@ -32,6 +32,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import com.rrajath.grove.org.OrgMutations
+import com.rrajath.grove.attach.fileOwner
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -397,5 +399,64 @@ class AttachControllerRobolectricTest {
         composeRule.waitForIdle()
         assertEquals("* Lunch\n", textState.text.toString())
         assertFalse(File(vaultDir, "data").exists())
+    }
+
+    /** Quick capture: a snippet bound for `inbox/capture.org`, which [addFileId] gives an ID on disk. */
+    private fun captureController(text: String, cursor: Int): Pair<AttachController, TextFieldState> {
+        val textState = TextFieldState(text, TextRange(cursor))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "inbox/capture.org", bufferReady = true, manager,
+                    addDiskFileId = { file, id ->
+                        store.write(file, OrgMutations.upsertFileProperty(OrgParser.parse(store.read(file)), "ID", id))
+                        true
+                    },
+                ) { store }
+            }
+        }
+        return controller to textState
+    }
+
+    @Test
+    fun `capture with a heading at the cursor attaches to that heading in the snippet`() {
+        File(vaultDir, "inbox").mkdirs()
+        File(vaultDir, "inbox/capture.org").writeText("#+title: Inbox\n")
+        val (c, _) = captureController("* TODO Call Sam\nnotes\n", cursor = 18)
+        c.openAndLoad()
+        assertFalse(c.sheet!!.onDisk)
+        assertEquals("Call Sam", (c.sheet!!.owner as AttachOwner.Heading).title)
+    }
+
+    @Test
+    fun `capture without a heading falls back to the target file and links with file links`() {
+        File(vaultDir, "inbox").mkdirs()
+        val target = File(vaultDir, "inbox/capture.org").apply { writeText("#+title: Inbox\n") }
+        val (c, textState) = captureController("just a thought", cursor = 14)
+        c.openAndLoad()
+        assertTrue(c.sheet!!.onDisk)
+        assertTrue(c.sheet!!.owner is AttachOwner.File)
+        assertEquals("capture.org", c.sheet!!.title)
+
+        composeRule.runOnIdle {
+            c.pending = PendingAttach("Files", isFile = true, id = null, titlePath = emptyList(), lineIndex = -1, cursor = 14, onDisk = true)
+            c.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("receipt.pdf]]") }
+
+        val id = OrgParser.parse(target.readText()).fileOwner().id!!
+        val rel = "data/${id.take(2)}/${id.drop(2)}/receipt.pdf"
+        assertTrue("copied", File(vaultDir, "inbox/$rel").isFile)
+        assertEquals("just a thought\n[[file:$rel]]", textState.text.toString())
+        assertEquals("Attached to capture.org", c.toast?.message)
+    }
+
+    @Test
+    fun `capture without a heading and no target file opens no sheet`() {
+        val (c, _) = captureController("just a thought", cursor = 14)
+        composeRule.runOnIdle { c.open() }
+        repeat(5) { shadowOf(Looper.getMainLooper()).idle(); composeRule.waitForIdle(); Thread.sleep(20) }
+        assertNull(c.sheet)
     }
 }

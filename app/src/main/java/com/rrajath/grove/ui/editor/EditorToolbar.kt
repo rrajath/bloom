@@ -70,8 +70,8 @@ fun EditorToolbar(
      */
     onTimestampLongPress: (() -> Unit)? = null,
     /**
-     * Opens the attach sheet (experimental attachments). When null (capture,
-     * region editors, release builds) there's no paperclip and the row keeps
+     * Opens the attach sheet (experimental attachments). When null (scoped
+     * region editors) there's no paperclip and the row keeps
      * its equal-width layout; when set, the row switches to fixed-width
      * buttons in a horizontal scroll (1c), with the paperclip after `[[]]`.
      */

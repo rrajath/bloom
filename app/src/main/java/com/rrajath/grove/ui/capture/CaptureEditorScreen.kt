@@ -75,6 +75,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
@@ -121,6 +122,8 @@ import com.rrajath.grove.ui.editor.MetadataSheet
 import com.rrajath.grove.ui.editor.RoamNodeSuggestionStrip
 import com.rrajath.grove.ui.editor.SuggestionSlot
 import com.rrajath.grove.ui.editor.SuggestionSlotHeight
+import com.rrajath.grove.ui.editor.rememberAttachController
+import com.rrajath.grove.ui.editor.AttachOverlays
 import com.rrajath.grove.ui.editor.WordAtCursor
 import com.rrajath.grove.ui.editor.scrollAwareTopInset
 import com.rrajath.grove.ui.editor.filterAutoLinkSuggestions
@@ -389,6 +392,30 @@ fun CaptureEditorScreen(
     // close over the original Checking-era instance -- silently orphaning
     // every keystroke into the field the user actually sees and edits.
     val draftText by remember(textState) { derivedStateOf { textState.text.toString() } }
+    // Attachments. The buffer is a snippet bound for the target file, so the attach
+    // dir and file links resolve against that file. A heading at the cursor owns the
+    // files as in the note editor; with none, attach falls back to the target file on
+    // disk. A new Roam node is the exception: its buffer is the whole new file, so its
+    // own file-level :ID: owns them. The path is fixed when the field is created (the
+    // Roam filename follows the title as it's typed); only its folder matters for the
+    // :ID: dir, and links into a new Roam node are [[attachment:…]], not relative.
+    val roamNewFile = template.kind == TemplateKind.ROAM_NODE && roamAppendState is RoamAppendState.New
+    val attachTarget = remember(textState) {
+        when (val appendState = roamAppendState) {
+            is RoamAppendState.ExistingFile -> appendState.path
+            RoamAppendState.Checking, RoamAppendState.New -> if (template.kind == TemplateKind.ROAM_NODE) {
+                resolvedRoamPathFor(expanded.text)
+                    ?: if (template.roamDirectory.isBlank()) "capture.org" else "${template.roamDirectory}/capture.org"
+            } else {
+                template.targetFile
+            }
+        }
+    }
+    val attach = rememberAttachController(
+        textState, attachTarget, bufferReady = true,
+        addDiskFileId = if (roamNewFile) null else viewModel::addFileId,
+    )
+    val keyboard = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(roamAppendState) {
         if (roamAppendState !is RoamAppendState.Checking) focusRequester.requestFocus()
@@ -832,6 +859,9 @@ fun CaptureEditorScreen(
                             .onSizeChanged { if (slotShown) saveWidth = with(density) { it.width.toDp() } },
                     )
                 }
+                // Keyboard down, the progress snackbar clears the floating 54dp Save FAB
+                // (16dp off the bottom); keyboard up, it floats above the suggestion strip.
+                AttachOverlays(attach, bottomInset = if (slotShown) SuggestionSlotHeight else 70.dp)
             }
             if (!readMode && imeVisible) EditorToolbar(
                 onWrap = { marker -> textState.applyEdit { wrapSelection(it, marker) } },
@@ -847,6 +877,14 @@ fun CaptureEditorScreen(
                     textState.applyEdit {
                         LineEditing.changeListIndent(it.text, it.selection.start, delta)
                             ?.let { edit -> TextFieldValue(edit.text, TextRange(edit.cursor)) }
+                    }
+                },
+                // Not while a Roam capture is still checking whether its file exists:
+                // the field is about to be replaced.
+                onAttach = if (roamAppendState is RoamAppendState.Checking) null else {
+                    {
+                        keyboard?.hide()
+                        attach.open()
                     }
                 },
             )

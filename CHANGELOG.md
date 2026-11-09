@@ -57,6 +57,9 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+- The attach paperclip is now in Dailies and the capture editor; captures without a heading attach to the target file.
+
 ## [1.14.0] - 2026-11-08
 
 ### Added

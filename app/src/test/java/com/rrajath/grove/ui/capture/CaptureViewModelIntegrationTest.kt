@@ -239,6 +239,27 @@ class CaptureViewModelIntegrationTest {
     }
 
     @Test
+    fun `addFileId gives the target an ID and the next save still replaces the draft`() = runTest {
+        val vm = capture()
+
+        vm.autosave(quickNote, "* Draft one", context)
+        advanceUntilIdle()
+        assertTrue(vm.addFileId("inbox.org", "F1LE1D"))
+        vm.save(quickNote, "* Final entry", context)
+        advanceUntilIdle()
+
+        val saved = store.read("inbox.org")
+        assertTrue(saved, saved.startsWith(":PROPERTIES:\n:ID: F1LE1D\n:END:\n"))
+        assertTrue(saved.contains("Final entry"))
+        assertFalse("the draft must have been replaced in place", saved.contains("Draft one"))
+    }
+
+    @Test
+    fun `addFileId on a missing file is refused`() = runTest {
+        assertFalse(capture().addFileId("nope.org", "F1LE1D"))
+    }
+
+    @Test
     fun `discardDraft removes the autosaved entry and requests a sync`() = runTest {
         val vm = capture()
 

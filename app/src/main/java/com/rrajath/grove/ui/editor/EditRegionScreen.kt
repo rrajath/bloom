@@ -557,6 +557,11 @@ internal fun WholeFileEditorBody(
     bottomMarginLines: Int = 0,
     /** Experimental attachments: paperclip + sheet for this field, or null (no paperclip). */
     attach: AttachController? = null,
+    /**
+     * Keyboard down, how far the attach progress snackbar sits above the bottom
+     * edge: clears anything the host floats there (Dailies' date pills).
+     */
+    attachBottomInset: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val c = MaterialTheme.grove
     val context = LocalContext.current
@@ -639,7 +644,7 @@ internal fun WholeFileEditorBody(
             // keyboard hides, and the paperclip hides the keyboard, so the sheet would
             // vanish, the field would re-show the keyboard, and the sheet would loop.
             // The slot sits below this Box, so nothing covers its bottom edge.
-            attach?.let { AttachOverlays(it, bottomInset = 0.dp) }
+            attach?.let { AttachOverlays(it, bottomInset = if (imeVisible) 0.dp else attachBottomInset) }
         }
         // Suggestions only while typing: with the keyboard down they'd just cover the text.
         // Docked in their own slot between the text and the toolbar (not overlaid on the

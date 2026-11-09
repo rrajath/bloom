@@ -192,4 +192,22 @@ class AttachmentCopyManagerTest {
         assertTrue(edit.text, edit.text.contains("Bookings.\n[[attachment:a.pdf]]\n* Kyoto"))
         assertEquals(0..2, edit.idDrawerLines)
     }
+
+    @Test
+    fun `the newest editor for a file gets the result and closing it hands back to the one below`() = testScope.runTest {
+        val editor = mutableListOf<AttachDone>()
+        val capture = mutableListOf<AttachDone>()
+        manager.register("travel.org") { editor += it }
+        val handle = manager.register("travel.org") { capture += it }
+        manager.start(request("a.pdf"))
+        advanceUntilIdle()
+        assertEquals(1, capture.size)
+        assertTrue(editor.isEmpty())
+
+        handle.close()
+        manager.start(request("b.pdf"))
+        advanceUntilIdle()
+        assertEquals(1, editor.size)
+        assertTrue(fallbacks.isEmpty())
+    }
 }

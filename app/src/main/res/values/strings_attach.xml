@@ -26,4 +26,10 @@
     <string name="attach_action_insert_link">Insert link</string>
     <string name="attach_action_open_with">Open with</string>
     <string name="attach_action_delete">Delete file</string>
+    <!-- Quick capture: toast when the capture has no heading at the cursor, so files attach to the target .org file instead. %1$s = target file name. -->
+    <string name="attach_capture_file_fallback">No heading in this capture. Attaching to %1$s</string>
+    <!-- Quick capture: toast when the target .org file doesn't exist yet, so there's nothing to attach to. %1$s = target file name. -->
+    <string name="attach_capture_no_target">%1$s doesn\'t exist yet. Add a heading to attach files</string>
+    <!-- Quick capture: toast when files were attached but the target file couldn't be given its ID. %1$s = target file name. -->
+    <string name="attach_capture_id_failed">Attached, but couldn\'t add an ID to %1$s</string>
 </resources>

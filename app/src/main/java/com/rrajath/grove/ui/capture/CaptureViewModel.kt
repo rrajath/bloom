@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
+import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureInserter
@@ -202,6 +203,35 @@ class CaptureViewModel(
                 sync.requestReindex(template.targetFile, newText, "capture discarded")
             }
         }
+    }
+
+    /**
+     * Gives [path] a file-level `:ID:` for an attach that fell back to the
+     * capture's target file (no heading in the snippet). Runs under the draft
+     * lock and shifts the autosaved draft's line offsets by the lines the drawer
+     * added, so the next autosave still replaces the draft in place. True when
+     * the file has an ID afterwards; false when it doesn't exist.
+     */
+    suspend fun addFileId(path: String, id: String): Boolean = writeMutex.withLock {
+        val vault = vaultFlow.value ?: return@withLock false
+        val saved = withContext(dispatchers.default) {
+            val text = vault.open(path)?.text ?: return@withContext null
+            val doc = OrgParser.parse(text)
+            if (doc.fileOwner().id != null) return@withContext text to text
+            val newText = OrgMutations.upsertFileProperty(doc, "ID", id)
+            vault.save(path, newText)
+            text to newText
+        } ?: return@withLock false
+        val (old, new) = saved
+        if (old != new) {
+            val shift = shiftForEdit(old, new)
+            draftInsertion = draftInsertion?.let(shift)
+            roamDraft = roamDraft?.let { d ->
+                if (d.path == path && d.insertion != null) d.copy(insertion = shift(d.insertion)) else d
+            }
+            sync.requestReindex(path, new, "attach file id")
+        }
+        true
     }
 
     private suspend fun upsertEntry(
@@ -503,4 +533,16 @@ class TemplatesViewModel(
             }
         }
     }
+}
+
+/**
+ * For an edit that only inserted lines (a new `:ID:` line or drawer): moves an
+ * insertion at or below the first changed line down by the lines added.
+ */
+internal fun shiftForEdit(old: String, new: String): (CaptureInserter.Insertion) -> CaptureInserter.Insertion {
+    val a = old.split("\n")
+    val b = new.split("\n")
+    val firstChanged = a.indices.firstOrNull { it >= b.size || a[it] != b[it] } ?: a.size
+    val delta = b.size - a.size
+    return { ins -> if (ins.insertedAtLine >= firstChanged) ins.copy(insertedAtLine = ins.insertedAtLine + delta) else ins }
 }
