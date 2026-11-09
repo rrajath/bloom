@@ -114,6 +114,7 @@ fun MetadataSheet(
     val c = MaterialTheme.grove
     val header = targetLabel
         ?: headline?.let { h -> orgInlinePlainText(h.title).trim().ifEmpty { "Untitled heading" } }
+    val stars = if (targetLabel == null) headline?.let { "*".repeat(it.level.coerceAtLeast(1)) } else null
     var planningOpen by remember { mutableStateOf(false) }
     var noteDialogOpen by remember { mutableStateOf(false) }
 
@@ -142,14 +143,29 @@ fun MetadataSheet(
             }
             // Names the heading every chip below acts on, so it's clear which one
             // the sheet edits (the cursor's heading in Edit mode, a row in Outline).
+            // A single heading leads with its org stars (as the attach sheet does);
+            // a multi-select or intro label has no one level, so it shows none.
             if (header != null) {
-                Text(
-                    header,
-                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp, lineHeight = 20.sp, color = c.ink,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 14.dp),
-                )
+                Row(
+                    Modifier.padding(top = 2.dp, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (stars != null) {
+                        Text(
+                            stars,
+                            fontFamily = PlexMono, fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp, color = c.synStar,
+                            modifier = Modifier.alignByBaseline(),
+                        )
+                    }
+                    Text(
+                        header,
+                        fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp, lineHeight = 21.sp, color = c.ink,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.alignByBaseline(),
+                    )
+                }
                 HorizontalDivider(color = c.line)
             }
             SheetLabel("State")

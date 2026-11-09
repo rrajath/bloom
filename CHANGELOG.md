@@ -62,7 +62,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Discarding a capture can also delete the files attached during it.
 - A Narrow button in the Outline swipe panel narrows the outline to that heading; Back widens again.
 - Read mode's breadcrumb now starts with Notebooks, which jumps straight back to the Notebooks screen.
-- The metadata sheet now names the heading it edits at the top.
+- The metadata sheet now names the heading it edits at the top, led by its org stars.
 
 ### Fixed
 - Dailies Read mode now shows attached images inline.
