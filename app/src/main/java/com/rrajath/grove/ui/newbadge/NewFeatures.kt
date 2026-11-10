@@ -481,4 +481,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
         anchors = setOf(NewAnchors.EDITOR_ATTACH, NewAnchors.EDITOR_ATTACH_SHEET),
         destination = NewAnchors.EDITOR_ATTACH_SHEET,
     ),
+    NewFeature(
+        // Double-tapping the blank space under the Outline's last row opens the
+        // whole-file view. Points at the Tips & Tricks entry that explains it.
+        // `since` is the versionCode of the release that ships it: bump it to
+        // match `gradle.properties` versionName when cutting the release.
+        id = "outline-double-tap-view-file",
+        since = 11500,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_TIPS,
+            NewAnchors.tipsGroup("outline"),
+            NewAnchors.tipsItem("outline", "outline-view-file"),
+        ),
+        destination = NewAnchors.tipsItem("outline", "outline-view-file"),
+    ),
 )

@@ -46,4 +46,9 @@
     <string name="attach_open_with">Open with</string>
     <string name="attach_share">Share</string>
     <string name="attach_empty_file_no_id">No attachments yet. %1$s adds an :ID: to this file the first time you attach.</string>
+    <!-- Settings › Tips &amp; Tricks, Outline group (ui/screens/settings/SettingsTipsScreen.kt).
+         {{menu}} is drawn as the ⋮ button's keycap: keep the marker as-is when translating. -->
+    <string name="tips_group_outline">Outline</string>
+    <string name="tip_outline_view_file_title">Double-tap below the outline to view the whole file</string>
+    <string name="tip_outline_view_file_body">In a notebook\'s outline, double-tap the empty space below the last heading to open the whole file as one note, the same as View file in the {{menu}} menu. Files too large to open whole show a message instead; open a heading there.</string>
 </resources>

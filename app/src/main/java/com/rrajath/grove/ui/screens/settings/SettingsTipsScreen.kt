@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.DataObject
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.EditNote
@@ -62,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -108,7 +110,8 @@ import com.rrajath.grove.ui.util.StringSetSaver
 fun SettingsTipsScreen(onBack: () -> Unit) {
     val c = MaterialTheme.grove
     val appName = stringResource(R.string.app_name)
-    val groups = remember(appName) { tipGroups(appName) }
+    val context = LocalContext.current
+    val groups = remember(appName) { tipGroups(appName, context::getString) }
     val allIds = remember(groups) { groups.flatMap { g -> g.tips.map { it.id } }.toSet() }
     var openIds by rememberSaveable(stateSaver = StringSetSaver) { mutableStateOf(emptySet()) }
     val allExpanded = allIds.isNotEmpty() && openIds.containsAll(allIds)
@@ -365,6 +368,8 @@ private fun tipGlyphContent(): Map<String, InlineTextContent> {
         // The toolbar's link button, `[[]]` — four characters, so a wider cap,
         // in the app's accent so it reads as a button next to the mono link text.
         "link" to chip(width = 3.5.em) { GlyphText("[[]]", 12.5.sp, c.accent, bold = false) },
+        // The top bar's overflow menu button.
+        "menu" to chip { GlyphText("⋮", 15.sp, c.ink2, bold = true) },
     )
 }
 
@@ -404,9 +409,10 @@ private data class TipGroup(val id: String, val label: String, val tips: List<Ti
  * Tip content, reworded from the author's notes in design/Grove.dc.html
  * `tipVals()` (lines 3835-3868); the "Links" group is new to the app and has no
  * prototype entry. `{{…}}` markers become inline keycaps. [appName] is
- * `R.string.app_name`, so the copy never hardcodes the app's name.
+ * `R.string.app_name`, so the copy never hardcodes the app's name. [str] resolves string
+ * resources: newer tips (the Outline group) live in `strings.xml` so they can be translated.
  */
-private fun tipGroups(appName: String): List<TipGroup> = listOf(
+private fun tipGroups(appName: String, str: (Int) -> String): List<TipGroup> = listOf(
     TipGroup(
         "sync-saving",
         "Sync & saving",
@@ -469,6 +475,17 @@ private fun tipGroups(appName: String): List<TipGroup> = listOf(
                     ":LOGBOOK: drawer, closed by :END:, with the cursor on its empty line. The chip stays up as " +
                     "you type more of the word.",
                 newAnchor = NewAnchors.tipsItem("writing", "drawer-shorthand"),
+            ),
+        ),
+    ),
+    TipGroup(
+        "outline",
+        str(R.string.tips_group_outline),
+        listOf(
+            Tip(
+                "outline-view-file", Icons.Default.Description, str(R.string.tip_outline_view_file_title),
+                str(R.string.tip_outline_view_file_body),
+                newAnchor = NewAnchors.tipsItem("outline", "outline-view-file"),
             ),
         ),
     ),
