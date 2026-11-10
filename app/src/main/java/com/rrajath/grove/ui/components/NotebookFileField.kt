@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -20,10 +21,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.capture.FilenameValidation
@@ -50,6 +57,14 @@ fun NotebookFileField(
 ) {
     val c = MaterialTheme.grove
     var menuOpen by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    // Hold the selection ourselves so a value set from outside the keyboard (picking a suggestion,
+    // clearing) lands the cursor at the end instead of where it sat in the typed prefix.
+    var fieldValue by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (fieldValue.text != value) {
+        fieldValue = TextFieldValue(value, TextRange(value.length))
+    }
     val filteredNotebooks by remember(notebooks, value) {
         derivedStateOf {
             if (value.isBlank()) notebooks
@@ -60,11 +75,16 @@ fun NotebookFileField(
 
     Column(modifier) {
         OutlinedTextField(
-            value = value,
-            onValueChange = { onValueChange(it); menuOpen = true },
+            value = fieldValue,
+            onValueChange = {
+                fieldValue = it
+                if (it.text != value) onValueChange(it.text)
+                menuOpen = true
+            },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
+                .focusRequester(focusRequester)
                 .onFocusChanged { state -> menuOpen = state.isFocused },
             isError = error != null,
             supportingText = {
@@ -75,13 +95,29 @@ fun NotebookFileField(
             textStyle = TextStyle(fontFamily = PlexMono),
             placeholder = { Text(placeholder, fontFamily = PlexMono, color = c.ink3) },
             trailingIcon = {
-                Text(
-                    "▾", fontFamily = PlexMono, fontSize = 16.sp, color = c.ink2,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { menuOpen = !menuOpen }
-                        .padding(8.dp),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (value.isNotEmpty()) {
+                        Text(
+                            "×", fontFamily = PlexMono, fontSize = 16.sp, color = c.ink3,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onValueChange("")
+                                    menuOpen = true
+                                    focusRequester.requestFocus()
+                                    keyboard?.show()
+                                }
+                                .padding(8.dp),
+                        )
+                    }
+                    Text(
+                        "▾", fontFamily = PlexMono, fontSize = 16.sp, color = c.ink2,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { menuOpen = !menuOpen }
+                            .padding(8.dp),
+                    )
+                }
             },
         )
         AnimatedVisibility(menuOpen && filteredNotebooks.isNotEmpty()) {

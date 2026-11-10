@@ -65,6 +65,7 @@ re-uploads the APKs to the existing release instead of failing.
 - The metadata sheet now names the heading it edits at the top, led by its org stars.
 - The Intro editor now has the attach paperclip; files attach to the file using its `:DIR:` or `:ID:`.
 - Adding, changing or removing `:DIR:` on save moves existing attachments, after a popup; losing both `:ID:` and `:DIR:` warns.
+- Target file fields have a clear button that empties the field and reopens the notebook list.
 
 ### Changed
 - Discard when leaving an editor now also undoes changes auto-save already wrote since you opened it or last saved.
@@ -73,6 +74,7 @@ re-uploads the APKs to the existing release instead of failing.
 ### Fixed
 - Dailies Read mode now shows attached images inline.
 - The attach sheet's Vault scope now lists files in other notebooks' `:DIR:` folders.
+- Picking a notebook from a Target file suggestion list now puts the cursor at the end of the name.
 - Pressing back in the capture editor now asks before discarding unsaved text.
 - Favorites keep working after their file is renamed or moved, in Bloom or outside it.
 - Quickly double-tapping Back no longer leaves a blank white screen; taps during a screen transition are ignored.
