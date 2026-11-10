@@ -66,6 +66,7 @@ re-uploads the APKs to the existing release instead of failing.
 - The Intro editor now has the attach paperclip; files attach to the file using its `:DIR:` or `:ID:`.
 - Adding, changing or removing `:DIR:` on save moves existing attachments, after a popup; losing both `:ID:` and `:DIR:` warns.
 - Target file fields have a clear button that empties the field and reopens the notebook list.
+- Double-tap the empty space below the Outline's last heading to open the whole file view.
 
 ### Changed
 - Discard when leaving an editor now also undoes changes auto-save already wrote since you opened it or last saved.

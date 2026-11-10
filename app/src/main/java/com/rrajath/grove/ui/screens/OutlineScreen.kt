@@ -73,7 +73,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -504,8 +508,7 @@ fun OutlineScreen(
                                             }
                                             if (!fitsWhole && lineCount != null) {
                                                 Text(
-                                                    "Too large to open whole (${pluralCount(lineCount, "line")}). " +
-                                                        "Open a heading instead.",
+                                                    tooLargeForWholeFileMessage(lineCount),
                                                     fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink3,
                                                 )
                                             }
@@ -602,6 +605,8 @@ fun OutlineScreen(
 
             is DocumentUiState.Loaded -> {
                 val doc = s.document
+                // Read by the long-lived double-tap gesture below, which must see the latest file.
+                val currentLineCount by rememberUpdatedState(doc.lines.size)
                 // Every mutation produces a new document; snap any open panel shut.
                 LaunchedEffect(doc) { openRowLine = null }
                 val visible = remember(scopedHeadlines, collapsed) { visibleHeadlines(scopedHeadlines, collapsed) }
@@ -690,7 +695,21 @@ fun OutlineScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 10.dp)
-                            .testTag("outline_list"),
+                            .testTag("outline_list")
+                            // Double-tap the blank space under the last row: open the whole
+                            // file, like the overflow menu's "View file"; over the line limit,
+                            // toast the same hint the disabled menu item shows instead.
+                            .pointerInput(notebookId, wholeFileLineLimit) {
+                                detectTapGestures(onDoubleTap = { pos ->
+                                    if (!listState.layoutInfo.isBelowLastItem(pos.y)) return@detectTapGestures
+                                    val lineCount = currentLineCount
+                                    if (fitsWholeFileView(lineCount, wholeFileLineLimit)) {
+                                        onViewFile(notebookId)
+                                    } else {
+                                        viewModel.showToast(tooLargeForWholeFileMessage(lineCount))
+                                    }
+                                })
+                            },
                         // Bottom inset so the last row scrolls clear of the FAB
                         // (54.dp) instead of sitting underneath it.
                         contentPadding = PaddingValues(bottom = 86.dp),
@@ -1193,6 +1212,22 @@ private fun CommandButton(icon: ImageVector, contentDescription: String, tint: C
 }
 
 /** [headlines] is either the whole document or, when narrowed, just a target heading + its subtree. */
+/** Why a file can't open whole: the disabled "View file" hint, also toasted by the double-tap. */
+private fun tooLargeForWholeFileMessage(lineCount: Int): String =
+    "Too large to open whole (${pluralCount(lineCount, "line")}). Open a heading instead."
+
+/**
+ * True when [y] (pointer y in the list's own coordinates) lands in the blank space under the
+ * list's last item: the last item is laid out and [y] is past its bottom edge.
+ */
+internal fun LazyListLayoutInfo.isBelowLastItem(y: Float): Boolean {
+    val last = visibleItemsInfo.lastOrNull() ?: return false
+    if (last.index != totalItemsCount - 1) return false
+    // Item offsets are measured from the content start, which sits beforeContentPadding
+    // below the viewport top (viewportStartOffset is its negation).
+    return y + viewportStartOffset > last.offset + last.size
+}
+
 private fun visibleHeadlines(headlines: List<OrgHeadline>, collapsed: Set<Int>): List<OrgHeadline> {
     val result = mutableListOf<OrgHeadline>()
     var hideDeeperThan: Int? = null
