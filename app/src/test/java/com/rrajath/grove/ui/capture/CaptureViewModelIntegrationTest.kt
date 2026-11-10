@@ -190,7 +190,7 @@ class CaptureViewModelIntegrationTest {
     }
 
     @Test
-    fun `loadTargetOutline returns the target heading path, or null when missing`() = runTest {
+    fun `loadTargetInfo returns the target heading path and entry level, or null when missing`() = runTest {
         val vm = capture()
         val found = quickNote.copy(
             targetFile = "inbox.org",
@@ -198,8 +198,8 @@ class CaptureViewModelIntegrationTest {
         )
         val missing = found.copy(location = TargetLocation.UnderHeading(id = "NOPE"))
 
-        assertEquals(listOf("Captured"), vm.loadTargetOutline(found))
-        assertNull(vm.loadTargetOutline(missing))
+        assertEquals(CaptureViewModel.TargetInfo(listOf("Captured"), 2), vm.loadTargetInfo(found))
+        assertNull(vm.loadTargetInfo(missing))
     }
 
     @Test

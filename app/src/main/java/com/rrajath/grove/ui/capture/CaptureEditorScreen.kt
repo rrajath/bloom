@@ -332,14 +332,19 @@ fun CaptureEditorScreen(
     // saving (the save would fail).
     var targetOutline by remember(template) { mutableStateOf<List<String>?>(null) }
     var targetHeadingMissing by remember(template) { mutableStateOf(false) }
+    // The depth the entry's heading lands at, once the target heading is
+    // found: the draft is re-leveled to it (see below) so its stars match
+    // the file, as a top/bottom-of-file or plain date tree draft's already do.
+    var targetEntryLevel by remember(template) { mutableStateOf<Int?>(null) }
     LaunchedEffect(template) {
         val location = template.location
         val hasHeading = location is TargetLocation.UnderHeading ||
             (location is TargetLocation.Datetree && location.hasHeading)
         if (template.kind != TemplateKind.PLAIN || !hasHeading) return@LaunchedEffect
-        val outline = viewModel.loadTargetOutline(template)
-        targetOutline = outline
-        targetHeadingMissing = outline == null
+        val info = viewModel.loadTargetInfo(template)
+        targetOutline = info?.outline
+        targetHeadingMissing = info == null
+        targetEntryLevel = info?.entryLevel
     }
 
     /** [text]'s preamble (`#+KEY:` lines) head vs. everything after it --
@@ -381,8 +386,12 @@ fun CaptureEditorScreen(
     // the target bar says it's an existing file), so the field starts
     // out holding just the body half of the fresh expansion, cursor re-based
     // into it.
-    val initialText = remember(expanded, roamAppendState) {
-        (roamAppendState as? RoamAppendState.ExistingFile)?.let { roamBodySplit(expanded.text).second } ?: expanded.text
+    // A var so re-leveling the untouched draft to the target's depth (below)
+    // moves the baseline with it and doesn't count as an edit.
+    var initialText by remember(expanded, roamAppendState) {
+        mutableStateOf(
+            (roamAppendState as? RoamAppendState.ExistingFile)?.let { roamBodySplit(expanded.text).second } ?: expanded.text
+        )
     }
     val textState = remember(expanded, roamAppendState) {
         val appendState = roamAppendState
@@ -575,6 +584,27 @@ fun CaptureEditorScreen(
     // Text as of the last auto-save, so dirty can be computed by comparison.
     var lastAutoSavedText by remember(expanded, roamAppendState) { mutableStateOf(initialText) }
     val dirty = draftText != lastAutoSavedText
+
+    // Under a heading, the entry's depth is only known once the file loads:
+    // re-level the draft then, so it shows (and the user types sub-headings
+    // relative to) the stars it will be saved with. Saving re-levels the same
+    // way, so this is display only. Body-only drafts have no heading to move.
+    LaunchedEffect(targetEntryLevel, textState) {
+        val level = targetEntryLevel ?: return@LaunchedEffect
+        if (bodyOnly) return@LaunchedEffect
+        val before = textState.text.toString()
+        val untouched = before == initialText
+        textState.applyEdit { tfv ->
+            val out = CaptureInserter.relevelDraft(ExpandedTemplate(tfv.text, tfv.selection.start), level)
+            if (out.text == tfv.text) null
+            else TextFieldValue(out.text, TextRange(out.cursorOffset.coerceIn(0, out.text.length)))
+        }
+        val after = textState.text.toString()
+        if (untouched && after != before) {
+            initialText = after
+            if (lastAutoSavedText == before) lastAutoSavedText = after
+        }
+    }
     val toastContext = LocalContext.current
 
     /**

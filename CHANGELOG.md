@@ -78,6 +78,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Quickly double-tapping Back no longer leaves a blank white screen; taps during a screen transition are ignored.
 - Headings deleted in the editor after an auto-save no longer linger in the file or get duplicated.
 - The attach sheet's This file and Vault views now offer Delete on the current heading's own files.
+- Captures under a heading show their real heading depth, and sub-headings you type stay nested under the captured entry.
 
 ## [1.14.0] - 2026-11-08
 

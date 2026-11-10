@@ -20,6 +20,7 @@ object CaptureInserter {
     data class Insertion(val newText: String, val insertedAtLine: Int, val entryLineCount: Int = 1)
 
     private val STARS = Regex("""^(\*+)\s+(.*)$""")
+    private val HEADING_STARS = Regex("""^\*+(?=[ \t])""")
     private val DATE_TITLE = Regex("""^\d{4}(-W?\d{2}){0,2}([ \t].*)?$""")
 
     /**
@@ -212,16 +213,55 @@ object CaptureInserter {
     fun datetreeDepth(type: DatetreeType): Int = if (type == DatetreeType.MONTH) 2 else 3
 
     /**
-     * Make the capture editor WYSIWYG: prefix the expanded entry with the
-     * stars its heading will get on insert, so the user types the heading
-     * right after them. Skipped when the template already supplies a heading
-     * (insertion re-levels it anyway) or the depth isn't statically known.
+     * Make the capture editor WYSIWYG when the entry's depth is statically
+     * known: see [relevelDraft]. Under a heading the depth depends on the
+     * file, so the editor calls [relevelDraft] itself once it has loaded.
      */
     fun withHeadingStars(expanded: ExpandedTemplate, location: TargetLocation): ExpandedTemplate {
         val level = entryLevel(location) ?: return expanded
-        if (STARS.matchEntire(expanded.text.substringBefore('\n')) != null) return expanded
-        val stars = "*".repeat(level) + " "
-        return ExpandedTemplate(stars + expanded.text, expanded.cursorOffset + stars.length)
+        return relevelDraft(expanded, level)
+    }
+
+    /**
+     * Show a capture draft at the depth it will be saved at, so the stars the
+     * user sees (and types relative to) are the stars that land in the file.
+     * A draft starting with a heading has every heading shifted by the same
+     * amount, exactly as [insert] will shift them; one without gets [level]
+     * stars prefixed so the user types the heading right after them. The
+     * cursor keeps its place in the text.
+     */
+    fun relevelDraft(expanded: ExpandedTemplate, level: Int): ExpandedTemplate {
+        val text = expanded.text
+        val lines = text.split("\n")
+        val firstIdx = lines.indexOfFirst { it.isNotBlank() }
+        val firstStars = lines.getOrNull(firstIdx)?.let { HEADING_STARS.find(it)?.value?.length }
+        if (firstStars == null) {
+            val stars = "*".repeat(level) + " "
+            return ExpandedTemplate(stars + text, expanded.cursorOffset + stars.length)
+        }
+        val shift = level - firstStars
+        if (shift == 0) return expanded
+        val cursor = expanded.cursorOffset
+        val out = StringBuilder()
+        var newCursor = cursor
+        var oldStart = 0
+        lines.forEachIndexed { i, line ->
+            val newLine = if (i < firstIdx) line else shiftHeading(line, shift, level)
+            val newStart = out.length
+            if (cursor >= oldStart && cursor <= oldStart + line.length) {
+                // The stars change length at the start of the line only, so a
+                // cursor past them moves by the difference; one inside them
+                // stays inside the new run.
+                val oldStars = HEADING_STARS.find(line)?.value?.length ?: 0
+                val delta = newLine.length - line.length
+                val inLine = cursor - oldStart
+                newCursor = newStart + if (inLine >= oldStars) inLine + delta else minOf(inLine, oldStars + delta)
+            }
+            out.append(newLine)
+            if (i < lines.lastIndex) out.append('\n')
+            oldStart += line.length + 1
+        }
+        return ExpandedTemplate(out.toString(), newCursor)
     }
 
     // --- datetree ---
@@ -348,8 +388,11 @@ object CaptureInserter {
     }
 
     /**
-     * Re-level the entry's first line to a headline at [level]; body lines are
-     * kept verbatim. A first line without stars becomes the heading text.
+     * Re-level the entry as a subtree, like org-capture: its first line
+     * becomes a headline at [level] and every heading below it shifts by the
+     * same amount, so a sub-heading the user typed one level deeper than the
+     * entry stays its child. A first line without stars becomes the heading
+     * text (and counts as level 1). Non-heading body lines are kept verbatim.
      */
     private fun normalizeEntry(entry: String, level: Int): List<String> {
         val lines = entry.trimEnd('\n').split("\n")
@@ -357,7 +400,20 @@ object CaptureInserter {
         val m = STARS.matchEntire(first)
         val headingText = (m?.groupValues?.get(2) ?: first).trim()
         val heading = "*".repeat(level) + " " + headingText
-        return listOf(heading) + lines.drop(1)
+        val shift = level - (m?.groupValues?.get(1)?.length ?: 1)
+        return listOf(heading) + lines.drop(1).map { shiftHeading(it, shift, level) }
+    }
+
+    /**
+     * [line] with its heading stars (if it is a heading) shifted by [shift],
+     * never shallower than [minLevel]: a heading typed above the entry's own
+     * level would otherwise escape the target heading, so it becomes the
+     * entry's sibling instead.
+     */
+    private fun shiftHeading(line: String, shift: Int, minLevel: Int): String {
+        val stars = HEADING_STARS.find(line)?.value ?: return line
+        val level = (stars.length + shift).coerceAtLeast(minLevel)
+        return "*".repeat(level) + line.substring(stars.length)
     }
 
     private fun spliceEntry(text: String, atLine: Int, entryLines: List<String>): Insertion {

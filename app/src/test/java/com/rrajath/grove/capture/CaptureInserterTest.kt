@@ -552,6 +552,86 @@ class CaptureInserterTest {
         assertTrue(result.newText.contains("*** 2025-06-11 Wednesday\n**** My day\nIt went well"))
     }
 
+    // --- sub-headings in the entry (re-leveled as a subtree) ---
+
+    @Test
+    fun `sub-heading typed relative to a one-star draft stays the entry's child under a heading`() {
+        val doc = "* Tasks\n** Old task\n* Life\n"
+        val entry = "* TODO Buy Milk\nSCHEDULED: <2026-11-09 Mon>\n** Sample Heading"
+        val result = insert(doc, TargetLocation.UnderHeading(title = "Tasks", appendLast = true), entry)
+        assertEquals(
+            "* Tasks\n** Old task\n** TODO Buy Milk\nSCHEDULED: <2026-11-09 Mon>\n*** Sample Heading\n* Life\n",
+            result.newText,
+        )
+    }
+
+    @Test
+    fun `sub-heading typed in an already re-leveled draft keeps its depth`() {
+        val doc = "* Tasks\n"
+        val entry = "** TODO Buy Milk\n*** Sample Heading\n**** Deeper"
+        val result = insert(doc, TargetLocation.UnderHeading(title = "Tasks", appendLast = true), entry)
+        assertEquals("* Tasks\n** TODO Buy Milk\n*** Sample Heading\n**** Deeper\n", result.newText)
+    }
+
+    @Test
+    fun `a heading shallower than the entry is kept inside the target as a sibling`() {
+        val doc = "* Tasks\n* Life\n"
+        val entry = "** TODO a\n* b"
+        val result = insert(doc, TargetLocation.UnderHeading(title = "Tasks", appendLast = true), entry)
+        assertEquals("* Tasks\n** TODO a\n** b\n* Life\n", result.newText)
+    }
+
+    @Test
+    fun `datetree entry shifts its sub-headings with it`() {
+        val result = insert("", TargetLocation.Datetree(), "* Day\n** Detail")
+        assertTrue(result.newText.endsWith("**** Day\n***** Detail\n"))
+    }
+
+    @Test
+    fun `non-heading body lines are kept verbatim`() {
+        val result = insert("* Tasks\n", TargetLocation.UnderHeading(title = "Tasks"), "* x\n  *bold* text\n- item")
+        assertEquals("* Tasks\n** x\n  *bold* text\n- item\n", result.newText)
+    }
+
+    // --- editor re-leveling (relevelDraft) ---
+
+    @Test
+    fun `relevelDraft shows a one-star template at the target depth, cursor kept after the keyword`() {
+        val text = "* TODO \nSCHEDULED: <2026-11-09 Mon>"
+        val result = CaptureInserter.relevelDraft(ExpandedTemplate(text, 7), 2)
+        assertEquals("** TODO \nSCHEDULED: <2026-11-09 Mon>", result.text)
+        assertEquals(8, result.cursorOffset)
+    }
+
+    @Test
+    fun `relevelDraft shifts every heading and moves a cursor on a later line`() {
+        val text = "* a\n** b\nbody"
+        val result = CaptureInserter.relevelDraft(ExpandedTemplate(text, text.length), 3)
+        assertEquals("*** a\n**** b\nbody", result.text)
+        assertEquals(result.text.length, result.cursorOffset)
+    }
+
+    @Test
+    fun `relevelDraft prefixes stars when the draft has no heading`() {
+        val result = CaptureInserter.relevelDraft(ExpandedTemplate("note", 4), 2)
+        assertEquals("** note", result.text)
+        assertEquals(7, result.cursorOffset)
+    }
+
+    @Test
+    fun `relevelDraft can promote, keeping the cursor inside the stars`() {
+        val result = CaptureInserter.relevelDraft(ExpandedTemplate("*** x", 2), 1)
+        assertEquals("* x", result.text)
+        assertEquals(1, result.cursorOffset)
+    }
+
+    @Test
+    fun `a heading template on a plain date tree is shown at day-entry depth`() {
+        val result = CaptureInserter.withHeadingStars(ExpandedTemplate("* entry", 7), TargetLocation.Datetree())
+        assertEquals("**** entry", result.text)
+        assertEquals(10, result.cursorOffset)
+    }
+
     // --- autosave draft replacement (entryLineCount / removeInsertion) ---
 
     @Test

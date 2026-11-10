@@ -473,16 +473,18 @@ class CaptureViewModel(
     }
 
     /**
-     * The raw headline line (stars, keyword, title, tags) of the heading an
-     * "under heading" [template] targets, or null when the file or heading
-     * doesn't exist. Shown read-only above a body-only capture's field.
+     * Where an "under heading" capture, or a date tree that grows inside a
+     * heading, lands: [outline] is the target heading path (ancestors first,
+     * the target heading last); [entryLevel] is the depth the captured entry's
+     * heading gets, so the editor can show the stars it will be saved with.
      */
+    data class TargetInfo(val outline: List<String>, val entryLevel: Int)
+
     /**
-     * The target heading path (ancestors first, the target heading last) of an
-     * "under heading" template, or of a date tree that grows inside a heading;
-     * null when the file or heading doesn't exist, or the target has no heading.
+     * The [TargetInfo] of [template]; null when the file or heading doesn't
+     * exist, or the target has no heading.
      */
-    suspend fun loadTargetOutline(template: CaptureTemplate): List<String>? {
+    suspend fun loadTargetInfo(template: CaptureTemplate): TargetInfo? {
         val location = template.location
         if (location !is TargetLocation.UnderHeading &&
             !(location is TargetLocation.Datetree && location.hasHeading)
@@ -495,7 +497,12 @@ class CaptureViewModel(
                 is TargetLocation.Datetree -> CaptureInserter.findTarget(doc, location)
                 else -> null
             }
-            target?.let { CaptureInserter.outlinePath(doc, it) }
+            target ?: return@withContext null
+            val entryLevel = when (location) {
+                is TargetLocation.Datetree -> target.level + CaptureInserter.datetreeDepth(location.treeType) + 1
+                else -> target.level + 1
+            }
+            TargetInfo(CaptureInserter.outlinePath(doc, target), entryLevel)
         }
     }
 
