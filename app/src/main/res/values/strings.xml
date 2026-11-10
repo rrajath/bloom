@@ -51,4 +51,10 @@
     <string name="tips_group_outline">Outline</string>
     <string name="tip_outline_view_file_title">Double-tap below the outline to view the whole file</string>
     <string name="tip_outline_view_file_body">In a notebook\'s outline, double-tap the empty space below the last heading to open the whole file as one note, the same as View file in the {{menu}} menu. Files too large to open whole show a message instead; open a heading there.</string>
+    <!-- Outline: why a file can't open as one note (the disabled ⋮ › View file hint, and the toast
+         for a double-tap below the last heading). %1$d is the file's line count. -->
+    <plurals name="outline_whole_file_too_large">
+        <item quantity="one">Too large to open whole (%1$d line). Open a heading instead.</item>
+        <item quantity="other">Too large to open whole (%1$d lines). Open a heading instead.</item>
+    </plurals>
 </resources>

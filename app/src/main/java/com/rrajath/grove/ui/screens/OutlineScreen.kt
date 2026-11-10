@@ -75,6 +75,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
@@ -508,7 +510,7 @@ fun OutlineScreen(
                                             }
                                             if (!fitsWhole && lineCount != null) {
                                                 Text(
-                                                    tooLargeForWholeFileMessage(lineCount),
+                                                    pluralStringResource(R.plurals.outline_whole_file_too_large, lineCount, lineCount),
                                                     fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink3,
                                                 )
                                             }
@@ -607,6 +609,7 @@ fun OutlineScreen(
                 val doc = s.document
                 // Read by the long-lived double-tap gesture below, which must see the latest file.
                 val currentLineCount by rememberUpdatedState(doc.lines.size)
+                val resources = LocalContext.current.resources
                 // Every mutation produces a new document; snap any open panel shut.
                 LaunchedEffect(doc) { openRowLine = null }
                 val visible = remember(scopedHeadlines, collapsed) { visibleHeadlines(scopedHeadlines, collapsed) }
@@ -706,7 +709,9 @@ fun OutlineScreen(
                                     if (fitsWholeFileView(lineCount, wholeFileLineLimit)) {
                                         onViewFile(notebookId)
                                     } else {
-                                        viewModel.showToast(tooLargeForWholeFileMessage(lineCount))
+                                        viewModel.showToast(
+                                            resources.getQuantityString(R.plurals.outline_whole_file_too_large, lineCount, lineCount),
+                                        )
                                     }
                                 })
                             },
@@ -1212,10 +1217,6 @@ private fun CommandButton(icon: ImageVector, contentDescription: String, tint: C
 }
 
 /** [headlines] is either the whole document or, when narrowed, just a target heading + its subtree. */
-/** Why a file can't open whole: the disabled "View file" hint, also toasted by the double-tap. */
-private fun tooLargeForWholeFileMessage(lineCount: Int): String =
-    "Too large to open whole (${pluralCount(lineCount, "line")}). Open a heading instead."
-
 /**
  * True when [y] (pointer y in the list's own coordinates) lands in the blank space under the
  * list's last item: the last item is laid out and [y] is past its bottom edge.

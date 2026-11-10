@@ -264,7 +264,7 @@ private fun TipRow(tip: Tip, open: Boolean, onToggle: () -> Unit) {
 // syntax — a `https://` scheme or a `[[target]]` / `[[target][description]]`
 // bracket pair; a backtick code span; and a `{{file:name}}` file name.
 private val TIP_MARKUP_RE = Regex(
-    "\\{\\{(check|save|clock|star|link)\\}\\}" +
+    "\\{\\{(check|save|clock|star|link|menu)\\}\\}" +
         "|\\{\\{readlink\\}\\}" +
         "|:PROPERTIES:|:LOGBOOK:" +
         "|\\[ \\]|\\[-\\]|\\[X\\]" +
