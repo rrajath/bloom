@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.shownInNotice
 import com.rrajath.grove.attach.shownTarget
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -30,6 +31,8 @@ import com.rrajath.grove.ui.theme.grove
 @Composable
 fun AttachDirNoticeDialog(changes: List<AttachDirChange>, busy: Boolean = false, onOk: () -> Unit) {
     val c = MaterialTheme.grove
+    // A descendant's files that follow an ancestor's to the same folder are part of its entry.
+    val shown = changes.shownInNotice()
     AlertDialog(
         onDismissRequest = { if (!busy) onOk() },
         containerColor = c.surface,
@@ -43,10 +46,10 @@ fun AttachDirNoticeDialog(changes: List<AttachDirChange>, busy: Boolean = false,
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                changes.forEach { change ->
+                shown.forEach { change ->
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         // Which heading (or file) it's about, when there's more than one.
-                        if (changes.size > 1) {
+                        if (shown.size > 1) {
                             Text(
                                 ownerLabel(change),
                                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink,
@@ -82,7 +85,7 @@ private fun ownerLabel(change: AttachDirChange): String = when (val o = change.o
 private fun message(change: AttachDirChange): String = when (change) {
     is AttachDirChange.Broken -> stringResource(R.string.attach_dir_broken)
     is AttachDirChange.Move -> stringResource(
-        when (change.kind) {
+        if (change.newId != null) R.string.attach_dir_new_id else when (change.kind) {
             AttachDirChange.Kind.DIR_ADDED -> R.string.attach_dir_added
             AttachDirChange.Kind.DIR_REMOVED -> R.string.attach_dir_removed
             AttachDirChange.Kind.DIR_CHANGED -> R.string.attach_dir_changed

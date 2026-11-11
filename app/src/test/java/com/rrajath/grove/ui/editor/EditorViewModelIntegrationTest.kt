@@ -382,6 +382,43 @@ class EditorViewModelIntegrationTest {
     }
 
     @Test
+    fun `a new ID for a child lands on disk and in a subtree editor, and the next save keeps it`() = runTest {
+        val trip = "* Trip\n:PROPERTIES:\n:ID: AA11\n:DIR: photos\n:END:\n** Day\n[[attachment:b.jpg]]\n"
+        store.write("trip.org", "* Before\n$trip* After\n")
+        val moves = object : AttachDirMoves {
+            override suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument) =
+                listOf(
+                    AttachDirChange.Move(
+                        after.ownerOf(after.headlines.single { it.title == "Day" }), orgFile, "photos", "data/CC/33",
+                        AttachDirChange.Kind.DIR_REMOVED, copy = false, wholeDir = false,
+                        linkedNames = listOf("b.jpg"), newId = "CC33",
+                    ),
+                )
+            override suspend fun apply(changes: List<AttachDirChange>) =
+                AttachMoveOutcome(newIds = changes.map { it as AttachDirChange.Move })
+        }
+        val vm = editor(moves)
+        vm.load(NoteRef("trip.org", 1))
+        advanceUntilIdle()
+        vm.onBufferChange(vm.state.value.buffer.replace(":DIR: photos\n", ""))
+        vm.save()
+        advanceUntilIdle()
+        vm.acknowledgeAttachDirNotice()
+        advanceUntilIdle()
+
+        val expected = "* Trip\n:PROPERTIES:\n:ID: AA11\n:END:\n** Day\n:PROPERTIES:\n:ID: CC33\n:END:\n[[attachment:b.jpg]]\n"
+        assertEquals("* Before\n$expected* After\n", store.read("trip.org"))
+        assertEquals(expected.trimEnd('\n'), vm.state.value.buffer)
+        assertEquals(1 until 10, vm.state.value.ownedSpan)
+
+        // Editing again replaces exactly the grown span: no duplicate, no lost ID.
+        vm.onBufferChange(vm.state.value.buffer + "\nmore")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("* Before\n${expected}more\n* After\n", store.read("trip.org"))
+    }
+
+    @Test
     fun `loadRegion FILE_PROPERTIES loads the leading file drawer with its markers`() = runTest {
         store.write("regions.org", regionsFile)
         val vm = editor()

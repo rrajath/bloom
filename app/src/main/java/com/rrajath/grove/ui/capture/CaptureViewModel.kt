@@ -8,10 +8,10 @@ import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.attach.AttachMoveOutcome
 import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.applyMoveOutcomeText
 import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.attach.ownerOf
 import com.rrajath.grove.attach.relocateOwner
-import com.rrajath.grove.attach.renameAttachmentLinks
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureInserter
@@ -333,11 +333,14 @@ class CaptureViewModel(
         }
     }
 
-    /** Points renamed attachments' links at their new names in the saved [path] (see [AttachMoveOutcome]). */
+    /**
+     * After a dir move: points renamed attachments' links at their new names in
+     * the saved [path] and writes any new heading `:ID:` (see [AttachMoveOutcome]).
+     */
     suspend fun renameLinksAfterMove(path: String, outcome: AttachMoveOutcome) = writeMutex.withLock {
         val vault = vaultFlow.value ?: return@withLock
         val doc = withContext(dispatchers.default) { vault.open(path) } ?: return@withLock
-        val newText = renameAttachmentLinks(doc, outcome.renames.map { (move, map) -> move.owner to map })
+        val newText = applyMoveOutcomeText(doc, outcome).text
         if (newText == doc.text) return@withLock
         vault.save(path, newText)
         sync.requestReindex(path, newText, "attachment renamed")

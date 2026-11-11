@@ -247,13 +247,17 @@ class AttachmentLifecycle(
      * the owner's linked files go. A name already in the target keeps the
      * existing file when the content is the same, else the moved file gets a
      * `-1` suffix and is reported in [AttachMoveOutcome.renames] so the caller
-     * can fix the link. [AttachDirChange.Broken] entries leave their files alone.
+     * can fix the link. A move with a [AttachDirChange.Move.newId] that went
+     * through is listed in [AttachMoveOutcome.newIds] for the caller to write.
+     * [AttachDirChange.Broken] entries leave their files alone.
      */
     suspend fun applyDirChanges(changes: List<AttachDirChange>): AttachMoveOutcome = mutex.withLock {
         val renames = mutableListOf<Pair<AttachDirChange.Move, Map<String, String>>>()
+        val newIds = mutableListOf<AttachDirChange.Move>()
         var result = LifecycleResult.None
         for (c in changes.filterIsInstance<AttachDirChange.Move>()) {
             val (ok, renamed) = moveOwnerFiles(c)
+            if (ok && c.newId != null) newIds += c
             result = when {
                 !ok -> result.copy(failed = result.failed + 1)
                 c.copy -> result.copy(copied = result.copied + 1)
@@ -262,7 +266,7 @@ class AttachmentLifecycle(
             if (renamed.isNotEmpty()) renames += c to renamed
         }
         result.reported()
-        AttachMoveOutcome(renames, result.failed)
+        AttachMoveOutcome(renames, result.failed, newIds)
     }
 
     private suspend fun moveOwnerFiles(c: AttachDirChange.Move): Pair<Boolean, Map<String, String>> {

@@ -4,7 +4,7 @@ import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachDirMoves
 import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.attach.AttachMoveOutcome
-import com.rrajath.grove.attach.renameAttachmentLinks
+import com.rrajath.grove.attach.applyMoveOutcomeText
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.attachOwners
@@ -742,39 +742,54 @@ class EditorViewModel(
         _attachDirNotice.value = notice.copy(busy = true)
         viewModelScope.launch {
             val outcome = attachDirMoves.apply(notice.changes)
-            if (outcome.renames.isNotEmpty()) applyLinkRenames(outcome)
+            if (outcome.editsText) applyMoveText(outcome)
             _attachDirNotice.value = null
             notice.then()
         }
     }
 
     /**
-     * A move renamed files that clashed with one already in the target: point
-     * the owners' links at the new names, on disk and in this buffer (same
-     * lines, since the edit is line-preserving), so nothing is left broken.
+     * After a dir move: point links at files renamed on a clash, and give a
+     * heading left with no folder its new `:ID:` (see [AttachMoveOutcome]), on
+     * disk and in this buffer. Renames keep the lines; an `:ID:` inserts lines,
+     * so the buffer's span (and any line after an insertion) shifts with it.
+     * When the buffer can't be patched, the editor is left on the old revision,
+     * so the next save asks to reload instead of overwriting the new `:ID:`.
      */
-    private suspend fun applyLinkRenames(outcome: AttachMoveOutcome) = saveMutex.withLock {
+    private suspend fun applyMoveText(outcome: AttachMoveOutcome) = saveMutex.withLock {
         val s = _state.value
         val vault = vaultFlow.value ?: return@withLock
         val before = vault.revision(s.fileName)
         val doc = vault.open(s.fileName) ?: return@withLock
-        val newText = renameAttachmentLinks(doc, outcome.renames.map { (move, map) -> move.owner to map })
-        if (newText == doc.text) return@withLock
-        vault.save(s.fileName, newText)
-        sync.requestReindex(s.fileName, newText, "attachment renamed")
+        val edit = applyMoveOutcomeText(doc, outcome)
+        if (edit.text == doc.text) return@withLock
+        vault.save(s.fileName, edit.text)
+        sync.requestReindex(s.fileName, edit.text, "attachment moved")
+        setAttachBaseline(s.fileName, OrgParser.parse(edit.text, doc.keywords))
         val after = vault.revision(s.fileName)
-        val patched = patchBufferLines(s.buffer, doc.lines, newText.split("\n"))
+        val hint = s.ownedSpan?.first ?: s.regionRange?.first
+        val patch = patchBufferForEdit(s.buffer, doc.lines, edit.text.split("\n"), edit.insertions, hint)
         _state.update { cur ->
             if (cur.fileName != s.fileName || cur.loadedRevision != before) return@update cur
-            val buffer = patched?.takeIf { cur.buffer == s.buffer } ?: cur.buffer
+            val untouched = cur.buffer == s.buffer
+            if (patch == null || (!untouched && patch.buffer != s.buffer)) {
+                // Lines moved or the buffer changed meanwhile: only the old in-place
+                // rename case can keep the buffer as is.
+                return@update if (edit.insertions.isEmpty()) cur.copy(loadedRevision = after) else cur
+            }
+            val buffer = if (untouched) patch.buffer else cur.buffer
+            val shift = { line: Int -> line + edit.insertions.filter { (at, _) -> at < line }.sumOf { it.second } }
             cur.copy(
                 loadedRevision = after,
                 buffer = buffer,
                 bufferRevision = if (buffer != cur.buffer) cur.bufferRevision + 1 else cur.bufferRevision,
+                ownedSpan = cur.ownedSpan?.let { patch.start until patch.start + patch.count },
+                regionRange = cur.regionRange?.let { patch.start until patch.start + patch.count },
+                lineIndex = if (cur.lineIndex >= 0) shift(cur.lineIndex) else cur.lineIndex,
             )
         }
-        // The rename is now part of the saved state Discard returns to.
-        if (lastExplicitBuffer == s.buffer && patched != null) lastExplicitBuffer = patched
+        // The edit is now part of the saved state Discard returns to.
+        if (lastExplicitBuffer == s.buffer && patch != null) lastExplicitBuffer = patch.buffer
     }
 
     /** @return true when the buffer is on disk (including "already was"). */
@@ -1130,21 +1145,33 @@ data class AttachDirNotice(
     val busy: Boolean = false,
 )
 
+/** [patchBufferForEdit]'s result: the new buffer and the file lines it now occupies. */
+internal data class BufferPatch(val buffer: String, val start: Int, val count: Int)
+
 /**
- * [buffer] with the lines that changed between [oldFile] and [newFile] (same
- * line count) replaced, found by where [buffer]'s lines sit in [oldFile]. Null
- * when the buffer can't be placed in the old file.
+ * [buffer] (a run of [oldFile]'s lines) as it reads in [newFile], where
+ * [newFile] is [oldFile] with lines changed in place and, per
+ * [insertions] entry (old line, count), that many lines inserted right after
+ * the old line. An insertion after a buffer line lands in the buffer. [hint]
+ * picks the buffer's place when its lines appear more than once. Null when the
+ * buffer can't be placed.
  */
-internal fun patchBufferLines(buffer: String, oldFile: List<String>, newFile: List<String>): String? {
-    if (oldFile.size != newFile.size) return null
+internal fun patchBufferForEdit(
+    buffer: String,
+    oldFile: List<String>,
+    newFile: List<String>,
+    insertions: List<Pair<Int, Int>>,
+    hint: Int? = null,
+): BufferPatch? {
     val lines = buffer.split("\n")
     // A trailing newline leaves an empty last element that needn't match.
-    val n = if (lines.size > 1 && lines.last().isEmpty()) lines.size - 1 else lines.size
-    val changed = oldFile.indices.filter { oldFile[it] != newFile[it] }.toSet()
-    for (k in 0..(oldFile.size - n)) {
-        if ((0 until n).all { lines[it] == oldFile[k + it] } && (k until k + n).any { it in changed }) {
-            return lines.mapIndexed { i, l -> if (i < n) newFile[k + i] else l }.joinToString("\n")
-        }
-    }
-    return null
+    val trailing = lines.size > 1 && lines.last().isEmpty()
+    val n = if (trailing) lines.size - 1 else lines.size
+    fun fits(k: Int) = k >= 0 && k + n <= oldFile.size && (0 until n).all { lines[it] == oldFile[k + it] }
+    val k = hint?.takeIf(::fits) ?: (0..(oldFile.size - n)).firstOrNull(::fits) ?: return null
+    val start = k + insertions.filter { (at, _) -> at < k }.sumOf { it.second }
+    val count = n + insertions.filter { (at, _) -> at in k until k + n }.sumOf { it.second }
+    if (start + count > newFile.size) return null
+    val out = newFile.subList(start, start + count).joinToString("\n")
+    return BufferPatch(if (trailing) out + "\n" else out, start, count)
 }

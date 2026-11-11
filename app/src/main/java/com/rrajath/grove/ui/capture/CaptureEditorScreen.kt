@@ -486,8 +486,8 @@ fun CaptureEditorScreen(
             attachDirMoving = true
             attachDirScope.launch {
                 val outcome = app.attachDirMoves.apply(changes)
-                // A clash renamed a file: point the saved entry's link at the new name.
-                if (outcome.renames.isNotEmpty()) {
+                // A clash renamed a file (point the links at the new name), or a heading needs its new :ID:.
+                if (outcome.editsText) {
                     viewModel.renameLinksAfterMove(event.roamFilePath ?: attachTarget, outcome)
                 }
                 attachDirNotice = null

@@ -60,4 +60,31 @@ class AttachDirNoticeDialogTest {
         composeRule.onNodeWithText("Trip").assertIsDisplayed()
         composeRule.onNodeWithText(":DIR: property changed. Attachment(s) will be moved to kyoto").assertIsDisplayed()
     }
+
+    @Test
+    fun `a folded child move isn't listed, so the parent's entry stands alone`() {
+        val day = AttachOwner.Heading(5, listOf("Trip", "Day"), "BB22", "photos")
+        show(
+            listOf(
+                AttachDirChange.Move(trip, "Notes/n.org", "Notes/data/AA/11", "Notes/photos", AttachDirChange.Kind.DIR_ADDED, copy = false),
+                AttachDirChange.Move(day, "Notes/n.org", "Notes/data/BB/22", "Notes/photos", AttachDirChange.Kind.DIR_ADDED, copy = false, folded = true),
+            ),
+        )
+        composeRule.onNodeWithText(":DIR: property detected. Attachment(s) will be moved to photos").assertIsDisplayed()
+        composeRule.onNodeWithText("Trip").assertDoesNotExist()
+        composeRule.onNodeWithText("Day").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a child given a new ID says so`() {
+        val day = AttachOwner.Heading(5, listOf("Trip", "Day"), null, null)
+        show(
+            listOf(
+                AttachDirChange.Move(trip, "Notes/n.org", "Notes/photos", "Notes/data/AA/11", AttachDirChange.Kind.DIR_REMOVED, copy = false),
+                AttachDirChange.Move(day, "Notes/n.org", "Notes/photos", "Notes/data/CC/33", AttachDirChange.Kind.DIR_REMOVED, copy = false, newId = "CC33"),
+            ),
+        )
+        composeRule.onNodeWithText("Day").assertIsDisplayed()
+        composeRule.onNodeWithText("Inherited :DIR: property removed. An :ID: will be added and attachment(s) moved to data/CC/33").assertIsDisplayed()
+    }
 }

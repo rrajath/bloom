@@ -42,6 +42,8 @@
     <string name="attach_dir_removed">:DIR: property removed. Attachment(s) will be moved to %1$s</string>
     <!-- Notice after saving a note whose :DIR: property changed to a different folder. %1$s = the new folder. Keep :DIR: as it is. -->
     <string name="attach_dir_changed">:DIR: property changed. Attachment(s) will be moved to %1$s</string>
+    <!-- Notice after saving a note: a heading inherited a :DIR: property that was removed and has no :ID:, so it gets a new :ID: and its attachments move to that ID's folder. %1$s = that folder. Keep :ID: and :DIR: as they are. -->
+    <string name="attach_dir_new_id">Inherited :DIR: property removed. An :ID: will be added and attachment(s) moved to %1$s</string>
     <!-- Notice after saving a note that has attachments but no :ID: or :DIR: property left, so its attachment links point nowhere. Keep :ID: and :DIR: as they are. -->
     <string name="attach_dir_broken">Image link broken. Couldn\'t find :ID: or :DIR: property</string>
     <!-- Title of the attachment-folder notice dialog. -->
