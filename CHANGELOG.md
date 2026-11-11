@@ -58,7 +58,8 @@ re-uploads the APKs to the existing release instead of failing.
 ## [Unreleased]
 
 ### Added
-- The attach paperclip is now in Dailies and the capture editor; captures without a heading attach to the target file.
+- The attach paperclip is now in Dailies and the capture editor; captures without a heading attach to the target heading or file.
+- Settings › Attachments › Attachment folder sets where attachments go, matching Emacs's `org-attach-id-dir`.
 - Discarding a capture can also delete the files attached during it.
 - A Narrow button in the Outline swipe panel narrows the outline to that heading; Back widens again.
 - Read mode's breadcrumb now starts with Notebooks, which jumps straight back to the Notebooks screen.
@@ -70,6 +71,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Tips & Tricks gained an Outline section explaining the double-tap to view the whole file.
 
 ### Changed
+- Headings now use a parent's or the file's `:DIR:` for attachments, and `:DIR:` wins over `:ID:`, as in org-attach.
 - Refiling or archiving a heading whose attachments use an inherited `:DIR:` now writes that `:DIR:` onto it, keeping links working.
 - Editing a heading's `:DIR:` now also moves attachments of child headings that inherit it, adding an `:ID:` when needed.
 - Discard when leaving an editor now also undoes changes auto-save already wrote since you opened it or last saved.

@@ -1,0 +1,25 @@
+# From the Notebooks screen, open ${NOTEBOOK} and then ${HEADING} in Read mode.
+# Top-level headings only; expand a parent first for a child (see
+# flows/attachments/01-dir-inheritance.yaml).
+appId: com.rrajath.grove.debug
+---
+- extendedWaitUntil:
+    visible:
+      text: "${NOTEBOOK}"
+    timeout: 15000
+- tapOn:
+    text: "${NOTEBOOK}"
+- extendedWaitUntil:
+    visible:
+      id: "outline_list"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "${HEADING}"
+    direction: DOWN
+- tapOn:
+    text: "${HEADING}"
+- extendedWaitUntil:
+    visible:
+      id: "read_note_screen"
+    timeout: 10000

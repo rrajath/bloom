@@ -30,6 +30,16 @@ object DebugTestVault {
     const val EXTRA_SEED = "grove_test_seed"
 
     /**
+     * String extra naming a fixture set to seed instead of the flat `.org`
+     * fixtures. `attachments` ([DebugTestAttachments]) seeds notes with their
+     * attachment folders.
+     */
+    const val EXTRA_SEED_SET = "grove_test_seed_set"
+
+    /** Boolean extra: wipe the test vault, so the next flow starts clean. */
+    const val EXTRA_CLEANUP = "grove_test_cleanup"
+
+    /**
      * Int extra: when > 0, seed a large *synthetic* vault instead of the bundled
      * fixtures — [size] small notebooks plus one [LARGE_OUTLINE_HEADINGS]-heading
      * outline, for the scroll benchmarks.
@@ -65,7 +75,9 @@ object DebugTestVault {
         val root = File(context.getExternalFilesDir(null), VAULT_DIR).apply { mkdirs() }
         val size = intent.getIntExtra(EXTRA_VAULT_SIZE, 0)
         when {
+            intent.getBooleanExtra(EXTRA_CLEANUP, false) -> DebugTestAttachments.wipe(root)
             size > 0 -> seedLarge(root, size)
+            intent.getStringExtra(EXTRA_SEED_SET) == DebugTestAttachments.SET_NAME -> DebugTestAttachments.seedVault(root)
             intent.getBooleanExtra(EXTRA_SEED, false) -> seed(context, root)
         }
         TestVaultHook.useDirectory(root)

@@ -1,0 +1,22 @@
+# From Read mode: switch to Edit mode and open the attach sheet from the
+# toolbar paperclip.
+appId: com.rrajath.grove.debug
+---
+- tapOn:
+    text: "Edit"
+- extendedWaitUntil:
+    visible:
+      id: "edit_note_field"
+    timeout: 10000
+- tapOn:
+    id: "edit_note_field"
+- extendedWaitUntil:
+    visible:
+      id: "editor_attach"
+    timeout: 5000
+- tapOn:
+    id: "editor_attach"
+- extendedWaitUntil:
+    visible:
+      id: "attach_sheet"
+    timeout: 5000

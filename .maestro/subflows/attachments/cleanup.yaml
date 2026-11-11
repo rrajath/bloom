@@ -1,0 +1,16 @@
+# Attachment flows: remove everything a flow seeded or changed. Runs from each
+# flow's onFlowComplete (also when the flow failed). The cleanup launch wipes
+# the test vault; clearState then drops settings and the index.
+appId: com.rrajath.grove.debug
+---
+- launchApp:
+    clearState: true
+    arguments:
+      grove_test_direct_vault: true
+      grove_test_cleanup: true
+- extendedWaitUntil:
+    visible:
+      id: "notebooks_capture"
+    timeout: 15000
+- stopApp
+- clearState

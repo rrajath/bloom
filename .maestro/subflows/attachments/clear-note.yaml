@@ -1,0 +1,11 @@
+# In the note editor: put the cursor at the end (tap the empty area under the
+# text) and erase the whole subtree, so the flow can type a new one. Type the
+# new text one line per inputText with `pressKey: Enter` between lines:
+# `adb input text` doesn't turn \n into a line break (see .maestro/README.md).
+appId: com.rrajath.grove.debug
+---
+- tapOn:
+    id: "edit_note_field"
+- tapOn:
+    point: "50%,80%"
+- eraseText: 600

@@ -15,7 +15,7 @@ import settingsDark from '../assets/dark/settings-attachments.png';
 Early preview. Expect changes as this feature develops.
 :::
 
-Attachments let you keep photos, PDFs and other files next to the note they belong to. Bloom stores them the way Emacs [org-attach](https://orgmode.org/manual/Attachments.html) does: each heading gets its own folder inside your vault, named from the heading's `:ID:`, and the note links to the file with an `[[attachment:...]]` link. Since the files are plain files in your synced folder, Emacs on your laptop sees the same attachments, and attachments you add in Emacs show up in Bloom.
+Attachments let you keep photos, PDFs and other files next to the note they belong to. Bloom stores them the way Emacs [org-attach](https://orgmode.org/manual/Attachments.html) does: each heading gets its own folder inside your vault, named from the heading's `:ID:` and kept under an attachment folder next to the note (`data/` unless you [change it](#settings)), and the note links to the file with an `[[attachment:...]]` link. Since the files are plain files in your synced folder, Emacs on your laptop sees the same attachments, and attachments you add in Emacs show up in Bloom.
 
 <ThemeShot
   light={readLight}
@@ -37,9 +37,24 @@ Bloom copies each file into the target's attachment folder and inserts an `[[att
 
 If the target doesn't have an `:ID:` yet, Bloom adds one to its property drawer the first time you attach, since the folder name comes from it. A heading or file with a `:DIR:` property uses that folder instead, as in Emacs.
 
+### Folders from parent headings
+
+A `:DIR:` (or the older `:ATTACH_DIR:`) also applies to everything below it. A heading without its own `:DIR:` uses the nearest parent's, and failing that the one in the file's property drawer. That `:DIR:` wins over the heading's own `:ID:`, so its files go to the parent's folder and no new `:ID:` is added. An `:ID:` is never inherited: a heading with no `:DIR:` anywhere above it uses its own `:ID:` folder.
+
+When the folder comes from somewhere else, the attach sheet says so under **Attach to**: *Folder from \* Trip* names the parent heading, and *Folder from file settings* means the file's property drawer. This works the same when you edit a single heading, since Bloom checks the whole file, and in the capture editor, where headings in the capture use the `:DIR:` of the place the capture lands.
+
+Emacs only inherits `:DIR:` when it's told to. To make Emacs pick the same folders as Bloom, add this to your config:
+
+```elisp
+(setq org-attach-use-inheritance 'selective
+      org-use-property-inheritance '("DIR" "ATTACH_DIR"))
+```
+
 ### Changing :DIR: later
 
 If a heading or file already has attachments and you add, change or remove its `:DIR:` property, Bloom moves the files when you save or leave the editor. A popup tells you where they're going, for example *":DIR: property detected. Attachment(s) will be moved to photos"*. Tap **OK** and the popup shows **Moving…** until the files are in place. Removing `:DIR:` moves the files back to the `:ID:` folder. If another heading still uses the old folder, or the folder also holds your notes (`:DIR: .`), only the files that heading links to move, and they're copied when another heading still needs them. If the new folder already has a file with the same name, an identical file is reused. A different one gets a number added (`photo-1.jpg`) and Bloom updates the link to match.
+
+Headings below the one you edited move along when their folder came from it. Adding a `:DIR:` to a parent moves its children's files into the new folder, changing it moves them to the new folder, and removing it moves each child's files to wherever that child now resolves (another parent's `:DIR:`, the file's, or its own `:ID:` folder). Children with their own `:DIR:` aren't touched. When a child moves to the same folder as the heading you edited, the popup shows just one entry for both; a child going somewhere else gets its own entry with its title. A child left with no `:DIR:` above it and no `:ID:` of its own gets a new `:ID:`, and the popup says *"Inherited :DIR: property removed. An :ID: will be added and attachment(s) moved to …"*.
 
 If you remove the last `:ID:` or `:DIR:` from something that has attachments, the popup says *"Image link broken. Couldn't find :ID: or :DIR: property"*. The files stay where they are, so put the property back to fix the links.
 
@@ -54,12 +69,13 @@ The paperclip is also on the toolbar in [Dailies](/features/dailies) and in the 
 A capture is new text that lands in the template's target file when you save, so its target works a little differently:
 
 - With the cursor under a heading in the capture, the files attach to that heading. Its new `:ID:` and the links are part of the capture and land in the target file with it.
-- With no heading in the capture, a toast says the files attach to the target file instead. Bloom adds an `:ID:` to the target file if it has none and inserts `[[file:...]]` links relative to it. This needs the target file to exist already.
+- With no heading in the capture and a template that adds the text under a heading, the files attach to that heading, with `[[attachment:...]]` links. If it needs an `:ID:`, Bloom adds one to the heading in the target file.
+- With no heading in the capture and a template that adds the text to a file, a toast says the files attach to the target file instead. Bloom adds an `:ID:` to the target file if it has none and inserts `[[file:...]]` links relative to it. This needs the target file to exist already.
 - A new Roam node capture is the whole new file, so with no heading the files attach to the node's own file, under the `:ID:` the node gets when you save.
 
 The capture editor's Read toggle shows attached images inline, the same as a saved note.
 
-Files are copied as soon as you pick them, not when you save. If you discard the capture, the confirmation offers **Also delete attachments** (checked by default). Leave it checked and Bloom deletes the files attached during that capture, along with any `:ID:` it added to the target file. Uncheck it to keep them.
+Files are copied as soon as you pick them, not when you save. If you discard the capture, the confirmation offers **Also delete attachments** (checked by default). Leave it checked and Bloom deletes the files attached during that capture, along with any `:ID:` it added to the target file or heading. Uncheck it to keep them.
 
 The original file is never moved or changed. Photos from **Camera** and **Photos** are resized according to the [Photo size](#settings) setting, and HEIC photos are always saved as JPEG so they display everywhere. Files from **Files** are copied exactly as they are.
 
@@ -104,30 +120,32 @@ In the [Outline](/features/outline-view) and in [Search](/features/search) resul
 Attachment folders follow the notes they belong to:
 
 - **Refiling or archiving** a heading to a file in another folder moves its attachment folder along with it.
+- **Refiling or archiving** a heading whose attachments are in a folder it gets from a parent heading or the file writes that `:DIR:` onto the heading, adjusted for where it lands (for example `:DIR: ../Notes/photos`), so its links keep working. Nothing is written when the new place uses the same folder anyway, or when nothing in the moved heading links to an attachment. Undo takes the `:DIR:` back off. Emacs doesn't do this, so a refile done in Emacs can leave these links broken.
 - **Moving a notebook** to another folder asks whether to move its attachments too (the default) or move only the notebook.
 - **Deleting a notebook** offers to delete its attachments as well, checked by default.
 - **Deleting a heading** in the Outline offers to delete its attachments, unchecked by default. The heading delete can be undone; deleting the files can't.
 
 An attachment folder that's also used by a note somewhere else is never moved or deleted out from under it. It's copied or kept instead, and the confirmation tells you how many.
 
-Attachment folders (the `data/` folder org-attach uses) never show up as notebooks, and sync doesn't scan inside them.
+Attachment folders (`data/`, or the folder you set in [Settings](#settings)) never show up as notebooks, and sync doesn't scan inside them.
 
 ## Settings
 
 <ThemeShot
   light={settingsLight}
   dark={settingsDark}
-  alt="Settings › Attachments with a Preview tag, a Photo size switch (Original, Large, Medium, Small) set to Original, and a Default image width switch (Fit column, Fixed) set to Fit column"
+  alt="Settings › Attachments with a Preview tag, a Photo size switch (Original, Large, Medium, Small) set to Original, a Default image width switch (Fit column, Fixed) set to Fit column, and an Org-attach compatibility section with an Attachment folder row set to data/"
   widths={[340, 680]}
   sizes="340px"
 />
 
-**Settings › Attachments** has two settings. Both are included in [Backup](/features/backup-export-import).
+**Settings › Attachments** has three settings. All are included in [Backup](/features/backup-export-import).
 
 | Setting | Options |
 |---|---|
 | **Photo size** | **Original** (full resolution), **Large** (long edge 2560 px), **Medium** (1920 px), **Small** (1280 px). Applies to Camera and Photos only. |
 | **Default image width** | **Fit column** fills the width of the note. **Fixed** shows a stepper for a set width, 120 to 1200 px in steps of 40. An `#+ATTR_ORG: :width` line overrides it for one image. |
+| **Attachment folder** | Where `:ID:` folders go, relative to each note's folder. `data/` by default, like Emacs; set it to match `org-attach-id-dir`, for example `attach/` or `.attach/`. Nested folders (`media/files/`) work. Absolute paths, `..` and `~` aren't allowed. Existing attachments aren't moved: files already in `data/` keep opening, and new ones go to the new folder. |
 
 Images are never shown wider than their own size, and tall images are scaled down to fit on screen.
 

@@ -1,0 +1,16 @@
+# Press back until the Notebooks screen shows (at most 5 presses): from Read
+# mode, the editor, the outline or a Settings page.
+appId: com.rrajath.grove.debug
+---
+- hideKeyboard
+- repeat:
+    while:
+      notVisible:
+        id: "notebooks_capture"
+    times: 5
+    commands:
+      - back
+- extendedWaitUntil:
+    visible:
+      id: "notebooks_capture"
+    timeout: 10000
