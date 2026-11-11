@@ -357,4 +357,51 @@ class AutoArchiveTest {
         assertTrue(after.indexOf("** One") < after.indexOf("** Two"))
         assertEquals(2, Regex(":ARCHIVE_TIME:").findAll(after).count())
     }
+
+    @Test
+    fun `archiving to another folder pins the inherited DIR the heading's attachments use`() = runTest {
+        File(tmp.root, "Notes").mkdirs()
+        File(tmp.root, "Notes/trip.org").writeText("* Trip\n:PROPERTIES:\n:DIR: photos\n:END:\n** DONE Day\n[[attachment:a.jpg]]\n")
+        val v = vault()
+        val doc = v.open("Notes/trip.org")!!
+        val day = doc.headlines.first { it.title == "Day" }
+
+        val write = AutoArchive.refileSubtree(v, doc, "Notes/trip.org", day, ArchiveTarget("Archive/a.org", listOf("Done")), archivedAt = now)!!
+
+        val moved = OrgParser.parse(write.destText).headlines.first { it.title == "Day" }
+        assertEquals("../Notes/photos", moved.properties["DIR"])
+        assertTrue(moved.properties.containsKey("ARCHIVE_TIME"))
+    }
+
+    @Test
+    fun `refiling within the same folder adds nothing`() = runTest {
+        File(tmp.root, "Notes").mkdirs()
+        File(tmp.root, "Notes/trip.org").writeText(":PROPERTIES:\n:DIR: files\n:END:\n* Day\n[[attachment:a.jpg]]\n")
+        File(tmp.root, "Notes/other.org").writeText(":PROPERTIES:\n:DIR: files\n:END:\n* Inbox\n")
+        val v = vault()
+        val doc = v.open("Notes/trip.org")!!
+
+        val write = AutoArchive.refileSubtree(v, doc, "Notes/trip.org", doc.headlines.single(), ArchiveTarget("Notes/other.org", listOf("Inbox")))!!
+
+        assertFalse(write.destText.contains(":DIR: ../"))
+        assertEquals(1, Regex(":DIR:").findAll(write.destText).count())
+    }
+
+    @Test
+    fun `refileEach pins each moved heading that needs it`() = runTest {
+        File(tmp.root, "Notes").mkdirs()
+        File(tmp.root, "Notes/trip.org").writeText(
+            "* Trip\n:PROPERTIES:\n:DIR: photos\n:END:\n** Day 1\n[[attachment:a.jpg]]\n** Day 2\nplain\n",
+        )
+        val v = vault()
+        val doc = v.open("Notes/trip.org")!!
+        val target = ArchiveTarget("Archive/a.org", emptyList())
+        val sources = doc.headlines.filter { it.title.startsWith("Day") }.map { it.lineIndex to target }
+
+        val result = AutoArchive.refileEach(v, doc, "Notes/trip.org", sources, createFileIfMissing = true)
+
+        val dest = OrgParser.parse(result.destWrites.single().third)
+        assertEquals("../Notes/photos", dest.headlines.first { it.title == "Day 1" }.properties["DIR"])
+        assertEquals(null, dest.headlines.first { it.title == "Day 2" }.properties["DIR"])
+    }
 }

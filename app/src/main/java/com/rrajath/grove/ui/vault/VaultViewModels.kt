@@ -14,6 +14,7 @@ import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentBase
 import com.rrajath.grove.attach.AttachmentFiles
 import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.DirPin
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.attach.AttachmentLifecycle
 import com.rrajath.grove.attach.FileRewrite
@@ -2316,8 +2317,12 @@ class DocumentViewModel(
             if (destFile == loaded.fileName) {
                 val targetLine = targetLine?.let { line(it) ?: return@mutate showToast("Couldn't find the destination heading") }
                 val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
+                // Each root keeps an inherited :DIR: its attachments use, if the new place would resolve another.
+                val pins = roots.map { DirPin.of(loaded.document, loaded.fileName, it) }
                 val newDoc = withContext(dispatchers.default) {
-                    OrgMutations.refileEachWithinFile(loaded.document, lines, targetLine)
+                    OrgMutations.refileEachWithinFile(loaded.document, lines, targetLine) { i, st, into, t ->
+                        pins[i]?.apply(st, into, loaded.fileName, t) ?: st
+                    }
                 }
                 if (newDoc == null) {
                     showToast("Can't refile into its own subtree")
@@ -2334,9 +2339,11 @@ class DocumentViewModel(
                     return@mutate
                 }
                 val target = targetLine?.let { destDoc.headlineAtLine(it) }
+                val pins = roots.map { DirPin.of(loaded.document, loaded.fileName, it) }
                 val result = withContext(dispatchers.default) {
                     val lifted = OrgMutations.liftSubtrees(loaded.document, lines)
-                    OrgMutations.insertEach(destDoc, targetLine, lifted.subtrees)?.let { lifted.doc to it }
+                    val subtrees = lifted.subtrees.mapIndexed { i, st -> pins[i]?.apply(st, destDoc, destFile, target) ?: st }
+                    OrgMutations.insertEach(destDoc, targetLine, subtrees)?.let { lifted.doc to it }
                 }
                 if (result == null) {
                     showToast("Couldn't find the destination heading")
@@ -2405,8 +2412,10 @@ class DocumentViewModel(
                 val targetLine = targetLine?.let { line(it) ?: return@mutate showToast("Couldn't find the destination heading") }
                 val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
                 val result = withContext(dispatchers.default) {
-                    OrgMutations.refileWithinFile(loaded.document, source, targetLine)
-                        ?.let { (text, _) -> text to OrgParser.parse(text, loaded.document.keywords) }
+                    val pin = DirPin.of(loaded.document, loaded.fileName, source)
+                    OrgMutations.refileWithinFile(loaded.document, source, targetLine) { st, into, t ->
+                        pin?.apply(st, into, loaded.fileName, t) ?: st
+                    }?.let { (text, _) -> text to OrgParser.parse(text, loaded.document.keywords) }
                 }
                 if (result == null) {
                     showToast("Can't refile into its own subtree")
@@ -2426,7 +2435,10 @@ class DocumentViewModel(
                 }
                 val target = targetLine?.let { destDoc.headlineAtLine(it) }
                 val (newSourceText, newDestText, newSourceDoc) = withContext(dispatchers.default) {
-                    val subtree = OrgMutations.subtreeText(loaded.document, source)
+                    // Keep an inherited :DIR: its attachments use, if the new place would resolve another.
+                    val subtree = OrgMutations.subtreeText(loaded.document, source).let { st ->
+                        DirPin.of(loaded.document, loaded.fileName, source)?.apply(st, destDoc, destFile, target) ?: st
+                    }
                     val srcText = OrgMutations.deleteSubtree(loaded.document, source)
                     val (dstText, _) = OrgMutations.refileInsert(destDoc, target, subtree)
                     Triple(srcText, dstText, OrgParser.parse(srcText, loaded.document.keywords))

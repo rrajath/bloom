@@ -905,6 +905,52 @@ class DocumentViewModelIntegrationTest {
     }
 
     @Test
+    fun `refile to another folder pins the inherited DIR, and undo takes it back`() = runTest {
+        store.write("Notes/trip.org", "* Trip\n:PROPERTIES:\n:DIR: photos\n:END:\n** Day\n[[attachment:a.jpg]]\n")
+        store.write("Archive/a.org", "* Inbox\n")
+        TestVaultSeeder.index(db, store)
+        val before = store.snapshot()
+        val vm = loaded("Notes/trip.org")
+
+        vm.startRefile(headline(vm, "Day"))
+        advanceUntilIdle()
+        vm.refilePickNotebook("Archive/a.org")
+        advanceUntilIdle()
+        vm.refileConfirm()
+        advanceUntilIdle()
+
+        val day = OrgParser.parse(store.read("Archive/a.org")).headlines.first { it.title == "Day" }
+        assertEquals("../Notes/photos", day.properties["DIR"])
+
+        vm.undo()
+        advanceUntilIdle()
+        assertEquals(before, store.snapshot())
+    }
+
+    @Test
+    fun `bulk refile within the file pins the DIR when the new parent has another`() = runTest {
+        store.write(
+            "projects.org",
+            "* Trip\n:PROPERTIES:\n:DIR: photos\n:END:\n** Day\n[[attachment:a.jpg]]\n* Other\n:PROPERTIES:\n:DIR: x\n:END:\n",
+        )
+        TestVaultSeeder.index(db, store)
+        val vm = loaded("projects.org")
+        vm.startRefileEach(setOf(headline(vm, "Day").lineIndex))
+        advanceUntilIdle()
+        vm.refilePickNotebook("projects.org")
+        advanceUntilIdle()
+        vm.refileDrillInto(headline(vm, "Other").lineIndex)
+        advanceUntilIdle()
+        vm.refileConfirm()
+        advanceUntilIdle()
+
+        val doc = OrgParser.parse(store.read("projects.org"))
+        val day = doc.headlines.first { it.title == "Day" }
+        assertEquals("Other", doc.parent(day)?.title)
+        assertEquals("photos", day.properties["DIR"])
+    }
+
+    @Test
     fun `refile search hit selects the heading as the target, then confirms like the drill-down`() = runTest {
         TestVaultSeeder.index(db, store)
         val vm = loaded("projects.org")
