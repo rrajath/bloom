@@ -1,0 +1,10 @@
+:PROPERTIES:
+:DIR: files
+:END:
+
+* A
+:PROPERTIES:
+:DIR: a
+:END:
+** B
+# point

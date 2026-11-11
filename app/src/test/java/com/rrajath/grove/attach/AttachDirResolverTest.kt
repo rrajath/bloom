@@ -101,11 +101,6 @@ class AttachDirResolverTest {
         assertEquals(listOf("Photos/kyoto"), r.candidates("notes/travel.org", heading(uuid, "../Photos/kyoto")))
     }
 
-    @Test fun `dir property is ignored when not honored`() = runBlocking {
-        val r = AttachDirResolver(FakeDirs(), AttachConfig(honorDirProperty = false))
-        assertEquals("data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C", r.writeDir("a.org", heading(uuid, "photos")))
-    }
-
     @Test fun `dir property escaping the vault is missing`() = runBlocking {
         val r = AttachDirResolver(FakeDirs(), AttachConfig.Default)
         assertNull(r.writeDir("notes/a.org", heading(uuid, "../../outside")))

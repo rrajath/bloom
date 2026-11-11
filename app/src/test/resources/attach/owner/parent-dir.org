@@ -1,0 +1,6 @@
+* Trip
+:PROPERTIES:
+:DIR: trip
+:END:
+** Day 1
+# point

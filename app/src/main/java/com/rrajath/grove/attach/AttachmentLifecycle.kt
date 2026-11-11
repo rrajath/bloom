@@ -135,9 +135,9 @@ class AttachmentLifecycle(
         owners: List<AttachOwner>,
         heldElsewhereInFile: Set<String>,
     ): AttachmentInventory {
-        val dirProps = if (config.honorDirProperty) owners.mapNotNull { it.dirProperty?.trim() }.distinct() else emptyList()
+        val dirProps = owners.mapNotNull { it.dirProperty?.trim() }.distinct()
         val ids = owners
-            .filter { !config.honorDirProperty || it.dirProperty == null }
+            .filter { it.dirProperty == null }
             .mapNotNull { it.id?.trim()?.takeIf(String::isNotEmpty) }
             .distinct()
         if (ids.isEmpty()) return AttachmentInventory(emptyList(), dirProps)

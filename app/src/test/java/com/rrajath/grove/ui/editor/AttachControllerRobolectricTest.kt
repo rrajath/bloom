@@ -142,6 +142,31 @@ class AttachControllerRobolectricTest {
     }
 
     @Test
+    fun `a pick under a parent DIR goes into the parent's folder without a new ID`() {
+        val text = "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Lunch\n:PROPERTIES:\n:ID: AB12345\n:END:\nsoba\n"
+        val textState = TextFieldState(text, TextRange(text.length))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/travel.org", bufferReady = true, manager, attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        composeRule.runOnIdle {
+            controller.open()
+            controller.pending = PendingAttach("Files", false, "AB12345", listOf("Trip", "Lunch"), 4, textState.selection.start)
+            controller.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("[[attachment:receipt.pdf]]") }
+
+        assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
+        assertFalse(File(vaultDir, "notes/data").exists())
+        assertTrue(textState.text.toString(), textState.text.contains("soba\n[[attachment:receipt.pdf]]"))
+        assertEquals(1, Regex(":ID:").findAll(textState.text).count())
+    }
+
+    @Test
     fun `a result that arrives before the buffer is loaded waits for it`() {
         val textState = TextFieldState("* Lunch\n:PROPERTIES:\n:ID: AB12345\n:END:\nbody\n", TextRange(0))
         var ready by mutableStateOf(false)

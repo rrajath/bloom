@@ -43,7 +43,6 @@ import com.rrajath.grove.attach.attachmentLinkText
 import com.rrajath.grove.attach.failureMessage
 import com.rrajath.grove.attach.fileLinkText
 import com.rrajath.grove.attach.fileOwner
-import com.rrajath.grove.attach.headingAtLine
 import com.rrajath.grove.attach.insertAttachmentLinksInBuffer
 import com.rrajath.grove.attach.lineOfOffset
 import com.rrajath.grove.attach.linkableName
@@ -51,6 +50,7 @@ import com.rrajath.grove.attach.ownerOf
 import com.rrajath.grove.attach.ownerToastLabel
 import com.rrajath.grove.attach.relativeLinkPath
 import com.rrajath.grove.attach.resolveOwner
+import com.rrajath.grove.attach.resolveOwnerAtLine
 import com.rrajath.grove.attach.scopesFor
 import com.rrajath.grove.attach.successMessage
 import com.rrajath.grove.org.OrgDocument
@@ -272,7 +272,7 @@ class AttachController internal constructor(
     fun open() {
         val text = textState.text.toString()
         val doc = OrgParser.parse(text)
-        val owner = withPendingFileId(resolveOwner(doc, textState.selection.start, attachConfig()))
+        val owner = withPendingFileId(resolveOwner(doc, textState.selection.start))
         if (addDiskFileId != null && owner is AttachOwner.File) {
             openOnDisk()
             return
@@ -495,9 +495,9 @@ class AttachController internal constructor(
         if (p.isFile) return doc.fileOwner() to false
         val byId = p.id?.let { id -> doc.headlines.firstOrNull { doc.ownerOf(it).id == id } }
         val match = byId ?: doc.headlines.firstOrNull { doc.ownerOf(it).titlePath == p.titlePath }
-        if (match != null) return doc.ownerOf(match) to false
-        val h = doc.headingAtLine(lineOfOffset(doc.text, p.cursor))
-        return (h?.let { doc.ownerOf(it) } ?: doc.fileOwner()) to true
+        // Re-resolve at the heading so an inherited :DIR: still decides the folder.
+        if (match != null) return resolveOwnerAtLine(doc, match.lineIndex) to false
+        return resolveOwnerAtLine(doc, lineOfOffset(doc.text, p.cursor)) to true
     }
 
     /** A copy finished while this editor is open: write the links, or report the failure. */

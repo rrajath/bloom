@@ -1,0 +1,5 @@
+* A
+:PROPERTIES:
+:dir: photos/kyoto
+:END:
+# point

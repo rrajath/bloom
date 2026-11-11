@@ -9,7 +9,7 @@ class AttachmentInsertionTest {
 
     private val id = "8B41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C"
 
-    private fun ownerAt(text: String, cursor: Int) = resolveOwner(OrgParser.parse(text), cursor, AttachConfig.Default)
+    private fun ownerAt(text: String, cursor: Int) = resolveOwner(OrgParser.parse(text), cursor)
 
     /** Runs the insertion with the cursor at the `|` marker in [marked]; returns (text, text with `|` at the new cursor). */
     private fun insert(marked: String, newId: String?, vararg names: String): Pair<String, String> {

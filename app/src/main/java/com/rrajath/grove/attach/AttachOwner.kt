@@ -11,7 +11,11 @@ sealed interface AttachOwner {
     /** The owner's `:ID:`, if it has one. */
     val id: String?
 
-    /** The owner's `:DIR:` (or legacy `:ATTACH_DIR:`), if it has one. */
+    /**
+     * The `:DIR:` (or legacy `:ATTACH_DIR:`) that decides the owner's folder, if
+     * any. From [resolveOwnerAtLine] it can be inherited ([Heading.dirFrom]
+     * names the supplier); from [ownerOf] / [fileOwner] it is the entry's own.
+     */
     val dirProperty: String?
 
     data class Heading(
@@ -20,6 +24,11 @@ sealed interface AttachOwner {
         val titlePath: List<String>,
         override val id: String?,
         override val dirProperty: String?,
+        /**
+         * The ancestor heading or file whose `:DIR:` / `:ATTACH_DIR:` this heading
+         * inherits as [dirProperty]; null when the value is the heading's own or absent.
+         */
+        val dirFrom: AttachOwner? = null,
     ) : AttachOwner {
         val title: String get() = titlePath.lastOrNull().orEmpty()
     }
@@ -76,31 +85,44 @@ internal fun lineOfOffset(text: String, offset: Int): Int {
 }
 
 /**
- * The owner for a cursor at character [offset] in this document's text: the
- * nearest heading at or above the cursor line, or [AttachOwner.File] above the
- * first heading. With [AttachConfig.useInheritance], an owner without `:DIR:` or
- * `:ID:` defers to the nearest ancestor (then the file) that has one, `:DIR:`
- * first, the way `org-entry-get` with inheritance resolves them.
+ * The owner for a cursor at character [offset] in this document's text; see
+ * [resolveOwnerAtLine].
  */
-fun resolveOwner(doc: OrgDocument, offset: Int, config: AttachConfig): AttachOwner =
-    resolveOwnerAtLine(doc, lineOfOffset(doc.text, offset), config)
+fun resolveOwner(doc: OrgDocument, offset: Int): AttachOwner =
+    resolveOwnerAtLine(doc, lineOfOffset(doc.text, offset))
 
-fun resolveOwnerAtLine(doc: OrgDocument, lineIndex: Int, config: AttachConfig): AttachOwner {
+/**
+ * The owner for line [lineIndex], following `org-attach-dir` with `:DIR:` and
+ * `:ATTACH_DIR:` inherited and `:ID:` not (`org-attach-use-inheritance
+ * 'selective`, `org-use-property-inheritance '("DIR" "ATTACH_DIR")`):
+ *
+ * 1. The heading at the line; none means the file owner.
+ * 2. `:DIR:` on the heading, then its ancestors nearest first, then the file drawer.
+ * 3. Else `:ATTACH_DIR:` in the same order.
+ * 4. Else the heading's own `:ID:` (never an ancestor's), or nothing.
+ *
+ * The result is always the heading itself (so links land in its body), with
+ * [AttachOwner.dirProperty] set to the winning value and [AttachOwner.Heading.dirFrom]
+ * naming the ancestor or file that supplied it.
+ */
+fun resolveOwnerAtLine(doc: OrgDocument, lineIndex: Int): AttachOwner {
     val h = doc.headingAtLine(lineIndex) ?: return doc.fileOwner()
     val own = doc.ownerOf(h)
-    if (!config.useInheritance || own.id != null || own.dirProperty != null) return own
-    val chain = buildList<AttachOwner> {
-        var p = doc.parent(h)
-        while (p != null) {
-            add(doc.ownerOf(p))
-            p = doc.parent(p)
+    val chain = buildList {
+        var cur: OrgHeadline? = h
+        while (cur != null) {
+            add(DirSupplier(doc.ownerOf(cur), cur.properties.prop("DIR"), cur.properties.prop("ATTACH_DIR")))
+            cur = doc.parent(cur)
         }
-        add(doc.fileOwner())
+        add(DirSupplier(doc.fileOwner(), doc.fileProp("DIR"), doc.fileProp("ATTACH_DIR")))
     }
-    return chain.firstOrNull { it.dirProperty != null }
-        ?: chain.firstOrNull { it.id != null }
-        ?: own
+    val (supplier, value) = chain.firstNotNullOfOrNull { s -> s.dir?.let { s to it } }
+        ?: chain.firstNotNullOfOrNull { s -> s.attachDir?.let { s to it } }
+        ?: return own
+    return own.copy(dirProperty = value, dirFrom = supplier.owner.takeIf { supplier !== chain.first() })
 }
+
+private class DirSupplier(val owner: AttachOwner, val dir: String?, val attachDir: String?)
 
 /**
  * Re-find [owner] in a (possibly edited) [doc]: by `:ID:` first, then by title

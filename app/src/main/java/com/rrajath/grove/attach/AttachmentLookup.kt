@@ -48,9 +48,9 @@ class AttachmentLookup(
         AttachmentBase.ATTACH_DIR -> {
             val resolver = AttachDirResolver(files, config)
             val owners = if (doc != null && atLine != null && atLine in doc.lines.indices) {
-                listOf(resolveOwnerAtLine(doc, atLine, config))
+                listOf(resolveOwnerAtLine(doc, atLine))
             } else {
-                linkOwners(doc, rawTarget, preferLines, config)
+                linkOwners(doc, rawTarget, preferLines)
             }
             owners.firstNotNullOfOrNull { owner ->
                 val dir = resolver.readDir(orgFile, owner) ?: return@firstNotNullOfOrNull null
@@ -78,10 +78,9 @@ internal fun linkOwners(
     doc: OrgDocument?,
     rawTarget: String,
     preferLines: IntRange?,
-    config: AttachConfig,
 ): List<AttachOwner> {
     doc ?: return emptyList()
     val hits = if (rawTarget.isBlank()) emptyList() else doc.lines.indices.filter { doc.lines[it].contains(rawTarget) }
     val ordered = if (preferLines == null) hits else hits.sortedBy { if (it in preferLines) 0 else 1 }
-    return ordered.map { resolveOwnerAtLine(doc, it, config) }.ifEmpty { listOf(doc.fileOwner()) }.distinct()
+    return ordered.map { resolveOwnerAtLine(doc, it) }.ifEmpty { listOf(doc.fileOwner()) }.distinct()
 }

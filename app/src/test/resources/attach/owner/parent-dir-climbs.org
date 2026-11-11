@@ -1,0 +1,6 @@
+* A
+:PROPERTIES:
+:DIR: ../shared/trip
+:END:
+** B
+# point

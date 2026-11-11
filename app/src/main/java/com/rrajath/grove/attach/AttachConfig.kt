@@ -7,16 +7,15 @@ package com.rrajath.grove.attach
  * every resolver, lookup and lifecycle takes one explicitly
  * (`NoDefaultAttachConfigTest` keeps [Default] out of app code), so a settings
  * change reaches all of them.
+ *
+ * `:DIR:` / `:ATTACH_DIR:` are always honored and always inherited, and `:ID:`
+ * never is (see [resolveOwnerAtLine]); neither is configurable.
  */
 data class AttachConfig(
     /** `org-attach-id-dir`: relative to the org file's directory, with one trailing `/`. */
     val idDir: String = "data/",
     /** `org-attach-id-to-path-function-list`, in order. */
     val idPathFormats: List<IdPathFormat> = listOf(IdPathFormat.Uuid, IdPathFormat.Ts, IdPathFormat.Fallback),
-    /** Honor `:DIR:` (and the legacy `:ATTACH_DIR:`) properties. */
-    val honorDirProperty: Boolean = true,
-    /** `org-attach-use-inheritance`: look up `:DIR:` / `:ID:` on ancestors too. */
-    val useInheritance: Boolean = false,
 ) {
     /**
      * The vault-relative attach root for [orgFile]'s `:ID:` dirs (`Notes/data`

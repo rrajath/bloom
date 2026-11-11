@@ -1,0 +1,7 @@
+:PROPERTIES:
+:DIR: files
+:END:
+#+TITLE: x
+
+# point
+* A
