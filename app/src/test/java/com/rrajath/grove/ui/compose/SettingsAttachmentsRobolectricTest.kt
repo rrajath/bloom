@@ -3,6 +3,7 @@ package com.rrajath.grove.ui.compose
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -41,6 +42,7 @@ class SettingsAttachmentsRobolectricTest {
                     onSetPhotoSize = { size = it },
                     onSetImageWidth = { width = it },
                     onSetImageWidthPx = { px = it },
+                    onSetAttachFolder = {},
                 )
             }
         }
@@ -82,5 +84,13 @@ class SettingsAttachmentsRobolectricTest {
     fun stepperStopsAtTheLimits() {
         content(GroveSettings(attachImageWidth = AttachImageWidth.FIXED, attachImageWidthPx = 120))
         composeRule.onNodeWithTag("attach_width_minus").performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test
+    fun orgAttachGroupShowsTheFolderRow() {
+        content(GroveSettings(attachFolder = "media/files/"))
+        composeRule.onNodeWithText("ORG-ATTACH COMPATIBILITY").performScrollTo().assertExists()
+        composeRule.onNodeWithText("Matches org-attach-id-dir in Emacs.").assertExists()
+        composeRule.onNodeWithTag("attach_folder_value", useUnmergedTree = true).assertTextEquals("media/files/")
     }
 }

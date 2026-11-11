@@ -6,13 +6,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,12 +30,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.settings.AttachFolder
 import com.rrajath.grove.settings.AttachImageWidth
 import com.rrajath.grove.settings.AttachPhotoSize
 import com.rrajath.grove.settings.GroveSettings
+import com.rrajath.grove.ui.components.NameDialog
 import com.rrajath.grove.ui.components.Pill
 import com.rrajath.grove.ui.components.SegmentedControl
 import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
@@ -39,7 +50,9 @@ import com.rrajath.grove.ui.theme.grove
 /**
  * Settings § Attachments (preview), prototype 1o:
  * Photo size for Camera/Photos imports, and the default read-mode image width
- * with a px stepper when Fixed. All three values are in Settings import/export.
+ * with a px stepper when Fixed. Below them, the org-attach compatibility group:
+ * the attachment folder (`org-attach-id-dir`), edited in [NameDialog]. All
+ * values are in Settings import/export.
  */
 @Composable
 fun SettingsAttachmentsScreen(
@@ -48,8 +61,10 @@ fun SettingsAttachmentsScreen(
     onSetPhotoSize: (AttachPhotoSize) -> Unit,
     onSetImageWidth: (AttachImageWidth) -> Unit,
     onSetImageWidthPx: (Int) -> Unit,
+    onSetAttachFolder: (String) -> Unit,
 ) {
     val c = MaterialTheme.grove
+    var editingFolder by rememberSaveable { mutableStateOf(false) }
     MarkNewFeatureSeen(NewAnchors.SETTINGS_ATTACHMENTS_PAGE)
     SettingsPageScaffold(
         title = "Attachments",
@@ -108,6 +123,42 @@ fun SettingsAttachmentsScreen(
                 }
             }
         }
+        Spacer(Modifier.height(20.dp))
+        SectionLabel("ORG-ATTACH COMPATIBILITY")
+        SettingsGroup {
+            SettingsRow(
+                label = "Attachment folder",
+                description = "Matches org-attach-id-dir in Emacs.",
+                onClick = { editingFolder = true },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        settings.attachFolder,
+                        fontFamily = PlexMono, fontSize = 13.sp, color = c.ink2,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 140.dp).testTag("attach_folder_value"),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("›", fontFamily = PlexMono, fontSize = 14.sp, color = c.ink2)
+                }
+            }
+        }
+    }
+    if (editingFolder) {
+        NameDialog(
+            title = "Attachment folder",
+            initial = settings.attachFolder,
+            confirmLabel = "Save",
+            placeholder = AttachFolder.DEFAULT,
+            validate = AttachFolder::error,
+            helperText = "Relative to each note's folder. Files already in data/ keep opening.",
+            onDismiss = { editingFolder = false },
+            onConfirm = { raw ->
+                editingFolder = false
+                val next = AttachFolder.normalize(raw) ?: return@NameDialog
+                if (next != settings.attachFolder) onSetAttachFolder(next)
+            },
+        )
     }
 }
 

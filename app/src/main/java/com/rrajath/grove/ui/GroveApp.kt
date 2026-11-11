@@ -1158,6 +1158,7 @@ private fun GroveNavigation(
                     onSetPhotoSize = viewModel::setAttachPhotoSize,
                     onSetImageWidth = viewModel::setAttachImageWidth,
                     onSetImageWidthPx = viewModel::setAttachImageWidthPx,
+                    onSetAttachFolder = viewModel::setAttachFolder,
                 )
             }
             screen(Routes.SETTINGS_BACKUP) {

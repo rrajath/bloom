@@ -296,6 +296,8 @@ data class GroveSettings(
     val attachImageWidth: AttachImageWidth = AttachImageWidth.FIT,
     /** Settings § Attachments: image width in px when [attachImageWidth] is FIXED. */
     val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
+    /** Settings § Attachments: the attachment folder, always valid with one trailing `/` ([AttachFolder]). */
+    val attachFolder: String = AttachFolder.DEFAULT,
 ) {
     /** Pinned notebook file names in pin order — derived view of [pinnedItems]. */
     val pinnedNotebooks: List<String>
@@ -436,6 +438,7 @@ class SettingsRepository(
         val attachPhotoSize = stringPreferencesKey("attach_photo_size")
         val attachImageWidth = stringPreferencesKey("attach_image_width")
         val attachImageWidthPx = intPreferencesKey("attach_image_width_px")
+        val attachFolder = stringPreferencesKey("attach_folder")
     }
 
     /**
@@ -552,6 +555,7 @@ class SettingsRepository(
             attachPhotoSize = AttachPhotoSize.fromStorage(prefs[Keys.attachPhotoSize]),
             attachImageWidth = AttachImageWidth.fromStorage(prefs[Keys.attachImageWidth]),
             attachImageWidthPx = AttachImageWidth.clampPx(prefs[Keys.attachImageWidthPx] ?: AttachImageWidth.DEFAULT_PX),
+            attachFolder = AttachFolder.sanitize(prefs[Keys.attachFolder]),
         )
     }.shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
@@ -692,6 +696,7 @@ class SettingsRepository(
             p[Keys.attachPhotoSize] = s.attachPhotoSize.storageKey
             p[Keys.attachImageWidth] = s.attachImageWidth.storageKey
             p[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(s.attachImageWidthPx)
+            p[Keys.attachFolder] = AttachFolder.sanitize(s.attachFolder)
         }
     }
 
@@ -1042,6 +1047,12 @@ class SettingsRepository(
 
     suspend fun setAttachImageWidthPx(px: Int) {
         context.settingsDataStore.edit { it[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(px) }
+    }
+
+    /** Stores [folder] normalized; an invalid value is ignored (the dialog validates first). */
+    suspend fun setAttachFolder(folder: String) {
+        val normalized = AttachFolder.normalize(folder) ?: return
+        context.settingsDataStore.edit { it[Keys.attachFolder] = normalized }
     }
 
     suspend fun setRoamFeaturesEnabled(enabled: Boolean) {

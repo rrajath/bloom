@@ -131,6 +131,7 @@ data class SettingsExport(
     val attachPhotoSize: String = AttachPhotoSize.ORIGINAL.storageKey,
     val attachImageWidth: String = AttachImageWidth.FIT.storageKey,
     val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
+    val attachFolder: String = AttachFolder.DEFAULT,
 ) {
     private fun themeSelection(): ThemeSelection =
         ThemeSelection.fromStorage(themeMode, lightTheme, darkTheme)
@@ -214,6 +215,7 @@ data class SettingsExport(
         attachPhotoSize = AttachPhotoSize.fromStorage(attachPhotoSize),
         attachImageWidth = AttachImageWidth.fromStorage(attachImageWidth),
         attachImageWidthPx = AttachImageWidth.clampPx(attachImageWidthPx),
+        attachFolder = AttachFolder.sanitize(attachFolder),
     )
 
     companion object {
@@ -245,7 +247,9 @@ data class SettingsExport(
         // attachImageWidthPx). Additive: older exports omit them and import at
         // their defaults (Original, Fit column, 320 px). Unknown enum values fall
         // back to the default and the px value is clamped to 120..1200.
-        const val CURRENT_VERSION = 12
+        // v13: added the attachment folder (attachFolder). Additive: older
+        // exports omit it and import as data/; an invalid value also imports as data/.
+        const val CURRENT_VERSION = 13
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,
@@ -323,6 +327,7 @@ data class SettingsExport(
             attachPhotoSize = s.attachPhotoSize.storageKey,
             attachImageWidth = s.attachImageWidth.storageKey,
             attachImageWidthPx = s.attachImageWidthPx,
+            attachFolder = s.attachFolder,
         )
     }
 }

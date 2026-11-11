@@ -421,6 +421,9 @@ class AppViewModel(
     fun setAttachImageWidthPx(px: Int) =
         viewModelScope.launch { settingsRepository.setAttachImageWidthPx(px) }
 
+    fun setAttachFolder(folder: String) =
+        viewModelScope.launch { settingsRepository.setAttachFolder(folder) }
+
     fun setRoamOpenWholeFile(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setRoamOpenWholeFile(enabled) }
 
