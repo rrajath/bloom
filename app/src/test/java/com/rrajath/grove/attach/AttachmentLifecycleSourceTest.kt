@@ -17,11 +17,12 @@ class AttachmentLifecycleSourceTest {
     val tmp = TemporaryFolder()
 
     private var store: FileStore? = null
+    private var config = AttachConfig.Default
     private var created = 0
 
-    private fun source(enabled: Boolean = true) = AttachmentLifecycleSource(enabled, { store }) {
+    private fun source(enabled: Boolean = true) = AttachmentLifecycleSource(enabled, { store }, { config }) { s, c ->
         created++
-        AttachmentLifecycle(it, IdHolders.None)
+        AttachmentLifecycle(s, IdHolders.None, c)
     }
 
     @Test
@@ -42,6 +43,20 @@ class AttachmentLifecycleSourceTest {
         store = JvmFileStore(tmp.newFolder("b"))
         val second = src.current()
         assertNotSame(first, second)
+        assertSame(second, src.current())
+        assertEquals(2, created)
+    }
+
+    @Test
+    fun `a config change makes a new lifecycle with that config`() {
+        val src = source()
+        store = JvmFileStore(tmp.newFolder("vault"))
+        val first = src.current()
+        config = AttachConfig(idDir = "attach/")
+        val second = src.current()
+        assertNotSame(first, second)
+        assertEquals("attach/", second!!.config.idDir)
+        config = AttachConfig(idDir = "attach/")
         assertSame(second, src.current())
         assertEquals(2, created)
     }

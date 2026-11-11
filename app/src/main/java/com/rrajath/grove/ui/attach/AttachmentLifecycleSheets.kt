@@ -48,7 +48,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.attach.AttachmentInventory
-import com.rrajath.grove.attach.dataDirLabel
+import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.attachDirLabel
 import com.rrajath.grove.attach.folderLabel
 import com.rrajath.grove.attach.inventoryDetail
 import com.rrajath.grove.attach.moveSubline
@@ -68,6 +69,8 @@ fun NotebookMoveAttachmentsSheet(
     fileName: String,
     newDir: String,
     inventory: AttachmentInventory,
+    /** Names the attach folders in the choice cards. */
+    config: AttachConfig,
     onMove: (moveAttachments: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -91,13 +94,13 @@ fun NotebookMoveAttachmentsSheet(
             ChoiceCard(
                 selected = moveAttachments,
                 title = "Move attachments",
-                body = moveAttachmentsBody(dataDirLabel(target), folderLabel(sourceDir), inventory.sharedFolders),
+                body = moveAttachmentsBody(attachDirLabel(target, config), folderLabel(sourceDir), inventory.sharedFolders),
                 modifier = Modifier.testTag("attach_move_choice_move"),
             ) { moveAttachments = true }
             ChoiceCard(
                 selected = !moveAttachments,
                 title = "Move notebook only",
-                body = "Attachments stay in ${dataDirLabel(fileName)}. Links in $leaf will show as missing.",
+                body = "Attachments stay in ${attachDirLabel(fileName, config)}. Links in $leaf will show as missing.",
                 modifier = Modifier.testTag("attach_move_choice_only"),
             ) { moveAttachments = false }
         }

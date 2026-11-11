@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.rrajath.grove.attach.AttachConfig
 import com.rrajath.grove.attach.AttachDirEntry
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.testing.TestGroveApplication
@@ -41,7 +42,7 @@ class AttachmentLifecycleSheetsTest {
         var picked: Boolean? = null
         compose.setContent {
             GroveTheme {
-                NotebookMoveAttachmentsSheet("Notes/travel.org", "Archive", inventory, { picked = it }, {})
+                NotebookMoveAttachmentsSheet("Notes/travel.org", "Archive", inventory, AttachConfig.Default, { picked = it }, {})
             }
         }
         compose.onNodeWithText("This notebook has attachments. Move them too?").assertIsDisplayed()
@@ -58,6 +59,21 @@ class AttachmentLifecycleSheetsTest {
         compose.onNodeWithTag("attach_move_choice_only").performScrollTo().performClick()
         compose.onNodeWithTag("attach_move_confirm").performScrollTo().performClick()
         assertEquals(false, picked)
+    }
+
+    @Test
+    fun `move sheet names the configured attach folder`() {
+        compose.setContent {
+            GroveTheme {
+                NotebookMoveAttachmentsSheet("Notes/travel.org", "Archive", inventory, AttachConfig(idDir = "attach/"), {}, {})
+            }
+        }
+        compose.onNodeWithText(
+            "Folders move into Archive/attach/ and merge with what's there. " +
+                "1 folder shared with notes in Notes/ is copied instead.",
+        ).assertIsDisplayed()
+        compose.onNodeWithText("Attachments stay in Notes/attach/. Links in travel.org will show as missing.")
+            .assertIsDisplayed()
     }
 
     @Test

@@ -14,7 +14,7 @@ import com.rrajath.grove.vault.FileEntry
  */
 class AttachmentLookup(
     private val files: AttachmentFiles,
-    private val config: AttachConfig = AttachConfig.Default,
+    private val config: AttachConfig,
 ) {
 
     /**
@@ -78,7 +78,7 @@ internal fun linkOwners(
     doc: OrgDocument?,
     rawTarget: String,
     preferLines: IntRange?,
-    config: AttachConfig = AttachConfig.Default,
+    config: AttachConfig,
 ): List<AttachOwner> {
     doc ?: return emptyList()
     val hits = if (rawTarget.isBlank()) emptyList() else doc.lines.indices.filter { doc.lines[it].contains(rawTarget) }

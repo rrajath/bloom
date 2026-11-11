@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.text.TextRange
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.attach.AttachConfig
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachScope
@@ -61,6 +62,7 @@ class AttachControllerRobolectricTest {
 
     private val vaultDir by lazy { tmp.newFolder("vault") }
     private val store by lazy { JvmFileStore(vaultDir, skipAttachShards = true) }
+    private var attachConfig = AttachConfig.Default
     private val manager by lazy {
         AttachmentCopyManager(
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
@@ -93,7 +95,9 @@ class AttachControllerRobolectricTest {
         lateinit var controller: AttachController
         composeRule.setContent {
             GroveTheme {
-                controller = rememberAttachController(textState, "travel.org", bufferReady = true, manager) { store }
+                controller = rememberAttachController(
+                    textState, "travel.org", bufferReady = true, manager, attachConfig = { attachConfig },
+                ) { store }
             }
         }
         composeRule.runOnIdle {
@@ -113,13 +117,40 @@ class AttachControllerRobolectricTest {
     }
 
     @Test
+    fun `a pick goes into the configured attach dir`() {
+        attachConfig = AttachConfig(idDir = "attach/")
+        val text = "* Lunch\nTiny soba place.\n"
+        val textState = TextFieldState(text, TextRange(text.length))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/travel.org", bufferReady = true, manager, attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        composeRule.runOnIdle {
+            controller.open()
+            controller.pending = PendingAttach("Files", isFile = false, id = null, titlePath = listOf("Lunch"), lineIndex = 0, cursor = textState.selection.start)
+            controller.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("[[attachment:receipt.pdf]]") }
+
+        val id = OrgParser.parse(textState.text.toString()).headlines.single().properties["ID"]!!
+        assertTrue(File(vaultDir, "notes/attach/${id.take(2)}/${id.drop(2)}/receipt.pdf").isFile)
+        assertFalse(File(vaultDir, "notes/data").exists())
+    }
+
+    @Test
     fun `a result that arrives before the buffer is loaded waits for it`() {
         val textState = TextFieldState("* Lunch\n:PROPERTIES:\n:ID: AB12345\n:END:\nbody\n", TextRange(0))
         var ready by mutableStateOf(false)
         lateinit var controller: AttachController
         composeRule.setContent {
             GroveTheme {
-                controller = rememberAttachController(textState, "travel.org", bufferReady = ready, manager) { store }
+                controller = rememberAttachController(
+                    textState, "travel.org", bufferReady = ready, manager, attachConfig = { attachConfig },
+                ) { store }
             }
         }
         composeRule.runOnIdle {
@@ -164,6 +195,7 @@ class AttachControllerRobolectricTest {
             GroveTheme {
                 controller = rememberAttachController(
                     textState, "x.org", bufferReady = true, manager, indexedOwners = indexedOwners,
+                    attachConfig = { attachConfig },
                 ) { fileStore }
             }
         }
@@ -393,7 +425,9 @@ class AttachControllerRobolectricTest {
         lateinit var controller: AttachController
         composeRule.setContent {
             GroveTheme {
-                controller = rememberAttachController(textState, "travel.org", bufferReady = true, manager) { store }
+                controller = rememberAttachController(
+                    textState, "travel.org", bufferReady = true, manager, attachConfig = { attachConfig },
+                ) { store }
             }
         }
         composeRule.runOnIdle {
@@ -417,6 +451,7 @@ class AttachControllerRobolectricTest {
                         store.write(file, OrgMutations.upsertFileProperty(OrgParser.parse(store.read(file)), "ID", id))
                         true
                     },
+                    attachConfig = { attachConfig },
                 ) { store }
             }
         }
@@ -436,6 +471,7 @@ class AttachControllerRobolectricTest {
                         true
                     },
                     introOfFile = true,
+                    attachConfig = { attachConfig },
                 ) { store }
             }
         }
@@ -539,6 +575,7 @@ class AttachControllerRobolectricTest {
             GroveTheme {
                 c = rememberAttachController(
                     textState, "roam/kyoto.org", bufferReady = true, manager, pendingFileId = "AB12CD34",
+                    attachConfig = { attachConfig },
                 ) { store }
             }
         }

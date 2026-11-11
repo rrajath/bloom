@@ -13,7 +13,7 @@ import com.rrajath.grove.org.OrgDocument
  */
 class AttachmentScopeScanner(
     private val files: AttachmentFiles,
-    private val resolver: AttachDirResolver = AttachDirResolver(files),
+    private val resolver: AttachDirResolver,
 ) {
 
     private data class Owner(val orgFile: String, val owner: AttachOwner, val title: String?, val source: String)

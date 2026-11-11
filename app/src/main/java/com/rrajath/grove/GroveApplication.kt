@@ -11,6 +11,7 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import com.rrajath.grove.attach.AttachmentImageLoader
+import com.rrajath.grove.attach.onConfigChange
 import com.rrajath.grove.capture.SharedPayload
 import com.rrajath.grove.capture.ShortcutSyncer
 import com.rrajath.grove.capture.TemplatesRepository
@@ -231,11 +232,17 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             settingsRepository.settings.map { it.vaultTreeUri }.distinctUntilChanged(),
             settingsRepository.settings.map { it.ignoreList }.distinctUntilChanged(),
             TestVaultHook.root,
-        ) { uriString, ignoreListText, testRoot ->
+            // Like the ignore list, a new config builds a new store: fresh listing caches, and
+            // SyncManager.attach requests the sync that reindexes under the new shard skip.
+            // Null until settings load, so a store never exists under a stand-in config.
+            attachConfigSource.config,
+        ) { uriString, ignoreListText, testRoot, attachConfig ->
             val ignore = IgnorePatterns(ignoreListText)
+            val attachRoots = attachConfig?.let { com.rrajath.grove.attach.AttachSkipRoots.of(it) }
             when {
-                testRoot != null -> JvmFileStore(testRoot, ignore)
-                uriString != null -> SafFileStore(this, uriString.toUri(), ignore)
+                attachRoots == null -> null
+                testRoot != null -> JvmFileStore(testRoot, ignore, attachRoots = attachRoots)
+                uriString != null -> SafFileStore(this, uriString.toUri(), ignore, attachRoots = attachRoots)
                 else -> null
             }?.let(::LineEndingFileStore)
         }.stateIn(appScope, SharingStarted.Eagerly, null)
@@ -268,6 +275,17 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     }
 
     /**
+     * The org-attach config (Settings § Attachments' attachment folder) every
+     * attachment resolver, lookup and lifecycle uses.
+     */
+    val attachConfigSource: com.rrajath.grove.attach.AttachConfigSource by lazy {
+        com.rrajath.grove.attach.SettingsAttachConfigSource(
+            settingsRepository.settings.map { it.attachFolder },
+            appScope,
+        )
+    }
+
+    /**
      * Read-mode attachment existence and image-size cache. Each finished sync drops its Missing entries, so a file that
      * Syncthing delivers later appears without reopening the note. Everything
      * is dropped when the app comes back to the foreground (files may have
@@ -282,6 +300,8 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
                     cache.invalidateMissing()
                 }
             }
+            // Every cached answer was resolved under the old config.
+            attachConfigSource.onConfigChange(appScope) { cache.clear() }
         }
     }
     val attachmentStatusCache: com.rrajath.grove.attach.AttachmentStatusCache by attachmentStatusCacheLazy
@@ -290,6 +310,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     val previewChipChecker: com.rrajath.grove.attach.PreviewChipChecker by lazy {
         com.rrajath.grove.attach.PreviewChipChecker(
             store = { fileStore.value },
+            config = { attachConfigSource.current() },
             cache = attachmentStatusCache,
             loadDoc = { file -> vault.value?.open(file) },
             io = dispatchers.io,
@@ -308,9 +329,10 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     private val attachmentLifecycles = com.rrajath.grove.attach.AttachmentLifecycleSource(
         enabled = true,
         store = { fileStore.value },
-        create = { store ->
+        config = { attachConfigSource.current() },
+        create = { store, config ->
             com.rrajath.grove.attach.AttachmentLifecycle(
-                store, roomIdHolders,
+                store, roomIdHolders, config,
                 onChanged = { if (attachmentStatusCacheLazy.isInitialized()) attachmentStatusCache.clear() },
             )
         },
@@ -353,6 +375,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
                 runCatching {
                     com.rrajath.grove.attach.AttachDirChangeDetector(
                         com.rrajath.grove.attach.AttachmentFiles(store),
+                        attachConfigSource.current(),
                         indexedOwners = { database.indexDao().attachOwners() },
                     ).detect(orgFile, baseline, after)
                 }.getOrDefault(emptyList())

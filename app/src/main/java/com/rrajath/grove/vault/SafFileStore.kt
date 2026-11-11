@@ -1,5 +1,6 @@
 package com.rrajath.grove.vault
 
+import com.rrajath.grove.attach.AttachSkipRoots
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
@@ -33,10 +34,14 @@ class SafFileStore(
     private val context: Context,
     private val treeUri: Uri,
     private val ignore: IgnorePatterns = IgnorePatterns(""),
-    private val skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
+    skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
+    /** Where shards are skipped (from the attach config); a config change builds a new store. */
+    attachRoots: AttachSkipRoots = AttachSkipRoots.DataOnly,
     /** Monotonic millis, for how long a raw file id counts as just verified. */
     private val now: () -> Long = android.os.SystemClock::elapsedRealtime,
 ) : FileStore {
+
+    private val skipRoots = attachRoots.takeIf { skipAttachShards }
 
     private val resolver get() = context.contentResolver
     private val rootDocId get() = DocumentsContract.getTreeDocumentId(treeUri)
@@ -99,7 +104,7 @@ class SafFileStore(
                     val mime = cursor.getString(4)
                     val path = if (dir.isEmpty()) name else "$dir/$name"
                     if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
-                        if (isSkippedVaultDir(name, dir, skipAttachShards) || ignore.isDirIgnored(name, path)) continue
+                        if (isSkippedVaultDir(name, dir, skipRoots) || ignore.isDirIgnored(name, path)) continue
                         dirs[path] = childDocId
                         queue.add(path to childDocId)
                     } else {
@@ -153,7 +158,7 @@ class SafFileStore(
                 val name = it.getString(1) ?: continue
                 val path = if (dir.isEmpty()) name else "$dir/$name"
                 if (it.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    if (isSkippedVaultDir(name, dir, skipAttachShards) || ignore.isDirIgnored(name, path)) continue
+                    if (isSkippedVaultDir(name, dir, skipRoots) || ignore.isDirIgnored(name, path)) continue
                     dirDocIds[path] = childDocId
                     seenDirs += path
                 } else {
@@ -186,7 +191,7 @@ class SafFileStore(
         var currentDocId = rootDocId
         for (segment in dir.split('/')) {
             val nextPath = if (currentPath.isEmpty()) segment else "$currentPath/$segment"
-            if (isSkippedVaultDir(segment, currentPath, skipAttachShards) || ignore.isDirIgnored(segment, nextPath)) {
+            if (isSkippedVaultDir(segment, currentPath, skipRoots) || ignore.isDirIgnored(segment, nextPath)) {
                 return null
             }
             currentDocId = dirDocIds[nextPath]
@@ -220,7 +225,7 @@ class SafFileStore(
         for (dir in segments.dropLast(1)) {
             val parent = path
             path = if (path.isEmpty()) dir else "$path/$dir"
-            if (isSkippedVaultDir(dir, parent, skipAttachShards) || ignore.isDirIgnored(dir, path)) {
+            if (isSkippedVaultDir(dir, parent, skipRoots) || ignore.isDirIgnored(dir, path)) {
                 return DirectLookup.Missing
             }
         }

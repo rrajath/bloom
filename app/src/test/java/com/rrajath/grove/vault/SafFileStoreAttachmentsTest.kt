@@ -291,7 +291,9 @@ class SafFileStoreAttachmentsTest {
 
         val (saf, _) = store(authority)
         saf.list()
-        val lifecycle = com.rrajath.grove.attach.AttachmentLifecycle(saf, com.rrajath.grove.attach.IdHolders.None)
+        val lifecycle = com.rrajath.grove.attach.AttachmentLifecycle(
+            saf, com.rrajath.grove.attach.IdHolders.None, com.rrajath.grove.attach.AttachConfig.Default,
+        )
         val inv = lifecycle.inventoryForFile("image-test.org", com.rrajath.grove.org.OrgParser.parse(saf.read("image-test.org")))
         assertEquals(setOf(fileId, headingId), inv.dirs.map { it.id }.toSet())
 

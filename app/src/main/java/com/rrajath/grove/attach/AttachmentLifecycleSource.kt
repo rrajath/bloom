@@ -3,10 +3,11 @@ package com.rrajath.grove.attach
 import com.rrajath.grove.vault.FileStore
 
 /**
- * Hands out the [AttachmentLifecycle] for whichever vault store is current:
- * built on first use, then reused while the store stays the same instance, so
- * every operation on one store shares one lifecycle (and its mutex). A new
- * store (another vault picked) gets a new lifecycle.
+ * Hands out the [AttachmentLifecycle] for whichever vault store and
+ * [AttachConfig] are current: built on first use, then reused while the store
+ * stays the same instance and the config is unchanged, so every operation on
+ * one store shares one lifecycle (and its mutex). A new store (another vault
+ * picked) or a new config gets a new lifecycle.
  *
  * Synchronous on purpose. The lifecycle used to be a lazily created
  * `stateIn(appScope, Eagerly, null)` over the store flow; its first `.value`
@@ -18,7 +19,8 @@ import com.rrajath.grove.vault.FileStore
 class AttachmentLifecycleSource(
     private val enabled: Boolean,
     private val store: () -> FileStore?,
-    private val create: (FileStore) -> AttachmentLifecycle,
+    private val config: () -> AttachConfig,
+    private val create: (FileStore, AttachConfig) -> AttachmentLifecycle,
 ) {
     private var cached: Pair<FileStore, AttachmentLifecycle>? = null
 
@@ -26,9 +28,10 @@ class AttachmentLifecycleSource(
     fun current(): AttachmentLifecycle? {
         if (!enabled) return null
         val s = store() ?: return null
+        val c = config()
         synchronized(this) {
-            cached?.let { (cachedStore, lifecycle) -> if (cachedStore === s) return lifecycle }
-            return create(s).also { cached = s to it }
+            cached?.let { (cachedStore, lifecycle) -> if (cachedStore === s && lifecycle.config == c) return lifecycle }
+            return create(s, c).also { cached = s to it }
         }
     }
 }

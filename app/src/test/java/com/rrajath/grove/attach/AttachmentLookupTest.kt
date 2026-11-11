@@ -16,7 +16,9 @@ class AttachmentLookupTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private val lookup by lazy { AttachmentLookup(AttachmentFiles(JvmFileStore(tmp.root, skipAttachShards = true))) }
+    private var config = AttachConfig.Default
+
+    private val lookup by lazy { AttachmentLookup(AttachmentFiles(JvmFileStore(tmp.root, skipAttachShards = true)), config) }
 
     private fun put(path: String) = File(tmp.root, path).apply { parentFile?.mkdirs() }.writeText("x")
 
@@ -42,6 +44,16 @@ class AttachmentLookupTest {
     fun `attachment link resolves through the owning heading's ID dir`() = runTest {
         put("data/ab/cdef/IMG_1.jpg")
         assertEquals("data/ab/cdef/IMG_1.jpg", find("attachment:IMG_1.jpg", twoHeadings))
+    }
+
+    @Test
+    fun `attachment link resolves under a configured idDir, with the data fallback`() = runTest {
+        config = AttachConfig(idDir = "attach/")
+        put("work/attach/ab/cdef/IMG_1.jpg")
+        assertEquals("work/attach/ab/cdef/IMG_1.jpg", find("attachment:IMG_1.jpg", twoHeadings, orgFile = "work/n.org"))
+        // Older attachments in data/ keep resolving, as org-attach-dir-from-id does.
+        put("work/data/12/3456/IMG_1.jpg")
+        assertEquals("work/data/12/3456/IMG_1.jpg", find("attachment:IMG_1.jpg", twoHeadings, orgFile = "work/n.org", prefer = 5..9))
     }
 
     @Test

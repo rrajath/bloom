@@ -83,7 +83,8 @@ data class LifecycleResult(val moved: Int = 0, val copied: Int = 0, val deleted:
 class AttachmentLifecycle(
     private val store: FileStore,
     private val holders: IdHolders,
-    private val config: AttachConfig = AttachConfig.Default,
+    /** The config this lifecycle resolves with; also names folders in its sheets and toasts. */
+    val config: AttachConfig,
     /**
      * Called after an operation moved, copied or deleted attach dirs (or tried
      * and partly failed), so cached existence answers are dropped.

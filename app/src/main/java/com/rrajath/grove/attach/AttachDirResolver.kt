@@ -23,7 +23,7 @@ fun interface DirExists {
  */
 class AttachDirResolver(
     private val dirs: DirExists,
-    private val config: AttachConfig = AttachConfig.Default,
+    private val config: AttachConfig,
 ) {
 
     /** One candidate: the dir under `idDir` and, when it differs, the `data/` fallback. */

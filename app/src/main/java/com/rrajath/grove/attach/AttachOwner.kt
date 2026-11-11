@@ -82,10 +82,10 @@ internal fun lineOfOffset(text: String, offset: Int): Int {
  * `:ID:` defers to the nearest ancestor (then the file) that has one, `:DIR:`
  * first, the way `org-entry-get` with inheritance resolves them.
  */
-fun resolveOwner(doc: OrgDocument, offset: Int, config: AttachConfig = AttachConfig.Default): AttachOwner =
+fun resolveOwner(doc: OrgDocument, offset: Int, config: AttachConfig): AttachOwner =
     resolveOwnerAtLine(doc, lineOfOffset(doc.text, offset), config)
 
-fun resolveOwnerAtLine(doc: OrgDocument, lineIndex: Int, config: AttachConfig = AttachConfig.Default): AttachOwner {
+fun resolveOwnerAtLine(doc: OrgDocument, lineIndex: Int, config: AttachConfig): AttachOwner {
     val h = doc.headingAtLine(lineIndex) ?: return doc.fileOwner()
     val own = doc.ownerOf(h)
     if (!config.useInheritance || own.id != null || own.dirProperty != null) return own

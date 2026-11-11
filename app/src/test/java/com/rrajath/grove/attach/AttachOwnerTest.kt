@@ -34,40 +34,40 @@ class AttachOwnerTest {
     private fun offsetOf(s: String) = text.indexOf(s).also { check(it >= 0) }
 
     @Test fun `cursor above the first heading is the file owner`() {
-        assertEquals(AttachOwner.File("FILE-ID", null), resolveOwner(doc, offsetOf("Intro line")))
-        assertEquals(AttachOwner.File("FILE-ID", null), resolveOwner(doc, 0))
+        assertEquals(AttachOwner.File("FILE-ID", null), resolveOwner(doc, offsetOf("Intro line"), AttachConfig.Default))
+        assertEquals(AttachOwner.File("FILE-ID", null), resolveOwner(doc, 0, AttachConfig.Default))
     }
 
     @Test fun `cursor in a body is the nearest heading at or above it`() {
-        val o = resolveOwner(doc, offsetOf("Japan body")) as AttachOwner.Heading
+        val o = resolveOwner(doc, offsetOf("Japan body"), AttachConfig.Default) as AttachOwner.Heading
         assertEquals(listOf("Japan"), o.titlePath)
         assertEquals("JAPAN-ID", o.id)
         assertEquals(6, o.lineIndex)
     }
 
     @Test fun `cursor on the headline line belongs to that heading`() {
-        val o = resolveOwner(doc, offsetOf("** Osaka") + 3) as AttachOwner.Heading
+        val o = resolveOwner(doc, offsetOf("** Osaka") + 3, AttachConfig.Default) as AttachOwner.Heading
         assertEquals(listOf("Japan", "Osaka"), o.titlePath)
         assertNull(o.id)
     }
 
     @Test fun `dir property is read case-insensitively`() {
-        val o = resolveOwner(doc, offsetOf("Kyoto body")) as AttachOwner.Heading
+        val o = resolveOwner(doc, offsetOf("Kyoto body"), AttachConfig.Default) as AttachOwner.Heading
         assertEquals("photos/kyoto", o.dirProperty)
     }
 
     @Test fun `attach_dir is the legacy fallback for dir`() {
         val d = OrgParser.parse("* H\n:PROPERTIES:\n:ATTACH_DIR: old/place\n:END:\n")
-        assertEquals("old/place", (resolveOwner(d, 0) as AttachOwner.Heading).dirProperty)
+        assertEquals("old/place", (resolveOwner(d, 0, AttachConfig.Default) as AttachOwner.Heading).dirProperty)
     }
 
     @Test fun `file without drawer has no id`() {
         val d = OrgParser.parse("#+TITLE: x\n\nhello\n")
-        assertEquals(AttachOwner.File(null, null), resolveOwner(d, 12))
+        assertEquals(AttachOwner.File(null, null), resolveOwner(d, 12, AttachConfig.Default))
     }
 
     @Test fun `without inheritance a heading without id stays itself`() {
-        val o = resolveOwner(doc, offsetOf("Food")) as AttachOwner.Heading
+        val o = resolveOwner(doc, offsetOf("Food"), AttachConfig.Default) as AttachOwner.Heading
         assertEquals(listOf("Japan", "Osaka", "Dotonbori"), o.titlePath)
         assertNull(o.id)
     }
@@ -84,7 +84,7 @@ class AttachOwnerTest {
     }
 
     @Test fun `relocate finds a heading by id after it moved`() {
-        val owner = resolveOwner(doc, offsetOf("Japan body"))
+        val owner = resolveOwner(doc, offsetOf("Japan body"), AttachConfig.Default)
         val edited = OrgParser.parse("* New first\n$text")
         val found = relocateOwner(edited, owner) as AttachOwner.Heading
         assertEquals(7, found.lineIndex)
@@ -92,13 +92,13 @@ class AttachOwnerTest {
     }
 
     @Test fun `relocate falls back to title path`() {
-        val owner = resolveOwner(doc, offsetOf("Osaka body"))
+        val owner = resolveOwner(doc, offsetOf("Osaka body"), AttachConfig.Default)
         val edited = OrgParser.parse("* Extra\n$text")
         assertEquals(17, (relocateOwner(edited, owner) as AttachOwner.Heading).lineIndex)
     }
 
     @Test fun `relocate returns null when the heading is gone`() {
-        val owner = resolveOwner(doc, offsetOf("Osaka body"))
+        val owner = resolveOwner(doc, offsetOf("Osaka body"), AttachConfig.Default)
         assertNull(relocateOwner(OrgParser.parse("* Japan\n** Kyoto\n"), owner))
     }
 }

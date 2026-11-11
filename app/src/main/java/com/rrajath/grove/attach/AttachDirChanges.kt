@@ -89,7 +89,7 @@ fun withAttachedOwner(baseline: List<AttachOwner>, owner: AttachOwner): List<Att
  */
 class AttachDirChangeDetector(
     private val files: AttachmentFiles,
-    private val config: AttachConfig = AttachConfig.Default,
+    private val config: AttachConfig,
     /** Owners in other files (the note index), to tell when a dir is shared. */
     private val indexedOwners: suspend () -> List<IndexedAttachOwner> = { emptyList() },
 ) {

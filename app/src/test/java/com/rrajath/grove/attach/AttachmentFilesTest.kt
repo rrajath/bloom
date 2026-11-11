@@ -27,7 +27,7 @@ class AttachmentFilesTest {
         put("data/3F/2504E0/a.jpg")
         assertTrue(files.exists("data/3F/2504E0"))
         assertFalse(files.exists("data/3F/nope"))
-        assertEquals("data/3F/2504E0", AttachDirResolver(files).readDir("n.org", AttachOwner.File("3F2504E0", null)))
+        assertEquals("data/3F/2504E0", AttachDirResolver(files, AttachConfig.Default).readDir("n.org", AttachOwner.File("3F2504E0", null)))
     }
 
     @Test

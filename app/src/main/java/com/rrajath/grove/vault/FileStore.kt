@@ -1,7 +1,7 @@
 package com.rrajath.grove.vault
 
 import android.net.Uri
-import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.AttachSkipRoots
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -164,21 +164,18 @@ internal const val SKIP_ATTACH_SHARDS: Boolean = true
 
 /**
  * Directory names never descended into during vault traversal: dot-dirs,
- * and (when [skipAttachShards]) org-attach shards inside the attach root
- * (`data/`), so sync polls, the notebook tree and the index never walk
+ * and org-attach shards inside an attach root ([skipRoots]; null skips no
+ * shards), so sync polls, the notebook tree and the index never walk
  * attachment folders. [parentPath] is the vault-relative path of the
  * directory holding [name] ("" for the root).
  */
 internal fun isSkippedVaultDir(
     name: String,
     parentPath: String,
-    skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
+    skipRoots: AttachSkipRoots?,
 ): Boolean =
     name.startsWith(".") ||
-        (skipAttachShards &&
-            parentPath.isNotEmpty() &&
-            parentPath.substringAfterLast('/') == AttachConfig.Default.idDirLeaf &&
-            isAttachShard(name))
+        (skipRoots != null && isAttachShard(name) && skipRoots.isAttachRoot(parentPath))
 
 /**
  * A first-level org-attach folder under the attach root: a 2-char uuid shard

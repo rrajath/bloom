@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
+import com.rrajath.grove.attach.AttachConfig
 import com.rrajath.grove.attach.AttachDirResolver
 import com.rrajath.grove.attach.AttachDone
 import com.rrajath.grove.attach.AttachKind
@@ -140,6 +141,8 @@ class AttachController internal constructor(
     val orgFile: String,
     internal val manager: AttachmentCopyManager?,
     private val storeProvider: () -> FileStore?,
+    /** The current org-attach config, read each time an owner or dir is resolved. */
+    private val attachConfig: () -> AttachConfig,
     private val indexedOwners: suspend () -> List<IndexedAttachOwner> = { emptyList() },
     /**
      * Set by quick capture, whose buffer is only a snippet bound for [orgFile].
@@ -269,7 +272,7 @@ class AttachController internal constructor(
     fun open() {
         val text = textState.text.toString()
         val doc = OrgParser.parse(text)
-        val owner = withPendingFileId(resolveOwner(doc, textState.selection.start))
+        val owner = withPendingFileId(resolveOwner(doc, textState.selection.start, attachConfig()))
         if (addDiskFileId != null && owner is AttachOwner.File) {
             openOnDisk()
             return
@@ -354,9 +357,10 @@ class AttachController internal constructor(
         scans[target] = scope.launch {
             val (dir, rows) = withContext(Dispatchers.IO) {
                 val files = AttachmentFiles(store)
+                val config = attachConfig()
                 // Shard listings are read once per scan instead of one query per candidate dir.
-                val scanner = AttachmentScopeScanner(files, AttachDirResolver(ListedDirs(store)))
-                val ownDir = AttachDirResolver(files).readDir(orgFile, model.owner)
+                val scanner = AttachmentScopeScanner(files, AttachDirResolver(ListedDirs(store), config))
+                val ownDir = AttachDirResolver(files, config).readDir(orgFile, model.owner)
                 val rows = when (target) {
                     AttachScope.HEADING -> ownDir?.let { files.list(it) }.orEmpty()
                         .sortedBy { it.name.substringAfterLast('/').lowercase() }
@@ -466,7 +470,7 @@ class AttachController internal constructor(
             is AttachOwner.Heading -> owner.copy(id = owner.id ?: newId)
             is AttachOwner.File -> owner.copy(id = owner.id ?: newId)
         }
-        val dir = withContext(Dispatchers.IO) { AttachDirResolver(AttachmentFiles(store)).writeDir(orgFile, writeOwner) }
+        val dir = withContext(Dispatchers.IO) { AttachDirResolver(AttachmentFiles(store), attachConfig()).writeDir(orgFile, writeOwner) }
         if (dir == null) {
             cameraFile?.delete()
             showToast("Couldn't attach ${sources.first().displayName}: couldn't write to vault")
@@ -700,6 +704,8 @@ fun rememberAttachController(
         manager = app?.attachmentCopyManager,
         indexedOwners = { app?.database?.indexDao()?.attachOwners().orEmpty() },
         storeProvider = { app?.fileStore?.value },
+        // No app (previews): the store is null too, so nothing resolves.
+        attachConfig = { app?.attachConfigSource?.current() ?: AttachConfig.Default },
         addDiskFileId = addDiskFileId,
         pendingFileId = pendingFileId,
         introOfFile = introOfFile,
@@ -718,14 +724,15 @@ internal fun rememberAttachController(
     pendingFileId: String? = null,
     introOfFile: Boolean = false,
     onOwnerAttached: ((AttachOwner) -> Unit)? = null,
+    attachConfig: () -> AttachConfig,
     storeProvider: () -> FileStore?,
 ): AttachController {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val controller = remember(textState, orgFile) {
         AttachController(
-            context, scope, textState, orgFile, manager, storeProvider, indexedOwners, addDiskFileId, pendingFileId, introOfFile,
-            onOwnerAttached,
+            context, scope, textState, orgFile, manager, storeProvider, attachConfig, indexedOwners, addDiskFileId, pendingFileId,
+            introOfFile, onOwnerAttached,
         )
     }
     // Saved as JSON so it survives process death without the parcelize plugin.

@@ -19,7 +19,7 @@ class AttachDirChangeDetectorTest {
 
     private val store by lazy { JvmFileStore(tmp.root, skipAttachShards = true) }
     private var indexed = emptyList<IndexedAttachOwner>()
-    private val detector by lazy { AttachDirChangeDetector(AttachmentFiles(store), indexedOwners = { indexed }) }
+    private val detector by lazy { AttachDirChangeDetector(AttachmentFiles(store), AttachConfig.Default, indexedOwners = { indexed }) }
 
     private fun put(path: String, text: String = "x") =
         File(tmp.root, path).apply { parentFile?.mkdirs() }.writeText(text)
@@ -139,7 +139,7 @@ class AttachDirChangeDetectorTest {
         val move = detect(heading("Trip", "DIR" to "."), heading("Trip", "DIR" to "photos")).single() as AttachDirChange.Move
         assertFalse(move.wholeDir)
         assertEquals(listOf("a.jpg"), move.linkedNames)
-        val outcome = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(listOf(move))
+        val outcome = AttachmentLifecycle(store, IdHolders.None, AttachConfig.Default).applyDirChanges(listOf(move))
         assertEquals(0, outcome.failed)
         assertEquals("jpg", File(tmp.root, "Notes/photos/a.jpg").readText())
         assertFalse(exists("Notes/a.jpg"))
@@ -152,7 +152,7 @@ class AttachDirChangeDetectorTest {
         val move = detect(heading("Trip", "ID" to "AA11"), heading("Trip", "ID" to "AA11", "DIR" to "."))
             .single() as AttachDirChange.Move
         assertEquals("Notes", move.to)
-        AttachmentLifecycle(store, IdHolders.None).applyDirChanges(listOf(move))
+        AttachmentLifecycle(store, IdHolders.None, AttachConfig.Default).applyDirChanges(listOf(move))
         assertEquals("jpg", File(tmp.root, "Notes/a.jpg").readText())
         assertFalse(exists("Notes/data"))
     }
@@ -162,7 +162,7 @@ class AttachDirChangeDetectorTest {
         put("Notes/photos/a.jpg", "jpg")
         val move = detect(heading("Trip", "DIR" to "photos"), heading("Trip", "DIR" to "photos/2026")).single() as AttachDirChange.Move
         assertFalse(move.wholeDir)
-        AttachmentLifecycle(store, IdHolders.None).applyDirChanges(listOf(move))
+        AttachmentLifecycle(store, IdHolders.None, AttachConfig.Default).applyDirChanges(listOf(move))
         assertEquals("jpg", File(tmp.root, "Notes/photos/2026/a.jpg").readText())
         assertFalse(exists("Notes/photos/a.jpg"))
     }
@@ -172,7 +172,7 @@ class AttachDirChangeDetectorTest {
         put("Notes/data/AA/11/a.jpg", "same")
         put("Notes/photos/a.jpg", "same")
         val changes = detect(heading("Trip", "ID" to "AA11"), heading("Trip", "ID" to "AA11", "DIR" to "photos"))
-        val outcome = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(changes)
+        val outcome = AttachmentLifecycle(store, IdHolders.None, AttachConfig.Default).applyDirChanges(changes)
         assertTrue(outcome.renames.isEmpty())
         assertEquals("same", File(tmp.root, "Notes/photos/a.jpg").readText())
         assertFalse(exists("Notes/data/AA/11/a.jpg"))
@@ -184,7 +184,7 @@ class AttachDirChangeDetectorTest {
         put("Notes/photos/a.jpg", "theirs")
         val after = heading("Trip", "ID" to "AA11", "DIR" to "photos")
         val changes = detect(heading("Trip", "ID" to "AA11"), after)
-        val outcome = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(changes)
+        val outcome = AttachmentLifecycle(store, IdHolders.None, AttachConfig.Default).applyDirChanges(changes)
         val (move, map) = outcome.renames.single()
         assertEquals(mapOf("a.jpg" to "a-1.jpg"), map)
         assertEquals("mine", File(tmp.root, "Notes/photos/a-1.jpg").readText())
@@ -222,7 +222,7 @@ class AttachDirChangeDetectorTest {
         put("Notes/n.org")
         put("Notes/data/AA/11/a.jpg", "jpg")
         val changes = detect(heading("Trip", "ID" to "AA11"), heading("Trip", "ID" to "AA11", "DIR" to "photos"))
-        val result = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(changes)
+        val result = AttachmentLifecycle(store, IdHolders.None, AttachConfig.Default).applyDirChanges(changes)
         assertEquals(0, result.failed)
         assertEquals("jpg", File(tmp.root, "Notes/photos/a.jpg").readText())
         assertFalse(exists("Notes/data"))
@@ -233,7 +233,7 @@ class AttachDirChangeDetectorTest {
         put("Notes/photos/a.jpg")
         val other = heading("Other", "DIR" to "photos")
         val changes = detect(heading("Trip", "DIR" to "photos") + other, heading("Trip", "DIR" to "kyoto") + other)
-        val result = AttachmentLifecycle(store, IdHolders.None).applyDirChanges(changes)
+        val result = AttachmentLifecycle(store, IdHolders.None, AttachConfig.Default).applyDirChanges(changes)
         assertEquals(0, result.failed)
         assertTrue(exists("Notes/photos/a.jpg"))
         assertTrue(exists("Notes/kyoto/a.jpg"))

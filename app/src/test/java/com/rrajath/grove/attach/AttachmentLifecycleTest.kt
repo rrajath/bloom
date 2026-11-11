@@ -23,6 +23,7 @@ class AttachmentLifecycleTest {
         AttachmentLifecycle(
             JvmFileStore(tmp.root, skipAttachShards = true),
             IdHolders { ids -> index.filterKeys { it in ids } },
+            AttachConfig.Default,
         )
     }
 
@@ -259,7 +260,7 @@ class AttachmentLifecycleTest {
             override suspend fun dirExists(dir: String): Boolean { dirQueries++; return jvm.dirExists(dir) }
             override suspend fun listSubdirs(dir: String): List<String> { dirQueries++; return jvm.listSubdirs(dir) }
         }
-        val inv = AttachmentLifecycle(counting, IdHolders.None)
+        val inv = AttachmentLifecycle(counting, IdHolders.None, AttachConfig.Default)
             .inventoryForFile("Notes/travel.org", OrgParser.parse(text))
         assertEquals(
             listOf(ids[3], ids[200]).map { "Notes/data/${it.take(2)}/${it.drop(2)}" },
@@ -277,6 +278,7 @@ class AttachmentLifecycleTest {
         val tracked = AttachmentLifecycle(
             JvmFileStore(tmp.root, skipAttachShards = true),
             IdHolders.None,
+            AttachConfig.Default,
             onChanged = { changes++ },
         )
         tracked.deleteFolderAttachments("Nothing")
@@ -298,7 +300,7 @@ class AttachmentLifecycleTest {
                 return JvmFileStore(tmp.root, skipAttachShards = true).listSubdirs(dir)
             }
         }
-        val walker = AttachmentLifecycle(counting, IdHolders.None)
+        val walker = AttachmentLifecycle(counting, IdHolders.None, AttachConfig.Default)
         assertTrue(walker.folderHasAttachments("Work"))
         // Sorted walk: Work, Work/a, Work/a/data; nothing under b or c.
         assertEquals(listOf("Work", "Work/a", "Work/a/data"), listed)
@@ -314,8 +316,8 @@ class AttachmentLifecycleTest {
 
     @Test
     fun `sheet and toast copy`() {
-        assertEquals("Notes/data/", dataDirLabel("Notes/travel.org"))
-        assertEquals("data/", dataDirLabel("travel.org"))
+        assertEquals("Notes/data/", attachDirLabel("Notes/travel.org", AttachConfig.Default))
+        assertEquals("data/", attachDirLabel("travel.org", AttachConfig.Default))
         assertEquals("41 MB", formatTotalSize(41L * 1024 * 1024 + 1000))
         assertEquals("2.4 MB", formatTotalSize(2_500_000))
         val inv = AttachmentInventory(

@@ -18,8 +18,8 @@ class AttachmentScopeScannerTest {
 
     private val vaultDir by lazy { tmp.newFolder("vault") }
     private val files by lazy { AttachmentFiles(JvmFileStore(vaultDir, skipAttachShards = true)) }
-    private val resolver by lazy { AttachDirResolver(files) }
-    private val scanner by lazy { AttachmentScopeScanner(files) }
+    private val resolver by lazy { AttachDirResolver(files, AttachConfig.Default) }
+    private val scanner by lazy { AttachmentScopeScanner(files, AttachDirResolver(files, AttachConfig.Default)) }
 
     private fun put(dir: String, name: String, modified: Long) {
         val f = File(vaultDir, "$dir/$name")

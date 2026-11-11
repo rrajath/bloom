@@ -2,15 +2,14 @@ package com.rrajath.grove.attach
 
 /**
  * How Bloom maps an org entry to its attachment directory. Mirrors the
- * org-attach variables Emacs reads, at their defaults. Every call site takes an
- * instance (defaulting to [Default]) so a future settings screen only has to
- * supply a different one.
+ * org-attach variables Emacs reads; the defaults match Emacs's. The app's
+ * current instance comes from [AttachConfigSource] (Settings § Attachments);
+ * every resolver, lookup and lifecycle takes one explicitly
+ * (`NoDefaultAttachConfigTest` keeps [Default] out of app code), so a settings
+ * change reaches all of them.
  */
 data class AttachConfig(
-    /**
-     * `org-attach-id-dir`: relative to the org file's directory, or vault-rooted
-     * when it starts with `/`.
-     */
+    /** `org-attach-id-dir`: relative to the org file's directory, with one trailing `/`. */
     val idDir: String = "data/",
     /** `org-attach-id-to-path-function-list`, in order. */
     val idPathFormats: List<IdPathFormat> = listOf(IdPathFormat.Uuid, IdPathFormat.Ts, IdPathFormat.Fallback),
@@ -19,11 +18,18 @@ data class AttachConfig(
     /** `org-attach-use-inheritance`: look up `:DIR:` / `:ID:` on ancestors too. */
     val useInheritance: Boolean = false,
 ) {
-    /** Leaf name of [idDir] (`data` for the default), used by the vault-traversal shard skip. */
-    val idDirLeaf: String get() = idDir.trimEnd('/').substringAfterLast('/')
+    /**
+     * The vault-relative attach root for [orgFile]'s `:ID:` dirs (`Notes/data`
+     * for `Notes/a.org` under the default; `data` at the vault root).
+     */
+    fun rootFor(orgFile: String): String =
+        normalizeVaultPath(joinPath(dirOf(orgFile), idDir)) ?: idDir.trim('/')
 
     companion object {
         val Default = AttachConfig()
+
+        /** The config for Settings § Attachments' attachment folder (already validated). */
+        fun forFolder(folder: String): AttachConfig = AttachConfig(idDir = folder)
     }
 }
 

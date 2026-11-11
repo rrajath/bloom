@@ -2,11 +2,8 @@ package com.rrajath.grove.attach
 
 import com.rrajath.grove.ui.util.pluralCount
 
-/** `Notes/data/` (or `data/` at the vault root): where [orgFile]'s attachments live by default. */
-fun dataDirLabel(orgFile: String): String {
-    val dir = dirOf(orgFile)
-    return if (dir.isEmpty()) "data/" else "$dir/data/"
-}
+/** `Notes/data/` (or `data/` at the vault root): where [orgFile]'s `:ID:` attachments live under [config]. */
+fun attachDirLabel(orgFile: String, config: AttachConfig): String = folderLabel(config.rootFor(orgFile))
 
 /** `Archive/` (or the vault root's display, `/`). */
 fun folderLabel(dir: String): String = if (dir.trim('/').isEmpty()) "/" else "${dir.trim('/')}/"

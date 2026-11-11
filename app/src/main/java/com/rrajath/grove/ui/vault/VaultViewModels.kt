@@ -17,7 +17,8 @@ import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.attach.AttachmentLifecycle
 import com.rrajath.grove.attach.FileRewrite
-import com.rrajath.grove.attach.dataDirLabel
+import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.attachDirLabel
 import com.rrajath.grove.attach.notebookMoveMessage
 import com.rrajath.grove.attach.orgIdsIn
 import com.rrajath.grove.attach.AttachmentIntents
@@ -535,7 +536,7 @@ class NotebooksViewModel(
                         }
                         notebookMoveMessage(leaf, newDir.trim('/'), result)
                     } else {
-                        "Moved $leaf. Attachments stayed in ${dataDirLabel(path)}"
+                        "Moved $leaf. Attachments stayed in ${attachDirLabel(path, lifecycle.config)}"
                     }
                     _editEvents.emit(NotebookEditEvent.Message(message))
                 }
@@ -616,7 +617,7 @@ class NotebooksViewModel(
                             "Deleted $leaf and its attachments"
                         }
                     } else {
-                        "Deleted $leaf. Attachments kept in ${dataDirLabel(name)}"
+                        "Deleted $leaf. Attachments kept in ${attachDirLabel(name, lifecycle.config)}"
                     }
                     _editEvents.emit(NotebookEditEvent.Message(message))
                 }
@@ -722,6 +723,9 @@ class NotebooksViewModel(
             }
         }
     }
+
+    /** The attach config the move and delete sheets name folders with; null when attach-dir bookkeeping is off. */
+    fun attachConfig(): AttachConfig? = attachments()?.config
 
     /** Vault-relative paths of the notebooks currently indexed under [dir]. */
     private fun affectedPaths(dir: String): List<String> =
@@ -1123,7 +1127,7 @@ class DocumentViewModel(
         val store = vaultFlow.value?.fileStore() ?: return false
         val preferLines = scopeNote?.let { ref -> doc?.headlineFor(ref)?.let { it.lineIndex until doc.subtreeEndLine(it) } }
         val path = withContext(dispatchers.io) {
-            AttachmentLookup(AttachmentFiles(store)).find(attachment, rawTarget, currentFile, doc, preferLines)
+            AttachmentLookup(AttachmentFiles(store), app.attachConfigSource.current()).find(attachment, rawTarget, currentFile, doc, preferLines)
         } ?: return false
         when (AttachmentIntents.open(app, store, path)) {
             AttachmentIntents.Result.Launched -> Unit

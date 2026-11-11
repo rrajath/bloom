@@ -664,10 +664,13 @@ fun NotebooksScreen(
                 pendingMove = null
             }
         } else if (inv != null) {
+            // A non-empty inventory came from the lifecycle, so its config is there.
+            val attachConfig = viewModel.attachConfig() ?: return@let
             NotebookMoveAttachmentsSheet(
                 fileName = target,
                 newDir = newDir,
                 inventory = inv,
+                config = attachConfig,
                 onMove = { moveAttachments ->
                     viewModel.moveNotebook(target, newDir, moveAttachments, inv)
                     pendingMove = null

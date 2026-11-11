@@ -76,7 +76,7 @@ class AttachmentVaultScopeDirTest {
         TestVaultSeeder.index(db, store)
 
         val files = AttachmentFiles(store)
-        val rows = AttachmentScopeScanner(files, AttachDirResolver(ListedDirs(store))).scanVault(
+        val rows = AttachmentScopeScanner(files, AttachDirResolver(ListedDirs(store), AttachConfig.Default)).scanVault(
             "x.org",
             OrgParser.parse(store.read("x.org")),
             db.indexDao().attachOwners(),

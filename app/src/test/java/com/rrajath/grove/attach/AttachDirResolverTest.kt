@@ -45,33 +45,33 @@ class AttachDirResolverTest {
     // --- resolution ---
 
     @Test fun `new uuid id resolves under data next to the org file`() = runBlocking {
-        val r = AttachDirResolver(FakeDirs())
+        val r = AttachDirResolver(FakeDirs(), AttachConfig.Default)
         assertNull(r.readDir("notes/travel.org", heading(uuid)))
         assertEquals("notes/data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C", r.writeDir("notes/travel.org", heading(uuid)))
     }
 
     @Test fun `org file at vault root resolves to a root data dir`() = runBlocking {
-        assertEquals("data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C", AttachDirResolver(FakeDirs()).writeDir("inbox.org", heading(uuid)))
+        assertEquals("data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C", AttachDirResolver(FakeDirs(), AttachConfig.Default).writeDir("inbox.org", heading(uuid)))
     }
 
     @Test fun `id case is never changed`() = runBlocking {
         val lower = uuid.lowercase()
-        assertEquals("data/8b/${lower.drop(2)}", AttachDirResolver(FakeDirs()).writeDir("a.org", heading(lower)))
+        assertEquals("data/8b/${lower.drop(2)}", AttachDirResolver(FakeDirs(), AttachConfig.Default).writeDir("a.org", heading(lower)))
     }
 
     @Test fun `first existing format wins over earlier non-existing ones`() = runBlocking {
         val ts = "20261102T125201.123456"
         val dirs = FakeDirs("data/202611/02T125201.123456")
-        assertEquals("data/202611/02T125201.123456", AttachDirResolver(dirs).readDir("a.org", heading(ts)))
-        assertEquals("data/202611/02T125201.123456", AttachDirResolver(dirs).writeDir("a.org", heading(ts)))
+        assertEquals("data/202611/02T125201.123456", AttachDirResolver(dirs, AttachConfig.Default).readDir("a.org", heading(ts)))
+        assertEquals("data/202611/02T125201.123456", AttachDirResolver(dirs, AttachConfig.Default).writeDir("a.org", heading(ts)))
     }
 
     @Test fun `read stats at most one dir per candidate and stops at the first hit`() = runBlocking {
         val dirs = FakeDirs("data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C")
-        AttachDirResolver(dirs).readDir("a.org", heading(uuid))
+        AttachDirResolver(dirs, AttachConfig.Default).readDir("a.org", heading(uuid))
         assertEquals(1, dirs.probes.size)
         val none = FakeDirs()
-        AttachDirResolver(none).readDir("a.org", heading(uuid))
+        AttachDirResolver(none, AttachConfig.Default).readDir("a.org", heading(uuid))
         assertEquals(3, none.probes.size)
     }
 
@@ -89,13 +89,13 @@ class AttachDirResolverTest {
     }
 
     @Test fun `no id and no dir has no attach dir`() = runBlocking {
-        val r = AttachDirResolver(FakeDirs())
+        val r = AttachDirResolver(FakeDirs(), AttachConfig.Default)
         assertNull(r.writeDir("a.org", heading()))
         assertTrue(r.candidates("a.org", heading()).isEmpty())
     }
 
     @Test fun `dir property wins over id and resolves against the org file dir`() = runBlocking {
-        val r = AttachDirResolver(FakeDirs())
+        val r = AttachDirResolver(FakeDirs(), AttachConfig.Default)
         assertEquals("notes/photos/kyoto", r.writeDir("notes/travel.org", heading(uuid, "photos/kyoto/")))
         assertEquals("Photos/kyoto", r.writeDir("notes/travel.org", heading(uuid, "../Photos/kyoto")))
         assertEquals(listOf("Photos/kyoto"), r.candidates("notes/travel.org", heading(uuid, "../Photos/kyoto")))
@@ -107,7 +107,7 @@ class AttachDirResolverTest {
     }
 
     @Test fun `dir property escaping the vault is missing`() = runBlocking {
-        val r = AttachDirResolver(FakeDirs())
+        val r = AttachDirResolver(FakeDirs(), AttachConfig.Default)
         assertNull(r.writeDir("notes/a.org", heading(uuid, "../../outside")))
         assertNull(r.writeDir("a.org", heading(uuid, "~/Pictures")))
         assertNull(r.writeDir("a.org", heading(uuid, "/Users/me/Pictures")))
@@ -120,7 +120,7 @@ class AttachDirResolverTest {
     }
 
     @Test fun `file owner resolves the same way as a heading`() = runBlocking {
-        val r = AttachDirResolver(FakeDirs())
+        val r = AttachDirResolver(FakeDirs(), AttachConfig.Default)
         assertEquals("data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C", r.writeDir("a.org", AttachOwner.File(uuid, null)))
     }
 
