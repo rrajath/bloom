@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -20,6 +21,7 @@ import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.shownInNotice
 import com.rrajath.grove.attach.shownTarget
+import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 
@@ -49,10 +51,12 @@ fun AttachDirNoticeDialog(changes: List<AttachDirChange>, busy: Boolean = false,
                 shown.forEach { change ->
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         // Which heading (or file) it's about, when there's more than one.
+                        // Headings in PlexSans, a file owner's name in PlexMono like other file names.
                         if (shown.size > 1) {
                             Text(
                                 ownerLabel(change),
-                                fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink,
+                                fontFamily = if (change.owner is AttachOwner.File) PlexMono else PlexSans,
+                                fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink,
                             )
                         }
                         Text(
@@ -81,15 +85,20 @@ private fun ownerLabel(change: AttachDirChange): String = when (val o = change.o
     is AttachOwner.File -> change.orgFile.substringAfterLast('/')
 }
 
+/** The notice line; the destination folder is set in [folderSpan]. */
 @Composable
-private fun message(change: AttachDirChange): String = when (change) {
-    is AttachDirChange.Broken -> stringResource(R.string.attach_dir_broken)
-    is AttachDirChange.Move -> stringResource(
-        if (change.newId != null) R.string.attach_dir_new_id else when (change.kind) {
-            AttachDirChange.Kind.DIR_ADDED -> R.string.attach_dir_added
-            AttachDirChange.Kind.DIR_REMOVED -> R.string.attach_dir_removed
-            AttachDirChange.Kind.DIR_CHANGED -> R.string.attach_dir_changed
-        },
+private fun message(change: AttachDirChange): AnnotatedString = when (change) {
+    is AttachDirChange.Broken -> AnnotatedString(stringResource(R.string.attach_dir_broken))
+    is AttachDirChange.Move -> withStyledArg(
+        // No format args: the raw template keeps its %1$s for withStyledArg to fill.
+        stringResource(
+            if (change.newId != null) R.string.attach_dir_new_id else when (change.kind) {
+                AttachDirChange.Kind.DIR_ADDED -> R.string.attach_dir_added
+                AttachDirChange.Kind.DIR_REMOVED -> R.string.attach_dir_removed
+                AttachDirChange.Kind.DIR_CHANGED -> R.string.attach_dir_changed
+            },
+        ),
         change.shownTarget(),
+        folderSpan(),
     )
 }

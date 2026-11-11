@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.rrajath.grove.R
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +80,7 @@ fun NotebookMoveAttachmentsSheet(
     val sourceDir = fileName.substringBeforeLast('/', "")
     val target = newDir.trim('/').let { if (it.isEmpty()) leaf else "$it/$leaf" }
     var moveAttachments by rememberSaveable { mutableStateOf(true) }
+    val folder = folderSpan()
     LifecycleSheet(onDismiss, Modifier.testTag("attach_move_sheet")) {
         Text(
             "This notebook has attachments. Move them too?",
@@ -94,13 +96,17 @@ fun NotebookMoveAttachmentsSheet(
             ChoiceCard(
                 selected = moveAttachments,
                 title = "Move attachments",
-                body = moveAttachmentsBody(attachDirLabel(target, config), folderLabel(sourceDir), inventory.sharedFolders),
+                body = moveAttachmentsBody(attachDirLabel(target, config), folderLabel(sourceDir), inventory.sharedFolders, folder),
                 modifier = Modifier.testTag("attach_move_choice_move"),
             ) { moveAttachments = true }
             ChoiceCard(
                 selected = !moveAttachments,
                 title = "Move notebook only",
-                body = "Attachments stay in ${attachDirLabel(fileName, config)}. Links in $leaf will show as missing.",
+                body = buildAnnotatedString {
+                    append("Attachments stay in ")
+                    withStyle(folder) { append(attachDirLabel(fileName, config)) }
+                    append(". Links in $leaf will show as missing.")
+                },
                 modifier = Modifier.testTag("attach_move_choice_only"),
             ) { moveAttachments = false }
         }
@@ -129,12 +135,17 @@ fun NotebookMoveAttachmentsSheet(
 }
 
 /** `Folders move into Archive/data/ and merge with what's there. 2 folders shared with notes in Notes/ are copied instead.` */
-internal fun moveAttachmentsBody(destData: String, sourceFolder: String, shared: Int): String {
-    val base = "Folders move into $destData and merge with what's there."
-    if (shared == 0) return base
-    val verb = if (shared == 1) "is" else "are"
-    return "$base ${pluralCount(shared, "folder")} shared with notes in $sourceFolder $verb copied instead."
-}
+internal fun moveAttachmentsBody(destData: String, sourceFolder: String, shared: Int, folder: SpanStyle): AnnotatedString =
+    buildAnnotatedString {
+        append("Folders move into ")
+        withStyle(folder) { append(destData) }
+        append(" and merge with what's there.")
+        if (shared == 0) return@buildAnnotatedString
+        val verb = if (shared == 1) "is" else "are"
+        append(" ${pluralCount(shared, "folder")} shared with notes in ")
+        withStyle(folder) { append(sourceFolder) }
+        append(" $verb copied instead.")
+    }
 
 /**
  * 1n: deleting a notebook that owns attachment folders. "Also delete
@@ -266,7 +277,7 @@ private fun LifecycleSheet(onDismiss: () -> Unit, modifier: Modifier, content: @
 private fun ChoiceCard(
     selected: Boolean,
     title: String,
-    body: String,
+    body: AnnotatedString,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {

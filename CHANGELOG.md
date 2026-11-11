@@ -77,6 +77,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Discard when leaving an editor now also undoes changes auto-save already wrote since you opened it or last saved.
 - Attach sheet rows drop the file size and wrap long names and sources instead of cutting them off.
 - The template editor's "Insert at" options are more compact, taking less vertical space.
+- Attachment move popups show folder names in accent-colored monospace, so they stand apart from heading names.
 
 ### Fixed
 - Dailies Read mode now shows attached images inline.
