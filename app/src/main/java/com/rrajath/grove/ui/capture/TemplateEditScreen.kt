@@ -355,7 +355,7 @@ fun TemplateEditScreen(
                     )
                     pickerFor = forWhat
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     LOCATION_OPTIONS.forEachIndexed { i, label ->
                         InsertAtRow(label, selected = i == locationIdx) { locationIdx = i }
                     }
@@ -674,7 +674,7 @@ private fun InsertAtRow(label: String, selected: Boolean, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) c.accentSoft else c.surface)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 15.dp),
+            .padding(horizontal = 16.dp, vertical = 11.dp),
     ) {
         Text(
             label,

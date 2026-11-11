@@ -76,6 +76,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Editing a heading's `:DIR:` now also moves attachments of child headings that inherit it, adding an `:ID:` when needed.
 - Discard when leaving an editor now also undoes changes auto-save already wrote since you opened it or last saved.
 - Attach sheet rows drop the file size and wrap long names and sources instead of cutting them off.
+- The template editor's "Insert at" options are more compact, taking less vertical space.
 
 ### Fixed
 - Dailies Read mode now shows attached images inline.
