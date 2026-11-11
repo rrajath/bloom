@@ -230,6 +230,30 @@ class EditorViewModelIntegrationTest {
     }
 
     @Test
+    fun `attachFileContext places a heading editor's buffer in its file`() = runTest {
+        val text = "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Lunch\nsoba\n* Other\n"
+        store.write("trip.org", text)
+        val vm = editor()
+        vm.load(NoteRef("trip.org", headlineLineIn(text, "Lunch")))
+        advanceUntilIdle()
+
+        val ctx = vm.attachFileContext()!!
+        assertEquals(text, ctx.fileText)
+        assertEquals(4 until 6, ctx.span)
+        val owner = com.rrajath.grove.attach.BufferInFile.of(vm.state.value.buffer, ctx).ownerAtLine(0)
+        assertEquals("trip", owner.dirProperty)
+    }
+
+    @Test
+    fun `attachFileContext is null for a region editor`() = runTest {
+        store.write("trip.org", "#+TITLE: Trip\nPlans.\n* Day 1\n")
+        val vm = editor()
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.INTRO)
+        advanceUntilIdle()
+        assertEquals(null, vm.attachFileContext())
+    }
+
+    @Test
     fun `addFileId leaves a file with a DIR alone`() = runTest {
         val original = ":PROPERTIES:\n:DIR: files\n:END:\nPlans.\n"
         store.write("trip.org", original)

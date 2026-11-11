@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.text.TextRange
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachScope
@@ -164,6 +165,73 @@ class AttachControllerRobolectricTest {
         assertFalse(File(vaultDir, "notes/data").exists())
         assertTrue(textState.text.toString(), textState.text.contains("soba\n[[attachment:receipt.pdf]]"))
         assertEquals(1, Regex(":ID:").findAll(textState.text).count())
+    }
+
+    /**
+     * The single-heading editor on [heading] of [fileText] (notes/travel.org):
+     * opens the sheet at the end of the subtree buffer, picks a file, and returns
+     * the sheet's owner, the final buffer, and the owners reported as attached.
+     */
+    private fun attachFromSubtreeEditor(fileText: String, heading: String): Triple<AttachOwner, String, List<AttachOwner>> {
+        val fileDoc = OrgParser.parse(fileText)
+        val h = fileDoc.headlines.first { it.title == heading }
+        val buffer = OrgMutations.subtreeText(fileDoc, h)
+        val context = AttachFileContext(fileText, h.lineIndex until fileDoc.subtreeEndLine(h))
+        val textState = TextFieldState(buffer, TextRange(buffer.trimEnd('\n').length))
+        val attached = mutableListOf<AttachOwner>()
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/travel.org", bufferReady = true, manager,
+                    onOwnerAttached = { attached += it }, fileContext = { context }, attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        composeRule.runOnIdle { controller.open() }
+        settleUntil { controller.sheet?.dir != null }
+        val owner = controller.sheet!!.owner as AttachOwner.Heading
+        composeRule.runOnIdle {
+            controller.pending = PendingAttach("Files", false, owner.id, owner.titlePath, owner.lineIndex, textState.selection.start)
+            controller.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("[[attachment:receipt.pdf]]") }
+        return Triple(owner, textState.text.toString(), attached)
+    }
+
+    @Test
+    fun `a single-heading editor attaches into its parent's DIR`() {
+        File(vaultDir, "notes/trip").mkdirs()
+        val (owner, buffer, attached) = attachFromSubtreeEditor(
+            "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Lunch\n:PROPERTIES:\n:ID: AB12345\n:END:\nsoba\n", "Lunch",
+        )
+        assertEquals("trip", owner.dirProperty)
+        assertEquals(listOf("Lunch"), (owner as AttachOwner.Heading).titlePath)
+        assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
+        assertFalse(File(vaultDir, "notes/data").exists())
+        assertTrue(buffer, buffer.contains("soba\n[[attachment:receipt.pdf]]"))
+        assertTrue("inherited dir isn't recorded as the heading's own", attached.isEmpty())
+    }
+
+    @Test
+    fun `a single-heading editor attaches into its grandparent's DIR without adding an ID`() {
+        File(vaultDir, "notes/trip").mkdirs()
+        val (_, buffer, _) = attachFromSubtreeEditor(
+            "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Kyoto\n*** Lunch\nsoba\n", "Lunch",
+        )
+        assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
+        assertFalse(buffer, buffer.contains(":ID:"))
+    }
+
+    @Test
+    fun `a single-heading editor attaches into the file drawer's DIR`() {
+        File(vaultDir, "notes/files").mkdirs()
+        val (owner, buffer, _) = attachFromSubtreeEditor(
+            ":PROPERTIES:\n:DIR: files\n:END:\n#+TITLE: Travel\n\n* Trip\n** Lunch\nsoba\n", "Lunch",
+        )
+        assertEquals(AttachOwner.File(null, "files"), (owner as AttachOwner.Heading).dirFrom)
+        assertTrue(File(vaultDir, "notes/files/receipt.pdf").isFile)
+        assertFalse(buffer, buffer.contains(":ID:"))
     }
 
     @Test

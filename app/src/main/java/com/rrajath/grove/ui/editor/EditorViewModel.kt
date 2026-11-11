@@ -2,6 +2,7 @@ package com.rrajath.grove.ui.editor
 
 import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachDirMoves
+import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.attach.AttachMoveOutcome
 import com.rrajath.grove.attach.renameAttachmentLinks
 import com.rrajath.grove.attach.AttachOwner
@@ -901,6 +902,23 @@ class EditorViewModel(
             if (s.fileName == path && s.loadedRevision == before) s.copy(loadedRevision = after) else s
         }
         true
+    }
+
+    /**
+     * For attach in the single-heading editor: the file on disk and the lines the
+     * buffer replaces on save (the same span [writeBuffer] uses), so owners
+     * resolve against the whole file. Null for a region or whole-file editor,
+     * or when the file or heading can't be found.
+     */
+    suspend fun attachFileContext(): AttachFileContext? {
+        val s = _state.value
+        if (s.region != null || s.error != null || s.fileName.isEmpty()) return null
+        val vault = vaultFlow.value ?: return null
+        val doc = withContext(dispatchers.default) { vault.open(s.fileName) } ?: return null
+        val span = ownedSpanIn(doc, s, vault.revision(s.fileName))
+            ?: doc.headlines.firstOrNull { it.lineIndex == s.lineIndex }?.let { it.lineIndex until doc.subtreeEndLine(it) }
+            ?: return null
+        return AttachFileContext(doc.text, span)
     }
 
     /** [EditorUiState.ownedSpan], if the file is still the revision it describes and the span fits it. */

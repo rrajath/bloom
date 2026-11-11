@@ -26,6 +26,7 @@ import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachConfig
 import com.rrajath.grove.attach.AttachDirResolver
 import com.rrajath.grove.attach.AttachDone
+import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.attach.AttachKind
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachRequest
@@ -36,6 +37,7 @@ import com.rrajath.grove.attach.AttachmentFileProvider
 import com.rrajath.grove.attach.AttachmentFiles
 import com.rrajath.grove.attach.AttachmentIntents
 import com.rrajath.grove.attach.AttachmentScopeScanner
+import com.rrajath.grove.attach.BufferInFile
 import com.rrajath.grove.attach.ImportResult
 import com.rrajath.grove.attach.ListedDirs
 import com.rrajath.grove.attach.ScopedAttachment
@@ -49,8 +51,6 @@ import com.rrajath.grove.attach.linkableName
 import com.rrajath.grove.attach.ownerOf
 import com.rrajath.grove.attach.ownerToastLabel
 import com.rrajath.grove.attach.relativeLinkPath
-import com.rrajath.grove.attach.resolveOwner
-import com.rrajath.grove.attach.resolveOwnerAtLine
 import com.rrajath.grove.attach.scopesFor
 import com.rrajath.grove.attach.successMessage
 import com.rrajath.grove.org.OrgDocument
@@ -170,6 +170,13 @@ class AttachController internal constructor(
      * records it so a later `:DIR:` edit on that owner moves these files.
      */
     private val onOwnerAttached: ((AttachOwner) -> Unit)? = null,
+    /**
+     * Set by the single-heading editor, whose buffer is one subtree of [orgFile]:
+     * the file on disk and the lines the buffer replaces, so owners resolve
+     * against the whole file ([BufferInFile]). Null when the buffer is the whole
+     * file, or has its own rules (capture, Intro).
+     */
+    private val fileContext: (suspend () -> AttachFileContext?)? = null,
 ) {
     var sheet by mutableStateOf<AttachSheetModel?>(null)
         private set
@@ -268,11 +275,26 @@ class AttachController internal constructor(
         return if (file.id == null && file.dirProperty == null) OrgMutations.upsertFileProperty(doc, "ID", id) else text
     }
 
+    /** The live buffer placed in its file (see [fileContext]); the buffer alone when there's no context. */
+    private suspend fun bufferInFile(): BufferInFile {
+        val text = textState.text.toString()
+        val context = fileContext?.let { read -> withContext(Dispatchers.IO) { runCatching { read() }.getOrNull() } }
+        return BufferInFile.of(text, context)
+    }
+
     /** Paperclip: resolve the owner at the cursor and open the sheet. */
     fun open() {
-        val text = textState.text.toString()
-        val doc = OrgParser.parse(text)
-        val owner = withPendingFileId(resolveOwner(doc, textState.selection.start))
+        if (fileContext == null) {
+            openAt(BufferInFile.of(textState.text.toString(), null), textState.selection.start)
+            return
+        }
+        val cursor = textState.selection.start
+        scope.launch { openAt(bufferInFile(), cursor) }
+    }
+
+    private fun openAt(placed: BufferInFile, cursor: Int) {
+        val doc = placed.buffer
+        val owner = withPendingFileId(placed.ownerAtOffset(cursor))
         if (addDiskFileId != null && owner is AttachOwner.File) {
             openOnDisk()
             return
@@ -456,7 +478,7 @@ class AttachController internal constructor(
             }
             OrgParser.parse(text).fileOwner() to false
         } else {
-            relocatePending(OrgParser.parse(textState.text.toString()), p).let { (o, ch) -> withPendingFileId(o) to ch }
+            relocatePending(bufferInFile(), p).let { (o, ch) -> withPendingFileId(o) to ch }
         }
         val sources = withContext(Dispatchers.IO) {
             if (cameraFile != null) {
@@ -491,13 +513,14 @@ class AttachController internal constructor(
         if (!started) cameraFile?.delete()
     }
 
-    private fun relocatePending(doc: OrgDocument, p: PendingAttach): Pair<AttachOwner, Boolean> {
+    private fun relocatePending(placed: BufferInFile, p: PendingAttach): Pair<AttachOwner, Boolean> {
+        val doc = placed.buffer
         if (p.isFile) return doc.fileOwner() to false
         val byId = p.id?.let { id -> doc.headlines.firstOrNull { doc.ownerOf(it).id == id } }
         val match = byId ?: doc.headlines.firstOrNull { doc.ownerOf(it).titlePath == p.titlePath }
         // Re-resolve at the heading so an inherited :DIR: still decides the folder.
-        if (match != null) return resolveOwnerAtLine(doc, match.lineIndex) to false
-        return resolveOwnerAtLine(doc, lineOfOffset(doc.text, p.cursor)) to true
+        if (match != null) return placed.ownerAtLine(match.lineIndex) to false
+        return placed.ownerAtLine(lineOfOffset(doc.text, p.cursor)) to true
     }
 
     /** A copy finished while this editor is open: write the links, or report the failure. */
@@ -506,7 +529,10 @@ class AttachController internal constructor(
             is ImportResult.Failed -> showToast(failureMessage(r))
             is ImportResult.Success -> {
                 r.names.forEach { added += "${done.request.dir}/$it" }
-                onOwnerAttached?.invoke(done.request.owner.withId(done.request.newId))
+                // An inherited :DIR: leaves the heading itself unchanged; recording it
+                // would make a later save see that :DIR: as removed from the heading.
+                val owner = done.request.owner
+                if ((owner as? AttachOwner.Heading)?.dirFrom == null) onOwnerAttached?.invoke(owner.withId(done.request.newId))
                 if (done.request.onDisk) {
                     scope.launch { linkOnDisk(done.request, r) }
                     return
@@ -697,6 +723,8 @@ fun rememberAttachController(
     introOfFile: Boolean = false,
     /** See [AttachController]'s `onOwnerAttached`. */
     onOwnerAttached: ((AttachOwner) -> Unit)? = null,
+    /** Single-heading editor only: see [AttachController]'s `fileContext`. */
+    fileContext: (suspend () -> AttachFileContext?)? = null,
 ): AttachController {
     val app = LocalContext.current.applicationContext as? GroveApplication
     return rememberAttachController(
@@ -710,6 +738,7 @@ fun rememberAttachController(
         pendingFileId = pendingFileId,
         introOfFile = introOfFile,
         onOwnerAttached = onOwnerAttached,
+        fileContext = fileContext,
     )
 }
 
@@ -724,6 +753,7 @@ internal fun rememberAttachController(
     pendingFileId: String? = null,
     introOfFile: Boolean = false,
     onOwnerAttached: ((AttachOwner) -> Unit)? = null,
+    fileContext: (suspend () -> AttachFileContext?)? = null,
     attachConfig: () -> AttachConfig,
     storeProvider: () -> FileStore?,
 ): AttachController {
@@ -732,7 +762,7 @@ internal fun rememberAttachController(
     val controller = remember(textState, orgFile) {
         AttachController(
             context, scope, textState, orgFile, manager, storeProvider, attachConfig, indexedOwners, addDiskFileId, pendingFileId,
-            introOfFile, onOwnerAttached,
+            introOfFile, onOwnerAttached, fileContext,
         )
     }
     // Saved as JSON so it survives process death without the parcelize plugin.

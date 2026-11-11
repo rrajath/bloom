@@ -389,6 +389,7 @@ fun EditNoteScreen(
     // Attachments: paperclip, sheet, copies.
     val attach = rememberAttachController(
         textState, state.fileName, fieldLoaded, onOwnerAttached = viewModel::noteAttachedOwner,
+        fileContext = viewModel::attachFileContext,
     )
     val keyboard = LocalSoftwareKeyboardController.current
     val blockTrigger by rememberBlockTrigger(textState)
