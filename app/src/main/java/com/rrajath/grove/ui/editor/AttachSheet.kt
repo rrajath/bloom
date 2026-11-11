@@ -246,7 +246,7 @@ internal fun AttachSheetContent(
             .testTag("attach_sheet"),
     ) {
         FlowRow(
-            Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, bottom = if (model.folderFrom == null) 14.dp else 2.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
@@ -259,6 +259,15 @@ internal fun AttachSheetContent(
                 model.title,
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = c.ink,
                 modifier = Modifier.testTag("attach_owner_title"),
+            )
+        }
+        model.folderFrom?.let { line ->
+            Text(
+                line,
+                fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
+                modifier = Modifier
+                    .padding(start = 22.dp, end = 22.dp, bottom = 14.dp)
+                    .testTag("attach_folder_from"),
             )
         }
         Row(

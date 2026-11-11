@@ -172,6 +172,9 @@ class AttachControllerRobolectricTest {
      * opens the sheet at the end of the subtree buffer, picks a file, and returns
      * the sheet's owner, the final buffer, and the owners reported as attached.
      */
+    /** The sheet's "Folder from" line as [attachFromSubtreeEditor] last opened it. */
+    private var lastFolderFrom: String? = null
+
     private fun attachFromSubtreeEditor(fileText: String, heading: String): Triple<AttachOwner, String, List<AttachOwner>> {
         val fileDoc = OrgParser.parse(fileText)
         val h = fileDoc.headlines.first { it.title == heading }
@@ -191,6 +194,7 @@ class AttachControllerRobolectricTest {
         composeRule.runOnIdle { controller.open() }
         settleUntil { controller.sheet?.dir != null }
         val owner = controller.sheet!!.owner as AttachOwner.Heading
+        lastFolderFrom = controller.sheet!!.folderFrom
         composeRule.runOnIdle {
             controller.pending = PendingAttach("Files", false, owner.id, owner.titlePath, owner.lineIndex, textState.selection.start)
             controller.onPickerResult(listOf(picked("receipt.pdf")))
@@ -230,8 +234,76 @@ class AttachControllerRobolectricTest {
             ":PROPERTIES:\n:DIR: files\n:END:\n#+TITLE: Travel\n\n* Trip\n** Lunch\nsoba\n", "Lunch",
         )
         assertEquals(AttachOwner.File(null, "files"), (owner as AttachOwner.Heading).dirFrom)
+        assertEquals("Folder from file settings", lastFolderFrom)
         assertTrue(File(vaultDir, "notes/files/receipt.pdf").isFile)
         assertFalse(buffer, buffer.contains(":ID:"))
+    }
+
+    /**
+     * Quick capture with body-only text bound for `* Trip` in notes/travel.org
+     * ([fileText] on disk): opens the sheet, picks a file and returns the
+     * controller, the field and the heading IDs written on disk.
+     */
+    private fun attachFromBodyOnlyCapture(fileText: String): Triple<AttachController, TextFieldState, List<Pair<AttachOwner.Heading, String>>> {
+        File(vaultDir, "notes").mkdirs()
+        File(vaultDir, "notes/travel.org").writeText(fileText)
+        val textState = TextFieldState("A note.", TextRange(7))
+        val headingIds = mutableListOf<Pair<AttachOwner.Heading, String>>()
+        val fileDoc = OrgParser.parse(fileText)
+        val trip = fileDoc.headlines.first { it.title == "Trip" }
+        val placedText = (fileDoc.lines.take(trip.bodyStart) + "A note." + fileDoc.lines.drop(trip.bodyStart)).joinToString("\n")
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/travel.org", bufferReady = true, manager,
+                    addDiskFileId = { _, _ -> error("file owner not expected") },
+                    fileContext = { AttachFileContext(placedText, trip.bodyStart..trip.bodyStart, placed = true) },
+                    addDiskHeadingId = { _, owner, id -> headingIds += owner to id; true },
+                    attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        composeRule.runOnIdle { controller.open() }
+        settleUntil { controller.sheet != null }
+        val owner = controller.sheet!!.owner as AttachOwner.Heading
+        composeRule.runOnIdle {
+            controller.pending = PendingAttach("Files", false, owner.id, owner.titlePath, owner.lineIndex, 7, onDisk = true)
+            controller.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("receipt.pdf") }
+        return Triple(controller, textState, headingIds)
+    }
+
+    @Test
+    fun `body-only capture text attaches to its target heading with a new ID on disk`() {
+        val (c, textState, headingIds) = attachFromBodyOnlyCapture("* Trip\nPlans.\n* Other\n")
+        val (heading, id) = headingIds.single()
+        assertEquals(listOf("Trip"), heading.titlePath)
+        assertTrue(File(vaultDir, "notes/data/${id.take(2)}/${id.drop(2)}/receipt.pdf").isFile)
+        assertEquals("A note.\n[[attachment:receipt.pdf]]", textState.text.toString())
+        assertEquals(id, c.addedDiskHeadingId?.id)
+        assertEquals(null, c.addedDiskFileId)
+    }
+
+    @Test
+    fun `body-only capture text under a DIR heading goes to that folder without an ID`() {
+        File(vaultDir, "notes/trip").mkdirs()
+        val (c, textState, headingIds) = attachFromBodyOnlyCapture("* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\nPlans.\n")
+        assertTrue(headingIds.isEmpty())
+        assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
+        assertEquals("A note.\n[[attachment:receipt.pdf]]", textState.text.toString())
+        assertEquals(null, c.addedDiskHeadingId)
+    }
+
+    @Test
+    fun `the sheet names the ancestor an inherited folder comes from`() {
+        File(vaultDir, "notes/trip").mkdirs()
+        val (owner, _, _) = attachFromSubtreeEditor(
+            "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Kyoto\n*** Lunch\nsoba\n", "Lunch",
+        )
+        assertEquals("trip", owner.dirProperty)
+        assertEquals("Folder from * Trip", lastFolderFrom)
     }
 
     @Test

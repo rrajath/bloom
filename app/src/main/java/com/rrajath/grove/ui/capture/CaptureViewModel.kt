@@ -5,8 +5,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
+import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.attach.AttachMoveOutcome
+import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.fileOwner
+import com.rrajath.grove.attach.ownerOf
+import com.rrajath.grove.attach.relocateOwner
 import com.rrajath.grove.attach.renameAttachmentLinks
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.capture.CaptureContext
@@ -263,6 +267,70 @@ class CaptureViewModel(
             sync.requestReindex(path, new, "attach file id")
         }
         true
+    }
+
+    /**
+     * For attach: the template's target file with [entryText] inserted where
+     * [save] would put it (replacing this session's autosaved draft), so owners
+     * resolve against the whole file. Null when the file can't be read or the
+     * target heading isn't there.
+     */
+    suspend fun attachFileContext(
+        template: CaptureTemplate,
+        entryText: String,
+        context: CaptureContext,
+        bodyOnly: Boolean,
+    ): AttachFileContext? = writeMutex.withLock {
+        val vault = vaultFlow.value ?: return@withLock null
+        withContext(dispatchers.default) {
+            val currentText = vault.open(template.targetFile)?.text ?: ""
+            val baseText = draftInsertion?.let { CaptureInserter.removeInsertion(currentText, it) } ?: currentText
+            val insertion = runCatching {
+                CaptureInserter.insert(baseText, template.location, entryText, LocalDate.from(context.now), bodyOnly = bodyOnly)
+            }.getOrNull() ?: return@withContext null
+            val start = insertion.insertedAtLine
+            AttachFileContext(insertion.newText, start until start + maxOf(1, insertion.entryLineCount), placed = true)
+        }
+    }
+
+    /**
+     * Gives the heading [owner] (re-found in [path] by `:ID:`, then title path) an
+     * `:ID:`, for a body-only capture's attach: its text goes into that heading's
+     * body, which isn't in the field. Shifts the autosaved draft like [addFileId].
+     * True when the heading has an ID afterwards.
+     */
+    suspend fun addHeadingId(path: String, owner: AttachOwner.Heading, id: String): Boolean = writeMutex.withLock {
+        val vault = vaultFlow.value ?: return@withLock false
+        val saved = withContext(dispatchers.default) {
+            val text = vault.open(path)?.text ?: return@withContext null
+            val doc = OrgParser.parse(text)
+            val found = relocateOwner(doc, owner) as? AttachOwner.Heading ?: return@withContext null
+            if (found.id != null) return@withContext text to text
+            val h = doc.headlines.first { it.lineIndex == found.lineIndex }
+            val newText = OrgMutations.upsertProperty(doc, h, "ID", id)
+            vault.save(path, newText)
+            text to newText
+        } ?: return@withLock false
+        val (old, new) = saved
+        if (old != new) {
+            draftInsertion = draftInsertion?.let(shiftForEdit(old, new))
+            sync.requestReindex(path, new, "attach heading id")
+        }
+        true
+    }
+
+    /** Capture discard with "Also delete attachments": takes back the heading `:ID:` [addHeadingId] wrote. */
+    fun removeAddedHeadingId(path: String, id: String) {
+        viewModelScope.launch {
+            writeMutex.withLock {
+                val vault = vaultFlow.value ?: return@withLock
+                val newText = withContext(dispatchers.default) {
+                    val text = vault.open(path)?.text ?: return@withContext null
+                    withoutHeadingId(text, id)?.also { vault.save(path, it) }
+                } ?: return@withLock
+                sync.requestReindex(path, newText, "capture discarded")
+            }
+        }
     }
 
     /** Points renamed attachments' links at their new names in the saved [path] (see [AttachMoveOutcome]). */
@@ -606,7 +674,17 @@ internal fun shiftForEdit(old: String, new: String): (CaptureInserter.Insertion)
  */
 internal fun withoutFileId(text: String, id: String): String? {
     val doc = OrgParser.parse(text)
-    val range = OrgMutations.fileDrawerRange(doc) ?: return null
+    return withoutIdIn(doc, OrgMutations.fileDrawerRange(doc) ?: return null, id)
+}
+
+/** [text] without the heading `:ID: [id]` (and its drawer when that empties it); null when no heading has it. */
+internal fun withoutHeadingId(text: String, id: String): String? {
+    val doc = OrgParser.parse(text)
+    val h = doc.headlines.firstOrNull { doc.ownerOf(it).id == id } ?: return null
+    return withoutIdIn(doc, OrgMutations.headingDrawerRange(doc, h, ":PROPERTIES:") ?: return null, id)
+}
+
+private fun withoutIdIn(doc: OrgDocument, range: IntRange, id: String): String? {
     val lines = doc.lines
     val idLine = (range.first + 1 until range.last).firstOrNull {
         lines[it].trim().let { l -> l.startsWith(":ID:", ignoreCase = true) && l.substring(4).trim() == id }

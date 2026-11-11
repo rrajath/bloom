@@ -439,6 +439,15 @@ fun CaptureEditorScreen(
     val attach = rememberAttachController(
         textState, attachTarget, bufferReady = true,
         addDiskFileId = if (roamNewFile) null else viewModel::addFileId,
+        // Resolve against the target file with the entry where Save puts it, so a
+        // target heading's or the file's :DIR: is inherited. Roam nodes keep the
+        // file as owner (an append isn't meant for the file's last heading).
+        fileContext = if (template.kind == TemplateKind.ROAM_NODE) {
+            null
+        } else {
+            { viewModel.attachFileContext(template, textState.text.toString(), context, bodyOnly) }
+        },
+        addDiskHeadingId = if (template.kind == TemplateKind.ROAM_NODE) null else viewModel::addHeadingId,
         // The new node's :ID: is added on save (RoamFileId.withFileId), not shown in
         // the field, so attach must use that same ID rather than mint another one.
         pendingFileId = if (roamNewFile) context.id else null,
@@ -654,8 +663,9 @@ fun CaptureEditorScreen(
 
     /**
      * [deleteAttachments]: also delete the files attached during this capture
-     * (stopping a copy still running) and the file-level :ID: the no-heading
-     * fallback added to the target file. Queued after the draft removal (the
+     * (stopping a copy still running) and the :ID: the no-heading fallback
+     * added on disk: to the target file, or to the heading a body-only
+     * capture's text goes into. Queued after the draft removal (the
      * view model's draft lock is first come, first served).
      */
     fun discard(deleteAttachments: Boolean) {
@@ -666,6 +676,7 @@ fun CaptureEditorScreen(
         }
         if (deleteAttachments) {
             attach.addedDiskFileId?.let { viewModel.removeAddedFileId(attachTarget, it) }
+            attach.addedDiskHeadingId?.let { viewModel.removeAddedHeadingId(attachTarget, it.id) }
             attach.discardSessionAttachments()
         }
         onClose()
@@ -1039,7 +1050,8 @@ fun CaptureEditorScreen(
                             checked = deleteAttachmentsOnDiscard,
                             detail = captureAttachmentsDetail(
                                 attach.addedFiles.size,
-                                attach.addedDiskFileId?.let { attachTarget.substringAfterLast('/') },
+                                attach.addedDiskFileId?.let { attachTarget.substringAfterLast('/') }
+                                    ?: attach.addedDiskHeadingId?.title,
                             ),
                         ) { deleteAttachmentsOnDiscard = it }
                     }

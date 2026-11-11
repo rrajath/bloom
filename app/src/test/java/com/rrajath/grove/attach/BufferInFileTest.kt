@@ -91,4 +91,35 @@ class BufferInFileTest {
         val stale = AttachFileContext(file, 40 until 60)
         assertNull(BufferInFile.of(buffer, stale).ownerAtLine(0).dirProperty)
     }
+
+    @Test fun `a placed capture entry inherits its target heading's dir, matched by title across re-leveling`() {
+        // Capture inserted "* Lunch" under ** Kyoto as "*** Lunch" (line 10 onward).
+        val placedText = file.lines().let { lines ->
+            (lines.take(10) + listOf("*** Dinner", "Ramen.") + lines.drop(10)).joinToString("\n")
+        }
+        val ctx = AttachFileContext(placedText, 10 until 12, placed = true)
+        val o = BufferInFile.of("* Dinner\nRamen.", ctx).ownerAtLine(1) as AttachOwner.Heading
+        assertEquals(0, o.lineIndex)
+        assertEquals(listOf("Dinner"), o.titlePath)
+        assertEquals("trip", o.dirProperty)
+    }
+
+    @Test fun `heading-less capture text belongs to the heading it lands in`() {
+        // Body-only text inserted into Kyoto's body (line 10).
+        val lines = file.lines()
+        val placedText = (lines.take(10) + listOf("Note one.") + lines.drop(10)).joinToString("\n")
+        val placed = BufferInFile.of("Note one.", AttachFileContext(placedText, 10..10, placed = true))
+        assertEquals(AttachOwner.File(null, null), placed.ownerAtLine(0))
+        val around = placed.ownerAround(0) as AttachOwner.Heading
+        assertEquals(listOf("Trip", "Kyoto"), around.titlePath)
+        assertEquals(9, around.lineIndex)
+        assertEquals("trip", around.dirProperty)
+        assertEquals(1, placed.dirFromLevel(around))
+    }
+
+    @Test fun `ownerAround is null when the buffer has its own heading or no file`() {
+        val (buffer, ctx) = editorFor("Kyoto")
+        assertNull(BufferInFile.of(buffer, ctx).ownerAround(0))
+        assertNull(BufferInFile.of("Note.", null).ownerAround(0))
+    }
 }

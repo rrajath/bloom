@@ -3,6 +3,10 @@
     <!-- Attach sheet (ui/editor/AttachSheet.kt): label above the scope switch. The switch's
          options follow it; keep the colon if your language uses one there. -->
     <string name="attach_scope_label">Show attachments in:</string>
+    <!-- Attach sheet: second header line when the heading's attachment folder comes from a parent heading's :DIR:. %1$s = that heading's org stars and title, e.g. "* Trip". -->
+    <string name="attach_folder_from">Folder from %1$s</string>
+    <!-- Attach sheet: second header line when the attachment folder comes from the :DIR: in the file's own property drawer at the top of the file. -->
+    <string name="attach_folder_from_file">Folder from file settings</string>
     <!-- Scope switch option: attachments of the heading being edited. Short, it shares one row with two other options. -->
     <string name="attach_scope_heading">This heading</string>
     <!-- Scope switch option: attachments of every heading in the open .org file. Short. -->

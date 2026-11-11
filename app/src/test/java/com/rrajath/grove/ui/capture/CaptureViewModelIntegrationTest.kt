@@ -270,6 +270,71 @@ class CaptureViewModelIntegrationTest {
         assertEquals(1, Regex("""(?m)^\*+ Entry$""").findAll(saved).count())
     }
 
+    private val underTrip = quickNote.copy(
+        targetFile = "travel.org",
+        location = TargetLocation.UnderHeading(path = listOf("Trip")),
+    )
+    private val tripFile = "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\nPlans.\n* Other\n"
+
+    @Test
+    fun `attachFileContext places the entry where save puts it, replacing the autosaved draft`() = runTest {
+        store.write("travel.org", tripFile)
+        val vm = capture()
+        vm.autosave(underTrip, "* Draft", context)
+        advanceUntilIdle()
+
+        val ctx = vm.attachFileContext(underTrip, "* Lunch\nSoba.", context, bodyOnly = false)!!
+        assertTrue(ctx.placed)
+        assertFalse(ctx.fileText, ctx.fileText.contains("Draft"))
+        val placed = com.rrajath.grove.attach.BufferInFile.of("* Lunch\nSoba.", ctx)
+        assertEquals("trip", placed.ownerAtLine(1).dirProperty)
+    }
+
+    @Test
+    fun `attachFileContext for body-only text resolves to the target heading`() = runTest {
+        store.write("travel.org", tripFile)
+        val ctx = capture().attachFileContext(underTrip, "A note.", context, bodyOnly = true)!!
+        val around = com.rrajath.grove.attach.BufferInFile.of("A note.", ctx).ownerAround(0)
+            as com.rrajath.grove.attach.AttachOwner.Heading
+        assertEquals(listOf("Trip"), around.titlePath)
+        assertEquals("trip", around.dirProperty)
+    }
+
+    @Test
+    fun `attachFileContext is null when the target heading is missing`() = runTest {
+        store.write("travel.org", "* Other\n")
+        assertEquals(null, capture().attachFileContext(underTrip, "A note.", context, bodyOnly = true))
+    }
+
+    @Test
+    fun `addHeadingId gives the target heading an ID, keeps the draft in place, and discard takes it back`() = runTest {
+        store.write("travel.org", "* Trip\nPlans.\n* Other\n")
+        val vm = capture()
+        vm.autosave(underTrip, "Draft note.", context, bodyOnly = true)
+        advanceUntilIdle()
+        val trip = com.rrajath.grove.attach.AttachOwner.Heading(0, listOf("Trip"), null, null)
+
+        assertTrue(vm.addHeadingId("travel.org", trip, "H1D"))
+        vm.save(underTrip, "Final note.", context, bodyOnly = true)
+        advanceUntilIdle()
+        val saved = store.read("travel.org")
+        assertTrue(saved, saved.startsWith("* Trip\n:PROPERTIES:\n:ID: H1D\n:END:\n"))
+        assertTrue(saved, saved.contains("Final note."))
+        assertFalse("the draft must have been replaced in place", saved.contains("Draft note."))
+
+        vm.removeAddedHeadingId("travel.org", "H1D")
+        advanceUntilIdle()
+        assertFalse(store.read("travel.org").contains(":ID: H1D"))
+        assertFalse(store.read("travel.org").contains(":PROPERTIES:"))
+    }
+
+    @Test
+    fun `withoutHeadingId keeps other properties`() {
+        val text = "* A\n:PROPERTIES:\n:ID: X\n:DIR: a\n:END:\nbody"
+        assertEquals("* A\n:PROPERTIES:\n:DIR: a\n:END:\nbody", withoutHeadingId(text, "X"))
+        assertEquals(null, withoutHeadingId(text, "Y"))
+    }
+
     @Test
     fun `addFileId on a missing file is refused`() = runTest {
         assertFalse(capture().addFileId("nope.org", "F1LE1D"))

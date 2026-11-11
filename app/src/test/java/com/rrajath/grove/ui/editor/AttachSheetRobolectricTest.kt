@@ -85,6 +85,18 @@ class AttachSheetRobolectricTest {
     }
 
     @Test
+    fun `an inherited folder shows where it comes from under the header`() {
+        show(sheetModel(lunch, "**", "Lunch", "trip", files).copy(folderFrom = "Folder from * Trip"))
+        composeRule.onNodeWithTag("attach_folder_from").assertTextEquals("Folder from * Trip")
+    }
+
+    @Test
+    fun `an own folder shows no folder-from line`() {
+        show(sheetModel(lunch, "**", "Lunch", "data/8B/41D2F0-1C9E", files))
+        composeRule.onNodeWithTag("attach_folder_from").assertDoesNotExist()
+    }
+
+    @Test
     fun `heading owner shows stars, title, dir label and rows without sizes`() {
         show(sheetModel(lunch, "**", "Lunch", "data/8B/41D2F0-1C9E", files))
         composeRule.onNodeWithText("Attach to").assertIsDisplayed()
