@@ -98,4 +98,52 @@ class SafFileStoreCaseInsensitiveTest {
         assertFalse(saf.rename("a.org", "b.org"))
         assertEquals(listOf("B.org", "a.org"), names())
     }
+
+    @Test
+    fun `a new file under another case of a folder goes into that folder`() = runTest {
+        write("Projects/acme.org", "a")
+        val saf = store()
+        saf.list()
+
+        assertTrue(saf.create("projects/new.org"))
+
+        assertEquals(listOf("Projects/acme.org", "Projects/new.org"), names())
+        assertEquals("Projects/new.org", saf.stat("projects/new.org")?.name)
+    }
+
+    @Test
+    fun `saving and listing under another case of a folder use the real one`() = runTest {
+        write("Projects/Inbox.org", "old")
+        val saf = store()
+
+        Vault(saf).save("projects/inbox.org", "new")
+
+        assertEquals(listOf("Projects/Inbox.org"), names())
+        assertEquals("new", File(tmp.root, "Projects/Inbox.org").readText())
+        assertEquals(listOf("Projects/Inbox.org"), saf.listDir("PROJECTS").map { it.name })
+    }
+
+    @Test
+    fun `moving into another case of a folder uses that folder`() = runTest {
+        write("a.org", "a")
+        write("Projects/keep.org", "k")
+        val saf = store()
+        saf.list()
+
+        assertTrue(saf.rename("a.org", "projects/a.org"))
+
+        assertEquals(listOf("Projects/a.org", "Projects/keep.org"), names())
+    }
+
+    @Test
+    fun `pruning another case of an emptied folder removes it`() = runTest {
+        write("Projects/only.org", "x")
+        val saf = store()
+        saf.list()
+
+        assertTrue(saf.delete("projects/only.org"))
+        saf.pruneEmptyDirs("projects")
+
+        assertFalse(File(tmp.root, "Projects").exists())
+    }
 }
