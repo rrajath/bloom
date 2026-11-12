@@ -52,6 +52,7 @@ fun SettingsNotesScreen(
     onSetAddCreated: (Boolean) -> Unit,
     onSetNewNoteCursor: (NewNoteCursor) -> Unit,
     onSetAutoSaveNotes: (Boolean) -> Unit,
+    onSetCapitalizeHeadings: (Boolean) -> Unit,
     onSetAutoArchiveDoneItems: (Boolean) -> Unit,
     onOpenArchiveLocationPicker: () -> Unit,
 ) {
@@ -214,6 +215,13 @@ fun SettingsNotesScreen(
                 checked = settings.autoSaveNotes,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_AUTO_SAVE) },
                 onToggle = onSetAutoSaveNotes,
+            )
+            RowDivider()
+            ToggleRow(
+                label = "Auto-capitalize headings",
+                description = "Capitalizes the first letter typed into a heading. Off leaves capitalization to your keyboard",
+                checked = settings.capitalizeHeadings,
+                onToggle = onSetCapitalizeHeadings,
             )
         }
         Spacer(Modifier.height(20.dp))

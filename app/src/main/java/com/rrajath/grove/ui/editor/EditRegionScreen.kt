@@ -96,10 +96,11 @@ fun EditPrefaceScreen(
     fileName: String,
     onBack: () -> Unit,
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
+    capitalizeHeadings: Boolean = true,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.PREFACE, noteId = null, onBack = onBack,
-    editModeFontSize = editModeFontSize, viewModel = viewModel,
+    editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings, viewModel = viewModel,
 )
 
 /**
@@ -113,10 +114,11 @@ fun EditIntroScreen(
     fileName: String,
     onBack: () -> Unit,
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
+    capitalizeHeadings: Boolean = true,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.INTRO, noteId = null, onBack = onBack,
-    editModeFontSize = editModeFontSize, viewModel = viewModel,
+    editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings, viewModel = viewModel,
 )
 
 /** One-word label for [region], used in this screen's title bar, save toast and leave dialog. */
@@ -171,6 +173,8 @@ fun EditRegionScreen(
     blockLine: Int = -1,
     /** Settings § Notes: font-size lever for the editor field. App chrome is unaffected. */
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
+    /** Settings § Notes: uppercase the first letter typed into a heading. */
+    capitalizeHeadings: Boolean = true,
     /**
      * When set, the top bar carries the [ReadEditToggle] (Edit selected), and both it
      * and Back call this. Neither saves: the FILE route hoists [viewModel] so its
@@ -440,6 +444,7 @@ fun EditRegionScreen(
                 onOverwriteStale = { viewModel.save(force = true) },
                 onReloadStale = { viewModel.dismissStale(); viewModel.loadRegion(fileName, noteId, region, blockLine) },
                 editModeFontSize = editModeFontSize,
+                capitalizeHeadings = capitalizeHeadings,
                 showBacklinks = showBacklinks,
                 isRoamFile = isRoamFile,
                 linkedCount = linkedReferences.linkedCount,
@@ -537,6 +542,7 @@ internal fun WholeFileEditorBody(
     onOverwriteStale: () -> Unit,
     onReloadStale: () -> Unit,
     editModeFontSize: FontSizePreference,
+    capitalizeHeadings: Boolean,
     showBacklinks: Boolean,
     isRoamFile: Boolean,
     linkedCount: Int,
@@ -625,7 +631,9 @@ internal fun WholeFileEditorBody(
             ContentFontScale(editModeFontSize) {
                 BasicTextField(
                     state = textState,
-                    inputTransformation = remember(state.keywords) { orgInputTransformation(state.keywords) },
+                    inputTransformation = remember(state.keywords, capitalizeHeadings) {
+                        orgInputTransformation(state.keywords, capitalizeHeadings)
+                    },
                     outputTransformation = highlight,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     lineLimits = TextFieldLineLimits.MultiLine(),

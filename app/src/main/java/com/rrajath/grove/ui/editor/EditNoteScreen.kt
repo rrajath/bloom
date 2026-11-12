@@ -123,6 +123,8 @@ fun EditNoteScreen(
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
     /** Settings § Notes: caret placement for a freshly created note (only used when [isNewNote]). */
     newNoteCursor: NewNoteCursor = NewNoteCursor.BODY,
+    /** Settings § Notes: uppercase the first letter typed into a heading. */
+    capitalizeHeadings: Boolean = true,
     /** Settings § Roam Features (experimental) suggestions
      *  ([com.rrajath.grove.settings.GroveSettings.roamSuggestionsActive]): gates the Roam
      *  providers (file/heading link chips, roam-node chips) only. The suggestion strip slot
@@ -491,7 +493,9 @@ fun EditNoteScreen(
                 ContentFontScale(editModeFontSize) {
                     BasicTextField(
                         state = textState,
-                        inputTransformation = remember(state.keywords) { orgInputTransformation(state.keywords) },
+                        inputTransformation = remember(state.keywords, capitalizeHeadings) {
+                            orgInputTransformation(state.keywords, capitalizeHeadings)
+                        },
                         outputTransformation = highlight,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         lineLimits = TextFieldLineLimits.MultiLine(),

@@ -505,6 +505,7 @@ private fun GroveNavigation(
                     fileName = fileName,
                     onBack = { navController.popBackStack() },
                     editModeFontSize = settings.editModeFontSize,
+                    capitalizeHeadings = settings.capitalizeHeadings,
                 )
             }
             screen(Routes.DRAWER) { entry ->
@@ -521,6 +522,7 @@ private fun GroveNavigation(
                     noteId = noteId,
                     onBack = { navController.popBackStack() },
                     editModeFontSize = settings.editModeFontSize,
+                    capitalizeHeadings = settings.capitalizeHeadings,
                 )
             }
             screen(Routes.BLOCK) { entry ->
@@ -531,6 +533,7 @@ private fun GroveNavigation(
                     blockLine = entry.arguments?.getString("line")?.toIntOrNull() ?: -1,
                     onBack = { navController.popBackStack() },
                     editModeFontSize = settings.editModeFontSize,
+                    capitalizeHeadings = settings.capitalizeHeadings,
                 )
             }
             screen(Routes.FILE) { entry ->
@@ -586,6 +589,7 @@ private fun GroveNavigation(
                         onBack = { mode = "read" },
                         onSwitchToRead = { mode = "read" },
                         editModeFontSize = settings.editModeFontSize,
+                        capitalizeHeadings = settings.capitalizeHeadings,
                         showBacklinks = settings.roamFeaturesEnabled && settings.roamShowBacklinks,
                         roamSuggestionsEnabled = settings.roamSuggestionsActive,
                         onOpenNote = { target -> navController.navigate(Routes.note(target.encode())) },
@@ -647,6 +651,7 @@ private fun GroveNavigation(
                     showPropertyDrawers = settings.showPropertyDrawers,
                     readModeFontSize = settings.readModeFontSize,
                     editModeFontSize = settings.editModeFontSize,
+                    capitalizeHeadings = settings.capitalizeHeadings,
                     onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                 )
             }
@@ -780,6 +785,7 @@ private fun GroveNavigation(
                             fileName = ref.fileName,
                             onBack = { mode = "read" },
                             editModeFontSize = settings.editModeFontSize,
+                            capitalizeHeadings = settings.capitalizeHeadings,
                         )
                     } else if (mode == "edit") {
                         EditNoteScreen(
@@ -788,6 +794,7 @@ private fun GroveNavigation(
                             initialCursorLine = editTargetLine,
                             editModeFontSize = settings.editModeFontSize,
                             newNoteCursor = settings.newNoteCursor,
+                            capitalizeHeadings = settings.capitalizeHeadings,
                             roamSuggestionsEnabled = settings.roamSuggestionsActive,
                             onBack = leaveNote,
                             onSwitchToRead = { editTargetLine = null; mode = "read" },
@@ -924,6 +931,7 @@ private fun GroveNavigation(
                         if (savedRoamFilePath != null) viewModel.showCaptureSavedSnack(savedRoamFilePath)
                     },
                     editModeFontSize = settings.editModeFontSize,
+                    capitalizeHeadings = settings.capitalizeHeadings,
                     roamSuggestionsEnabled = settings.roamSuggestionsActive,
                     onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                 )
@@ -1047,6 +1055,7 @@ private fun GroveNavigation(
                     onSetAddCreated = viewModel::setAddCreatedToNewNotes,
                     onSetNewNoteCursor = viewModel::setNewNoteCursor,
                     onSetAutoSaveNotes = viewModel::setAutoSaveNotes,
+                    onSetCapitalizeHeadings = viewModel::setCapitalizeHeadings,
                     onSetAutoArchiveDoneItems = viewModel::setAutoArchiveDoneItems,
                     onOpenArchiveLocationPicker = viewModel::startArchiveLocationPick,
                 )

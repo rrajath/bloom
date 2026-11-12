@@ -195,6 +195,8 @@ fun CaptureEditorScreen(
     onSaved: (savedRoamFilePath: String?) -> Unit,
     /** Settings § Notes: font-size lever for the editor field. App chrome is unaffected. */
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
+    /** Settings § Notes: uppercase the first letter typed into a heading. */
+    capitalizeHeadings: Boolean = true,
     /**
      * Settings § Roam Features (experimental) suggestions
      * ([com.rrajath.grove.settings.GroveSettings.roamSuggestionsActive]): gates the Roam
@@ -862,7 +864,9 @@ fun CaptureEditorScreen(
                             }
                             BasicTextField(
                                 state = textState,
-                                inputTransformation = remember(keywords) { orgInputTransformation(keywords) },
+                                inputTransformation = remember(keywords, capitalizeHeadings) {
+                                    orgInputTransformation(keywords, capitalizeHeadings)
+                                },
                                 outputTransformation = remember(c, keywords) {
                                     OrgSyntaxHighlight(c, keywords, trailingBlankLines = EditorBottomMarginLines)
                                 },

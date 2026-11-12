@@ -148,6 +148,11 @@ data class GroveSettings(
      * or Save in the leave-with-unsaved-changes dialog.
      */
     val autoSaveNotes: Boolean = true,
+    /**
+     * Whether the editors uppercase the first letter typed into an org heading
+     * (including right after a TODO keyword). Off leaves capitalization to the keyboard.
+     */
+    val capitalizeHeadings: Boolean = true,
     /** Per-notebook last-used note mode overrides: "file.org" → "read"/"edit". */
     val notebookModes: Map<String, String> = emptyMap(),
     /** Per-notebook monogram color overrides: "file.org" → palette key ("green"…). */
@@ -367,6 +372,7 @@ class SettingsRepository(
         val addCreatedToNewNotes = booleanPreferencesKey("add_created_to_new_notes")
         val newNoteCursor = stringPreferencesKey("new_note_cursor")
         val autoSaveNotes = booleanPreferencesKey("auto_save_notes")
+        val capitalizeHeadings = booleanPreferencesKey("capitalize_headings")
         val notebookModes = stringPreferencesKey("notebook_modes")
 
         /**
@@ -490,6 +496,7 @@ class SettingsRepository(
             addCreatedToNewNotes = prefs[Keys.addCreatedToNewNotes] ?: true,
             newNoteCursor = NewNoteCursor.fromStorage(prefs[Keys.newNoteCursor]),
             autoSaveNotes = prefs[Keys.autoSaveNotes] ?: true,
+            capitalizeHeadings = prefs[Keys.capitalizeHeadings] ?: true,
             notebookModes = decodeModes(prefs[Keys.notebookModes]),
             notebookColors = decodeModes(prefs[Keys.notebookColors]),
             folderColors = decodeModes(prefs[Keys.folderColors]),
@@ -639,6 +646,7 @@ class SettingsRepository(
             p[Keys.addCreatedToNewNotes] = s.addCreatedToNewNotes
             p[Keys.newNoteCursor] = s.newNoteCursor.storageKey
             p[Keys.autoSaveNotes] = s.autoSaveNotes
+            p[Keys.capitalizeHeadings] = s.capitalizeHeadings
             p[Keys.notebookModes] = encodeModes(s.notebookModes)
             p[Keys.notebookColors] = encodeModes(s.notebookColors)
             p[Keys.folderColors] = encodeModes(s.folderColors)
@@ -752,6 +760,10 @@ class SettingsRepository(
 
     suspend fun setAutoSaveNotes(enabled: Boolean) {
         editSettings { it[Keys.autoSaveNotes] = enabled }
+    }
+
+    suspend fun setCapitalizeHeadings(enabled: Boolean) {
+        editSettings { it[Keys.capitalizeHeadings] = enabled }
     }
 
     /**

@@ -23,6 +23,7 @@ class SettingsSerializationTest {
         addIdToNewNotes = true,
         addCreatedToNewNotes = false,
         newNoteCursor = NewNoteCursor.HEADING,
+        capitalizeHeadings = false,
         // Nested vault paths are valid keys now the vault is a tree.
         notebookModes = mapOf("work.org" to "edit", "projects/clients/acme.org" to "read"),
         notebookColors = mapOf("work.org" to "green", "projects/clients/acme.org" to "amber"),
@@ -103,6 +104,7 @@ class SettingsSerializationTest {
         assertEquals(sample.addIdToNewNotes, restored.addIdToNewNotes)
         assertEquals(sample.addCreatedToNewNotes, restored.addCreatedToNewNotes)
         assertEquals(sample.newNoteCursor, restored.newNoteCursor)
+        assertEquals(sample.capitalizeHeadings, restored.capitalizeHeadings)
         assertEquals(sample.notebookModes, restored.notebookModes)
         assertEquals(sample.notebookColors, restored.notebookColors)
         assertEquals(sample.folderColors, restored.folderColors)

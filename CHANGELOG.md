@@ -58,6 +58,7 @@ re-uploads the APKs to the existing release instead of failing.
 ## [Unreleased]
 
 ### Added
+- Settings › Notes › Auto-capitalize headings (on by default); turn it off to let your keyboard decide capitalization.
 - The attach paperclip is now in Dailies and the capture editor; captures without a heading attach to the target heading or file.
 - Settings › Attachments › Attachment folder sets where attachments go, matching Emacs's `org-attach-id-dir`.
 - Discarding a capture can also delete the files attached during it.

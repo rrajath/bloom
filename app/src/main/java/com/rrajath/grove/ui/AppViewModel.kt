@@ -196,6 +196,9 @@ class AppViewModel(
     fun setAutoSaveNotes(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setAutoSaveNotes(enabled) }
 
+    fun setCapitalizeHeadings(enabled: Boolean) =
+        viewModelScope.launch { settingsRepository.setCapitalizeHeadings(enabled) }
+
     fun setShowNotebookFileIcons(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setShowNotebookFileIcons(enabled) }
 
