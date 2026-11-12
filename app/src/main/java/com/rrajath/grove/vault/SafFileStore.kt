@@ -46,6 +46,14 @@ class SafFileStore(
     private val resolver get() = context.contentResolver
     private val rootDocId get() = DocumentsContract.getTreeDocumentId(treeUri)
 
+    /**
+     * Shared storage and SD cards (FAT/exFAT) match names case-insensitively:
+     * there `inbox.org` *is* an existing `Inbox.org`, and creating it makes the
+     * provider pick a free name (`inbox (1).org`) instead. Lookups here then
+     * resolve to the existing file's spelling ([resolve]).
+     */
+    private val caseInsensitive = treeUri.authority == EXTERNAL_STORAGE_AUTHORITY
+
     // ConcurrentHashMap, not plain maps: Vault (and therefore this store) is a
     // process-wide singleton reached concurrently by SyncEngine on appScope and
     // by ViewModels on viewModelScope. list() swaps these wholesale while
@@ -262,18 +270,20 @@ class SafFileStore(
     }
 
     override suspend fun stat(name: String): FileEntry? = withContext(Dispatchers.IO) {
-        val uri = documentUri(name) ?: return@withContext null
+        val key = resolve(name) ?: return@withContext null
         resolver.query(
-            uri,
+            uriOf(key) ?: return@withContext null,
             arrayOf(
                 DocumentsContract.Document.COLUMN_LAST_MODIFIED,
                 DocumentsContract.Document.COLUMN_SIZE,
             ),
             null, null, null,
         )?.use { cursor ->
-            if (cursor.moveToFirst()) FileEntry(name, cursor.getLong(0), cursor.getLong(1)) else null
+            if (cursor.moveToFirst()) FileEntry(key, cursor.getLong(0), cursor.getLong(1)) else null
         }
     }
+
+    override suspend fun canonicalName(name: String): String = resolve(name) ?: name
 
     override suspend fun read(name: String): String = withContext(Dispatchers.IO) {
         val uri = documentUri(name) ?: error("File not found in vault: $name")
@@ -289,7 +299,7 @@ class SafFileStore(
     }
 
     override suspend fun create(name: String): Boolean = withContext(Dispatchers.IO) {
-        if (documentUri(name) != null) return@withContext false
+        if (resolve(name) != null) return@withContext false
         val (dir, leaf) = splitPath(name)
         val parentDocId = resolveDir(dir, createMissing = true) ?: return@withContext false
         val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, parentDocId)
@@ -301,6 +311,16 @@ class SafFileStore(
         val actualName = displayNameOf(created)
         if (actualName != null && actualName != leaf) {
             listingChanged(DocumentsContract.renameDocument(resolver, created, leaf))?.let { created = it }
+            val finalName = displayNameOf(created)
+            if (finalName != null && finalName != leaf) {
+                // Still not [leaf]: a file the cache didn't know about holds that
+                // name (in another case, on a case-insensitive provider), and the
+                // provider made this one `name (2).org`. Drop it and learn the
+                // real file, so a write to [name] reaches that one instead.
+                runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, created)) }
+                queryDir(dir, parentDocId)
+                return@withContext false
+            }
         }
         docIds[name] = DocumentsContract.getDocumentId(created)
         true
@@ -309,25 +329,45 @@ class SafFileStore(
     override suspend fun rename(oldName: String, newName: String): Boolean =
         withContext(Dispatchers.IO) {
             if (oldName == newName) return@withContext false
-            if (documentUri(newName) != null) return@withContext false
-            val uri = documentUri(oldName) ?: return@withContext false
-            val (oldDir, _) = splitPath(oldName)
+            val oldKey = resolve(oldName) ?: return@withContext false
+            val newKey = resolve(newName)
+            val (oldDir, _) = splitPath(oldKey)
             val (newDir, newLeaf) = splitPath(newName)
+            // A case-only rename (Work.org -> work.org) resolves both names to
+            // the same file; anything else already at [newName] blocks it.
+            val caseOnly = newKey == oldKey && oldDir == newDir
+            if (newKey != null && !caseOnly) return@withContext false
+            val uri = uriOf(oldKey) ?: return@withContext false
 
-            val result: Uri? = if (oldDir == newDir) {
-                runCatching { listingChanged(DocumentsContract.renameDocument(resolver, uri, newLeaf)) }.getOrNull()
-            } else {
-                moveAcrossDirs(uri, oldName, oldDir, newDir, newLeaf, newName)
+            val result: Uri? = when {
+                // The provider sees [newLeaf] as taken (by this very file) and
+                // would pick `work (1).org`; going through a free name avoids that.
+                caseOnly -> renameVia(uri, ".$newLeaf.renaming", newLeaf)
+                oldDir == newDir ->
+                    runCatching { listingChanged(DocumentsContract.renameDocument(resolver, uri, newLeaf)) }.getOrNull()
+                else -> moveAcrossDirs(uri, oldKey, oldDir, newDir, newLeaf, newName)
             }
 
             if (result != null) {
-                docIds.remove(oldName)
+                docIds.remove(oldKey)
                 docIds.remove(newName)
                 true
             } else {
                 false
             }
         }
+
+    /** Renames [uri] to [temp], then to [leaf]; puts the old name back if the second step fails. */
+    private fun renameVia(uri: Uri, temp: String, leaf: String): Uri? {
+        val oldLeaf = displayNameOf(uri) ?: return null
+        val tempUri = runCatching { listingChanged(DocumentsContract.renameDocument(resolver, uri, temp)) }
+            .getOrNull() ?: return null
+        return runCatching { listingChanged(DocumentsContract.renameDocument(resolver, tempUri, leaf)) }.getOrNull()
+            ?: run {
+                runCatching { listingChanged(DocumentsContract.renameDocument(resolver, tempUri, oldLeaf)) }
+                null
+            }
+    }
 
     /**
      * Cross-directory move via [DocumentsContract.moveDocument], falling back to
@@ -374,14 +414,15 @@ class SafFileStore(
     }
 
     override suspend fun delete(name: String): Boolean = withContext(Dispatchers.IO) {
-        val uri = documentUri(name) ?: return@withContext false
+        val key = resolve(name) ?: return@withContext false
+        val uri = uriOf(key) ?: return@withContext false
         val ok = runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, uri)) }
             .getOrDefault(false)
-        if (ok) docIds.remove(name)
+        if (ok) docIds.remove(key)
         ok
     }
 
-    override suspend fun exists(name: String): Boolean = documentUri(name) != null
+    override suspend fun exists(name: String): Boolean = resolve(name) != null
 
     override fun absolutePath(name: String): String? =
         if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) null
@@ -427,21 +468,47 @@ class SafFileStore(
             uri, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null,
         )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
 
-    private suspend fun documentUri(name: String): Uri? {
-        // Only re-walk the tree if we have never listed it; once listed, a miss
-        // is authoritative (see [listed]). This is what keeps exists()/create()/
-        // rename() on an absent name from triggering a full recursive walk.
-        // Before the first walk, a path-id provider answers with one direct
-        // query instead (Dailies opening today's note on a cold store).
-        if (name !in docIds && !listed) {
-            when (val direct = directLookup(name)) {
-                DirectLookup.Unsupported -> list()
-                DirectLookup.Missing -> return null
-                is DirectLookup.Found -> docIds[name] = direct.docId
+    private suspend fun documentUri(name: String): Uri? = resolve(name)?.let(::uriOf)
+
+    /** Null when a concurrent [list] dropped [key] since it was resolved. */
+    private fun uriOf(key: String): Uri? =
+        docIds[key]?.let { DocumentsContract.buildDocumentUriUsingTree(treeUri, it) }
+
+    /**
+     * The [docIds] key for the file at [name] (its real spelling, on a
+     * case-insensitive provider), or null when there's no such file. Only
+     * re-walks the tree if it has never been listed; once listed, a miss is
+     * authoritative (see [listed]). This is what keeps exists()/create()/
+     * rename() on an absent name from triggering a full recursive walk.
+     * Before the first walk, a path-id provider answers with one direct query
+     * instead (Dailies opening today's note on a cold store).
+     */
+    private suspend fun resolve(name: String): String? {
+        cachedKey(name)?.let { return it }
+        if (listed) return null
+        return when (val direct = directLookup(name)) {
+            DirectLookup.Unsupported -> {
+                list()
+                cachedKey(name)
+            }
+            DirectLookup.Missing -> null
+            is DirectLookup.Found -> if (caseInsensitive) {
+                // The provider echoes the spelling asked for, whatever the file's
+                // real one is; the parent's listing has the real one.
+                val dir = name.substringBeforeLast('/', "")
+                val parentId = if (dir.isEmpty()) rootDocId else pathDocId(dir)
+                parentId?.let { queryDir(dir, it) }
+                cachedKey(name) ?: name.also { docIds[it] = direct.docId }
+            } else {
+                name.also { docIds[it] = direct.docId }
             }
         }
-        val docId = docIds[name] ?: return null
-        return DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+    }
+
+    private fun cachedKey(name: String): String? {
+        if (name in docIds) return name
+        if (!caseInsensitive) return null
+        return docIds.keys.firstOrNull { it.equals(name, ignoreCase = true) }
     }
 
     /**

@@ -26,12 +26,16 @@ import org.robolectric.Robolectric
  * 5-arg provider method, which `DocumentsProvider` makes final and throwing.
  *
  * [supportsMove] = false makes moveDocument fail, exercising copy + delete.
+ * [caseInsensitive] = true mimics shared storage: names match in any case, a
+ * single-document query echoes the spelling asked for, and create/rename pick
+ * `name (n).ext` when the name is taken in any case (AOSP's buildUniqueFile).
  */
 class FakeDocumentsProvider : ContentProvider() {
 
     lateinit var root: File
     val queries = AtomicInteger()
     var supportsMove = true
+    var caseInsensitive = false
     private lateinit var authority: String
 
     override fun onCreate(): Boolean = true
@@ -44,7 +48,25 @@ class FakeDocumentsProvider : ContentProvider() {
     private fun fileFor(docId: String): File {
         if (docId == ROOT_ID) return root
         require(docId.startsWith("$ROOT_ID/")) { "Not in this tree: $docId" }
-        return File(root, docId.removePrefix("$ROOT_ID/"))
+        val rel = docId.removePrefix("$ROOT_ID/")
+        if (!caseInsensitive) return File(root, rel)
+        return rel.split('/').fold(root) { dir, segment -> childOf(dir, segment) ?: File(dir, segment) }
+    }
+
+    /** [dir]'s child named [name], in any case when [caseInsensitive]. */
+    private fun childOf(dir: File, name: String): File? =
+        dir.listFiles().orEmpty().firstOrNull { if (caseInsensitive) it.name.equals(name, ignoreCase = true) else it.name == name }
+
+    private fun taken(dir: File, name: String) = childOf(dir, name) != null
+
+    /** AOSP FileUtils.buildUniqueFile: `name (n).ext` until free. */
+    private fun uniqueName(dir: File, name: String): String {
+        val base = name.substringBeforeLast('.')
+        val ext = name.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+        var candidate = name
+        var n = 0
+        while (taken(dir, candidate)) candidate = "$base (${++n})$ext"
+        return candidate
     }
 
     private fun idFor(f: File): String {
@@ -55,10 +77,10 @@ class FakeDocumentsProvider : ContentProvider() {
     private fun docUri(docId: String): Uri =
         DocumentsContract.buildDocumentUriUsingTree(treeUri(authority), docId)
 
-    private fun MatrixCursor.addFile(f: File) {
+    private fun MatrixCursor.addFile(f: File, displayName: String = f.name) {
         val row = newRow()
         row.add(Document.COLUMN_DOCUMENT_ID, idFor(f))
-        row.add(Document.COLUMN_DISPLAY_NAME, f.name)
+        row.add(Document.COLUMN_DISPLAY_NAME, displayName)
         row.add(Document.COLUMN_LAST_MODIFIED, f.lastModified())
         row.add(Document.COLUMN_SIZE, if (f.isFile) f.length() else 0L)
         row.add(Document.COLUMN_MIME_TYPE, if (f.isDirectory) Document.MIME_TYPE_DIR else "application/octet-stream")
@@ -80,7 +102,8 @@ class FakeDocumentsProvider : ContentProvider() {
             f.listFiles().orEmpty().sortedBy { it.name }.forEach { cursor.addFile(it) }
         } else {
             if (!f.exists()) throw FileNotFoundException(docId)
-            cursor.addFile(f)
+            // ExternalStorageProvider reports File.getName() of the path asked for.
+            cursor.addFile(f, if (caseInsensitive) docId.substringAfterLast('/') else f.name)
         }
         return cursor
     }
@@ -100,15 +123,20 @@ class FakeDocumentsProvider : ContentProvider() {
                 val parent = fileFor(docId)
                 val name = extras!!.getString(Document.COLUMN_DISPLAY_NAME)!!
                 var target = File(parent, name)
-                var n = 1
-                while (target.exists()) target = File(parent, "$name (${n++})")
+                if (caseInsensitive) {
+                    target = File(parent, uniqueName(parent, name))
+                } else {
+                    var n = 1
+                    while (target.exists()) target = File(parent, "$name (${n++})")
+                }
                 val isDir = extras.getString(Document.COLUMN_MIME_TYPE) == Document.MIME_TYPE_DIR
                 check(if (isDir) target.mkdir() else target.createNewFile()) { "Couldn't create $target" }
                 out.putParcelable(EXTRA_URI, docUri(idFor(target)))
             }
             METHOD_RENAME_DOCUMENT -> {
                 val f = fileFor(docId)
-                val target = File(f.parentFile, extras!!.getString(Document.COLUMN_DISPLAY_NAME)!!)
+                val name = extras!!.getString(Document.COLUMN_DISPLAY_NAME)!!
+                val target = File(f.parentFile, if (caseInsensitive) uniqueName(f.parentFile!!, name) else name)
                 check(!target.exists() && f.renameTo(target)) { "Couldn't rename $f" }
                 out.putParcelable(EXTRA_URI, docUri(idFor(target)))
             }

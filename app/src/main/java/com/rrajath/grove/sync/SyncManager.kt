@@ -143,14 +143,18 @@ class SyncManager(
         // Non-.org files (an `agenda.org_archive` archive target) stay out of the index, like a full sync.
         if (!fileName.endsWith(".org")) return
         val engine = engine ?: return
+        val store = store ?: return
         scope.launch {
             mutex.withLock {
-                val messages = mutableListOf("reindex started ($reason): $fileName")
+                // A caller's `inbox.org` may be the vault's `Inbox.org` (case-insensitive
+                // storage): index it under the real name, never as a second notebook.
+                val name = store.canonicalName(fileName)
+                val messages = mutableListOf("reindex started ($reason): $name")
                 try {
-                    engine.reindexOne(fileName, text, database.indexDao().conflictFileNameFor(fileName))
-                    messages.add("reindexed $fileName")
+                    engine.reindexOne(name, text, database.indexDao().conflictFileNameFor(name))
+                    messages.add("reindexed $name")
                 } catch (e: Exception) {
-                    messages.add("reindex failed for $fileName: ${e.message}")
+                    messages.add("reindex failed for $name: ${e.message}")
                 }
                 logBatch(messages)
                 database.syncLogDao().trim()

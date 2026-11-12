@@ -460,9 +460,10 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             ?: return run { android.util.Log.w("GroveWidget", "reindexNow: fileStore null for $fileName") }
         val stat = store.stat(fileName)
             ?: return run { android.util.Log.w("GroveWidget", "reindexNow: stat null for $fileName") }
-        val conflictFileName = database.indexDao().conflictFileNameFor(fileName)
+        // stat's name is the real spelling on a case-insensitive store.
+        val conflictFileName = database.indexDao().conflictFileNameFor(stat.name)
         RoomNoteIndex(database, keywords = { keywords.value }, onIndexed = ::reconcileFileReminders).indexNotebook(
-            fileName = fileName,
+            fileName = stat.name,
             revision = "${stat.lastModified}:${stat.size}",
             text = text,
             lastModified = stat.lastModified,

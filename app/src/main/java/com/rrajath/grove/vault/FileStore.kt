@@ -56,6 +56,14 @@ interface FileStore {
      */
     suspend fun stat(name: String): FileEntry? = list().firstOrNull { it.name == name }
 
+    /**
+     * [name] as the store actually spells it. Differs from [name] only on a
+     * store that matches names case-insensitively (Android shared storage, SD
+     * cards), where asking for `inbox.org` finds an existing `Inbox.org`; [stat]
+     * then reports that spelling too. [name] itself when nothing matches.
+     */
+    suspend fun canonicalName(name: String): String = name
+
     suspend fun read(name: String): String
 
     /**
