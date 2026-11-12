@@ -460,21 +460,22 @@ fun CaptureEditorScreen(
     var attachDirNotice by remember { mutableStateOf<Pair<List<AttachDirChange>, CaptureSavedEvent>?>(null) }
     var attachDirMoving by remember { mutableStateOf(false) }
     val attachDirScope = rememberCoroutineScope()
+    /** The `:DIR:` moves the draft's text implies for owners this capture attached files to. */
+    suspend fun pendingAttachDirChanges(): List<AttachDirChange> {
+        if (attachBaseline.isEmpty()) return emptyList()
+        return runCatching {
+            var doc = OrgParser.parse(draftText)
+            // A new Roam node gets its file :ID: on save, not in the field.
+            val file = doc.fileOwner()
+            if (roamNewFile && file.id == null && file.dirProperty == null) {
+                doc = OrgParser.parse(OrgMutations.upsertFileProperty(doc, "ID", context.id))
+            }
+            app.attachDirMoves.detect(attachTarget, attachBaseline, doc)
+        }.getOrDefault(emptyList())
+    }
     LaunchedEffect(savedEvent) {
         val event = savedEvent ?: return@LaunchedEffect
-        val changes = if (attachBaseline.isEmpty()) {
-            emptyList()
-        } else {
-            runCatching {
-                var doc = OrgParser.parse(draftText)
-                // A new Roam node gets its file :ID: on save, not in the field.
-                val file = doc.fileOwner()
-                if (roamNewFile && file.id == null && file.dirProperty == null) {
-                    doc = OrgParser.parse(OrgMutations.upsertFileProperty(doc, "ID", context.id))
-                }
-                app.attachDirMoves.detect(attachTarget, attachBaseline, doc)
-            }.getOrDefault(emptyList())
-        }
+        val changes = pendingAttachDirChanges()
         if (changes.isEmpty()) {
             savedEvent = null
             onSaved(event.roamFilePath)
@@ -684,10 +685,6 @@ fun CaptureEditorScreen(
         onClose()
     }
 
-    // System back asks too, not just the close button: leaving silently loses the
-    // draft (and, with attachments, leaves their files behind).
-    BackHandler { tryClose() }
-
     // Idle auto-save: wait for a 5s pause in typing before persisting the
     // draft. A note with no heading yet (just the auto-inserted "* ") is
     // skipped rather than saved, the same blank-heading state that blocks
@@ -716,6 +713,35 @@ fun CaptureEditorScreen(
             viewModel.save(template, draftText, context)
         }
     }
+
+    /**
+     * System back keeps the capture, unlike the close button: an untouched draft
+     * just closes (dropping any autosave of it); one with text the idle autosave
+     * hasn't written yet, or a `:DIR:` edit whose files haven't moved, goes
+     * through Save (blank-heading alert, attach-folder notice, then onSaved);
+     * an already autosaved one closes as is. Only a copy still running asks
+     * first: its links aren't in the draft yet.
+     */
+    var leaving by remember { mutableStateOf(false) }
+    fun leaveOnBack() {
+        if (leaving || savedEvent != null || saveState is SaveState.Saving) return
+        when {
+            attach.isCopying -> showDiscardDialog = true
+            draftText == initialText ->
+                if (attach.hasSessionAttachments) showDiscardDialog = true else discard(deleteAttachments = false)
+            // Not `dirty`: that val is from the last composition and can lag the buffer.
+            draftText != lastAutoSavedText -> trySave()
+            else -> {
+                leaving = true
+                coroutineScope.launch {
+                    val moves = pendingAttachDirChanges()
+                    leaving = false
+                    if (moves.isEmpty()) onClose() else trySave()
+                }
+            }
+        }
+    }
+    BackHandler { leaveOnBack() }
 
     Scaffold(
         containerColor = c.bg,

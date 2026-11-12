@@ -136,9 +136,10 @@ class CaptureScreenTest {
     }
 
     @Test
-    fun systemBackWithUnsavedTextAsksBeforeDiscarding() {
+    fun systemBackWithUnsavedTextSavesAndCloses() {
+        var saved = false
         var closed = false
-        editor("builtin-quick-note", onClose = { closed = true })
+        editor("builtin-quick-note", onClose = { closed = true }, onSaved = { saved = true })
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithTag("capture_body_field").fetchSemanticsNodes().isNotEmpty()
         }
@@ -146,10 +147,35 @@ class CaptureScreenTest {
 
         composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
 
-        composeRule.onNodeWithText("Discard note?").assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 5_000) { saved }
         assertFalse(closed)
-        composeRule.onNodeWithText("Discard").performClick()
+        assertEquals(0, composeRule.onAllNodesWithText("Discard note?").fetchSemanticsNodes().size)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runBlocking { env.store.read("inbox.org") }.contains("Buy milk")
+        }
+    }
+
+    @Test
+    fun systemBackAfterAutosaveClosesWithoutAsking() {
+        var saved = false
+        var closed = false
+        editor("builtin-quick-note", onClose = { closed = true }, onSaved = { saved = true })
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("capture_body_field").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("capture_body_field").performTextInput("Buy milk")
+        // The idle autosave fires after a 5s pause.
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runBlocking { env.store.read("inbox.org") }.contains("Buy milk")
+        }
+        composeRule.waitForIdle()
+
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+
         composeRule.waitUntil(timeoutMillis = 3_000) { closed }
+        assertFalse(saved)
+        assertEquals(0, composeRule.onAllNodesWithText("Discard note?").fetchSemanticsNodes().size)
+        assert(runBlocking { env.store.read("inbox.org") }.contains("Buy milk"))
     }
 
     @Test

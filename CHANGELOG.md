@@ -84,7 +84,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Dailies Read mode now shows attached images inline.
 - The attach sheet's Vault scope now lists files in other notebooks' `:DIR:` folders.
 - Picking a notebook from a Target file suggestion list now puts the cursor at the end of the name.
-- Pressing back in the capture editor now asks before discarding unsaved text.
+- Pressing back in the capture editor now saves and closes, asking only while an attachment is still copying.
 - Favorites keep working after their file is renamed or moved, in Bloom or outside it.
 - Quickly double-tapping Back no longer leaves a blank white screen; taps during a screen transition are ignored.
 - Headings deleted in the editor after an auto-save no longer linger in the file or get duplicated.

@@ -247,9 +247,13 @@ class AttachController internal constructor(
     var addedDiskHeadingId by mutableStateOf<AddedHeadingId?>(null)
         private set
 
+    /** Whether a copy for [orgFile] is still running (its links aren't in the buffer yet). */
+    val isCopying: Boolean
+        get() = manager?.isBusyFor(orgFile) == true
+
     /** Whether discarding would leave anything behind: files copied in, or a copy still running. */
     val hasSessionAttachments: Boolean
-        get() = added.isNotEmpty() || manager?.isBusyFor(orgFile) == true
+        get() = added.isNotEmpty() || isCopying
 
     /**
      * Capture's discard with "Also delete attachments": stops a running copy for
