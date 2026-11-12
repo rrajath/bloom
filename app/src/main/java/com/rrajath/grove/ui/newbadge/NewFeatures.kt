@@ -50,6 +50,9 @@ object NewAnchors {
     /** The "Auto-save notes" toggle inside Settings § Notes. */
     const val SETTINGS_NOTES_AUTO_SAVE = "settings.notes.autoSave"
 
+    /** The "Auto-capitalize headings" toggle inside Settings § Notes. */
+    const val SETTINGS_NOTES_CAPITALIZE_HEADINGS = "settings.notes.capitalizeHeadings"
+
     /** The Settings hub row leading to the Capture Templates page. */
     const val SETTINGS_CAPTURE_TEMPLATES = "settings.captureTemplates"
 
@@ -496,5 +499,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.tipsItem("outline", "outline-view-file"),
         ),
         destination = NewAnchors.tipsItem("outline", "outline-view-file"),
+    ),
+    NewFeature(
+        // Settings § Notes gained an "Auto-capitalize headings" switch (on by
+        // default): off leaves a heading's first letter to the keyboard.
+        // `since` is the versionCode of the release that ships it: bump it to
+        // match `gradle.properties` versionName when cutting the release.
+        id = "notes-capitalize-headings",
+        since = 11500,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_NOTES,
+            NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS,
+        ),
+        destination = NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS,
     ),
 )

@@ -76,6 +76,7 @@ fun SettingsNotesScreen(
         // Leaving this screen retires each of its NEW dots from its whole trail
         // (menu glyph, drawer, Settings hub row, the row itself).
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_NEW_NOTE_CURSOR)
+        MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS)
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_AUTO_SAVE)
 
         SectionLabel("TASKS")
@@ -221,6 +222,7 @@ fun SettingsNotesScreen(
                 label = "Auto-capitalize headings",
                 description = "Capitalizes the first letter typed into a heading. Off leaves capitalization to your keyboard",
                 checked = settings.capitalizeHeadings,
+                labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS) },
                 onToggle = onSetCapitalizeHeadings,
             )
         }
