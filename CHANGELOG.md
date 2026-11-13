@@ -82,6 +82,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Attachment move popups show folder names in accent-colored monospace, so they stand apart from heading names.
 - Attaching files to a heading now tags it `:ATTACH:`, as Emacs's org-attach does.
 - The metadata sheet won't create tags with spaces, colons or other characters org can't read, and says why.
+- Hints and errors under name fields in dialogs now line up with the field's edge instead of its text.
 
 ### Fixed
 - Dailies Read mode now shows attached images inline.

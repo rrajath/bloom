@@ -34,7 +34,8 @@ internal fun NameDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
     contextLabel: String? = null,
-    placeholder: String = "notebook.org",
+    // Hint shown inside the empty field; null shows none.
+    placeholder: String? = "notebook.org",
     // Returns a user-facing reason the name is invalid, or null when it's fine.
     // When set, the confirm button stays disabled until the name validates.
     validate: ((String) -> String?)? = null,
@@ -73,24 +74,25 @@ internal fun NameDialog(
                     onValueChange = { name = it },
                     singleLine = true,
                     isError = error != null,
-                    placeholder = { Text(placeholder, fontFamily = PlexMono, color = c.ink3) },
+                    placeholder = placeholder?.let {
+                        { Text(it, fontFamily = PlexMono, color = c.ink3) }
+                    },
                     suffix = filenameSuffix?.let {
                         { Text(it, fontFamily = PlexMono, color = c.ink3) }
                     },
                     textStyle = TextStyle(fontFamily = PlexMono, color = c.ink),
                     modifier = Modifier.testTag("name_dialog_field"),
-                    supportingText = if (error != null || helperText != null) {
-                        {
-                            Text(
-                                error ?: helperText!!,
-                                fontFamily = PlexSans, fontSize = 12.sp,
-                                color = if (error != null) c.red else c.ink3,
-                            )
-                        }
-                    } else {
-                        null
-                    },
                 )
+                // Below the field rather than in supportingText, which M3 insets
+                // 16dp; this keeps the hint flush with the field's start edge.
+                if (error != null || helperText != null) {
+                    Text(
+                        error ?: helperText!!,
+                        fontFamily = PlexSans, fontSize = 12.sp,
+                        color = if (error != null) c.red else c.ink3,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         },
         confirmButton = {

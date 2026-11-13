@@ -134,7 +134,16 @@ fun SettingsAttachmentsScreen(
         SettingsGroup {
             SettingsRow(
                 label = "Attachment folder",
-                description = "Matches org-attach-id-dir in Emacs.",
+                descriptionContent = {
+                    Text(
+                        buildAnnotatedString {
+                            append("Matches ")
+                            withStyle(SpanStyle(fontFamily = PlexMono)) { append("org-attach-id-dir") }
+                            append(" in Emacs.")
+                        },
+                        fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
+                    )
+                },
                 onClick = { editingFolder = true },
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -162,7 +171,9 @@ fun SettingsAttachmentsScreen(
                                 withStyle(SpanStyle(fontFamily = PlexMono)) { append(":$tag:") }
                                 append(".")
                             }
-                            append(" Matches org-attach-auto-tag in Emacs.")
+                            append(" Matches ")
+                            withStyle(SpanStyle(fontFamily = PlexMono)) { append("org-attach-auto-tag") }
+                            append(" in Emacs.")
                         },
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.testTag("attach_auto_tag_description"),
@@ -207,7 +218,7 @@ fun SettingsAttachmentsScreen(
             title = "Attachment tag",
             initial = settings.attachAutoTag,
             confirmLabel = "Save",
-            placeholder = AttachAutoTag.DEFAULT,
+            placeholder = null,
             validate = AttachAutoTag::error,
             helperText = "Without colons. Leave empty to add no tag.",
             allowBlank = true,
