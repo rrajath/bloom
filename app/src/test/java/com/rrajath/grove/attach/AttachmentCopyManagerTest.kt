@@ -136,7 +136,7 @@ class AttachmentCopyManagerTest {
         assertEquals(
             """
             * Kyoto
-            ** Lunch
+            ** Lunch  :ATTACH:
             :PROPERTIES:
             :ID: NEWID
             :END:
@@ -156,7 +156,7 @@ class AttachmentCopyManagerTest {
         val text = "* A\n:PROPERTIES:\n:ID: X1\n:END:\nbody\n* B\n"
         val owner = AttachOwner.Heading(9, listOf("renamed"), "X1", null)
         val edit = appendAttachmentLinksToFile(text, owner, "IGNORED", listOf("a.jpg"))!!
-        assertEquals("* A\n:PROPERTIES:\n:ID: X1\n:END:\nbody\n[[attachment:a.jpg]]\n* B\n", edit.text)
+        assertEquals("* A  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nbody\n[[attachment:a.jpg]]\n* B\n", edit.text)
     }
 
     @Test
@@ -171,7 +171,7 @@ class AttachmentCopyManagerTest {
         val owner = AttachOwner.Heading(0, listOf("Lunch"), "X1", null)
         val cursor = text.indexOf("soba") + 4
         val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"))!!
-        assertEquals("* Lunch\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\nmore\n** Child\n", edit.text)
+        assertEquals("* Lunch  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\nmore\n** Child\n", edit.text)
     }
 
     @Test
@@ -180,7 +180,7 @@ class AttachmentCopyManagerTest {
         val owner = AttachOwner.Heading(0, listOf("Lunch"), "X1", null)
         val cursor = text.indexOf("kid text")
         val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"))!!
-        assertEquals("* Lunch\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\n** Child\nkid text\n", edit.text)
+        assertEquals("* Lunch  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\n** Child\nkid text\n", edit.text)
         assertEquals(edit.text.indexOf("[[attachment:a.jpg]]") + "[[attachment:a.jpg]]".length, edit.cursor)
     }
 

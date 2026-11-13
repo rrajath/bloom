@@ -16,10 +16,15 @@ data class AttachInsertResult(
 /** `[[attachment:<name>]]`. */
 fun attachmentLinkText(name: String): String = "[[attachment:$name]]"
 
+/** The tag org-attach puts on a heading with attachments (`org-attach-auto-tag`'s default). */
+const val ATTACH_TAG = "ATTACH"
+
 /**
- * Adds `:ID: [newId]` to [owner] (when [newId] is non-null), then inserts one
- * `[[attachment:<name>]]` per line at [cursor], adding line breaks so each link
- * sits on its own line. Pure; the editor applies the result as one undo step.
+ * Adds `:ID: [newId]` to [owner] (when [newId] is non-null), tags a heading
+ * owner `:ATTACH:` (as `org-attach-tag` does) unless it already has that tag,
+ * then inserts one `[[attachment:<name>]]` per line at [cursor], adding line
+ * breaks so each link sits on its own line. Pure; the editor applies the result
+ * as one undo step.
  *
  * A cursor inside the owner's metadata (headline, planning line, drawers; or the
  * file-level drawer and `#+KEY:` lines for a file owner) is moved to the start of
@@ -52,6 +57,17 @@ fun insertAttachmentLinks(
         at += edited.length - working.length
         working = edited
         drawerLines = idDrawerRange(OrgParser.parse(working), owner)
+    }
+
+    if (owner is AttachOwner.Heading) {
+        val d = OrgParser.parse(working)
+        val h = d.headlines.firstOrNull { it.lineIndex == owner.lineIndex }
+        if (h != null && ATTACH_TAG !in h.tags) {
+            val edited = OrgMutations.setTags(d, h, h.tags + ATTACH_TAG)
+            // The headline sits above the insertion point, which shifts by the length change.
+            at += edited.length - working.length
+            working = edited
+        }
     }
 
     val before = working.substring(0, at)

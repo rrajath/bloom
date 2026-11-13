@@ -79,6 +79,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Attach sheet rows drop the file size and wrap long names and sources instead of cutting them off.
 - The template editor's "Insert at" options are more compact, taking less vertical space.
 - Attachment move popups show folder names in accent-colored monospace, so they stand apart from heading names.
+- Attaching files to a heading now tags it `:ATTACH:`, as Emacs's org-attach does.
 
 ### Fixed
 - Dailies Read mode now shows attached images inline.

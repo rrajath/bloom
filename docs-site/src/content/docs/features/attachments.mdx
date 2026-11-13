@@ -37,6 +37,8 @@ Bloom copies each file into the target's attachment folder and inserts an `[[att
 
 If the target doesn't have an `:ID:` yet, Bloom adds one to its property drawer the first time you attach, since the folder name comes from it. A heading or file with a `:DIR:` property uses that folder instead, as in Emacs.
 
+A heading you attach files to also gets the `:ATTACH:` tag, like Emacs's `org-attach-auto-tag`, so tag searches and the agenda can find headings with attachments.
+
 ### Folders from parent headings
 
 A `:DIR:` (or the older `:ATTACH_DIR:`) also applies to everything below it. A heading without its own `:DIR:` uses the nearest parent's, and failing that the one in the file's property drawer. That `:DIR:` wins over the heading's own `:ID:`, so its files go to the parent's folder and no new `:ID:` is added. An `:ID:` is never inherited: a heading with no `:DIR:` anywhere above it uses its own `:ID:` folder.
