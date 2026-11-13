@@ -242,13 +242,13 @@ class AttachControllerRobolectricTest {
     /**
      * Quick capture with body-only text bound for `* Trip` in notes/travel.org
      * ([fileText] on disk): opens the sheet, picks a file and returns the
-     * controller, the field and the heading IDs written on disk.
+     * controller, the field and each on-disk heading write asked for (owner, new ID, tag).
      */
-    private fun attachFromBodyOnlyCapture(fileText: String): Triple<AttachController, TextFieldState, List<Pair<AttachOwner.Heading, String>>> {
+    private fun attachFromBodyOnlyCapture(fileText: String): Triple<AttachController, TextFieldState, List<Triple<AttachOwner.Heading, String?, String>>> {
         File(vaultDir, "notes").mkdirs()
         File(vaultDir, "notes/travel.org").writeText(fileText)
         val textState = TextFieldState("A note.", TextRange(7))
-        val headingIds = mutableListOf<Pair<AttachOwner.Heading, String>>()
+        val headingIds = mutableListOf<Triple<AttachOwner.Heading, String?, String>>()
         val fileDoc = OrgParser.parse(fileText)
         val trip = fileDoc.headlines.first { it.title == "Trip" }
         val placedText = (fileDoc.lines.take(trip.bodyStart) + "A note." + fileDoc.lines.drop(trip.bodyStart)).joinToString("\n")
@@ -259,7 +259,7 @@ class AttachControllerRobolectricTest {
                     textState, "notes/travel.org", bufferReady = true, manager,
                     addDiskFileId = { _, _ -> error("file owner not expected") },
                     fileContext = { AttachFileContext(placedText, trip.bodyStart..trip.bodyStart, placed = true) },
-                    addDiskHeadingId = { _, owner, id -> headingIds += owner to id; true },
+                    markDiskHeading = { _, owner, id, tag -> headingIds += Triple(owner, id, tag); DiskHeadingMarks(id, tag) },
                     attachConfig = { attachConfig },
                 ) { store }
             }
@@ -278,11 +278,13 @@ class AttachControllerRobolectricTest {
     @Test
     fun `body-only capture text attaches to its target heading with a new ID on disk`() {
         val (c, textState, headingIds) = attachFromBodyOnlyCapture("* Trip\nPlans.\n* Other\n")
-        val (heading, id) = headingIds.single()
+        val (heading, id, tag) = headingIds.single()
         assertEquals(listOf("Trip"), heading.titlePath)
+        assertEquals("ATTACH", tag)
+        id!!
         assertTrue(File(vaultDir, "notes/data/${id.take(2)}/${id.drop(2)}/receipt.pdf").isFile)
         assertEquals("A note.\n[[attachment:receipt.pdf]]", textState.text.toString())
-        assertEquals(id, c.addedDiskHeadingId?.id)
+        assertEquals(DiskHeadingMarks(id, "ATTACH"), c.addedDiskHeading?.marks)
         assertEquals(null, c.addedDiskFileId)
     }
 
@@ -290,10 +292,10 @@ class AttachControllerRobolectricTest {
     fun `body-only capture text under a DIR heading goes to that folder without an ID`() {
         File(vaultDir, "notes/trip").mkdirs()
         val (c, textState, headingIds) = attachFromBodyOnlyCapture("* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\nPlans.\n")
-        assertTrue(headingIds.isEmpty())
+        assertEquals(null, headingIds.single().second)
         assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
         assertEquals("A note.\n[[attachment:receipt.pdf]]", textState.text.toString())
-        assertEquals(null, c.addedDiskHeadingId)
+        assertEquals(DiskHeadingMarks(null, "ATTACH"), c.addedDiskHeading?.marks)
     }
 
     @Test

@@ -14,6 +14,8 @@ import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.support.MainDispatcherRule
+import com.rrajath.grove.ui.editor.AddedHeadingMarks
+import com.rrajath.grove.ui.editor.DiskHeadingMarks
 import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -307,25 +309,35 @@ class CaptureViewModelIntegrationTest {
     }
 
     @Test
-    fun `addHeadingId gives the target heading an ID, keeps the draft in place, and discard takes it back`() = runTest {
+    fun `markAttachHeading gives the target heading an ID and tag, keeps the draft in place, and discard takes them back`() = runTest {
         store.write("travel.org", "* Trip\nPlans.\n* Other\n")
         val vm = capture()
         vm.autosave(underTrip, "Draft note.", context, bodyOnly = true)
         advanceUntilIdle()
         val trip = com.rrajath.grove.attach.AttachOwner.Heading(0, listOf("Trip"), null, null)
 
-        assertTrue(vm.addHeadingId("travel.org", trip, "H1D"))
+        val marks = vm.markAttachHeading("travel.org", trip, "H1D", "receipt")
+        assertEquals(DiskHeadingMarks("H1D", "receipt"), marks)
         vm.save(underTrip, "Final note.", context, bodyOnly = true)
         advanceUntilIdle()
         val saved = store.read("travel.org")
-        assertTrue(saved, saved.startsWith("* Trip\n:PROPERTIES:\n:ID: H1D\n:END:\n"))
+        assertTrue(saved, saved.startsWith("* Trip  :receipt:\n:PROPERTIES:\n:ID: H1D\n:END:\n"))
         assertTrue(saved, saved.contains("Final note."))
         assertFalse("the draft must have been replaced in place", saved.contains("Draft note."))
 
-        vm.removeAddedHeadingId("travel.org", "H1D")
+        vm.removeAddedHeadingMarks("travel.org", AddedHeadingMarks(trip, marks!!))
         advanceUntilIdle()
-        assertFalse(store.read("travel.org").contains(":ID: H1D"))
-        assertFalse(store.read("travel.org").contains(":PROPERTIES:"))
+        assertEquals("* Trip\nPlans.\nFinal note.\n* Other\n", store.read("travel.org"))
+    }
+
+    @Test
+    fun `markAttachHeading with a blank tag only adds the ID, and an already tagged heading isn't tagged again`() = runTest {
+        store.write("travel.org", "* Trip  :ATTACH:\nPlans.\n")
+        val vm = capture()
+        val trip = com.rrajath.grove.attach.AttachOwner.Heading(0, listOf("Trip"), null, null)
+        assertEquals(DiskHeadingMarks("H1D", null), vm.markAttachHeading("travel.org", trip, "H1D", "ATTACH"))
+        assertEquals(DiskHeadingMarks(null, null), vm.markAttachHeading("travel.org", trip, null, ""))
+        assertEquals("* Trip  :ATTACH:\n:PROPERTIES:\n:ID: H1D\n:END:\nPlans.\n", store.read("travel.org"))
     }
 
     @Test

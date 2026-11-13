@@ -413,7 +413,9 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
         val result = done.result as? com.rrajath.grove.attach.ImportResult.Success ?: return null
         val v = vault.value ?: return ATTACH_KEPT_NOT_FOUND
         val doc = v.open(request.orgFile) ?: return ATTACH_KEPT_NOT_FOUND
-        val edit = com.rrajath.grove.attach.appendAttachmentLinksToFile(doc.text, request.owner, request.newId, result.names)
+        val edit = com.rrajath.grove.attach.appendAttachmentLinksToFile(
+            doc.text, request.owner, request.newId, result.names, request.autoTag,
+        )
             ?: return ATTACH_KEPT_NOT_FOUND
         v.save(request.orgFile, edit.text)
         syncManager.requestReindex(request.orgFile, edit.text, "attach")

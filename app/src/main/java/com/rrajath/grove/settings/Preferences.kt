@@ -295,6 +295,23 @@ object AttachFolder {
     fun sanitize(raw: String?): String = raw?.let(::normalize) ?: DEFAULT
 }
 
+/**
+ * Settings § Attachments: the tag a heading gets when files are attached to it
+ * (`org-attach-auto-tag`), stored without colons. Empty means no tag.
+ */
+object AttachAutoTag {
+    const val DEFAULT = "ATTACH"
+
+    /** Why [raw] can't be used, or null when it can: blank (no tag) or a valid heading tag. */
+    fun error(raw: String): String? = if (raw.isBlank()) null else com.rrajath.grove.org.OrgTags.error(raw)
+
+    /** [raw] trimmed (empty for no tag); null when [error] rejects it. */
+    fun normalize(raw: String): String? = if (error(raw) != null) null else raw.trim()
+
+    /** A stored or imported value: missing or invalid falls back to [DEFAULT]; empty stays empty. */
+    fun sanitize(raw: String?): String = raw?.let(::normalize) ?: DEFAULT
+}
+
 /** Agenda row swipe gesture (either direction), Settings § Agenda. */
 enum class AgendaSwipeAction(val storageKey: String, val label: String) {
     SET_SCHEDULED("set_scheduled", "Schedule Task"),

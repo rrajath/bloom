@@ -449,7 +449,7 @@ fun CaptureEditorScreen(
         } else {
             { viewModel.attachFileContext(template, textState.text.toString(), context, bodyOnly) }
         },
-        addDiskHeadingId = if (template.kind == TemplateKind.ROAM_NODE) null else viewModel::addHeadingId,
+        markDiskHeading = if (template.kind == TemplateKind.ROAM_NODE) null else viewModel::markAttachHeading,
         // The new node's :ID: is added on save (RoamFileId.withFileId), not shown in
         // the field, so attach must use that same ID rather than mint another one.
         pendingFileId = if (roamNewFile) context.id else null,
@@ -666,9 +666,9 @@ fun CaptureEditorScreen(
 
     /**
      * [deleteAttachments]: also delete the files attached during this capture
-     * (stopping a copy still running) and the :ID: the no-heading fallback
-     * added on disk: to the target file, or to the heading a body-only
-     * capture's text goes into. Queued after the draft removal (the
+     * (stopping a copy still running) and what the no-heading fallback added
+     * on disk: the :ID: in the target file, or the :ID: and attachment tag in
+     * the heading a body-only capture's text goes into. Queued after the draft removal (the
      * view model's draft lock is first come, first served).
      */
     fun discard(deleteAttachments: Boolean) {
@@ -679,7 +679,7 @@ fun CaptureEditorScreen(
         }
         if (deleteAttachments) {
             attach.addedDiskFileId?.let { viewModel.removeAddedFileId(attachTarget, it) }
-            attach.addedDiskHeadingId?.let { viewModel.removeAddedHeadingId(attachTarget, it.id) }
+            attach.addedDiskHeading?.let { viewModel.removeAddedHeadingMarks(attachTarget, it) }
             attach.discardSessionAttachments()
         }
         onClose()
@@ -1080,8 +1080,10 @@ fun CaptureEditorScreen(
                             checked = deleteAttachmentsOnDiscard,
                             detail = captureAttachmentsDetail(
                                 attach.addedFiles.size,
-                                attach.addedDiskFileId?.let { attachTarget.substringAfterLast('/') }
-                                    ?: attach.addedDiskHeadingId?.title,
+                                addedTo = attach.addedDiskFileId?.let { attachTarget.substringAfterLast('/') }
+                                    ?: attach.addedDiskHeading?.title,
+                                idAdded = attach.addedDiskFileId != null || attach.addedDiskHeading?.marks?.id != null,
+                                tagAdded = attach.addedDiskHeading?.marks?.tag,
                             ),
                         ) { deleteAttachmentsOnDiscard = it }
                     }
@@ -1616,11 +1618,13 @@ private fun CaptureSaveButton(
 /** A finished explicit save, waiting on the attach-dir check before the screen closes. */
 private class CaptureSavedEvent(val roamFilePath: String?)
 
-internal fun captureAttachmentsDetail(fileCount: Int, idAddedTo: String?): String {
+/** The discard checkbox's detail: the files, plus the `:ID:` and/or attachment tag added to [addedTo] on disk. */
+internal fun captureAttachmentsDetail(fileCount: Int, addedTo: String?, idAdded: Boolean, tagAdded: String?): String {
     val files = when (fileCount) {
         0 -> "The file still copying"
         1 -> "1 file added in this capture"
         else -> "$fileCount files added in this capture"
     }
-    return if (idAddedTo == null) files else "$files, and the :ID: added to $idAddedTo"
+    val marks = listOfNotNull(":ID:".takeIf { idAdded }, tagAdded?.let { ":$it: tag" }).joinToString(" and ")
+    return if (addedTo == null || marks.isEmpty()) files else "$files, and the $marks added to $addedTo"
 }

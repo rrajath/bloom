@@ -68,6 +68,7 @@ re-uploads the APKs to the existing release instead of failing.
 - The Intro editor now has the attach paperclip; files attach to the file using its `:DIR:` or `:ID:`.
 - Adding, changing or removing `:DIR:` on save moves existing attachments, after a popup; losing both `:ID:` and `:DIR:` warns.
 - Target file fields have a clear button that empties the field and reopens the notebook list.
+- Settings › Attachments › Attachment tag sets the tag attached headings get (default `ATTACH`); leave empty for none.
 - Double-tap the empty space below the Outline's last heading to open the whole file view.
 - Tips & Tricks gained an Outline section explaining the double-tap to view the whole file.
 
@@ -80,6 +81,7 @@ re-uploads the APKs to the existing release instead of failing.
 - The template editor's "Insert at" options are more compact, taking less vertical space.
 - Attachment move popups show folder names in accent-colored monospace, so they stand apart from heading names.
 - Attaching files to a heading now tags it `:ATTACH:`, as Emacs's org-attach does.
+- The metadata sheet won't create tags with spaces, colons or other characters org can't read, and says why.
 
 ### Fixed
 - Dailies Read mode now shows attached images inline.

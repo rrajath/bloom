@@ -37,7 +37,7 @@ Bloom copies each file into the target's attachment folder and inserts an `[[att
 
 If the target doesn't have an `:ID:` yet, Bloom adds one to its property drawer the first time you attach, since the folder name comes from it. A heading or file with a `:DIR:` property uses that folder instead, as in Emacs.
 
-A heading you attach files to also gets the `:ATTACH:` tag, like Emacs's `org-attach-auto-tag`, so tag searches and the agenda can find headings with attachments.
+A heading you attach files to also gets the `:ATTACH:` tag, like Emacs's `org-attach-auto-tag`, so tag searches and the agenda can find headings with attachments. Change or turn off the tag with [Attachment tag](#settings). Files attached to a file, rather than a heading, never add a tag, and neither does inserting a link to a file the heading already has.
 
 ### Folders from parent headings
 
@@ -136,18 +136,19 @@ Attachment folders (`data/`, or the folder you set in [Settings](#settings)) nev
 <ThemeShot
   light={settingsLight}
   dark={settingsDark}
-  alt="Settings › Attachments with a Preview tag, a Photo size switch (Original, Large, Medium, Small) set to Original, a Default image width switch (Fit column, Fixed) set to Fit column, and an Org-attach compatibility section with an Attachment folder row set to data/"
+  alt="Settings › Attachments with a Preview tag, a Photo size switch (Original, Large, Medium, Small) set to Original, a Default image width switch (Fit column, Fixed) set to Fit column, and an Org-attach compatibility section with an Attachment folder row set to data/ and an Attachment tag row set to ATTACH"
   widths={[340, 680]}
   sizes="340px"
 />
 
-**Settings › Attachments** has three settings. All are included in [Backup](/features/backup-export-import).
+**Settings › Attachments** has four settings. All are included in [Backup](/features/backup-export-import).
 
 | Setting | Options |
 |---|---|
 | **Photo size** | **Original** (full resolution), **Large** (long edge 2560 px), **Medium** (1920 px), **Small** (1280 px). Applies to Camera and Photos only. |
 | **Default image width** | **Fit column** fills the width of the note. **Fixed** shows a stepper for a set width, 120 to 1200 px in steps of 40. An `#+ATTR_ORG: :width` line overrides it for one image. |
 | **Attachment folder** | Where `:ID:` folders go, relative to each note's folder. `data/` by default, like Emacs; set it to match `org-attach-id-dir`, for example `attach/` or `.attach/`. Nested folders (`media/files/`) work. Absolute paths, `..` and `~` aren't allowed. Existing attachments aren't moved: files already in `data/` keep opening, and new ones go to the new folder. |
+| **Attachment tag** | The tag a heading gets when you attach files to it, `ATTACH` by default, like Emacs's `org-attach-auto-tag`. Enter it without colons; it follows the same rules as any heading tag (letters, numbers, `_ @ # % -`, no spaces). Leave it empty to add no tag. |
 
 Images are never shown wider than their own size, and tall images are scaled down to fit on screen.
 

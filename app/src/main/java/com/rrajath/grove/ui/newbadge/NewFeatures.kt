@@ -118,6 +118,9 @@ object NewAnchors {
     /** The Attachments settings page itself (photo size, default image width). */
     const val SETTINGS_ATTACHMENTS_PAGE = "settings.attachments.page"
 
+    /** The "Attachment tag" row inside Settings § Attachments. */
+    const val SETTINGS_ATTACHMENTS_AUTO_TAG = "settings.attachments.autoTag"
+
     /** The editor toolbar's paperclip button. */
     const val EDITOR_ATTACH = "editor.attach"
 
@@ -514,5 +517,21 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS,
         ),
         destination = NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS,
+    ),
+    NewFeature(
+        // Settings § Attachments gained an "Attachment tag" row: the tag
+        // (org-attach-auto-tag, ATTACH by default) a heading gets when files are
+        // attached to it; empty adds none. `since` is the versionCode of the
+        // release that ships it: bump it to match `gradle.properties` versionName
+        // when cutting the release.
+        id = "attachments-auto-tag",
+        since = 11500,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_ATTACHMENTS,
+            NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG,
+        ),
+        destination = NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG,
     ),
 )

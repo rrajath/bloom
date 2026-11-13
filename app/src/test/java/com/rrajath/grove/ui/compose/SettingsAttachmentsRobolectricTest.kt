@@ -43,6 +43,7 @@ class SettingsAttachmentsRobolectricTest {
                     onSetImageWidth = { width = it },
                     onSetImageWidthPx = { px = it },
                     onSetAttachFolder = {},
+                    onSetAttachAutoTag = {},
                 )
             }
         }

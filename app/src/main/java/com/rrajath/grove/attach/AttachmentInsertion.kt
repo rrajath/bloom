@@ -16,15 +16,24 @@ data class AttachInsertResult(
 /** `[[attachment:<name>]]`. */
 fun attachmentLinkText(name: String): String = "[[attachment:$name]]"
 
-/** The tag org-attach puts on a heading with attachments (`org-attach-auto-tag`'s default). */
-const val ATTACH_TAG = "ATTACH"
+/**
+ * [text] with the heading at [lineIndex] tagged [tag] (`org-attach-tag`), or
+ * null when [tag] is blank, the heading already has it, or there's no heading there.
+ */
+fun withAttachTag(text: String, lineIndex: Int, tag: String): String? {
+    if (tag.isBlank()) return null
+    val doc = OrgParser.parse(text)
+    val h = doc.headlines.firstOrNull { it.lineIndex == lineIndex } ?: return null
+    if (tag in h.tags) return null
+    return OrgMutations.setTags(doc, h, h.tags + tag)
+}
 
 /**
  * Adds `:ID: [newId]` to [owner] (when [newId] is non-null), tags a heading
- * owner `:ATTACH:` (as `org-attach-tag` does) unless it already has that tag,
- * then inserts one `[[attachment:<name>]]` per line at [cursor], adding line
- * breaks so each link sits on its own line. Pure; the editor applies the result
- * as one undo step.
+ * owner [autoTag] (Settings § Attachments, as `org-attach-tag` does; blank adds
+ * none) unless it already has it, then inserts one `[[attachment:<name>]]` per
+ * line at [cursor], adding line breaks so each link sits on its own line. Pure;
+ * the editor applies the result as one undo step. A file owner never gets a tag.
  *
  * A cursor inside the owner's metadata (headline, planning line, drawers; or the
  * file-level drawer and `#+KEY:` lines for a file owner) is moved to the start of
@@ -36,6 +45,7 @@ fun insertAttachmentLinks(
     owner: AttachOwner,
     newId: String?,
     names: List<String>,
+    autoTag: String,
 ): AttachInsertResult {
     require(names.isNotEmpty()) { "names must not be empty" }
     val doc = OrgParser.parse(text)
@@ -60,10 +70,7 @@ fun insertAttachmentLinks(
     }
 
     if (owner is AttachOwner.Heading) {
-        val d = OrgParser.parse(working)
-        val h = d.headlines.firstOrNull { it.lineIndex == owner.lineIndex }
-        if (h != null && ATTACH_TAG !in h.tags) {
-            val edited = OrgMutations.setTags(d, h, h.tags + ATTACH_TAG)
+        withAttachTag(working, owner.lineIndex, autoTag)?.let { edited ->
             // The headline sits above the insertion point, which shifts by the length change.
             at += edited.length - working.length
             working = edited

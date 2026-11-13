@@ -133,6 +133,7 @@ data class SettingsExport(
     val attachImageWidth: String = AttachImageWidth.FIT.storageKey,
     val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
     val attachFolder: String = AttachFolder.DEFAULT,
+    val attachAutoTag: String = AttachAutoTag.DEFAULT,
 ) {
     private fun themeSelection(): ThemeSelection =
         ThemeSelection.fromStorage(themeMode, lightTheme, darkTheme)
@@ -218,6 +219,7 @@ data class SettingsExport(
         attachImageWidth = AttachImageWidth.fromStorage(attachImageWidth),
         attachImageWidthPx = AttachImageWidth.clampPx(attachImageWidthPx),
         attachFolder = AttachFolder.sanitize(attachFolder),
+        attachAutoTag = AttachAutoTag.sanitize(attachAutoTag),
     )
 
     companion object {
@@ -251,7 +253,10 @@ data class SettingsExport(
         // back to the default and the px value is clamped to 120..1200.
         // v13: added the attachment folder (attachFolder). Additive: older
         // exports omit it and import as data/; an invalid value also imports as data/.
-        const val CURRENT_VERSION = 13
+        // v14: added the attachment tag (attachAutoTag). Additive: older exports
+        // omit it and import as ATTACH; an invalid value also imports as ATTACH,
+        // and an empty one stays empty (no tag).
+        const val CURRENT_VERSION = 14
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,
@@ -331,6 +336,7 @@ data class SettingsExport(
             attachImageWidth = s.attachImageWidth.storageKey,
             attachImageWidthPx = s.attachImageWidthPx,
             attachFolder = s.attachFolder,
+            attachAutoTag = s.attachAutoTag,
         )
     }
 }

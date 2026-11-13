@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.settings.AttachAutoTag
 import com.rrajath.grove.settings.AttachFolder
 import com.rrajath.grove.settings.AttachImageWidth
 import com.rrajath.grove.settings.AttachPhotoSize
@@ -43,6 +44,7 @@ import com.rrajath.grove.ui.components.Pill
 import com.rrajath.grove.ui.components.SegmentedControl
 import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
 import com.rrajath.grove.ui.newbadge.NewAnchors
+import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -51,8 +53,9 @@ import com.rrajath.grove.ui.theme.grove
  * Settings § Attachments (preview), prototype 1o:
  * Photo size for Camera/Photos imports, and the default read-mode image width
  * with a px stepper when Fixed. Below them, the org-attach compatibility group:
- * the attachment folder (`org-attach-id-dir`), edited in [NameDialog]. All
- * values are in Settings import/export.
+ * the attachment folder (`org-attach-id-dir`) and the attachment tag
+ * (`org-attach-auto-tag`), each edited in [NameDialog]. All values are in
+ * Settings import/export.
  */
 @Composable
 fun SettingsAttachmentsScreen(
@@ -62,10 +65,13 @@ fun SettingsAttachmentsScreen(
     onSetImageWidth: (AttachImageWidth) -> Unit,
     onSetImageWidthPx: (Int) -> Unit,
     onSetAttachFolder: (String) -> Unit,
+    onSetAttachAutoTag: (String) -> Unit,
 ) {
     val c = MaterialTheme.grove
     var editingFolder by rememberSaveable { mutableStateOf(false) }
+    var editingTag by rememberSaveable { mutableStateOf(false) }
     MarkNewFeatureSeen(NewAnchors.SETTINGS_ATTACHMENTS_PAGE)
+    MarkNewFeatureSeen(NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG)
     SettingsPageScaffold(
         title = "Attachments",
         onBack = onBack,
@@ -142,6 +148,42 @@ fun SettingsAttachmentsScreen(
                     Text("›", fontFamily = PlexMono, fontSize = 14.sp, color = c.ink2)
                 }
             }
+            RowDivider()
+            SettingsRow(
+                label = "Attachment tag",
+                descriptionContent = {
+                    val tag = settings.attachAutoTag
+                    Text(
+                        buildAnnotatedString {
+                            if (tag.isEmpty()) {
+                                append("No tag is added to headings you attach files to.")
+                            } else {
+                                append("Headings you attach files to get ")
+                                withStyle(SpanStyle(fontFamily = PlexMono)) { append(":$tag:") }
+                                append(".")
+                            }
+                            append(" Matches org-attach-auto-tag in Emacs.")
+                        },
+                        fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
+                        modifier = Modifier.testTag("attach_auto_tag_description"),
+                    )
+                },
+                labelBadge = { NewDot(NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG) },
+                onClick = { editingTag = true },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        settings.attachAutoTag.ifEmpty { "None" },
+                        fontFamily = if (settings.attachAutoTag.isEmpty()) PlexSans else PlexMono,
+                        fontSize = 13.sp,
+                        color = if (settings.attachAutoTag.isEmpty()) c.ink3 else c.ink2,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 140.dp).testTag("attach_auto_tag_value"),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("›", fontFamily = PlexMono, fontSize = 14.sp, color = c.ink2)
+                }
+            }
         }
     }
     if (editingFolder) {
@@ -157,6 +199,23 @@ fun SettingsAttachmentsScreen(
                 editingFolder = false
                 val next = AttachFolder.normalize(raw) ?: return@NameDialog
                 if (next != settings.attachFolder) onSetAttachFolder(next)
+            },
+        )
+    }
+    if (editingTag) {
+        NameDialog(
+            title = "Attachment tag",
+            initial = settings.attachAutoTag,
+            confirmLabel = "Save",
+            placeholder = AttachAutoTag.DEFAULT,
+            validate = AttachAutoTag::error,
+            helperText = "Without colons. Leave empty to add no tag.",
+            allowBlank = true,
+            onDismiss = { editingTag = false },
+            onConfirm = { raw ->
+                editingTag = false
+                val next = AttachAutoTag.normalize(raw) ?: return@NameDialog
+                if (next != settings.attachAutoTag) onSetAttachAutoTag(next)
             },
         )
     }

@@ -50,6 +50,7 @@ class SettingsAttachFolderDialogRobolectricTest {
                     onSetImageWidth = {},
                     onSetImageWidthPx = {},
                     onSetAttachFolder = { stored += it; settings = settings.copy(attachFolder = it) },
+                    onSetAttachAutoTag = {},
                 )
             }
         }

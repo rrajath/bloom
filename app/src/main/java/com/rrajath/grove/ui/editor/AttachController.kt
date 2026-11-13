@@ -58,6 +58,7 @@ import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.data.IndexedAttachOwner
 import com.rrajath.grove.org.newOrgId
+import com.rrajath.grove.settings.AttachAutoTag
 import com.rrajath.grove.ui.vault.OutlineToast
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
@@ -68,6 +69,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -99,8 +101,13 @@ data class AttachSheetModel(
     val folderFrom: String? = null,
 )
 
-/** A heading `:ID:` the capture's on-disk fallback wrote, so a discard can take it back. */
-data class AddedHeadingId(val title: String, val id: String)
+/** What the capture's on-disk fallback wrote into a heading: the `:ID:` and the attachment tag it added, null for none. */
+data class DiskHeadingMarks(val id: String? = null, val tag: String? = null)
+
+/** The [marks] the capture's on-disk fallback wrote into heading [owner], so a discard can take them back. */
+data class AddedHeadingMarks(val owner: AttachOwner.Heading, val marks: DiskHeadingMarks) {
+    val title: String get() = owner.title
+}
 
 /** The rows on screen: the first [AttachSheetModel.shown]. */
 val AttachSheetModel.visibleRows: List<ScopedAttachment> get() = rows.orEmpty().take(shown)
@@ -187,11 +194,16 @@ class AttachController internal constructor(
      */
     private val fileContext: (suspend () -> AttachFileContext?)? = null,
     /**
-     * Quick capture only: writes a new `:ID:` into the heading a body-only
-     * capture's text goes into, on disk in [orgFile] (false when it couldn't).
-     * That heading comes from [fileContext]; see [BufferInFile.ownerAround].
+     * Quick capture only: on disk in [orgFile], gives the heading a body-only
+     * capture's text goes into the new `:ID:` (when non-null) and the attachment
+     * tag (when non-blank) it lacks. Returns what it wrote; null when the heading
+     * couldn't be found or written. That heading comes from [fileContext]; see
+     * [BufferInFile.ownerAround].
      */
-    private val addDiskHeadingId: (suspend (orgFile: String, owner: AttachOwner.Heading, id: String) -> Boolean)? = null,
+    private val markDiskHeading:
+        (suspend (orgFile: String, owner: AttachOwner.Heading, id: String?, tag: String) -> DiskHeadingMarks?)? = null,
+    /** Settings § Attachments' attachment tag (blank for none), read when a picker returns. */
+    private val autoTag: suspend () -> String = { AttachAutoTag.DEFAULT },
 ) {
     var sheet by mutableStateOf<AttachSheetModel?>(null)
         private set
@@ -243,8 +255,8 @@ class AttachController internal constructor(
     var addedDiskFileId by mutableStateOf<String?>(null)
         private set
 
-    /** The heading `:ID:` the capture fallback wrote into [orgFile] on disk, or null. */
-    var addedDiskHeadingId by mutableStateOf<AddedHeadingId?>(null)
+    /** The heading `:ID:` and tag the capture fallback wrote into [orgFile] on disk, or null. */
+    var addedDiskHeading by mutableStateOf<AddedHeadingMarks?>(null)
         private set
 
     /** Whether a copy for [orgFile] is still running (its links aren't in the buffer yet). */
@@ -258,7 +270,8 @@ class AttachController internal constructor(
     /**
      * Capture's discard with "Also delete attachments": stops a running copy for
      * [orgFile] (its files are removed) and deletes every file this editor copied
-     * in. The `:ID:` in [addedDiskFileId] is the caller's to remove.
+     * in. The `:ID:` in [addedDiskFileId] and the marks in [addedDiskHeading] are
+     * the caller's to remove.
      */
     fun discardSessionAttachments() {
         manager?.cancelFor(orgFile)
@@ -320,7 +333,7 @@ class AttachController internal constructor(
         val owner = withPendingFileId(placed.ownerAtOffset(cursor))
         if (addDiskFileId != null && owner is AttachOwner.File) {
             val around = placed.ownerAround(lineOfOffset(doc.text, cursor))
-            if (around is AttachOwner.Heading && addDiskHeadingId != null) openOnDiskHeading(placed, around) else openOnDisk()
+            if (around is AttachOwner.Heading && markDiskHeading != null) openOnDiskHeading(placed, around) else openOnDisk()
             return
         }
         val scopes = scopesFor(owner)
@@ -568,6 +581,7 @@ class AttachController internal constructor(
             orgFile = orgFile,
             owner = owner,
             newId = newId,
+            autoTag = autoTag(),
             dir = dir,
             kind = kind,
             sources = sources,
@@ -610,7 +624,7 @@ class AttachController internal constructor(
                 }
                 val edit = insertAttachmentLinksInBuffer(
                     textState.text.toString(), textState.selection.start,
-                    done.request.owner, done.request.newId, r.names,
+                    done.request.owner, done.request.newId, r.names, done.request.autoTag,
                 )
                 if (edit == null) {
                     showToast("Attached files kept, but the heading was not found")
@@ -627,23 +641,31 @@ class AttachController internal constructor(
     }
 
     /**
-     * Capture's file-level fallback finished: give the target file its new
-     * `:ID:` on disk, then link the files from the snippet with `[[file:…]]`
-     * links relative to it, since the snippet has no owner of its own.
+     * Capture's on-disk fallback finished: give the target heading its new `:ID:`
+     * and attachment tag, or the target file its new `:ID:`, on disk; then link
+     * the files from the snippet. A file owner gets `[[file:…]]` links relative to
+     * it, since the snippet has no owner of its own.
      */
     private suspend fun linkOnDisk(request: AttachRequest, result: ImportResult.Success) {
         val owner = request.owner
         val newId = request.newId
-        val idSaved = newId?.let { id ->
-            when (owner) {
-                is AttachOwner.Heading -> addDiskHeadingId?.invoke(orgFile, owner, id) == true
-                is AttachOwner.File -> addDiskFileId?.invoke(orgFile, id) == true
+        val idSaved = when (owner) {
+            is AttachOwner.Heading -> {
+                val marks = markDiskHeading?.invoke(orgFile, owner, newId, request.autoTag)
+                if (marks != null && (marks.id != null || marks.tag != null)) {
+                    // Keep what an earlier attach in this capture wrote: discard takes back both.
+                    val prev = addedDiskHeading
+                    addedDiskHeading = AddedHeadingMarks(
+                        prev?.owner ?: owner,
+                        DiskHeadingMarks(prev?.marks?.id ?: marks.id, prev?.marks?.tag ?: marks.tag),
+                    )
+                }
+                marks != null || newId == null
             }
-        } ?: true
-        if (idSaved && newId != null) {
-            when (owner) {
-                is AttachOwner.Heading -> addedDiskHeadingId = AddedHeadingId(owner.title, newId)
-                is AttachOwner.File -> addedDiskFileId = newId
+            is AttachOwner.File -> {
+                val saved = newId?.let { id -> addDiskFileId?.invoke(orgFile, id) == true } ?: true
+                if (saved && newId != null) addedDiskFileId = newId
+                saved
             }
         }
         // A body-only capture's text lands in the heading's body, so attachment: links resolve there.
@@ -687,8 +709,9 @@ class AttachController internal constructor(
         }
         // The capture fallback's owner isn't in the buffer, so even its own files get file links.
         if (row.dir == model.dir && !model.onDisk) {
+            // Linking a file the owner already has isn't an attach: no tag (as in org-attach).
             val edit = insertAttachmentLinksInBuffer(
-                textState.text.toString(), textState.selection.start, model.owner, null, listOf(name),
+                textState.text.toString(), textState.selection.start, model.owner, null, listOf(name), autoTag = "",
             ) ?: return
             sheet = null
             textState.edit {
@@ -811,8 +834,8 @@ fun rememberAttachController(
     onOwnerAttached: ((AttachOwner) -> Unit)? = null,
     /** Single-heading editor and quick capture: see [AttachController]'s `fileContext`. */
     fileContext: (suspend () -> AttachFileContext?)? = null,
-    /** Quick capture only: see [AttachController]'s `addDiskHeadingId`. */
-    addDiskHeadingId: (suspend (orgFile: String, owner: AttachOwner.Heading, id: String) -> Boolean)? = null,
+    /** Quick capture only: see [AttachController]'s `markDiskHeading`. */
+    markDiskHeading: (suspend (orgFile: String, owner: AttachOwner.Heading, id: String?, tag: String) -> DiskHeadingMarks?)? = null,
 ): AttachController {
     val app = LocalContext.current.applicationContext as? GroveApplication
     return rememberAttachController(
@@ -822,12 +845,13 @@ fun rememberAttachController(
         storeProvider = { app?.fileStore?.value },
         // No app (previews): the store is null too, so nothing resolves.
         attachConfig = { app?.attachConfigSource?.current() ?: AttachConfig.Default },
+        autoTag = { app?.settingsRepository?.settings?.first()?.attachAutoTag ?: AttachAutoTag.DEFAULT },
         addDiskFileId = addDiskFileId,
         pendingFileId = pendingFileId,
         introOfFile = introOfFile,
         onOwnerAttached = onOwnerAttached,
         fileContext = fileContext,
-        addDiskHeadingId = addDiskHeadingId,
+        markDiskHeading = markDiskHeading,
     )
 }
 
@@ -843,7 +867,8 @@ internal fun rememberAttachController(
     introOfFile: Boolean = false,
     onOwnerAttached: ((AttachOwner) -> Unit)? = null,
     fileContext: (suspend () -> AttachFileContext?)? = null,
-    addDiskHeadingId: (suspend (orgFile: String, owner: AttachOwner.Heading, id: String) -> Boolean)? = null,
+    markDiskHeading: (suspend (orgFile: String, owner: AttachOwner.Heading, id: String?, tag: String) -> DiskHeadingMarks?)? = null,
+    autoTag: suspend () -> String = { AttachAutoTag.DEFAULT },
     attachConfig: () -> AttachConfig,
     storeProvider: () -> FileStore?,
 ): AttachController {
@@ -852,7 +877,7 @@ internal fun rememberAttachController(
     val controller = remember(textState, orgFile) {
         AttachController(
             context, scope, textState, orgFile, manager, storeProvider, attachConfig, indexedOwners, addDiskFileId, pendingFileId,
-            introOfFile, onOwnerAttached, fileContext, addDiskHeadingId,
+            introOfFile, onOwnerAttached, fileContext, markDiskHeading, autoTag,
         )
     }
     // Saved as JSON so it survives process death without the parcelize plugin.

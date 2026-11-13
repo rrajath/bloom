@@ -22,6 +22,8 @@ data class AttachRequest(
     val owner: AttachOwner,
     /** A freshly generated `:ID:` to write into the owner, or null when it already has an ID or `:DIR:`. */
     val newId: String?,
+    /** Settings § Attachments' tag for a heading owner (blank for none); a file owner never gets one. */
+    val autoTag: String,
     /** Vault-relative attach dir the files go into. */
     val dir: String,
     val kind: AttachKind,
@@ -211,21 +213,29 @@ fun ownerToastLabel(owner: AttachOwner): String = when (owner) {
  * Writes the links for a finished attach into the whole-file [text] when the
  * editor that started it is gone: re-finds the owner (by `:ID:`, then by title
  * path, matched as a suffix since the editor buffer may have been a subtree),
- * adds the new `:ID:` if it still lacks one, and appends the links at the end of
- * the owner's own body. Null when a heading owner can't be found.
+ * adds the new `:ID:` if it still lacks one and a heading owner's [autoTag], and
+ * appends the links at the end of the owner's own body. Null when a heading
+ * owner can't be found.
  */
-fun appendAttachmentLinksToFile(text: String, owner: AttachOwner, newId: String?, names: List<String>): AttachInsertResult? {
+fun appendAttachmentLinksToFile(
+    text: String,
+    owner: AttachOwner,
+    newId: String?,
+    names: List<String>,
+    autoTag: String,
+): AttachInsertResult? {
     val doc = OrgParser.parse(text)
     val found = locateOwner(doc, owner) ?: return null
     val offset = bodyEndOffset(doc, found)
     val id = if (found.id == null && found.dirProperty == null) newId else null
-    return insertAttachmentLinks(text, offset, found, id, names)
+    return insertAttachmentLinks(text, offset, found, id, names, autoTag)
 }
 
 /**
  * Inserts links for [names] into the live editor [text]: re-finds [owner] (by
  * `:ID:`, then title path), adds [newId] when it still has neither `:ID:` nor
- * `:DIR:`, and puts the links at [cursor] when the cursor sits in the owner's
+ * `:DIR:`, tags a heading owner [autoTag] (blank for none, as when linking a file
+ * it already has), and puts the links at [cursor] when the cursor sits in the owner's
  * own section, else at the end of the owner's body (the files live in that
  * owner's dir, so the links must too). Null when the owner is gone.
  */
@@ -235,6 +245,7 @@ fun insertAttachmentLinksInBuffer(
     owner: AttachOwner,
     newId: String?,
     names: List<String>,
+    autoTag: String,
 ): AttachInsertResult? {
     val doc = OrgParser.parse(text)
     val found = locateOwner(doc, owner) ?: return null
@@ -246,7 +257,7 @@ fun insertAttachmentLinksInBuffer(
         bodyEndOffset(doc, found)
     }
     val id = if (found.id == null && found.dirProperty == null) newId else null
-    return insertAttachmentLinks(text, at, found, id, names)
+    return insertAttachmentLinks(text, at, found, id, names, autoTag)
 }
 
 /** Lines `[start, end)` holding the owner's headline/metadata and own body, children excluded. */

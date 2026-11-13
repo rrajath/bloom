@@ -12,6 +12,7 @@ import com.rrajath.grove.attach.applyMoveOutcomeText
 import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.attach.ownerOf
 import com.rrajath.grove.attach.relocateOwner
+import com.rrajath.grove.attach.withAttachTag
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureInserter
@@ -29,7 +30,9 @@ import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.settings.SettingsSource
 import com.rrajath.grove.sync.SyncTrigger
+import com.rrajath.grove.ui.editor.AddedHeadingMarks
 import com.rrajath.grove.ui.editor.AutoLinkSuggestion
+import com.rrajath.grove.ui.editor.DiskHeadingMarks
 import com.rrajath.grove.ui.editor.autoLinkIndex
 import com.rrajath.grove.ui.vault.NotebookItem
 import com.rrajath.grove.ui.vault.allFolderDirs
@@ -294,39 +297,43 @@ class CaptureViewModel(
     }
 
     /**
-     * Gives the heading [owner] (re-found in [path] by `:ID:`, then title path) an
-     * `:ID:`, for a body-only capture's attach: its text goes into that heading's
-     * body, which isn't in the field. Shifts the autosaved draft like [addFileId].
-     * True when the heading has an ID afterwards.
+     * For a body-only capture's attach, whose text goes into a heading that isn't
+     * in the field: gives that heading [owner] (re-found in [path] by `:ID:`, then
+     * title path) the `:ID:` [id] when it has none, and the attachment [tag] when
+     * non-blank and missing. Shifts the autosaved draft like [addFileId]. Returns
+     * what it wrote; null when the heading or file is gone.
      */
-    suspend fun addHeadingId(path: String, owner: AttachOwner.Heading, id: String): Boolean = writeMutex.withLock {
-        val vault = vaultFlow.value ?: return@withLock false
-        val saved = withContext(dispatchers.default) {
-            val text = vault.open(path)?.text ?: return@withContext null
-            val doc = OrgParser.parse(text)
-            val found = relocateOwner(doc, owner) as? AttachOwner.Heading ?: return@withContext null
-            if (found.id != null) return@withContext text to text
-            val h = doc.headlines.first { it.lineIndex == found.lineIndex }
-            val newText = OrgMutations.upsertProperty(doc, h, "ID", id)
-            vault.save(path, newText)
-            text to newText
-        } ?: return@withLock false
-        val (old, new) = saved
-        if (old != new) {
-            draftInsertion = draftInsertion?.let(shiftForEdit(old, new))
-            sync.requestReindex(path, new, "attach heading id")
+    suspend fun markAttachHeading(path: String, owner: AttachOwner.Heading, id: String?, tag: String): DiskHeadingMarks? =
+        writeMutex.withLock {
+            val vault = vaultFlow.value ?: return@withLock null
+            val saved = withContext(dispatchers.default) {
+                val text = vault.open(path)?.text ?: return@withContext null
+                val doc = OrgParser.parse(text)
+                val found = relocateOwner(doc, owner) as? AttachOwner.Heading ?: return@withContext null
+                val h = doc.headlines.first { it.lineIndex == found.lineIndex }
+                val addId = id.takeIf { found.id == null }
+                val withId = addId?.let { OrgMutations.upsertProperty(doc, h, "ID", it) } ?: text
+                val withTag = withAttachTag(withId, found.lineIndex, tag)
+                val newText = withTag ?: withId
+                if (newText != text) vault.save(path, newText)
+                Triple(text, newText, DiskHeadingMarks(addId, tag.trim().takeIf { withTag != null }))
+            } ?: return@withLock null
+            val (old, new, marks) = saved
+            if (old != new) {
+                draftInsertion = draftInsertion?.let(shiftForEdit(old, new))
+                sync.requestReindex(path, new, "attach heading marks")
+            }
+            marks
         }
-        true
-    }
 
-    /** Capture discard with "Also delete attachments": takes back the heading `:ID:` [addHeadingId] wrote. */
-    fun removeAddedHeadingId(path: String, id: String) {
+    /** Capture discard with "Also delete attachments": takes back what [markAttachHeading] wrote. */
+    fun removeAddedHeadingMarks(path: String, added: AddedHeadingMarks) {
         viewModelScope.launch {
             writeMutex.withLock {
                 val vault = vaultFlow.value ?: return@withLock
                 val newText = withContext(dispatchers.default) {
                     val text = vault.open(path)?.text ?: return@withContext null
-                    withoutHeadingId(text, id)?.also { vault.save(path, it) }
+                    withoutHeadingMarks(text, added)?.also { vault.save(path, it) }
                 } ?: return@withLock
                 sync.requestReindex(path, newText, "capture discarded")
             }
@@ -685,6 +692,24 @@ internal fun withoutHeadingId(text: String, id: String): String? {
     val doc = OrgParser.parse(text)
     val h = doc.headlines.firstOrNull { doc.ownerOf(it).id == id } ?: return null
     return withoutIdIn(doc, OrgMutations.headingDrawerRange(doc, h, ":PROPERTIES:") ?: return null, id)
+}
+
+/**
+ * [text] without the [added] marks: the heading's attachment tag and its `:ID:`
+ * (with the drawer when that empties it). The heading is found by that `:ID:`,
+ * else by [AddedHeadingMarks.owner]. Null when nothing was left to take back.
+ */
+internal fun withoutHeadingMarks(text: String, added: AddedHeadingMarks): String? {
+    val doc = OrgParser.parse(text)
+    val id = added.marks.id
+    val line = id?.let { i -> doc.headlines.firstOrNull { doc.ownerOf(it).id == i }?.lineIndex }
+        ?: (relocateOwner(doc, added.owner) as? AttachOwner.Heading)?.lineIndex
+        ?: return null
+    val h = doc.headlines.first { it.lineIndex == line }
+    val tag = added.marks.tag
+    val untagged = if (tag != null && tag in h.tags) OrgMutations.setTags(doc, h, h.tags - tag) else text
+    val out = id?.let { withoutHeadingId(untagged, it) } ?: untagged
+    return out.takeIf { it != text }
 }
 
 private fun withoutIdIn(doc: OrgDocument, range: IntRange, id: String): String? {

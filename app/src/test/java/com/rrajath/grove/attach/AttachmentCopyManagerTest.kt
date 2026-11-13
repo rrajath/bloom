@@ -43,6 +43,7 @@ class AttachmentCopyManagerTest {
         orgFile = "travel.org",
         owner = AttachOwner.Heading(2, listOf("Kyoto", "Lunch"), "8B41D2F0", null),
         newId = null,
+        autoTag = "ATTACH",
         dir = "data/8B/41D2F0",
         kind = kind,
         sources = names.map { AttachSource(uri, it, 4) },
@@ -132,7 +133,7 @@ class AttachmentCopyManagerTest {
         """.trimIndent()
         // The editor buffer was the Lunch subtree, so the title path is just ["Lunch"].
         val owner = AttachOwner.Heading(0, listOf("Lunch"), null, null)
-        val edit = appendAttachmentLinksToFile(text, owner, "NEWID", listOf("a.jpg", "b.pdf"))!!
+        val edit = appendAttachmentLinksToFile(text, owner, "NEWID", listOf("a.jpg", "b.pdf"), "ATTACH")!!
         assertEquals(
             """
             * Kyoto
@@ -155,14 +156,14 @@ class AttachmentCopyManagerTest {
     fun `file fallback finds the owner by ID and doesn't add a second one`() {
         val text = "* A\n:PROPERTIES:\n:ID: X1\n:END:\nbody\n* B\n"
         val owner = AttachOwner.Heading(9, listOf("renamed"), "X1", null)
-        val edit = appendAttachmentLinksToFile(text, owner, "IGNORED", listOf("a.jpg"))!!
+        val edit = appendAttachmentLinksToFile(text, owner, "IGNORED", listOf("a.jpg"), "ATTACH")!!
         assertEquals("* A  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nbody\n[[attachment:a.jpg]]\n* B\n", edit.text)
     }
 
     @Test
     fun `file fallback returns null when the heading is gone`() {
         val owner = AttachOwner.Heading(0, listOf("Gone"), null, null)
-        assertNull(appendAttachmentLinksToFile("* Other\n", owner, "N", listOf("a.jpg")))
+        assertNull(appendAttachmentLinksToFile("* Other\n", owner, "N", listOf("a.jpg"), "ATTACH"))
     }
 
     @Test
@@ -170,7 +171,7 @@ class AttachmentCopyManagerTest {
         val text = "* Lunch\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\nmore\n** Child\n"
         val owner = AttachOwner.Heading(0, listOf("Lunch"), "X1", null)
         val cursor = text.indexOf("soba") + 4
-        val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"))!!
+        val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"), "ATTACH")!!
         assertEquals("* Lunch  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\nmore\n** Child\n", edit.text)
     }
 
@@ -179,7 +180,7 @@ class AttachmentCopyManagerTest {
         val text = "* Lunch\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n** Child\nkid text\n"
         val owner = AttachOwner.Heading(0, listOf("Lunch"), "X1", null)
         val cursor = text.indexOf("kid text")
-        val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"))!!
+        val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"), "ATTACH")!!
         assertEquals("* Lunch  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\n** Child\nkid text\n", edit.text)
         assertEquals(edit.text.indexOf("[[attachment:a.jpg]]") + "[[attachment:a.jpg]]".length, edit.cursor)
     }
@@ -187,7 +188,7 @@ class AttachmentCopyManagerTest {
     @Test
     fun `buffer insert adds the new ID to a file owner above the title`() {
         val text = "#+TITLE: Travel\nBookings.\n* Kyoto\n"
-        val edit = insertAttachmentLinksInBuffer(text, text.indexOf("Bookings.") + 9, AttachOwner.File(null, null), "F1", listOf("a.pdf"))!!
+        val edit = insertAttachmentLinksInBuffer(text, text.indexOf("Bookings.") + 9, AttachOwner.File(null, null), "F1", listOf("a.pdf"), "ATTACH")!!
         assertTrue(edit.text, edit.text.startsWith(":PROPERTIES:\n:ID:"))
         assertTrue(edit.text, edit.text.contains("Bookings.\n[[attachment:a.pdf]]\n* Kyoto"))
         assertEquals(0..2, edit.idDrawerLines)

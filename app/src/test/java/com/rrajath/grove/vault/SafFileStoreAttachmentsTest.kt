@@ -278,11 +278,11 @@ class SafFileStoreAttachmentsTest {
         val headingId = "A0050AF0-FB23-4124-9E18-7C506F6E3949"
         val base = "#+TITLE: Image test\n\nintro\n* Images\nbody\n"
         val withFile = com.rrajath.grove.attach.insertAttachmentLinks(
-            base, 0, com.rrajath.grove.attach.AttachOwner.File(null, null), fileId, listOf("a.jpg"),
+            base, 0, com.rrajath.grove.attach.AttachOwner.File(null, null), fileId, listOf("a.jpg"), "ATTACH",
         ).text
         val parsed = com.rrajath.grove.org.OrgParser.parse(withFile)
         val heading = parsed.ownerOf(parsed.headlines.single())
-        val text = com.rrajath.grove.attach.insertAttachmentLinks(withFile, withFile.length, heading, headingId, listOf("b.jpg")).text
+        val text = com.rrajath.grove.attach.insertAttachmentLinks(withFile, withFile.length, heading, headingId, listOf("b.jpg"), "ATTACH").text
         write("image-test.org", text)
         write("Folder/inbox.org", "")
         write("data/C4/82DAE9-87F2-4045-BE53-8582798C5D58/a.jpg", "new")

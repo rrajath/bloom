@@ -24,7 +24,7 @@ import com.rrajath.grove.ui.theme.grove
 
 /**
  * Single-field name dialog: notebook and folder names on the Notebooks
- * screen, the attachment folder in Settings § Attachments.
+ * screen, the attachment folder and tag in Settings § Attachments.
  */
 @Composable
 internal fun NameDialog(
@@ -43,6 +43,8 @@ internal fun NameDialog(
     // A fixed extension (e.g. ".org") shown as a non-editable suffix inside the
     // field; the field then holds just the stem, and it's re-appended on confirm.
     filenameSuffix: String? = null,
+    // Lets the user confirm an empty field (a setting where empty means "none").
+    allowBlank: Boolean = false,
 ) {
     val c = MaterialTheme.grove
     var name by remember {
@@ -52,7 +54,7 @@ internal fun NameDialog(
     // the user left it off or typed it in themselves.
     val resolved = filenameSuffix?.let { name.removeSuffix(it) + it } ?: name
     val error = if (name.isBlank()) null else validate?.invoke(resolved)
-    val canConfirm = name.isNotBlank() && error == null
+    val canConfirm = (allowBlank || name.isNotBlank()) && error == null
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.surface,

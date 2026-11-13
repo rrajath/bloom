@@ -303,6 +303,8 @@ data class GroveSettings(
     val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
     /** Settings § Attachments: the attachment folder, always valid with one trailing `/` ([AttachFolder]). */
     val attachFolder: String = AttachFolder.DEFAULT,
+    /** Settings § Attachments: tag added to headings files are attached to, no colons; empty for none ([AttachAutoTag]). */
+    val attachAutoTag: String = AttachAutoTag.DEFAULT,
 ) {
     /** Pinned notebook file names in pin order — derived view of [pinnedItems]. */
     val pinnedNotebooks: List<String>
@@ -445,6 +447,7 @@ class SettingsRepository(
         val attachImageWidth = stringPreferencesKey("attach_image_width")
         val attachImageWidthPx = intPreferencesKey("attach_image_width_px")
         val attachFolder = stringPreferencesKey("attach_folder")
+        val attachAutoTag = stringPreferencesKey("attach_auto_tag")
     }
 
     /**
@@ -563,6 +566,7 @@ class SettingsRepository(
             attachImageWidth = AttachImageWidth.fromStorage(prefs[Keys.attachImageWidth]),
             attachImageWidthPx = AttachImageWidth.clampPx(prefs[Keys.attachImageWidthPx] ?: AttachImageWidth.DEFAULT_PX),
             attachFolder = AttachFolder.sanitize(prefs[Keys.attachFolder]),
+            attachAutoTag = AttachAutoTag.sanitize(prefs[Keys.attachAutoTag]),
         )
     }.shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
@@ -705,6 +709,7 @@ class SettingsRepository(
             p[Keys.attachImageWidth] = s.attachImageWidth.storageKey
             p[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(s.attachImageWidthPx)
             p[Keys.attachFolder] = AttachFolder.sanitize(s.attachFolder)
+            p[Keys.attachAutoTag] = AttachAutoTag.sanitize(s.attachAutoTag)
         }
     }
 
@@ -1065,6 +1070,12 @@ class SettingsRepository(
     suspend fun setAttachFolder(folder: String) {
         val normalized = AttachFolder.normalize(folder) ?: return
         context.settingsDataStore.edit { it[Keys.attachFolder] = normalized }
+    }
+
+    /** Stores [tag] trimmed (empty for no tag); an invalid value is ignored (the dialog validates first). */
+    suspend fun setAttachAutoTag(tag: String) {
+        val normalized = AttachAutoTag.normalize(tag) ?: return
+        context.settingsDataStore.edit { it[Keys.attachAutoTag] = normalized }
     }
 
     suspend fun setRoamFeaturesEnabled(enabled: Boolean) {

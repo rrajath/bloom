@@ -427,6 +427,9 @@ class AppViewModel(
     fun setAttachFolder(folder: String) =
         viewModelScope.launch { settingsRepository.setAttachFolder(folder) }
 
+    fun setAttachAutoTag(tag: String) =
+        viewModelScope.launch { settingsRepository.setAttachAutoTag(tag) }
+
     fun setRoamOpenWholeFile(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setRoamOpenWholeFile(enabled) }
 

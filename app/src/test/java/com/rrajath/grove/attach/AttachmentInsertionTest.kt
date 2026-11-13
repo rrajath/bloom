@@ -15,7 +15,7 @@ class AttachmentInsertionTest {
     private fun insert(marked: String, newId: String?, vararg names: String): Pair<String, String> {
         val cursor = marked.indexOf('|')
         val text = marked.removeRange(cursor, cursor + 1)
-        val r = insertAttachmentLinks(text, cursor, ownerAt(text, cursor), newId, names.toList())
+        val r = insertAttachmentLinks(text, cursor, ownerAt(text, cursor), newId, names.toList(), "ATTACH")
         return r.text to (r.text.substring(0, r.cursor) + "|" + r.text.substring(r.cursor))
     }
 
@@ -106,12 +106,12 @@ class AttachmentInsertionTest {
 
     @Test fun `id drawer lines are reported for the flash`() {
         val text = "#+TITLE: T\nbody"
-        val r = insertAttachmentLinks(text, text.length, ownerAt(text, text.length), id, listOf("a.jpg"))
+        val r = insertAttachmentLinks(text, text.length, ownerAt(text, text.length), id, listOf("a.jpg"), "ATTACH")
         assertEquals(0..2, r.idDrawerLines)
-        val noId = insertAttachmentLinks(r.text, r.text.length, ownerAt(r.text, r.text.length), null, listOf("b.jpg"))
+        val noId = insertAttachmentLinks(r.text, r.text.length, ownerAt(r.text, r.text.length), null, listOf("b.jpg"), "ATTACH")
         assertNull(noId.idDrawerLines)
         val h = "* H\nbody"
-        val rh = insertAttachmentLinks(h, h.length, ownerAt(h, h.length), id, listOf("a.jpg"))
+        val rh = insertAttachmentLinks(h, h.length, ownerAt(h, h.length), id, listOf("a.jpg"), "ATTACH")
         assertEquals(1..3, rh.idDrawerLines)
     }
 
@@ -123,7 +123,16 @@ class AttachmentInsertionTest {
     @Test fun `heading keeps its tags and gets ATTACH only once`() {
         val (once, _) = insert("* TODO [#A] Trip  :travel:\n:PROPERTIES:\n:ID: X\n:END:\nbody|\n", null, "a.jpg")
         assertEquals("* TODO [#A] Trip  :travel:ATTACH:\n:PROPERTIES:\n:ID: X\n:END:\nbody\n[[attachment:a.jpg]]\n", once)
-        val twice = insertAttachmentLinks(once, once.length, ownerAt(once, once.length), null, listOf("b.jpg")).text
+        val twice = insertAttachmentLinks(once, once.length, ownerAt(once, once.length), null, listOf("b.jpg"), "ATTACH").text
         assertEquals("* TODO [#A] Trip  :travel:ATTACH:", twice.lineSequence().first())
+    }
+
+    @Test fun `the configured tag is used, and a blank one adds no tag`() {
+        val text = "* Trip\nbody"
+        val owner = ownerAt(text, text.length)
+        val custom = insertAttachmentLinks(text, text.length, owner, null, listOf("a.pdf"), "receipt").text
+        assertEquals("* Trip  :receipt:\nbody\n[[attachment:a.pdf]]", custom)
+        val none = insertAttachmentLinks(text, text.length, owner, null, listOf("a.pdf"), "").text
+        assertEquals("* Trip\nbody\n[[attachment:a.pdf]]", none)
     }
 }

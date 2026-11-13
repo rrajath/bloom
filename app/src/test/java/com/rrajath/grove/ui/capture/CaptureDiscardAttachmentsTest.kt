@@ -27,7 +27,15 @@ class CaptureDiscardAttachmentsTest {
 
     @Test
     fun `checkbox detail names the files and the added ID`() {
-        assertEquals("1 file added in this capture", captureAttachmentsDetail(1, null))
-        assertEquals("2 files added in this capture, and the :ID: added to inbox.org", captureAttachmentsDetail(2, "inbox.org"))
+        assertEquals("1 file added in this capture", captureAttachmentsDetail(1, null, idAdded = false, tagAdded = null))
+        assertEquals("2 files added in this capture, and the :ID: added to inbox.org", captureAttachmentsDetail(2, "inbox.org", idAdded = true, tagAdded = null))
+        assertEquals(
+            "1 file added in this capture, and the :ID: and :ATTACH: tag added to Trip",
+            captureAttachmentsDetail(1, "Trip", idAdded = true, tagAdded = "ATTACH"),
+        )
+        assertEquals(
+            "1 file added in this capture, and the :receipt: tag added to Trip",
+            captureAttachmentsDetail(1, "Trip", idAdded = false, tagAdded = "receipt"),
+        )
     }
 }
