@@ -177,6 +177,7 @@ class OrgSyntaxHighlight(
                     LineSpan(SpanStyle(color = colors.synLink, textDecoration = TextDecoration.Underline), s, e)
                 )
                 InlineType.TIMESTAMP -> add(LineSpan(SpanStyle(color = colors.synTs), s, e))
+                InlineType.MATH -> add(LineSpan(SpanStyle(color = colors.synKw), s, e))
             }
         }
     }

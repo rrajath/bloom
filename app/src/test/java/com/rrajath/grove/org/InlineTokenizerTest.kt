@@ -1,6 +1,8 @@
 package com.rrajath.grove.org
 
+import com.rrajath.grove.org.math.MathKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -128,5 +130,51 @@ class InlineTokenizerTest {
         val link = tokens.first { it.type == InlineType.LINK }
         assertEquals("https://example.com/path/to/thing", link.target)
         assertTrue(tokens.none { it.type == InlineType.ITALIC })
+    }
+
+    @Test
+    fun `inline math is one token that keeps its raw source`() {
+        val tokens = InlineTokenizer.tokenize("let ${'$'}x^2${'$'} be")
+        assertEquals(listOf(InlineType.TEXT, InlineType.MATH, InlineType.TEXT), tokens.map { it.type })
+        val math = tokens[1]
+        assertEquals("${'$'}x^2${'$'}", math.text)
+        assertEquals("x^2", math.math!!.body)
+        assertEquals(MathKind.INLINE, math.math!!.kind)
+        assertNull(tokens[0].math)
+    }
+
+    @Test
+    fun `math tokens keep offsets aligned with the rendered text`() {
+        val line = "a ${'$'}\\alpha${'$'} b \\(c\\) d ${'$'}${'$'}e${'$'}${'$'}"
+        val tokens = InlineTokenizer.tokenize(line)
+        assertEquals(line.length, tokens.sumOf { it.range.last - it.range.first + 1 })
+        assertEquals(line, tokens.joinToString("") { it.text })
+        assertEquals(listOf(MathKind.INLINE, MathKind.INLINE, MathKind.DISPLAY), tokens.mapNotNull { it.math?.kind })
+    }
+
+    @Test
+    fun `markup characters inside math are not emphasis`() {
+        assertEquals(listOf(InlineType.MATH), types("${'$'}a +b+ c${'$'}"))
+        assertEquals(listOf(InlineType.MATH), types("${'$'}x_i * y_i${'$'}"))
+        assertEquals(listOf(InlineType.MATH), types("${'$'}a /b/ c${'$'}"))
+    }
+
+    @Test
+    fun `emphasis outside math still works`() {
+        assertEquals(
+            listOf(InlineType.BOLD, InlineType.TEXT, InlineType.MATH),
+            types("*bold* and ${'$'}x${'$'}"),
+        )
+    }
+
+    @Test
+    fun `prices stay plain text`() {
+        assertEquals(listOf(InlineType.TEXT), types("costs ${'$'}5 and ${'$'}10"))
+    }
+
+    @Test
+    fun `a link keeps priority over math that overlaps it`() {
+        val tokens = InlineTokenizer.tokenize("[[https://x.io/${'$'}a${'$'}][label]]")
+        assertEquals(listOf(InlineType.LINK), tokens.map { it.type })
     }
 }

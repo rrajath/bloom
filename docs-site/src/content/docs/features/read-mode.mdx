@@ -28,6 +28,20 @@ Bloom parses the note's org markup and renders it through a custom `AnnotatedStr
 - Tag pills (wrapping onto more lines when there are many), TODO/keyword chip, and priority tag at the top
 - Collapsible drawers (`:LOGBOOK:`, `:PROPERTIES:`): tap to expand
 
+## Math
+
+LaTeX in a note is typeset in place, using the same rules Emacs Org uses to find it:
+
+- `$x^2$` and `\(x^2\)` are inline: the formula sits in the line of text.
+- `$$x^2$$` and `\[x^2\]` stand alone on their own centered line. A wide one scrolls sideways.
+- `\begin{align} … \end{align}` and the other math environments (`equation`, `aligned`, `gather`, `multline`, `split`, `cases`, `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, `array`) also stand alone.
+
+A single `$` only opens a formula when the text right after it and right before the closing `$` isn't a space, so "it costs $5 and $10" stays plain text. Write `\$` for a literal dollar sign.
+
+Bloom typesets the formula itself, with no WebView or bundled JavaScript, so it works offline. It covers Greek letters and the usual symbols, sub- and superscripts, `\frac`, `\binom`, `\sqrt`, `\sum` / `\int` / `\lim` with limits, `\left … \right` and `\big` delimiters, accents (`\hat`, `\bar`, `\vec`, `\tilde`, `\overline`, `\underbrace`, …), `\text`, `\mathrm` / `\mathbf` / `\mathbb` / `\mathcal` / `\operatorname`, spacing commands, and matrices, `cases` and `align`. It does not run macros (`\newcommand`) or packages such as TikZ. A command Bloom doesn't know is shown as written, and a formula that can't be typeset at all stays as its source. `\mathcal` and `\mathbb` letters come from Unicode's math alphabets, so they need a system font that has them.
+
+A formula never changes which way a line reads: a Persian line that starts with one still lays out right-to-left. Double-tap a formula to edit it, like any other text. Edit mode shows the LaTeX source, colored. Turn typesetting off in [Notes settings](/features/notes-behavior#read-mode-display-toggles) and Read mode shows the source too.
+
 ## Right-to-left text
 
 Notes in Persian, Arabic, Hebrew and other right-to-left languages read naturally. Each line takes its direction from its first letter, so a Persian line sits on the right while an English line in the same note stays on the left. List items and headings follow their text too: a right-to-left item puts its bullet or checkbox on the right, and a right-to-left heading puts its TODO keyword and priority beside the title's first word. Tables whose first cell text is right-to-left run their columns from the right, and quote blocks align each line to its own direction. Source and example blocks always stay left-to-right.

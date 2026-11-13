@@ -26,6 +26,7 @@ Bloom tokenizes each line and applies color per syntax element as you type:
 - Timestamps (`<...>`, `[...]`)
 - Tags (`:work:planning:`)
 - Property-drawer keys and `:LOGBOOK:` contents
+- LaTeX math (`$x^2$`, `\(…\)`) on a single line, in its own color; the formula itself is typeset in [Read mode](/features/read-mode#math)
 
 This is implemented with a custom `VisualTransformation` over a `BasicTextField`; there's no separate preview pane, the highlighting applies directly to the text you're editing.
 

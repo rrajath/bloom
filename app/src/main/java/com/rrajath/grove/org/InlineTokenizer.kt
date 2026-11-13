@@ -1,21 +1,28 @@
 package com.rrajath.grove.org
 
+import com.rrajath.grove.org.math.MathFragment
+import com.rrajath.grove.org.math.MathFragments
+
 enum class InlineType {
-    TEXT, BOLD, ITALIC, UNDERLINE, STRIKETHROUGH, CODE, VERBATIM, LINK, TIMESTAMP,
+    TEXT, BOLD, ITALIC, UNDERLINE, STRIKETHROUGH, CODE, VERBATIM, LINK, TIMESTAMP, MATH,
 }
 
 /**
  * One inline span of a tokenized line.
  *
  * @param range char range in the source string (includes markers/brackets)
- * @param text display text (markers stripped; link label or target)
+ * @param text display text (markers stripped; link label or target). For
+ *  [InlineType.MATH] it is the raw source, delimiters included, so plain-text
+ *  consumers (notification titles, widgets) show the formula as written.
  * @param target link target (for [InlineType.LINK])
+ * @param math the parsed fragment (for [InlineType.MATH]): its body and whether it is display math
  */
 data class InlineToken(
     val range: IntRange,
     val type: InlineType,
     val text: String,
     val target: String? = null,
+    val math: MathFragment? = null,
 )
 
 /**
@@ -74,6 +81,13 @@ object InlineTokenizer {
             val target = m.groupValues[1]
             val label = m.groupValues[2].takeIf { it.isNotEmpty() }
             InlineToken(m.range, InlineType.LINK, label ?: target, target)
+        }
+        // LaTeX fragments claim their characters before the emphasis/URL/timestamp passes
+        // so `$a_i + b_i$` isn't read as markup. A link (above) still wins an overlap.
+        for (fragment in MathFragments.find(line)) {
+            if (fragment.range.any { claimed[it] }) continue
+            found.add(InlineToken(fragment.range, InlineType.MATH, line.substring(fragment.range), math = fragment))
+            for (i in fragment.range) claimed[i] = true
         }
         addAll(TIMESTAMP) { m ->
             OrgTimestamp.parse(m.value)?.let {

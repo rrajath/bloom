@@ -57,6 +57,9 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+- LaTeX math in Read mode: `$x^2$` and `\(x^2\)` are typeset inline with the text, while `$$x^2$$`, `\[x^2\]` and `\begin{align}`-style environments (matrices, `cases`, `gather`, …) get their own centered line. Turn it off in Settings › Notes → Render math (thanks @nimaaskarian)
+
 ## [1.14.0] - 2026-11-08
 
 ### Added

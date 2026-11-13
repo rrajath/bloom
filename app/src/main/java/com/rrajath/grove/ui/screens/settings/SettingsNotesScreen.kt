@@ -48,6 +48,7 @@ fun SettingsNotesScreen(
     onSetEditModeFontSize: (FontSizePreference) -> Unit,
     onSetShowPreface: (Boolean) -> Unit,
     onSetShowPropertyDrawers: (Boolean) -> Unit,
+    onSetRenderMath: (Boolean) -> Unit,
     onSetAddId: (Boolean) -> Unit,
     onSetAddCreated: (Boolean) -> Unit,
     onSetNewNoteCursor: (NewNoteCursor) -> Unit,
@@ -174,6 +175,13 @@ fun SettingsNotesScreen(
                 description = "Display :PROPERTIES: drawers in org files",
                 checked = settings.showPropertyDrawers,
                 onToggle = onSetShowPropertyDrawers,
+            )
+            RowDivider()
+            ToggleRow(
+                label = "Render math",
+                description = "Typeset LaTeX such as \$x^2\$, \\[ … \\] and \\begin{align} in read mode",
+                checked = settings.renderMath,
+                onToggle = onSetRenderMath,
             )
         }
         Spacer(Modifier.height(20.dp))

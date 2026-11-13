@@ -98,6 +98,7 @@ import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.PendingEdit
 import com.rrajath.grove.ui.vault.wholeFileLineLimitOverride
 import com.rrajath.grove.ui.theme.ContentFontScale
+import com.rrajath.grove.ui.theme.LocalRenderMath
 import com.rrajath.grove.ui.theme.GroveTheme
 import com.rrajath.grove.ui.theme.resolveForSystem
 import com.rrajath.grove.ui.theme.grove
@@ -156,8 +157,10 @@ fun GroveApp(
     GroveTheme(theme = activeTheme) {
         // App-wide text-size baseline: scales every sp-sized text under one lever.
         // The per-mode read/edit levers nest inside this and compound on top.
-        ContentFontScale(loaded.appFontSize) {
-            GroveNavigation(loaded, viewModel, deepLinkIntent, onDeepLinkConsumed)
+        CompositionLocalProvider(LocalRenderMath provides loaded.renderMath) {
+            ContentFontScale(loaded.appFontSize) {
+                GroveNavigation(loaded, viewModel, deepLinkIntent, onDeepLinkConsumed)
+            }
         }
     }
 }
@@ -1026,6 +1029,7 @@ private fun GroveNavigation(
                     onSetEditModeFontSize = viewModel::setEditModeFontSize,
                     onSetShowPreface = viewModel::setShowPreface,
                     onSetShowPropertyDrawers = viewModel::setShowPropertyDrawers,
+                    onSetRenderMath = viewModel::setRenderMath,
                     onSetAddId = viewModel::setAddIdToNewNotes,
                     onSetAddCreated = viewModel::setAddCreatedToNewNotes,
                     onSetNewNoteCursor = viewModel::setNewNoteCursor,
