@@ -1,0 +1,92 @@
+---
+title: 'Bloom 1.15.0: attachments, the org-attach way'
+# Noon UTC: a bare date is UTC midnight and renders as the previous day when built west of UTC.
+date: 2026-11-14T12:00:00Z
+authors: rrajath
+tags:
+  - release
+excerpt: 'Version 1.15.0 teaches attachments to follow :DIR: like org-attach, brings the paperclip to capture, adds Outline narrowing from a swipe, and fixes a pile of capture and storage bugs.'
+---
+
+1.14.0 put attachments into Bloom. 1.15.0 makes them behave the way an Emacs user expects. Folders now come from `:DIR:` properties up the tree, changing a `:DIR:` moves the files, and refiling never strands a link. You can attach files while capturing, choose your attachment folder and tag, and narrow the Outline with a swipe. Discard now means discard. The release also fixes a long list of bugs, including one that kept making copies of your inbox file.
+
+## Attachments
+
+Attachments are still a **Preview**. The [Attachments guide](/features/attachments) covers everything below in full.
+
+### Attach while capturing, and from the Intro
+
+The paperclip is now on the capture editor's toolbar. Files attach to the heading your cursor is in. If the capture has no heading, they attach to the heading or file the template targets. If you discard the capture, the confirmation has an **Also delete attachments** checkbox, checked by default, so a thrown-away capture doesn't leave orphaned photos behind. The Intro editor, for the text above a file's first heading, has the paperclip too. Files you attach there belong to the file itself, using its `:DIR:` or `:ID:`.
+
+### Folders follow :DIR:, like org-attach
+
+Bloom now resolves attachment folders the way Emacs's `org-attach` does with property inheritance on. A heading without its own `:DIR:` uses the nearest parent's, then the one in the file's property drawer. A `:DIR:` beats the heading's own `:ID:`, so files go to the shared folder and no new `:ID:` is added. When the folder comes from somewhere else, the attach sheet says so under **Attach to**, for example *Folder from \* Trip*. The guide lists the Emacs settings that give you the same behavior on your laptop.
+
+### Changing :DIR: moves the files
+
+If a heading or file already has attachments and you add, change or remove its `:DIR:`, Bloom moves the files when you save. A popup names the destination, with folder names in accent-colored monospace so they don't read like heading names. Child headings that got their folder from the one you edited move along with it, and a child left with nothing to resolve gets a new `:ID:`. If you remove both `:ID:` and `:DIR:` from a heading, Bloom warns you that its links will break and leaves the files where they are. Folders another heading still uses are copied instead of moved, so no other note loses its files.
+
+### Refiling keeps links working
+
+Refiling or archiving a heading whose attachments live in an inherited `:DIR:` used to risk broken links at the destination. Now Bloom writes that `:DIR:` onto the heading, adjusted for where it lands (for example `:DIR: ../Notes/photos`). Nothing is written when the destination resolves to the same folder anyway. Undo takes it back off.
+
+### Attachment folder and tag settings
+
+**Settings › Attachments** has a new Org-attach compatibility section with two settings. **Attachment folder** sets where `:ID:` folders go, matching Emacs's `org-attach-id-dir`; it's `data/` by default, and existing attachments keep opening when you change it. **Attachment tag** sets the tag a heading gets when you attach files to it. It's `ATTACH` by default, like `org-attach-auto-tag`, so tag searches and the Agenda can find headings with attachments, and you can leave it empty for no tag. Hints and errors in these dialogs, and in every other name dialog, now line up with the field's edge.
+
+### A tidier attach sheet
+
+Rows in the attach sheet no longer show the file size. Long file names and source paths now wrap instead of being cut off, so you can tell similar files apart.
+
+## Outline
+
+### Narrow from the swipe panel
+
+Swipe a heading left and there's a new **Narrow** button. It narrows the outline to that heading and its subheadings, and Back widens it again. You can narrow step by step into a deep tree and back out one level at a time. See [Narrowing to a subtree](/features/outline-view#narrowing-to-a-subtree).
+
+### Double-tap for the whole file
+
+Double-tap the empty space below the Outline's last heading to open the whole-file view, the same as **View file** in the overflow menu. Files too large for that view show the same hint as a toast. Tips & Tricks has a new Outline section explaining the gesture.
+
+## Read mode
+
+### A shortcut back to Notebooks
+
+The Read mode breadcrumb now starts with **Notebooks**. Tap it to jump straight back to the Notebooks screen, however deep you've gone. If you have unsaved edits, you get the usual save prompt first.
+
+## Editing
+
+### Turn off heading auto-capitalization
+
+Bloom capitalizes the first letter you type into a heading, including right after a TODO keyword. That's still the default, but **Settings › Notes › Auto-capitalize headings** now lets you turn it off and leave capitalization to your keyboard. It applies to every editor: notes, whole files, Dailies and capture. See [Notes behavior](/features/notes-behavior#auto-capitalize-headings).
+
+### Discard really discards
+
+Auto-save writes your edits to disk as you type, so choosing Discard when leaving an editor used to keep whatever it had already saved. Now Discard puts the file back the way it was when you opened it or last saved. A brand-new note you discard is deleted.
+
+### The metadata sheet says what it edits
+
+The [metadata sheet](/features/metadata-sheet) now shows the heading it edits at the top, led by its org stars, so it's clear which heading the chips change. With several headings selected it shows how many. It also refuses tags org can't read, like ones with spaces or colons, and tells you why.
+
+## Capture templates
+
+### Faster target file editing
+
+Target file fields in the template editor have a clear button. It empties the field and reopens the notebook list, so switching targets takes one tap instead of deleting the old name. The "Insert at" options are also more compact and take less vertical space. See [Capture templates](/features/capture-templates).
+
+## Fixes
+
+- Capturing into `inbox.org` when the file is named `Inbox.org` now writes to `Inbox.org` instead of creating `inbox (2).org` copies. Android shared storage treats names that differ only in case as the same file, and Bloom now does too.
+- The same goes for folders: a path like `projects/` now uses an existing `Projects/` folder instead of creating `projects (1)`.
+- Favorites keep working after their file is renamed or moved, whether in Bloom or outside it.
+- Quickly double-tapping Back no longer leaves a blank white screen. Taps on a screen that's in the middle of a transition are now ignored.
+- Headings you delete in the editor after an auto-save no longer linger in the file or get duplicated.
+- Pressing Back in the capture editor now saves and closes. It only asks first while an attachment is still copying.
+- Captures under a heading show their real heading depth, and sub-headings you type stay nested under the captured entry.
+- Picking a notebook from a Target file suggestion now puts the cursor at the end of the name.
+- The attach sheet's Vault view now lists files in other notebooks' `:DIR:` folders.
+- The attach sheet's This file and Vault views now offer Delete on the current heading's own files.
+
+## Full changelog
+
+The complete list of changes is in the [1.15.0 release on GitHub](https://github.com/rrajath/bloom/releases/tag/v1.15.0).
