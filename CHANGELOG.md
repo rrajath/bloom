@@ -57,6 +57,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-11-14
+
 ### Added
 - Settings › Notes › Auto-capitalize headings (on by default); turn it off to let your keyboard decide capitalization.
 - The attach paperclip is now in the capture editor; captures without a heading attach to the target heading or file.
