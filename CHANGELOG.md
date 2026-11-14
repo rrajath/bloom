@@ -59,7 +59,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Added
 - Settings › Notes › Auto-capitalize headings (on by default); turn it off to let your keyboard decide capitalization.
-- The attach paperclip is now in Dailies and the capture editor; captures without a heading attach to the target heading or file.
+- The attach paperclip is now in the capture editor; captures without a heading attach to the target heading or file.
 - Settings › Attachments › Attachment folder sets where attachments go, matching Emacs's `org-attach-id-dir`.
 - Discarding a capture can also delete the files attached during it.
 - A Narrow button in the Outline swipe panel narrows the outline to that heading; Back widens again.
@@ -85,7 +85,6 @@ re-uploads the APKs to the existing release instead of failing.
 - Hints and errors under name fields in dialogs now line up with the field's edge instead of its text.
 
 ### Fixed
-- Dailies Read mode now shows attached images inline.
 - The attach sheet's Vault scope now lists files in other notebooks' `:DIR:` folders.
 - Picking a notebook from a Target file suggestion list now puts the cursor at the end of the name.
 - Pressing back in the capture editor now saves and closes, asking only while an attachment is still copying.
