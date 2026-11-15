@@ -374,13 +374,25 @@ class Vault(
      * [save] that reports a failure as a [StorageError] instead of throwing, for
      * callers that tell the user why the text wasn't saved. Nothing is written
      * and the cache is untouched on failure.
+     *
+     * With [ifMatch] (a [revision] the caller based [content] on), the write only
+     * happens if the file is still at that revision; otherwise, or if the file is
+     * gone, [StorageError.Conflict]. The check lives in the backend: stat then
+     * write on SAF, an atomic `If-Match` on a backend that has one.
      */
-    suspend fun trySave(fileName: String, content: String, parsed: OrgDocument? = null): StorageResult<Unit> {
+    suspend fun trySave(
+        fileName: String,
+        content: String,
+        parsed: OrgDocument? = null,
+        ifMatch: String? = null,
+    ): StorageResult<Unit> {
         // On a case-insensitive store `inbox.org` is an existing `Inbox.org`: write
         // that file under its real name (the line-ending memo and cache key on it).
         var name = store.canonicalName(fileName)
         // A new file is created with its content in one step (one upload on a lazy-create provider).
         val createdWithContent = if (store.stat(name) == null) {
+            // It was there when the caller read it: something removed it since.
+            if (ifMatch != null) return StorageError.Conflict(null)
             val created = store.createWithContent(name, content)
             // NameTaken: the file turned up under another spelling meanwhile; write to that one.
             if (created is StorageError && created != StorageError.NameTaken) return created
@@ -390,7 +402,7 @@ class Vault(
             false
         }
         if (!createdWithContent) {
-            val written = store.write(name, content)
+            val written = store.write(name, content, ifMatch)
             if (written is StorageError) return written
         }
         val entry = if (parsed != null) store.stat(name) else null

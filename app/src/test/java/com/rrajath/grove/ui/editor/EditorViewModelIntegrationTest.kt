@@ -771,13 +771,19 @@ class EditorViewModelIntegrationTest {
             StorageError.Unsupported(StorageOp.Write),
             StorageError.ProviderError("nope"),
             StorageError.AuthFailed,
-            StorageError.Conflict("1:2"),
         )) {
             store.failWith(StorageOp.Write, kind)
             vm.save()
             advanceUntilIdle()
             assertEquals(kind, vm.state.value.saveError)
         }
+        // A conditional write that finds the file moved is the stale-file banner, not a save error.
+        vm.dismissSaveError()
+        store.failWith(StorageOp.Write, StorageError.Conflict("1:2"))
+        vm.save()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.staleFile)
+        assertNull(vm.state.value.saveError)
     }
 
     @Test
@@ -810,5 +816,117 @@ class EditorViewModelIntegrationTest {
         sync.setState(SyncState.Idle)
         advanceUntilIdle()
         assertFalse(vm.offline.value)
+    }
+
+    /** Lands [race] (an external edit) just before the editor's next write reaches the store. */
+    private class RacingStore(private val inner: FakeFileStore) : com.rrajath.grove.vault.FileStore by inner {
+        var race: (suspend () -> Unit)? = null
+        override suspend fun write(
+            name: String,
+            content: String,
+            ifMatch: String?,
+        ): com.rrajath.grove.vault.storage.StorageResult<String> {
+            race?.let { race = null; it() }
+            return inner.write(name, content, ifMatch)
+        }
+    }
+
+    @Test
+    fun `an edit landing between the check and the write is caught by the write`() = runTest {
+        val racing = RacingStore(store)
+        vaultFlow.value = Vault(racing, parseDispatcher = mainDispatcherRule.dispatcher)
+        val line = headlineLine("projects.org", "Ship v2")
+        val vm = editor()
+        vm.load(NoteRef("projects.org", line))
+        advanceUntilIdle()
+
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** NEXT Mine\n")
+        racing.race = { store.write("projects.org", store.read("projects.org") + "* Theirs\n") }
+        vm.save()
+        advanceUntilIdle()
+
+        assertTrue("the write's own check should flag the race", vm.state.value.staleFile)
+        val onDisk = store.read("projects.org")
+        assertTrue(onDisk.contains("* Theirs"))
+        assertFalse("nothing was written over the external edit", onDisk.contains("*** NEXT Mine"))
+    }
+
+    @Test
+    fun `a marker that moves between the check and the write gets one fresh check`() = runTest {
+        val racing = RacingStore(store)
+        vaultFlow.value = Vault(racing, parseDispatcher = mainDispatcherRule.dispatcher)
+        val line = headlineLine("projects.org", "Ship v2")
+        val vm = editor()
+        vm.load(NoteRef("projects.org", line))
+        advanceUntilIdle()
+
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** NEXT Mine\n")
+        racing.race = { store.touch("projects.org") }
+        vm.save()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.staleFile)
+        assertTrue(store.read("projects.org").contains("*** NEXT Mine"))
+    }
+
+    @Test
+    fun `compare shows the file against what overwrite would write, and keep both merges them`() = runTest {
+        val line = headlineLine("projects.org", "Ship v2")
+        val vm = editor()
+        vm.load(NoteRef("projects.org", line))
+        advanceUntilIdle()
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** NEXT Mine\n")
+        store.write("projects.org", store.read("projects.org") + "* Theirs\n")
+        vm.save()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.staleFile)
+
+        vm.compareStale()
+        advanceUntilIdle()
+        val compare = assertNotNullOf(vm.state.value.staleCompare)
+        assertEquals(store.read("projects.org"), compare.fileText)
+        assertTrue(compare.mineText.contains("*** NEXT Mine"))
+        assertTrue("mine is spliced into the file as it is now", compare.mineText.contains("* Theirs"))
+
+        var reloaded = false
+        vm.keepBothStale(onDone = { reloaded = true })
+        advanceUntilIdle()
+
+        assertTrue(reloaded)
+        val onDisk = store.read("projects.org")
+        assertTrue(onDisk.contains("*** NEXT Mine"))
+        assertTrue(onDisk.contains("* Theirs"))
+        assertNull(vm.state.value.staleCompare)
+        assertFalse(vm.state.value.staleFile)
+        assertFalse(vm.state.value.dirty)
+    }
+
+    @Test
+    fun `keep both refreshes compare instead of writing when the file moved again`() = runTest {
+        val line = headlineLine("projects.org", "Ship v2")
+        val vm = editor()
+        vm.load(NoteRef("projects.org", line))
+        advanceUntilIdle()
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** NEXT Mine\n")
+        store.write("projects.org", store.read("projects.org") + "* Theirs\n")
+        vm.save()
+        advanceUntilIdle()
+        vm.compareStale()
+        advanceUntilIdle()
+
+        store.write("projects.org", store.read("projects.org") + "* Theirs again\n")
+        val before = store.read("projects.org")
+        var reloaded = false
+        vm.keepBothStale(onDone = { reloaded = true })
+        advanceUntilIdle()
+
+        assertFalse(reloaded)
+        assertEquals(before, store.read("projects.org"))
+        assertEquals(before, vm.state.value.staleCompare?.fileText)
+    }
+
+    private fun <T : Any> assertNotNullOf(value: T?): T {
+        assertNotNull(value)
+        return value!!
     }
 }

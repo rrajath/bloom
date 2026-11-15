@@ -387,4 +387,32 @@ class VaultTest {
         assertEquals(StorageError.ProviderError(null), Vault(store).deleteFolder("old"))
         assertEquals(listOf("old/a.org"), store.snapshot().keys.toList())
     }
+
+    @Test
+    fun `trySave with ifMatch writes only over the revision the caller read`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* One\n"))
+        val v = Vault(store)
+        val read = v.revision("a.org")!!
+
+        store.write("a.org", "* Changed elsewhere\n")
+        val refused = v.trySave("a.org", "* Mine\n", ifMatch = read)
+
+        assertTrue(refused is StorageError.Conflict)
+        assertEquals("* Changed elsewhere\n", store.read("a.org"))
+
+        val now = v.revision("a.org")!!
+        assertTrue(v.trySave("a.org", "* Mine\n", ifMatch = now).isOk)
+        assertEquals("* Mine\n", store.read("a.org"))
+    }
+
+    @Test
+    fun `trySave with ifMatch on a file deleted meanwhile is a conflict, not a create`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* One\n"))
+        val v = Vault(store)
+        val read = v.revision("a.org")!!
+        store.delete("a.org")
+
+        assertEquals(StorageError.Conflict(null), v.trySave("a.org", "* Mine\n", ifMatch = read))
+        assertFalse(store.exists("a.org"))
+    }
 }

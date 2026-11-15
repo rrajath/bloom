@@ -73,6 +73,7 @@ import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.ui.editor.EditorBottomMarginLines
 import com.rrajath.grove.ui.editor.EditorViewModel
 import com.rrajath.grove.ui.editor.OrgSyntaxHighlight
+import com.rrajath.grove.ui.editor.StaleCompareHost
 import com.rrajath.grove.ui.editor.WholeFileEditorBody
 import com.rrajath.grove.ui.editor.WordAtCursor
 import com.rrajath.grove.ui.editor.filterAutoLinkSuggestions
@@ -572,6 +573,9 @@ fun DailyNoteScreen(
                     )
 
                     val offline by editorViewModel.offline.collectAsStateWithLifecycle()
+                    StaleCompareHost(editState, editorViewModel, onReload = {
+                        editorViewModel.loadRegion(n.fileName, null, EditRegion.WHOLE_FILE)
+                    })
                     WholeFileEditorBody(
                         readOnly = offline,
                         onRetrySave = { editorViewModel.save() },
@@ -590,6 +594,7 @@ fun DailyNoteScreen(
                             editorViewModel.dismissStale()
                             editorViewModel.loadRegion(n.fileName, null, EditRegion.WHOLE_FILE)
                         },
+                        onCompareStale = editorViewModel::compareStale,
                         editModeFontSize = editModeFontSize,
                         capitalizeHeadings = capitalizeHeadings,
                         showBacklinks = false, // this screen's own bottom bar owns Backlinks (Task 17)

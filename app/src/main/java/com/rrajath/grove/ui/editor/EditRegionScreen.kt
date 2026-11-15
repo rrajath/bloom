@@ -435,6 +435,7 @@ fun EditRegionScreen(
                 return@Column
             }
             val offline by viewModel.offline.collectAsStateWithLifecycle()
+            StaleCompareHost(state, viewModel, onReload = { viewModel.loadRegion(fileName, noteId, region, blockLine) })
             WholeFileEditorBody(
                 readOnly = offline,
                 onRetrySave = { viewModel.save() },
@@ -451,6 +452,7 @@ fun EditRegionScreen(
                 onClearAutoLinkTrigger = { autoLinkTrigger = null },
                 onOverwriteStale = { viewModel.save(force = true) },
                 onReloadStale = { viewModel.dismissStale(); viewModel.loadRegion(fileName, noteId, region, blockLine) },
+                onCompareStale = viewModel::compareStale,
                 editModeFontSize = editModeFontSize,
                 capitalizeHeadings = capitalizeHeadings,
                 showBacklinks = showBacklinks,
@@ -549,6 +551,7 @@ internal fun WholeFileEditorBody(
     onClearAutoLinkTrigger: () -> Unit,
     onOverwriteStale: () -> Unit,
     onReloadStale: () -> Unit,
+    onCompareStale: () -> Unit,
     editModeFontSize: FontSizePreference,
     capitalizeHeadings: Boolean,
     showBacklinks: Boolean,
@@ -646,7 +649,7 @@ internal fun WholeFileEditorBody(
             )
         }
         if (state.staleFile) {
-            StaleFileBanner(onOverwrite = onOverwriteStale, onReload = onReloadStale)
+            StaleFileBanner(onOverwrite = onOverwriteStale, onReload = onReloadStale, onCompare = onCompareStale)
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             ContentFontScale(editModeFontSize) {
@@ -793,41 +796,3 @@ internal fun WholeFileEditorBody(
     }
 }
 
-@Composable
-private fun StaleFileBanner(onOverwrite: () -> Unit, onReload: () -> Unit) {
-    val c = MaterialTheme.grove
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(11.dp))
-            .background(c.amberSoft)
-            .border(1.dp, c.amber, RoundedCornerShape(11.dp))
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            "File changed on disk while editing",
-            fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            "Overwrite",
-            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
-            color = c.red,
-            modifier = Modifier
-                .clip(RoundedCornerShape(7.dp))
-                .clickable(onClick = onOverwrite)
-                .padding(6.dp),
-        )
-        Text(
-            "Reload",
-            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
-            color = c.accent,
-            modifier = Modifier
-                .clip(RoundedCornerShape(7.dp))
-                .clickable(onClick = onReload)
-                .padding(6.dp),
-        )
-    }
-}

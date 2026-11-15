@@ -106,7 +106,7 @@ fun ConflictScreen(
                     ),
                 )
                 Spacer(Modifier.height(18.dp))
-                PrimaryButton("Done", onClick = onBack)
+                ConflictPrimaryButton("Done", onClick = onBack)
             }
 
             is ConflictUiState.Loaded -> Column(
@@ -141,7 +141,7 @@ fun ConflictScreen(
                 }
                 Spacer(Modifier.height(16.dp))
 
-                UnifiedDiffCard(
+                ConflictDiffCard(
                     dateLabel = s.copyLabel,
                     current = s.currentText,
                     copy = s.copyText,
@@ -149,16 +149,16 @@ fun ConflictScreen(
                 Spacer(Modifier.height(18.dp))
 
                 // Actions
-                PrimaryButton("Keep both (merge under CONFLICT)") {
+                ConflictPrimaryButton("Keep both (merge under CONFLICT)") {
                     viewModel.resolve(s.fileName, ConflictResolution.KEEP_BOTH)
                 }
                 Spacer(Modifier.height(10.dp))
                 Row {
-                    SecondaryButton("Keep current", Modifier.weight(1f)) {
+                    ConflictSecondaryButton("Keep current", Modifier.weight(1f)) {
                         viewModel.resolve(s.fileName, ConflictResolution.KEEP_CURRENT)
                     }
                     Spacer(Modifier.width(10.dp))
-                    SecondaryButton("Keep copy", Modifier.weight(1f)) {
+                    ConflictSecondaryButton("Keep copy", Modifier.weight(1f)) {
                         viewModel.resolve(s.fileName, ConflictResolution.KEEP_CONFLICT_COPY)
                     }
                 }
@@ -205,17 +205,28 @@ private fun computeUnifiedDiff(current: String, copy: String): List<DiffRow> {
     return rows
 }
 
+/**
+ * The conflict screen's unified diff, [current] (red, "-") against [copy]
+ * (green, "+"), under a "[currentLabel] → [copyLabel] · [dateLabel]" caption.
+ * Also the editors' stale-file Compare view.
+ */
 @Composable
-private fun UnifiedDiffCard(dateLabel: String, current: String, copy: String) {
+internal fun ConflictDiffCard(
+    dateLabel: String?,
+    current: String,
+    copy: String,
+    currentLabel: String = "CURRENT VERSION",
+    copyLabel: String = "CONFLICT COPY",
+) {
     val c = MaterialTheme.grove
     val rows = remember(current, copy) { computeUnifiedDiff(current, copy) }
     Column {
         Text(
             buildAnnotatedString {
-                withStyle(SpanStyle(color = c.red)) { append("CURRENT VERSION") }
+                withStyle(SpanStyle(color = c.red)) { append(currentLabel) }
                 append(" → ")
-                withStyle(SpanStyle(color = c.green)) { append("CONFLICT COPY") }
-                append(" · $dateLabel")
+                withStyle(SpanStyle(color = c.green)) { append(copyLabel) }
+                if (dateLabel != null) append(" · $dateLabel")
             },
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp, letterSpacing = 0.8.sp, color = c.ink3,
@@ -294,7 +305,7 @@ private fun DiffLineRow(row: DiffRow.Line) {
 }
 
 @Composable
-private fun PrimaryButton(label: String, onClick: () -> Unit) {
+internal fun ConflictPrimaryButton(label: String, onClick: () -> Unit) {
     val c = MaterialTheme.grove
     Box(
         Modifier
@@ -314,7 +325,7 @@ private fun PrimaryButton(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SecondaryButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun ConflictSecondaryButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = MaterialTheme.grove
     Box(
         modifier

@@ -1,7 +1,9 @@
 package com.rrajath.grove.ui.editor
 
+import com.rrajath.grove.sync.ConflictResolver
 import com.rrajath.grove.sync.SyncState
 import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageResult
 import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachDirMoves
 import com.rrajath.grove.attach.AttachFileContext
@@ -75,6 +77,18 @@ import java.time.LocalDateTime
  */
 enum class EditRegion { INTRO, PREFACE, FILE_PROPERTIES, HEADING_PROPERTIES, HEADING_LOGBOOK, BLOCK, WHOLE_FILE }
 
+/**
+ * The stale-file Compare view: the file as it is now against the file as this
+ * editor's save would write it. Both are whole files, so "keep both" can merge
+ * them with the conflict screen's line merge. [fileRevision] is the revision
+ * [fileText] was read at; the merge is only written over that revision.
+ */
+data class StaleCompare(
+    val fileText: String,
+    val mineText: String,
+    val fileRevision: String?,
+)
+
 data class EditorUiState(
     val loading: Boolean = true,
     val fileName: String = "",
@@ -120,6 +134,8 @@ data class EditorUiState(
     val error: String? = null,
     /** File changed on disk since load; offer overwrite (Force Save). */
     val staleFile: Boolean = false,
+    /** The stale-file banner's Compare view, while open. */
+    val staleCompare: StaleCompare? = null,
     /**
      * Why the last save didn't reach the file; null once a save succeeds. The
      * buffer stays dirty, so nothing typed is lost and the next save retries.
@@ -828,34 +844,24 @@ class EditorViewModel(
         if (lastExplicitBuffer == s.buffer && patch != null) lastExplicitBuffer = patch.buffer
     }
 
-    /** @return true when the buffer is on disk (including "already was"). */
-    private suspend fun writeBuffer(force: Boolean, explicit: Boolean): Boolean {
-        val s = _state.value
-        if (s.error != null) return false
-        // Another save (e.g. the idle auto-save that fired while the leave
-        // dialog was up) got there first; the caller's "then leave" follow-up
-        // is still owed.
-        if (!s.dirty) return true
-        val vault = vaultFlow.value ?: return false
-        // The exact text this save is responsible for. Anything typed after
-        // this line belongs to the next save, not this one.
-        val savedBuffer = s.buffer
-        val markerRevision = vault.revision(s.fileName)
-        // A moved marker with the same text isn't a change (see loadedContentHash):
-        // carry on as if it hadn't moved, so the owned span still applies.
-        val currentRevision = if (markerRevision != s.loadedRevision && vault.hasContent(s.fileName, s.loadedContentHash)) {
-            s.loadedRevision
-        } else {
-            markerRevision
-        }
-        if (!force && currentRevision != s.loadedRevision) {
-            _state.update { it.copy(staleFile = true) }
-            return false
-        }
+    /** The whole file as a save of [savedBuffer] would write it, and the lines the buffer then occupies. */
+    private data class ComposedSave(val text: String, val writtenSpan: IntRange?)
+
+    /**
+     * Splices [savedBuffer] into the file as it is now ([currentRevision] decides
+     * whether [EditorUiState.ownedSpan] still applies). Null when the file
+     * can't be opened.
+     */
+    private suspend fun composeSave(
+        s: EditorUiState,
+        vault: Vault,
+        savedBuffer: String,
+        currentRevision: String?,
+    ): ComposedSave? {
         // Parsing and the subtree splice are pure CPU on a whole file; keep them
         // off the main thread so a large notebook can't stall the keyboard
         // mid-keystroke while an auto-save runs.
-        // Subtree editor: the file lines this save wrote, which become the next ownedSpan.
+        // Subtree editor: the file lines this save writes, which become the next ownedSpan.
         var writtenSpan: IntRange? = null
         val newText = if (s.region == EditRegion.WHOLE_FILE) {
             // The buffer *is* the file: nothing to open, nothing to splice —
@@ -911,13 +917,61 @@ class EditorViewModel(
                 // withContext block (and its vault.open) ever runs.
                 EditRegion.WHOLE_FILE -> error("WHOLE_FILE is handled before this withContext block")
             }
-        } ?: return false
-        val written = vault.trySave(s.fileName, newText)
-        if (written is StorageError) {
-            // Keep the buffer dirty and say why: the next save (the idle timer, or
-            // Save) retries, and nothing the user typed is dropped.
-            _state.update { it.copy(saveError = written) }
-            return false
+        } ?: return null
+        return ComposedSave(newText, writtenSpan)
+    }
+
+    /** @return true when the buffer is on disk (including "already was"). */
+    private suspend fun writeBuffer(force: Boolean, explicit: Boolean): Boolean {
+        val s = _state.value
+        if (s.error != null) return false
+        // Another save (e.g. the idle auto-save that fired while the leave
+        // dialog was up) got there first; the caller's "then leave" follow-up
+        // is still owed.
+        if (!s.dirty) return true
+        val vault = vaultFlow.value ?: return false
+        // The exact text this save is responsible for. Anything typed after
+        // this line belongs to the next save, not this one.
+        val savedBuffer = s.buffer
+        // Two tries: the check below and the write's own revision check can see
+        // different markers when a provider moves its mtime on its own between
+        // them (Seafile refreshing a listing), so a Conflict from the write gets
+        // one fresh check before the file counts as changed elsewhere.
+        var newText = ""
+        var writtenSpan: IntRange? = null
+        for (attempt in 1..2) {
+            val markerRevision = vault.revision(s.fileName)
+            // A moved marker with the same text isn't a change (see loadedContentHash):
+            // carry on as if it hadn't moved, so the owned span still applies.
+            val currentRevision = if (markerRevision != s.loadedRevision && vault.hasContent(s.fileName, s.loadedContentHash)) {
+                s.loadedRevision
+            } else {
+                markerRevision
+            }
+            if (!force && currentRevision != s.loadedRevision) {
+                _state.update { it.copy(staleFile = true) }
+                return false
+            }
+            val composed = composeSave(s, vault, savedBuffer, currentRevision) ?: return false
+            newText = composed.text
+            writtenSpan = composed.writtenSpan
+            // The write itself refuses if the file moved past the marker just
+            // checked; Overwrite (force) writes unconditionally.
+            val written = vault.trySave(s.fileName, newText, ifMatch = if (force) null else markerRevision)
+            if (written is StorageError.Conflict) {
+                if (attempt == 2) {
+                    _state.update { it.copy(staleFile = true) }
+                    return false
+                }
+                continue
+            }
+            if (written is StorageError) {
+                // Keep the buffer dirty and say why: the next save (the idle timer, or
+                // Save) retries, and nothing the user typed is dropped.
+                _state.update { it.copy(saveError = written) }
+                return false
+            }
+            break
         }
         val newRevision = vault.revision(s.fileName)
         // Only this one file changed and we hold its new text: reindex it
@@ -990,6 +1044,63 @@ class EditorViewModel(
     /** [EditorUiState.ownedSpan], if the file is still the revision it describes and the span fits it. */
     private fun ownedSpanIn(doc: OrgDocument, s: EditorUiState, revision: String?): IntRange? =
         s.ownedSpan?.takeIf { revision == s.loadedRevision && it.first >= 0 && it.last < doc.lines.size }
+
+    /**
+     * Opens the stale-file banner's Compare view: the file now against what
+     * Overwrite would write. Under the save lock, so no save lands mid-read.
+     */
+    fun compareStale() {
+        viewModelScope.launch {
+            saveMutex.withLock {
+                val s = _state.value
+                val vault = vaultFlow.value ?: return@withLock
+                val revision = vault.revision(s.fileName) ?: return@withLock
+                val fileText = vault.open(s.fileName)?.text ?: return@withLock
+                val mine = composeSave(s, vault, s.buffer, revision) ?: return@withLock
+                _state.update { it.copy(staleCompare = StaleCompare(fileText, mine.text, revision)) }
+            }
+        }
+    }
+
+    fun closeCompare() {
+        _state.update { it.copy(staleCompare = null) }
+    }
+
+    /**
+     * Compare's "Keep both": writes the line merge of the file and this editor's
+     * version (both sides of every difference kept, as on the conflict screen),
+     * then [onDone] reloads the editor from it. If the file moved again since
+     * Compare read it, the view is refreshed instead and nothing is written.
+     */
+    fun keepBothStale(onDone: () -> Unit) {
+        val compare = _state.value.staleCompare ?: return
+        viewModelScope.launch {
+            val saved = saveMutex.withLock {
+                val s = _state.value
+                val vault = vaultFlow.value ?: return@withLock false
+                val merged = withContext(dispatchers.default) {
+                    ConflictResolver.keepBoth(mainText = compare.fileText, conflictText = compare.mineText)
+                }
+                when (val written = vault.trySave(s.fileName, merged, ifMatch = compare.fileRevision)) {
+                    is StorageResult.Ok -> {
+                        sync.requestReindex(s.fileName, merged, "kept both versions")
+                        _state.update { it.copy(staleCompare = null, staleFile = false, dirty = false, saveError = null) }
+                        true
+                    }
+                    is StorageError.Conflict -> false
+                    is StorageError -> {
+                        _state.update { it.copy(staleCompare = null, saveError = written) }
+                        null
+                    }
+                }
+            }
+            when (saved) {
+                true -> onDone()
+                false -> compareStale()
+                null -> Unit
+            }
+        }
+    }
 
     fun dismissStale() {
         _state.update { it.copy(staleFile = false) }

@@ -496,8 +496,10 @@ fun EditNoteScreen(
                 StaleFileBanner(
                     onOverwrite = { viewModel.save(force = true) },
                     onReload = { viewModel.dismissStale(); viewModel.load(noteRef) },
+                    onCompare = viewModel::compareStale,
                 )
             }
+            StaleCompareHost(state, viewModel, onReload = { viewModel.load(noteRef) })
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 // The field owns its own vertical scrolling (rather than being
                 // wrapped in Modifier.verticalScroll): that is what lets Compose
@@ -872,45 +874,6 @@ private fun charOffsetForLine(buffer: String, bufferStartLine: Int, targetLineIn
     var offset = 0
     for (i in 0 until relativeLine) offset += lines[i].length + 1
     return offset
-}
-
-@Composable
-private fun StaleFileBanner(onOverwrite: () -> Unit, onReload: () -> Unit) {
-    val c = MaterialTheme.grove
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(11.dp))
-            .background(c.amberSoft)
-            .border(1.dp, c.amber, RoundedCornerShape(11.dp))
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            "File changed on disk while editing",
-            fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            "Overwrite",
-            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
-            color = c.red,
-            modifier = Modifier
-                .clip(RoundedCornerShape(7.dp))
-                .clickable(onClick = onOverwrite)
-                .padding(6.dp),
-        )
-        Text(
-            "Reload",
-            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
-            color = c.accent,
-            modifier = Modifier
-                .clip(RoundedCornerShape(7.dp))
-                .clickable(onClick = onReload)
-                .padding(6.dp),
-        )
-    }
 }
 
 /**
