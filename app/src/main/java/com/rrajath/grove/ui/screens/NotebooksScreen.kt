@@ -876,6 +876,17 @@ private fun SyncStatusIcon(state: NotebooksUiState.Loaded, context: android.cont
                 Icon(Icons.Default.Warning, contentDescription = "Sync issue", tint = c.amber)
             }
         }
+        is SyncState.Offline -> {
+            // Same amber warning as an error: the notebooks shown are the last indexed ones.
+            // The proper offline banner and read-only mode arrive with the typed-results work.
+            IconButton(
+                onClick = {
+                    Toast.makeText(context, "Can't reach the vault: ${sync.reason}", Toast.LENGTH_SHORT).show()
+                },
+            ) {
+                Icon(Icons.Default.Warning, contentDescription = "Vault unavailable", tint = c.amber)
+            }
+        }
         is SyncState.Checking -> {
             IconButton(
                 onClick = { Toast.makeText(context, "Checking for changes…", Toast.LENGTH_SHORT).show() },

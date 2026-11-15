@@ -2,6 +2,7 @@ package com.rrajath.grove.vault
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.vault.storage.SafFileStore
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

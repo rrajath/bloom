@@ -1,25 +1,30 @@
-package com.rrajath.grove.vault
+package com.rrajath.grove.vault.storage
 
 import com.rrajath.grove.attach.AttachSkipRoots
+import com.rrajath.grove.vault.FileEntry
+import com.rrajath.grove.vault.FileStore
+import com.rrajath.grove.vault.IgnorePatterns
+import com.rrajath.grove.vault.SKIP_ATTACH_SHARDS
+import com.rrajath.grove.vault.TreeListing
+import com.rrajath.grove.vault.isSkippedVaultDir
 import android.annotation.SuppressLint
 import android.content.Context
-import android.database.ContentObserver
-import android.database.Cursor
 import android.net.Uri
 import android.os.Build
-import android.os.SystemClock
 import android.provider.DocumentsContract
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
-import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Semaphore
 
 /**
  * Storage Access Framework implementation over a persisted tree URI
@@ -45,6 +50,8 @@ class SafFileStore(
     attachRoots: AttachSkipRoots = AttachSkipRoots.DataOnly,
     /** Monotonic millis, for how long a raw file id counts as just verified. */
     private val now: () -> Long = android.os.SystemClock::elapsedRealtime,
+    /** Where listings come from; tests shorten the loading deadline through it. */
+    private val backend: StorageBackend = SafBackend(context, treeUri),
 ) : FileStore {
 
     private val skipRoots = attachRoots.takeIf { skipAttachShards }
@@ -97,101 +104,68 @@ class SafFileStore(
         DocumentsContract.Document.COLUMN_MIME_TYPE,
     )
 
-    override suspend fun list(): List<FileEntry> = withContext(Dispatchers.IO) {
-        listMutex.withLock { listTree() }
+    override suspend fun list(): List<FileEntry> = listTree().entries
+
+    /**
+     * Walks the whole tree, a few folders at a time so slow (loading) ones
+     * overlap. A folder the provider couldn't finish listing ([Listing.Partial]
+     * or [Listing.Failed]) is reported in [TreeListing.incompleteDirs] and keeps
+     * its cached ids: absence under it proves nothing, so the caches merge
+     * instead of being replaced, and [listed] stays false until a walk is whole.
+     */
+    override suspend fun listTree(): TreeListing = withContext(Dispatchers.IO) {
+        listMutex.withLock { walkTree() }
     }
 
-    private fun listTree(): List<FileEntry> {
-        val files = mutableMapOf<String, String>()
-        val dirs = mutableMapOf("" to rootDocId)
-        val entries = mutableListOf<FileEntry>()
-        val queue = ArrayDeque<Pair<String, String>>() // relativeDir to docId
-        queue.add("" to rootDocId)
-        while (queue.isNotEmpty()) {
-            val (dir, docId) = queue.removeFirst()
-            queryChildreen(docId).use { cursor ->
-                while (cursor.moveToNext()) {
-                    val childDocId = cursor.getString(0)
-                    val name = cursor.getString(1) ?: continue
-                    val mime = cursor.getString(4)
-                    val path = if (dir.isEmpty()) name else "$dir/$name"
-                    if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
-                        if (isSkippedVaultDir(name, dir, skipRoots) || ignore.isDirIgnored(name, path)) continue
-                        dirs[path] = childDocId
-                        queue.add(path to childDocId)
-                    } else {
-                        if (ignore.isFileIgnored(name, path)) continue
-                        files[path] = childDocId
-                        entries.add(FileEntry(path, cursor.getLong(2), cursor.getLong(3)))
+    private suspend fun walkTree(): TreeListing {
+        val files = ConcurrentHashMap<String, String>()
+        val dirs = ConcurrentHashMap<String, String>().apply { put("", rootDocId) }
+        val entries = java.util.Collections.synchronizedList(mutableListOf<FileEntry>())
+        val incomplete: MutableSet<String> = ConcurrentHashMap.newKeySet()
+        var rootReason: String? = null
+        val permits = Semaphore(WALK_CONCURRENCY)
+
+        coroutineScope {
+            fun CoroutineScope.visit(dir: String, docId: String) {
+                launch {
+                    val listing = permits.withPermit { backend.listChildren(docId) }
+                    when (listing) {
+                        is Listing.Complete -> Unit
+                        is Listing.Partial -> {
+                            incomplete += dir
+                            if (dir.isEmpty()) rootReason = "The provider is still loading the vault"
+                        }
+                        is Listing.Failed -> {
+                            incomplete += dir
+                            if (dir.isEmpty()) rootReason = listing.reason
+                        }
+                    }
+                    for (child in listing.entries) {
+                        val path = childPath(dir, child.name)
+                        if (child.isDir) {
+                            if (isSkippedVaultDir(child.name, dir, skipRoots) || ignore.isDirIgnored(child.name, path)) continue
+                            dirs[path] = child.docId
+                            visit(path, child.docId)
+                        } else {
+                            if (ignore.isFileIgnored(child.name, path)) continue
+                            files[path] = child.docId
+                            entries.add(FileEntry(path, child.lastModified, child.size))
+                        }
                     }
                 }
             }
-        }
-        docIds = ConcurrentHashMap(files)
-        dirDocIds = ConcurrentHashMap(dirs)
-        listed = true
-        return entries.sortedBy { it.name }
-    }
-
-    private fun queryChildreen(docId: String): Cursor {
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
-
-        // I suspect seafile type sync-apps send completions notifications on URIs out of tree
-        val notificationUri =
-            DocumentsContract.buildChildDocumentsUri(requireNotNull(treeUri.authority), docId)
-
-        // increases whenever the external app finishes the loading
-        val loadCompletion = Semaphore(0)
-        val observer = object : ContentObserver(null) {
-            override fun onChange(selfChange: Boolean) {
-                loadCompletion.release()
-            }
+            visit("", rootDocId)
         }
 
-        val timeout = 15_000L // I assume 15sec is enough time
-        val deadline = SystemClock.elapsedRealtime() + timeout
+        // Keep what we knew under any folder we couldn't finish listing.
+        fun underIncomplete(path: String) = incomplete.any { it.isEmpty() || path.startsWith("$it/") }
+        docIds.forEach { (path, id) -> if (underIncomplete(path)) files.putIfAbsent(path, id) }
+        dirDocIds.forEach { (path, id) -> if (path.isNotEmpty() && underIncomplete(path)) dirs.putIfAbsent(path, id) }
 
-        try {
-            // observe 1st; query after;
-            resolver.registerContentObserver(notificationUri, true, observer)
-            if (childrenUri != notificationUri)
-                resolver.registerContentObserver(childrenUri, true, observer)
-
-            while (true) {
-                val cursor = resolver.query(childrenUri, projection, null, null, null)
-                    ?: throw IOException("Sync dir app gave a null cursor")
-
-                var done = false
-                try {
-                    val extras = cursor.extras
-
-                    extras?.getString(DocumentsContract.EXTRA_ERROR)?.let {
-                        throw IOException("Sync dir app error: $it")
-                    }
-
-                    val isLoading = extras.getBoolean(DocumentsContract.EXTRA_LOADING, false)
-                    done = !isLoading
-
-                    if (done)
-                        return cursor
-                } finally {
-                    if (!done)
-                        cursor.close()
-                }
-
-                val msg = "Sync dir app timed out on loading"
-                val remainingDuration = deadline - SystemClock.elapsedRealtime()
-                val timedOut = remainingDuration <= 0
-                if (timedOut)
-                    throw IOException(msg)
-
-                if (!loadCompletion.tryAcquire(remainingDuration, TimeUnit.MILLISECONDS))
-                    throw IOException(msg)
-
-            }
-        } finally {
-            resolver.unregisterContentObserver(observer)
-        }
+        docIds = files
+        dirDocIds = dirs
+        listed = incomplete.isEmpty()
+        return TreeListing(entries.sortedBy { it.name }, incomplete.toSet(), rootReason)
     }
 
 
@@ -217,34 +191,32 @@ class SafFileStore(
         entries.sortedBy { it.name }
     }
 
-    /** Direct children files of the directory [docId] (at relative path [dir]),
-     *  or null if the provider rejects the id. */
-    private fun queryDir(dir: String, docId: String): List<FileEntry>? {
+    /**
+     * Direct children files of the directory [docId] (at relative path [dir]),
+     * or null if the provider rejects the id or can't be reached. The cache
+     * only forgets vanished children when the listing is [Listing.Complete]:
+     * a partial one proves nothing about what's missing.
+     */
+    private suspend fun queryDir(dir: String, docId: String): List<FileEntry>? {
         val entries = mutableListOf<FileEntry>()
         val seenFiles = mutableSetOf<String>()
         val seenDirs = mutableSetOf<String>()
-        val cursor = try {
-            queryChildreen(docId)
-        } catch (e: java.io.FileNotFoundException) {
-            return null
-        }
-        cursor.use {
-            while (it.moveToNext()) {
-                val childDocId = it.getString(0)
-                val name = it.getString(1) ?: continue
-                val path = if (dir.isEmpty()) name else "$dir/$name"
-                if (it.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    if (isSkippedVaultDir(name, dir, skipRoots) || ignore.isDirIgnored(name, path)) continue
-                    dirDocIds[path] = childDocId
-                    seenDirs += path
-                } else {
-                    if (ignore.isFileIgnored(name, path)) continue
-                    docIds[path] = childDocId
-                    seenFiles += path
-                    entries.add(FileEntry(path, it.getLong(2), it.getLong(3)))
-                }
+        val listing = backend.listChildren(docId)
+        if (listing is Listing.Failed) return null
+        for (child in listing.entries) {
+            val path = childPath(dir, child.name)
+            if (child.isDir) {
+                if (isSkippedVaultDir(child.name, dir, skipRoots) || ignore.isDirIgnored(child.name, path)) continue
+                dirDocIds[path] = child.docId
+                seenDirs += path
+            } else {
+                if (ignore.isFileIgnored(child.name, path)) continue
+                docIds[path] = child.docId
+                seenFiles += path
+                entries.add(FileEntry(path, child.lastModified, child.size))
             }
         }
+        if (listing !is Listing.Complete) return entries
         val prefix = if (dir.isEmpty()) "" else "$dir/"
         fun isDirectChild(path: String) = path.startsWith(prefix) && '/' !in path.removePrefix(prefix)
         docIds.keys.removeAll { isDirectChild(it) && it !in seenFiles }
@@ -264,7 +236,7 @@ class SafFileStore(
      * full [list]. Null if any segment is missing, skipped, or ignored,
      * matching what [list] would surface.
      */
-    private fun lookupDir(dir: String): DirRef? {
+    private suspend fun lookupDir(dir: String): DirRef? {
         if (dir.isEmpty()) return DirRef("", rootDocId)
         var current = DirRef("", rootDocId)
         for (segment in dir.split('/')) {
@@ -334,17 +306,11 @@ class SafFileStore(
         }
     }
 
-    private fun findChildDir(parent: DirRef, name: String): DirRef? =
-        queryChildreen(parent.docId).use { cursor ->
-            var found: DirRef? = null
-            while (found == null && cursor.moveToNext()) {
-                val childName = cursor.getString(1) ?: continue
-                if (sameName(childName, name) && cursor.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    found = DirRef(childPath(parent.path, childName), cursor.getString(0))
-                }
-            }
-            found
-        }
+    /** The subdirectory [name] of [parent]; null when absent in what the provider listed, or when it couldn't list. */
+    private suspend fun findChildDir(parent: DirRef, name: String): DirRef? =
+        backend.listChildren(parent.docId).entries
+            .firstOrNull { it.isDir && sameName(it.name, name) }
+            ?.let { DirRef(childPath(parent.path, it.name), it.docId) }
 
     override suspend fun stat(name: String): FileEntry? = withContext(Dispatchers.IO) {
         val key = resolve(name) ?: return@withContext null
@@ -525,14 +491,16 @@ class SafFileStore(
         }
     }
 
-    /** Deletes [path] if it has no child documents. Returns whether it was removed. */
-    private fun removeDirIfEmpty(path: String): Boolean {
+    /**
+     * Deletes [path] if the provider confirms it has no child documents.
+     * Returns whether it was removed. A listing that is still loading, partial
+     * or failed is not "empty": deleting then could take real files with it.
+     */
+    private suspend fun removeDirIfEmpty(path: String): Boolean {
         val docId = dirDocIds[path] ?: return false
 
-        val isEmpty = queryChildreen(docId).use { cursor ->
-            !cursor.moveToFirst()
-        }
-        if (!isEmpty) return false
+        val listing = backend.listChildren(docId)
+        if (listing !is Listing.Complete || listing.entries.isNotEmpty()) return false
 
         val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
         val removed = runCatching {
@@ -710,15 +678,17 @@ class SafFileStore(
         return cursor.use { if (it.moveToFirst()) metaOf(it, docId) else null }
     }
 
-    /** Children of [docId], or null when the provider rejects the id. */
-    private fun queryChildren(docId: String): List<DocMeta>? {
-        val uri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
-        val cursor = runCatching { resolver.query(uri, projection, null, null, null) }.getOrNull()
-            ?: return null
-        return cursor.use {
-            buildList { while (it.moveToNext()) metaOf(it, "")?.takeIf { m -> m.docId.isNotEmpty() }?.let(::add) }
-        }
+    /** A directory's children as the raw side sees them, and whether the provider finished listing. */
+    private class RawChildren(val metas: List<DocMeta>, val complete: Boolean)
+
+    /** Children of [docId], or null when the provider rejects the id or can't be reached. */
+    private suspend fun queryChildren(docId: String): RawChildren? {
+        val listing = backend.listChildren(docId)
+        if (listing is Listing.Failed) return null
+        return RawChildren(listing.entries.map { it.toMeta() }, complete = listing is Listing.Complete)
     }
+
+    private fun DocEntry.toMeta() = DocMeta(docId, name, lastModified, size, isDir)
 
     private fun remember(path: String, meta: DocMeta) {
         if (meta.isDir) {
@@ -761,7 +731,7 @@ class SafFileStore(
     }
 
     /** Metadata for whatever is at [path] (file or directory), or null. Never consults skip rules. */
-    private fun rawLookup(path: String): DocMeta? {
+    private suspend fun rawLookup(path: String): DocMeta? {
         if (path.isEmpty()) return queryDoc(rootDocId)
         val leaf = path.substringAfterLast('/')
         val cached = rawFileIds[path] ?: rawDirIds[path] ?: docIds[path] ?: dirDocIds[path]
@@ -782,11 +752,12 @@ class SafFileStore(
     }
 
     /** Finds [leaf] among the children of [parentDocId] (at [parentPath]), caching every child seen. */
-    private fun rawChild(parentPath: String, parentDocId: String, leaf: String): DocMeta? {
+    private suspend fun rawChild(parentPath: String, parentDocId: String, leaf: String): DocMeta? {
         var found: DocMeta? = null
         val children = queryChildren(parentDocId) ?: return null
-        recordListing(parentPath, children)
-        children.forEach { child ->
+        // Only a finished listing may answer "missing" for later lookups.
+        if (children.complete) recordListing(parentPath, children.metas)
+        children.metas.forEach { child ->
             val childPath = if (parentPath.isEmpty()) child.name else "$parentPath/${child.name}"
             remember(childPath, child)
             if (child.name == leaf) found = child
@@ -795,7 +766,7 @@ class SafFileStore(
     }
 
     /** Document id of directory [path], creating it and missing ancestors. Null on failure or a file in the way. */
-    private fun ensureRawDir(path: String): String? {
+    private suspend fun ensureRawDir(path: String): String? {
         if (path.isEmpty()) return rootDocId
         rawLookup(path)?.let { return if (it.isDir) it.docId else null }
         val parentId = ensureRawDir(path.substringBeforeLast('/', "")) ?: return null
@@ -809,7 +780,7 @@ class SafFileStore(
         return docId
     }
 
-    private fun rawFileUri(name: String): Uri? {
+    private suspend fun rawFileUri(name: String): Uri? {
         val path = name.trim('/')
         val id = freshFileId(path) ?: rawLookup(path)?.takeIf { !it.isDir }?.docId ?: return null
         return DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
@@ -897,14 +868,31 @@ class SafFileStore(
         rawChildren(dir.trim('/')).filter { it.second.isDir }.map { it.second.name }.sorted()
     }
 
-    /** (path, meta) for each child of directory [path]; empty when it isn't a directory. */
-    private fun rawChildren(path: String): List<Pair<String, DocMeta>> {
+    /**
+     * True only when the provider finished listing [dir] and it holds nothing.
+     * Unlike an empty [listDirRaw], a loading, partial or failed listing is not
+     * "empty": callers delete directories on this answer.
+     */
+    override suspend fun isDirEmptyRaw(dir: String): Boolean = withContext(Dispatchers.IO) {
+        val path = dir.trim('/')
+        val docId = if (path.isEmpty()) rootDocId else rawLookup(path)?.takeIf { it.isDir }?.docId
+            ?: return@withContext false
+        val listing = backend.listChildren(docId)
+        listing is Listing.Complete && listing.entries.isEmpty()
+    }
+
+    /**
+     * (path, meta) for each child of directory [path]; empty when it isn't a
+     * directory. A listing the provider didn't finish returns the rows it had
+     * (use [isDirEmptyRaw], not emptiness of this, to decide a directory is empty).
+     */
+    private suspend fun rawChildren(path: String): List<Pair<String, DocMeta>> {
         val docId = if (path.isEmpty()) rootDocId else rawLookup(path)?.takeIf { it.isDir }?.docId
             ?: return emptyList()
         val prefix = if (path.isEmpty()) "" else "$path/"
         val children = queryChildren(docId) ?: return emptyList()
-        recordListing(path, children)
-        return children.map { child ->
+        if (children.complete) recordListing(path, children.metas)
+        return children.metas.map { child ->
             (prefix + child.name).let { childPath -> remember(childPath, child); childPath to child }
         }
     }
@@ -923,11 +911,11 @@ class SafFileStore(
      * directory (the platform's local-storage one does); for any that refuse
      * a non-empty one, empty it first and retry.
      */
-    private fun deleteTree(path: String, docId: String): Boolean {
+    private suspend fun deleteTree(path: String, docId: String): Boolean {
         val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
         if (runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, uri)) }.getOrDefault(false)) return true
         val children = queryChildren(docId) ?: return false
-        for (child in children) {
+        for (child in children.metas) {
             val childPath = "$path/${child.name}"
             val ok = if (child.isDir) {
                 deleteTree(childPath, child.docId)
@@ -978,11 +966,14 @@ class SafFileStore(
         deleteTree(srcPath, meta.docId).also { forgetTree(srcPath) }
     }
 
-    private fun copyTree(srcPath: String, srcDocId: String, dstPath: String): Boolean {
+    private suspend fun copyTree(srcPath: String, srcDocId: String, dstPath: String): Boolean {
         val dstId = ensureRawDir(dstPath) ?: return false
         val dstUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, dstId)
         val children = queryChildren(srcDocId) ?: return false
-        for (child in children) {
+        // The caller deletes the source after a successful copy: a copy from a
+        // listing that wasn't finished would silently drop the unseen files.
+        if (!children.complete) return false
+        for (child in children.metas) {
             if (child.isDir) {
                 if (!copyTree("$srcPath/${child.name}", child.docId, "$dstPath/${child.name}")) return false
                 continue
@@ -1014,6 +1005,9 @@ class SafFileStore(
 }
 
 private const val COPY_BUFFER = 64 * 1024
+
+/** Folders listed at once during a tree walk, so slow (loading) ones overlap. */
+private const val WALK_CONCURRENCY = 4
 
 /** How long a just-queried raw file id is reused for opens without another query. */
 internal const val RAW_FRESH_MS = 2_000L

@@ -38,7 +38,7 @@ import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.widget.CaptureNotification
 import com.rrajath.grove.vault.JvmFileStore
 import com.rrajath.grove.vault.LineEndingFileStore
-import com.rrajath.grove.vault.SafFileStore
+import com.rrajath.grove.vault.storage.SafFileStore
 import com.rrajath.grove.vault.TestVaultHook
 import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.widget.LedgerWidget

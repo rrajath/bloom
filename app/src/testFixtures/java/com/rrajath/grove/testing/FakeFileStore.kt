@@ -3,6 +3,7 @@ package com.rrajath.grove.testing
 import android.net.Uri
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
+import com.rrajath.grove.vault.TreeListing
 import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
@@ -26,7 +27,7 @@ import kotlinx.coroutines.sync.withLock
 class FakeFileStore(
     initial: Map<String, String> = emptyMap(),
     /** When true, [write] on a path with no existing entry throws — matching
-     *  [com.rrajath.grove.vault.SafFileStore]'s real contract (its `write` needs an
+     *  [com.rrajath.grove.vault.storage.SafFileStore]'s real contract (its `write` needs an
      *  already-resolved SAF document URI; only [create] makes one). Default false
      *  keeps every existing caller's permissive-write assumption unchanged. */
     private val strictWrite: Boolean = false,
@@ -59,6 +60,13 @@ class FakeFileStore(
             .map { (name, node) -> FileEntry(name, node.modified, node.content.length.toLong()) }
             .sortedBy { it.name }
     }
+
+    /** Always complete: an in-memory store never has a folder still loading. */
+    override suspend fun listTree(): TreeListing = TreeListing(list())
+
+    /** The attachment (raw) side isn't modelled here, like [listDirRaw]. */
+    override suspend fun isDirEmptyRaw(dir: String): Boolean =
+        throw UnsupportedOperationException("This FileStore doesn't support attachment file access")
 
     override suspend fun stat(name: String): FileEntry? = mutex.withLock {
         val key = normalize(name)

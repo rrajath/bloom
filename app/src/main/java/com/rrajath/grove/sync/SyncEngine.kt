@@ -25,6 +25,13 @@ sealed class SyncState {
     data class Pulling(val fileName: String, val index: Int, val total: Int) : SyncState()
     data class Done(val result: SyncResult) : SyncState()
     data class Error(val message: String) : SyncState()
+
+    /**
+     * The vault's provider couldn't list the root (unreachable, erroring, or
+     * still loading past the deadline). The index was left untouched, so the
+     * last known notebooks stay visible; nothing was removed.
+     */
+    data class Offline(val reason: String) : SyncState()
 }
 
 data class SyncResult(
@@ -33,6 +40,8 @@ data class SyncResult(
     /** Notebook file name → Syncthing conflict copy file name. */
     val conflicts: Map<String, String>,
     val completedAt: Long,
+    /** Folders the provider couldn't finish listing; their notebooks were left as indexed. */
+    val incompleteDirs: Set<String> = emptySet(),
 )
 
 /**
@@ -97,7 +106,16 @@ class SyncEngine(
     suspend fun sync(log: (String) -> Unit = {}): SyncResult? {
         _state.value = SyncState.Checking
         return try {
-            val entries = store.list()
+            val tree = store.listTree()
+            if ("" in tree.incompleteDirs) {
+                // Without the root there is nothing trustworthy to diff against:
+                // leave the index exactly as it was.
+                val reason = tree.rootProblem ?: "The vault's provider isn't available"
+                log("offline: $reason")
+                _state.value = SyncState.Offline(reason)
+                return null
+            }
+            val entries = tree.entries
 
             // Notebook file name -> conflict copy; non-.org conflict copies (an
             // image, a stray file Syncthing touched) are dropped here so they
@@ -117,7 +135,13 @@ class SyncEngine(
                 val k = known[it.name]
                 k == null || !k.isIndexed || k.revision != current[it.name]
             }
-            val removed = (known.keys - current.keys).toList()
+            // Absence under a folder the provider didn't finish listing proves
+            // nothing: those notebooks stay indexed.
+            val removed = (known.keys - current.keys).filterNot { tree.isUnderIncompleteDir(it) }
+            // A conflict copy we couldn't see is not a resolved conflict: keep the
+            // marker already on record for notebooks in such folders.
+            fun conflictFor(name: String): String? =
+                conflicts[name] ?: if (tree.isUnderIncompleteDir(name)) known[name]?.conflictFileName else null
 
             // Discovery/parse split: surface every newly-seen file as a stub in
             // ONE batch (a single notebooksFlow emission) so the list appears in
@@ -156,7 +180,7 @@ class SyncEngine(
                                 revision = current.getValue(entry.name),
                                 text = store.read(entry.name),
                                 lastModified = entry.lastModified,
-                                conflictFileName = conflicts[entry.name],
+                                conflictFileName = conflictFor(entry.name),
                             )
                             _state.value = SyncState.Pulling(entry.name, completed.incrementAndGet(), changed.size)
                             log("pulled ${entry.name}")
@@ -172,17 +196,19 @@ class SyncEngine(
             // (Syncthing dropping a .sync-conflict copy next to it).
             val changedNames = changed.mapTo(HashSet()) { it.name }
             notebooks.forEach { nb ->
-                if (nb.name !in changedNames && known[nb.name]?.conflictFileName != conflicts[nb.name]) {
-                    index.setConflict(nb.name, conflicts[nb.name])
+                if (nb.name !in changedNames && known[nb.name]?.conflictFileName != conflictFor(nb.name)) {
+                    index.setConflict(nb.name, conflictFor(nb.name))
                 }
             }
             conflicts.forEach { (base, copy) -> log("conflict: $base vs $copy") }
+            if (!tree.isComplete) log("incomplete listing under: ${tree.incompleteDirs.sorted()}")
 
             val result = SyncResult(
                 pulled = changed.map { it.name },
                 removed = removed,
                 conflicts = conflicts,
                 completedAt = clock(),
+                incompleteDirs = tree.incompleteDirs,
             )
             _state.value = SyncState.Done(result)
             result
@@ -196,7 +222,7 @@ class SyncEngine(
     /**
      * Re-index a single already-known file the caller just wrote, skipping the
      * whole-directory [list] + revision diff [sync] does. Reads only this file's
-     * metadata via [FileStore.stat] (which [com.rrajath.grove.vault.SafFileStore]
+     * metadata via [FileStore.stat] (which [com.rrajath.grove.vault.storage.SafFileStore]
      * serves as a targeted single-document query, not a full enumeration), so the
      * cost is independent of vault size. For the in-app single-note save path,
      * where the changed file and its new text are already in hand.

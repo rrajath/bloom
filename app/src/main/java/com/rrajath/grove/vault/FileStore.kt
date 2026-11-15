@@ -13,6 +13,27 @@ data class FileEntry(
 )
 
 /**
+ * A whole-vault listing and how far it can be trusted. [incompleteDirs] holds
+ * the vault-relative directories ("" is the root) the provider couldn't finish
+ * listing (still loading past the deadline, or an error): [entries] may be
+ * missing files under them and under their unreached subfolders, so a file's
+ * absence there proves nothing. Never delete or forget based on absence under
+ * one of them.
+ */
+data class TreeListing(
+    val entries: List<FileEntry>,
+    val incompleteDirs: Set<String> = emptySet(),
+    /** Why the root couldn't be listed completely; null when it could. */
+    val rootProblem: String? = null,
+) {
+    val isComplete: Boolean get() = incompleteDirs.isEmpty()
+
+    /** True when [path] sits in, or under, a directory that wasn't fully listed. */
+    fun isUnderIncompleteDir(path: String): Boolean =
+        incompleteDirs.any { it.isEmpty() || path.startsWith("$it/") }
+}
+
+/**
  * Abstraction over the sync directory. The app uses a Storage Access Framework
  * implementation; unit tests use [JvmFileStore].
  *
@@ -35,6 +56,14 @@ data class FileEntry(
 interface FileStore {
     /** All files in the vault, recursively (not filtered to .org; callers apply ignore rules). */
     suspend fun list(): List<FileEntry>
+
+    /**
+     * [list] plus which directories couldn't be fully listed. Anything that
+     * acts on a file's absence (sync dropping a notebook, pruning folders) must
+     * use this and honour [TreeListing.incompleteDirs]. The default suits
+     * stores whose listing is always complete.
+     */
+    suspend fun listTree(): TreeListing = TreeListing(list())
 
     /**
      * Files directly inside [dir] (a vault-relative directory, "" for the root),
@@ -140,6 +169,14 @@ interface FileStore {
 
     /** Names (leaves, not paths) of the directories directly inside [dir]. */
     suspend fun listSubdirs(dir: String): List<String> = unsupported()
+
+    /**
+     * True when [dir] is known to hold nothing. Callers delete a directory on
+     * this answer, so a store whose listing can be unfinished (a provider still
+     * loading) overrides it to say false then, where an empty [listDirRaw] would
+     * lie. The default suits stores that always list completely.
+     */
+    suspend fun isDirEmptyRaw(dir: String): Boolean = listDirRaw(dir).isEmpty() && listSubdirs(dir).isEmpty()
 
     /** Deletes [dir] and everything in it. Never the root. False if missing or refused. */
     suspend fun deleteDir(dir: String): Boolean = unsupported()

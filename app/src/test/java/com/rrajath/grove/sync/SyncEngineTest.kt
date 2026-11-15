@@ -4,6 +4,7 @@ import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.vault.JvmFileStore
+import com.rrajath.grove.vault.TreeListing
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -343,5 +344,81 @@ class SyncEngineTest {
         e.reindexOne("ghost.org", "* nope", conflictFileName = null)
 
         assertTrue(index.indexedOrder.isEmpty())
+    }
+
+    /** Hides everything under [incomplete] and reports those folders as unfinished, as a loading provider does. */
+    private fun storeWith(incomplete: Set<String>, rootProblem: String? = null): FileStore {
+        val inner = JvmFileStore(tmp.root)
+        return object : FileStore by inner {
+            override suspend fun listTree(): TreeListing {
+                val tree = TreeListing(inner.list(), incomplete, rootProblem)
+                return tree.copy(entries = tree.entries.filterNot { tree.isUnderIncompleteDir(it.name) })
+            }
+        }
+    }
+
+    @Test
+    fun `a folder the provider did not finish listing keeps its notebooks indexed`() = runTest {
+        File(tmp.root, "sub").mkdirs()
+        File(tmp.root, "a.org").writeText("* A")
+        File(tmp.root, "sub/b.org").writeText("* B")
+        File(tmp.root, "sub/deep").mkdirs()
+        File(tmp.root, "sub/deep/c.org").writeText("* C")
+        engine().sync()
+
+        val result = SyncEngine(storeWith(setOf("sub")), index) { now }.sync()!!
+
+        assertEquals(emptyList<String>(), result.removed)
+        assertEquals(setOf("sub"), result.incompleteDirs)
+        assertEquals(setOf("a.org", "sub/b.org", "sub/deep/c.org"), index.revisions.keys)
+    }
+
+    @Test
+    fun `a complete listing still removes a deleted notebook`() = runTest {
+        File(tmp.root, "sub").mkdirs()
+        File(tmp.root, "sub/b.org").writeText("* B")
+        engine().sync()
+        File(tmp.root, "sub/b.org").delete()
+
+        val result = SyncEngine(storeWith(emptySet()), index) { now }.sync()!!
+
+        assertEquals(listOf("sub/b.org"), result.removed)
+    }
+
+    @Test
+    fun `an unfinished root leaves the index untouched and reports Offline`() = runTest {
+        File(tmp.root, "a.org").writeText("* A")
+        engine().sync()
+        val before = index.revisions.toMap()
+        File(tmp.root, "a.org").delete()
+        val e = SyncEngine(storeWith(setOf(""), "Server unreachable"), index) { now }
+
+        val result = e.sync()
+
+        assertNull(result)
+        assertEquals(SyncState.Offline("Server unreachable"), e.state.value)
+        assertEquals(before, index.revisions)
+    }
+
+    @Test
+    fun `a conflict marker survives when the folder holding the copy was not fully listed`() = runTest {
+        File(tmp.root, "sub").mkdirs()
+        File(tmp.root, "sub/b.org").writeText("* B")
+        File(tmp.root, "sub/b.sync-conflict-20250611-143200-DEVICE.org").writeText("* other")
+        engine().sync()
+        val marker = index.conflicts["sub/b.org"]
+        assertNotNull(marker)
+
+        // The folder is now only partly visible: the notebook shows, its copy doesn't.
+        val inner = JvmFileStore(tmp.root)
+        val partial = object : FileStore by inner {
+            override suspend fun listTree() = TreeListing(
+                inner.list().filterNot { SyncConflicts.isConflictFile(it.name) },
+                incompleteDirs = setOf("sub"),
+            )
+        }
+        SyncEngine(partial, index) { now }.sync()
+
+        assertEquals(marker, index.conflicts["sub/b.org"])
     }
 }

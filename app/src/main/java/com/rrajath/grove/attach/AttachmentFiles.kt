@@ -123,7 +123,7 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
                 current = current.substringBeforeLast('/', "")
                 continue
             }
-            if (store.listDirRaw(current).isNotEmpty() || store.listSubdirs(current).isNotEmpty()) return
+            if (!store.isDirEmptyRaw(current)) return
             if (!store.deleteDir(current)) return
             current = current.substringBeforeLast('/', "")
         }
