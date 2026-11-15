@@ -79,6 +79,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Editing on Seafile no longer shows a false "file changed" banner or a stale outline after saving.
 - Saving on Seafile now catches an edit made on the web since you opened the note, instead of overwriting it.
 - Keep both in Compare now shows the merged text in the editor right away on Seafile.
+- An outline edit refused because the file changed elsewhere now says so, instead of confirming the edit.
 
 ## [1.15.0] - 2026-11-14
 

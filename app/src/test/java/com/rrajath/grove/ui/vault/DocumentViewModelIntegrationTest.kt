@@ -509,6 +509,23 @@ class DocumentViewModelIntegrationTest {
     }
 
     @Test
+    fun `a refused state change says so, not that the state changed`() = runTest {
+        store.write("projects.org", "* TODO Groceries\n* TODO Other\n")
+        val vm = loaded("projects.org")
+        val toasts = mutableListOf<OutlineToast?>()
+        backgroundScope.launch { vm.toast.toList(toasts) }
+        store.write("projects.org", "* TODO Groceries\n* TODO Other\n* TODO Added elsewhere\n")
+
+        vm.setState(headline(vm, "Groceries"), "DONE")
+        advanceUntilIdle()
+
+        val after = store.read("projects.org")
+        assertEquals("TODO", OrgParser.parse(after).headlines.first { it.title == "Groceries" }.keyword)
+        val last = toasts.lastOrNull { it != null }?.message.orEmpty()
+        assertTrue("the last message should be the conflict, was \"$last\"", last.contains("changed somewhere else"))
+    }
+
+    @Test
     fun `a state change and a checklist tap on the same note in quick succession both land`() = runTest {
         store.write("projects.org", "* TODO Groceries\n- [ ] milk\n- [ ] eggs\n* TODO Other\n")
         val vm = loaded("projects.org")

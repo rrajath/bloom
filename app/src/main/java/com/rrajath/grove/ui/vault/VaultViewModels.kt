@@ -1046,10 +1046,16 @@ class DocumentViewModel(
             is StorageError.Conflict -> {
                 showToast("The file changed somewhere else, so that edit wasn't saved")
                 load(fileName)
+                // Ends the mutation: its success message, undo snapshot and follow-up
+                // writes are for an edit that didn't happen. [mutate] catches it.
+                throw SaveRefused()
             }
             is StorageError -> throw StorageException(written)
         }
     }
+
+    /** [saveDoc] refused a write over a change made elsewhere; the user was told and the outline reloads. */
+    private class SaveRefused : RuntimeException()
 
     /** Show an already-parsed [document] immediately, with no disk round-trip; a
      *  following [load] still refreshes it (and is a no-op if nothing changed). */
@@ -1379,6 +1385,8 @@ class DocumentViewModel(
                     }
                     Mutation(live, path).block()
                 }
+            } catch (_: SaveRefused) {
+                // Already reported by saveDoc.
             } finally {
                 if (--editsInFlight == 0) editTrail.clear()
             }
