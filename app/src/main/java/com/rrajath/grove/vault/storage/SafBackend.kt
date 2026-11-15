@@ -8,13 +8,18 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * [StorageBackend] over the Storage Access Framework, for any documents
@@ -30,6 +35,8 @@ class SafBackend(
     private val treeUri: Uri,
     /** How long a loading directory is waited on before the listing is [Listing.Partial]. */
     private val listingDeadlineMs: Long = DEFAULT_LISTING_DEADLINE_MS,
+    /** How long before a listing that lost known names is checked again ([ProviderProfile.listingNotAtomic]). */
+    private val confirmDelayMs: Long = DEFAULT_CONFIRM_DELAY_MS,
     /**
      * The provider's declared quirks, by the tree's authority. On local storage
      * names match case-insensitively: there `inbox.org` *is* an existing
@@ -69,7 +76,58 @@ class SafBackend(
         class Failed(val listing: Listing.Failed) : Outcome
     }
 
-    override suspend fun listChildren(dirId: String): Listing = withContext(Dispatchers.IO) {
+    /** The listing running for each folder, which later callers share ([ProviderProfile.listingNotAtomic]). */
+    private val runningListings = ConcurrentHashMap<String, CompletableDeferred<Listing>>()
+
+    /** Names in each folder's last complete listing, to spot one that lost some ([ProviderProfile.listingNotAtomic]). */
+    private val lastListedNames = ConcurrentHashMap<String, Set<String>>()
+
+    override suspend fun listChildren(dirId: String): Listing {
+        if (!profile.listingNotAtomic) return fetchChildren(dirId)
+        while (true) {
+            val mine = CompletableDeferred<Listing>()
+            val running = runningListings.putIfAbsent(dirId, mine)
+            if (running != null) {
+                try {
+                    return running.await()
+                } catch (e: CancellationException) {
+                    // The caller that started it was cancelled, not this one: list again.
+                    currentCoroutineContext().ensureActive()
+                    continue
+                }
+            }
+            try {
+                return confirmedChildren(dirId).also { mine.complete(it) }
+            } catch (e: Throwable) {
+                mine.completeExceptionally(e)
+                throw e
+            } finally {
+                runningListings.remove(dirId, mine)
+            }
+        }
+    }
+
+    /**
+     * [fetchChildren], checked once more after [confirmDelayMs] when it's complete
+     * but lacks names the folder's last complete listing had: on a provider that
+     * rewrites its cache non-atomically, that's as likely a read mid-rewrite as a
+     * deletion. The second answer stands either way, so a real deletion shows.
+     */
+    private suspend fun confirmedChildren(dirId: String): Listing {
+        val first = fetchChildren(dirId)
+        if (first !is Listing.Complete) return first
+        val known = lastListedNames[dirId]
+        val listing = if (known != null && !first.entries.mapTo(HashSet()) { it.name }.containsAll(known)) {
+            delay(confirmDelayMs)
+            fetchChildren(dirId)
+        } else {
+            first
+        }
+        if (listing is Listing.Complete) lastListedNames[dirId] = listing.entries.mapTo(HashSet()) { it.name }
+        return listing
+    }
+
+    private suspend fun fetchChildren(dirId: String): Listing = withContext(Dispatchers.IO) {
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, dirId)
         val first = when (val outcome = query(childrenUri)) {
             is Outcome.Failed -> return@withContext outcome.listing
@@ -354,6 +412,7 @@ class SafBackend(
 
     companion object {
         const val DEFAULT_LISTING_DEADLINE_MS = 15_000L
+        const val DEFAULT_CONFIRM_DELAY_MS = 300L
 
         private val PROJECTION = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,

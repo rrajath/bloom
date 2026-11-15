@@ -104,6 +104,18 @@ class FakeDocumentsProvider : ContentProvider() {
     var statFromListing = false
     private val listedStat: MutableMap<String, Pair<Long, Long>> = ConcurrentHashMap()
 
+    /**
+     * Seafile 4.0.15's delete-then-insert listing refresh, caught mid-way: the
+     * next children query leaves out these names (relative paths), once.
+     */
+    val dropFromNextListing: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Children queries started; with [childrenQueryDelayMs], overlapping ones show up as a count above one. */
+    val childrenQueries = AtomicInteger()
+
+    /** How long each children query takes, so concurrent listings overlap. */
+    @Volatile var childrenQueryDelayMs = 0L
+
     /** When true, the first children query of every directory is a loading one. */
     var everyDirLoadsFirst = false
 
@@ -213,8 +225,12 @@ class FakeDocumentsProvider : ContentProvider() {
                 if (autoFinishLoadingMs >= 0 && autoFinishScheduled.add(docId)) finishLoadingLater(docId, autoFinishLoadingMs)
                 return cursor
             }
+            childrenQueries.incrementAndGet()
+            if (childrenQueryDelayMs > 0) Thread.sleep(childrenQueryDelayMs)
+            val dropped = dropFromNextListing.toSet().also { dropFromNextListing.removeAll(it) }
             f.listFiles().orEmpty().sortedBy { it.name }
                 .filter { it.relativeTo(root).invariantSeparatorsPath !in hiddenCreated }
+                .filter { it.relativeTo(root).invariantSeparatorsPath !in dropped }
                 .forEach { cursor.addFile(it, fromListing = true) }
         } else {
             if (!f.exists()) throw FileNotFoundException(docId)

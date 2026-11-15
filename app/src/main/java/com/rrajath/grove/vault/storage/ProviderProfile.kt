@@ -42,6 +42,13 @@ data class ProviderProfile(
      * must not overwrite an edit made elsewhere lists the folder first.
      */
     val statFromListingCache: Boolean = false,
+    /**
+     * Refreshing a folder listing rewrites the provider's cache non-atomically
+     * (entries deleted, then inserted), so a listing that overlaps another can
+     * come back complete but missing files. Listings of one folder are shared
+     * while one is running, and one that loses known names is confirmed.
+     */
+    val listingNotAtomic: Boolean = false,
 )
 
 /** The known providers, looked up by a vault tree URI's authority. */
@@ -71,6 +78,8 @@ object ProviderProfiles {
         folderCreateBroken = true,
         // queryDocument reads cached dirents; only an expired (5s) folder listing refetches them.
         statFromListingCache = true,
+        // Seadroid 4.0.15's getDirentsSingleFromServer: deleteAllByParentPath, then insertAll, no transaction.
+        listingNotAtomic = true,
     )
 
     /**
