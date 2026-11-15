@@ -41,6 +41,7 @@ import com.rrajath.grove.vault.JvmFileStore
 import com.rrajath.grove.vault.LineEndingFileStore
 import com.rrajath.grove.vault.storage.BackendFileStore
 import com.rrajath.grove.vault.storage.SafBackend
+import com.rrajath.grove.vault.storage.VaultLocation
 import com.rrajath.grove.vault.TestVaultHook
 import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.widget.LedgerWidget
@@ -231,20 +232,21 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
      */
     val fileStore: StateFlow<FileStore?> by lazy {
         combine(
-            settingsRepository.settings.map { it.vaultTreeUri }.distinctUntilChanged(),
+            settingsRepository.settings.map { it.vaultLocation }.distinctUntilChanged(),
             settingsRepository.settings.map { it.ignoreList }.distinctUntilChanged(),
             TestVaultHook.root,
             // Like the ignore list, a new config builds a new store: fresh listing caches, and
             // SyncManager.attach requests the sync that reindexes under the new shard skip.
             // Null until settings load, so a store never exists under a stand-in config.
             attachConfigSource.config,
-        ) { uriString, ignoreListText, testRoot, attachConfig ->
+        ) { location, ignoreListText, testRoot, attachConfig ->
             val ignore = IgnorePatterns(ignoreListText)
             val attachRoots = attachConfig?.let { com.rrajath.grove.attach.AttachSkipRoots.of(it) }
             when {
                 attachRoots == null -> null
                 testRoot != null -> JvmFileStore(testRoot, ignore, attachRoots = attachRoots)
-                uriString != null -> BackendFileStore(SafBackend(this, uriString.toUri()), ignore, attachRoots = attachRoots)
+                location is VaultLocation.Saf ->
+                    BackendFileStore(SafBackend(this, location.treeUri.toUri()), ignore, attachRoots = attachRoots)
                 else -> null
             }?.let(::LineEndingFileStore)
         }.stateIn(appScope, SharingStarted.Eagerly, null)

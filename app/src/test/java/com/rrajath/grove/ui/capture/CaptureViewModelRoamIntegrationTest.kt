@@ -51,7 +51,7 @@ class CaptureViewModelRoamIntegrationTest {
     private val store = FakeFileStore(OrgFixtures.all)
     private val vaultFlow = MutableStateFlow<Vault?>(Vault(store, parseDispatcher = mainDispatcherRule.dispatcher))
     private val sync = FakeSyncTrigger()
-    private val settings = FakeSettingsRepository(GroveSettings(vaultTreeUri = "content://vault/tree"))
+    private val settings = FakeSettingsRepository(GroveSettings(vaultLocation = com.rrajath.grove.vault.storage.VaultLocation.Saf("content://vault/tree")))
     private val db: GroveDatabase =
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
     private val templatesRepository =

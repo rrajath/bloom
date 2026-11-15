@@ -46,7 +46,7 @@ class CaptureScreenTest {
     fun setUp() {
         env = ScreenTestEnv()
         // The capture write path refuses to run without a configured sync folder.
-        env.fakeSettings.update { it.copy(vaultTreeUri = "content://grove-test-vault") }
+        env.fakeSettings.update { it.copy(vaultLocation = com.rrajath.grove.vault.storage.VaultLocation.Saf("content://grove-test-vault")) }
     }
 
     @After

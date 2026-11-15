@@ -1,6 +1,7 @@
 package com.rrajath.grove.settings
 
 import android.content.Context
+import com.rrajath.grove.vault.storage.VaultLocation
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -104,8 +105,8 @@ data class GroveSettings(
      * it never shows again after that. Device-specific, like [onboardingDone]: not exported.
      */
     val exactAlarmPromptHandled: Boolean = false,
-    /** Persisted SAF tree URI of the sync folder; null until the user picks one. */
-    val vaultTreeUri: String? = null,
+    /** Where the vault lives; null until the user picks a folder. Device-specific: not exported. */
+    val vaultLocation: VaultLocation? = null,
     val syncMode: SyncMode = SyncMode.ON_OPEN_CLOSE,
     val periodicSyncMinutes: Int = 30,
     /** Org TODO keyword config, `|` splits done-type ("TODO IN-PROGRESS | DONE CANCELLED"). */
@@ -306,6 +307,9 @@ data class GroveSettings(
     /** Settings § Attachments: tag added to headings files are attached to, no colons; empty for none ([AttachAutoTag]). */
     val attachAutoTag: String = AttachAutoTag.DEFAULT,
 ) {
+    /** The vault's SAF tree URI, for code that only knows SAF; null without a vault or for another kind of location. */
+    val vaultTreeUri: String? get() = (vaultLocation as? VaultLocation.Saf)?.treeUri
+
     /** Pinned notebook file names in pin order — derived view of [pinnedItems]. */
     val pinnedNotebooks: List<String>
         get() = pinnedItems.filter { it.kind == PinKind.FILE }.map { it.path }
@@ -337,6 +341,13 @@ class SettingsRepository(
     private val scope: CoroutineScope,
 ) : SettingsSource {
 
+    /**
+     * The stored [VaultLocation]: the tagged key, else the retired plain tree URI
+     * (installs from before the location type), which the next write replaces.
+     */
+    private fun readVaultLocation(prefs: Preferences): VaultLocation? =
+        vaultLocationFrom(tagged = prefs[Keys.vaultLocation], legacyTreeUri = prefs[Keys.vaultTreeUri])
+
     private object Keys {
         /** Retired single-theme key: read only to migrate into [themeMode]/[lightTheme]/[darkTheme]. */
         val legacyTheme = stringPreferencesKey("theme")
@@ -361,7 +372,10 @@ class SettingsRepository(
         val seenNewFeatures = stringPreferencesKey("seen_new_features")
         val exactAlarmAccessLastKnown = booleanPreferencesKey("exact_alarm_access_last_known")
         val exactAlarmPromptHandled = booleanPreferencesKey("exact_alarm_prompt_handled")
+        /** Retired plain SAF tree URI: read only to migrate into [vaultLocation]. */
         val vaultTreeUri = stringPreferencesKey("vault_tree_uri")
+        /** [VaultLocation.encode]d vault location. */
+        val vaultLocation = stringPreferencesKey("vault_location")
         val syncMode = stringPreferencesKey("sync_mode")
         val periodicSyncMinutes = intPreferencesKey("periodic_sync_minutes")
         val todoKeywords = stringPreferencesKey("todo_keywords")
@@ -486,7 +500,7 @@ class SettingsRepository(
             seenNewFeatures = decodeStringSet(prefs[Keys.seenNewFeatures]),
             exactAlarmAccessLastKnown = prefs[Keys.exactAlarmAccessLastKnown],
             exactAlarmPromptHandled = prefs[Keys.exactAlarmPromptHandled] ?: false,
-            vaultTreeUri = prefs[Keys.vaultTreeUri],
+            vaultLocation = readVaultLocation(prefs),
             syncMode = SyncMode.fromStorage(prefs[Keys.syncMode]),
             periodicSyncMinutes = prefs[Keys.periodicSyncMinutes] ?: 30,
             todoKeywords = prefs[Keys.todoKeywords] ?: GroveSettings.DEFAULT_TODO_KEYWORDS,
@@ -837,8 +851,14 @@ class SettingsRepository(
         }
     }
 
-    suspend fun setVaultTreeUri(uri: String) {
-        editSettings { it[Keys.vaultTreeUri] = uri }
+    suspend fun setVaultTreeUri(uri: String) = setVaultLocation(VaultLocation.Saf(uri))
+
+    /** Writes the tagged form and drops the retired plain-URI key. */
+    suspend fun setVaultLocation(location: VaultLocation) {
+        editSettings {
+            it[Keys.vaultLocation] = location.encode()
+            it.remove(Keys.vaultTreeUri)
+        }
     }
 
     suspend fun setSyncMode(mode: SyncMode) {
@@ -1247,3 +1267,12 @@ class SettingsRepository(
         moves.forEach { (old, new) -> map.remove(old)?.let { map[new] = it } }
     }
 }
+
+/**
+ * The vault location from its stored values: the [VaultLocation.encode]d
+ * [tagged] value when it decodes, else the retired plain [legacyTreeUri]
+ * (installs from before the location type) as [VaultLocation.Saf].
+ */
+internal fun vaultLocationFrom(tagged: String?, legacyTreeUri: String?): VaultLocation? =
+    VaultLocation.decode(tagged) ?: legacyTreeUri?.takeIf { it.isNotBlank() }?.let(VaultLocation::Saf)
+

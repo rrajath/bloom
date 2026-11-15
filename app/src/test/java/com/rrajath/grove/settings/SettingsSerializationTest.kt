@@ -80,7 +80,7 @@ class SettingsSerializationTest {
         dailiesFilenamePattern = "%<%Y%m%d>.org",
         dailiesHeaderTemplate = ":PROPERTIES:\n:ID: %(id)\n:END:\n#+title: %<%Y-%m-%d>\n%?",
         // Device-specific fields that must NOT travel with an export.
-        vaultTreeUri = "content://com.android.externalstorage/tree/primary%3Aorg",
+        vaultLocation = com.rrajath.grove.vault.storage.VaultLocation.Saf("content://com.android.externalstorage/tree/primary%3Aorg"),
         onboardingDone = true,
     )
 
@@ -293,7 +293,7 @@ class SettingsSerializationTest {
     @Test
     fun `import preserves the existing vault and onboarding state`() {
         val json = SettingsSerialization.export(sample)
-        val base = GroveSettings(vaultTreeUri = "content://existing/tree", onboardingDone = false)
+        val base = GroveSettings(vaultLocation = com.rrajath.grove.vault.storage.VaultLocation.Saf("content://existing/tree"), onboardingDone = false)
         val restored = SettingsSerialization.import(json, base)
 
         // The export never carried these, so the base install's values win.
