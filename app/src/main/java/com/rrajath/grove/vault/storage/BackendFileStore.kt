@@ -406,8 +406,20 @@ class BackendFileStore(
     override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> =
         withContext(Dispatchers.IO) {
             val docId = documentId(name) ?: return@withContext missing()
+            if (ifMatch != null && backend.profile.statFromListingCache) refreshListing(name)
             backend.write(docId, content.toByteArray(Charsets.UTF_8), ifMatch)
         }
+
+    /**
+     * Lists [name]'s folder so the provider refetches it from the server, and
+     * the backend's revision check sees an edit made elsewhere instead of the
+     * provider's cached stat. Best effort: on failure the check uses what it has.
+     */
+    private suspend fun refreshListing(name: String) {
+        val dir = name.substringBeforeLast('/', "")
+        val parent = resolveDir(dir, createMissing = false) as? StorageResult.Ok ?: return
+        backend.listChildren(parent.value.docId)
+    }
 
     override suspend fun create(name: String): StorageResult<Unit> = createFile(name, content = null)
 

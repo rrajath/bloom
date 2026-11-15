@@ -77,6 +77,8 @@ re-uploads the APKs to the existing release instead of failing.
 - Attachments and new notebooks now reach new folders on Seafile, and a refused folder create says why.
 - Outline, agenda and widget edits no longer overwrite changes made to the file elsewhere since it was read.
 - Editing on Seafile no longer shows a false "file changed" banner or a stale outline after saving.
+- Saving on Seafile now catches an edit made on the web since you opened the note, instead of overwriting it.
+- Keep both in Compare now shows the merged text in the editor right away on Seafile.
 
 ## [1.15.0] - 2026-11-14
 

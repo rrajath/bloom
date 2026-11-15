@@ -97,6 +97,13 @@ class FakeDocumentsProvider : ContentProvider() {
     /** Ends [hideCreatedFromListings]' staleness, as the provider's cache expiring would. */
     fun revealCreated() = hiddenCreated.clear()
 
+    /**
+     * Seafile-style cached stat: a document query answers the mtime and size the
+     * file had at its folder's last children listing, not the file's current ones.
+     */
+    var statFromListing = false
+    private val listedStat: MutableMap<String, Pair<Long, Long>> = ConcurrentHashMap()
+
     /** When true, the first children query of every directory is a loading one. */
     var everyDirLoadsFirst = false
 
@@ -167,13 +174,17 @@ class FakeDocumentsProvider : ContentProvider() {
     private fun docUri(docId: String): Uri =
         DocumentsContract.buildDocumentUriUsingTree(treeUri(authority), docId)
 
-    private fun MatrixCursor.addFile(f: File, displayName: String = f.name) {
+    private fun MatrixCursor.addFile(f: File, displayName: String = f.name, fromListing: Boolean = false) {
+        val path = f.relativeTo(root).invariantSeparatorsPath
+        val actual = f.lastModified() to (if (f.isFile) f.length() else 0L)
+        if (fromListing) listedStat[path] = actual
+        val (mtime, size) = if (statFromListing && !fromListing) listedStat[path] ?: actual else actual
         val row = newRow()
         (flagsByPath[f.relativeTo(root).invariantSeparatorsPath] ?: reportedFlags)?.let { row.add(Document.COLUMN_FLAGS, it) }
         row.add(Document.COLUMN_DOCUMENT_ID, idFor(f))
         row.add(Document.COLUMN_DISPLAY_NAME, displayName)
-        row.add(Document.COLUMN_LAST_MODIFIED, f.lastModified())
-        row.add(Document.COLUMN_SIZE, if (f.isFile) f.length() else 0L)
+        row.add(Document.COLUMN_LAST_MODIFIED, mtime)
+        row.add(Document.COLUMN_SIZE, size)
         row.add(Document.COLUMN_MIME_TYPE, if (f.isDirectory) Document.MIME_TYPE_DIR else "application/octet-stream")
     }
 
@@ -204,7 +215,7 @@ class FakeDocumentsProvider : ContentProvider() {
             }
             f.listFiles().orEmpty().sortedBy { it.name }
                 .filter { it.relativeTo(root).invariantSeparatorsPath !in hiddenCreated }
-                .forEach { cursor.addFile(it) }
+                .forEach { cursor.addFile(it, fromListing = true) }
         } else {
             if (!f.exists()) throw FileNotFoundException(docId)
             // ExternalStorageProvider reports File.getName() of the path asked for.

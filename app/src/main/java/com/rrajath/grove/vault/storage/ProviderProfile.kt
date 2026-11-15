@@ -36,6 +36,12 @@ data class ProviderProfile(
      * one-off error. Bloom still tries first, in case the provider was fixed.
      */
     val folderCreateBroken: Boolean = false,
+    /**
+     * A file's stat answers from the provider's cached folder listing, which
+     * only a listing of that folder refreshes from the server. A write that
+     * must not overwrite an edit made elsewhere lists the folder first.
+     */
+    val statFromListingCache: Boolean = false,
 )
 
 /** The known providers, looked up by a vault tree URI's authority. */
@@ -63,6 +69,8 @@ object ProviderProfiles {
         // Seadroid 4.0.15/4.0.16 declare `String createDirSync(...)` without a
         // Call<> wrapper, so every SAF folder create throws in Retrofit.
         folderCreateBroken = true,
+        // queryDocument reads cached dirents; only an expired (5s) folder listing refetches them.
+        statFromListingCache = true,
     )
 
     /**
