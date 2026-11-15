@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.capture
 
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.StorageException
 import com.rrajath.grove.vault.storage.isOk
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -59,7 +61,8 @@ sealed class SaveState {
     data object Idle : SaveState()
     data object Saving : SaveState()
     data class Saved(val filePath: String) : SaveState()
-    data class Failed(val message: String) : SaveState()
+    /** [error] is set when the vault refused the write, so the screen can word it ([message] is the fallback). */
+    data class Failed(val message: String, val error: StorageError? = null) : SaveState()
 }
 
 class CaptureViewModel(
@@ -187,6 +190,8 @@ class CaptureViewModel(
                 }
                 sync.requestReindex(fileName, newText, "capture saved")
                 _saveState.value = SaveState.Saved(fileName)
+            } catch (e: StorageException) {
+                _saveState.value = SaveState.Failed(e.message.orEmpty(), e.error)
             } catch (e: Exception) {
                 _saveState.value = SaveState.Failed(e.message ?: "Capture failed")
             }
@@ -441,6 +446,8 @@ class CaptureViewModel(
                 }
                 sync.requestReindex(fileName, newText, "capture saved")
                 _saveState.value = SaveState.Saved(fileName)
+            } catch (e: StorageException) {
+                _saveState.value = SaveState.Failed(e.message.orEmpty(), e.error)
             } catch (e: Exception) {
                 _saveState.value = SaveState.Failed(e.message ?: "Capture failed")
             }

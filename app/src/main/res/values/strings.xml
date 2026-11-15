@@ -57,4 +57,21 @@
         <item quantity="one">Too large to open whole (%1$d line). Open a heading instead.</item>
         <item quantity="other">Too large to open whole (%1$d lines). Open a heading instead.</item>
     </plurals>
+    <!-- Storage errors (ui/vault/StorageMessages.kt): why a create, rename, move, delete or save
+         didn't go through. "Storage provider" is the app that holds the vault folder (Seafile,
+         Nextcloud, a cloud-sync folder). %1$s in the detail string is the provider's own message. -->
+    <string name="storage_error_name_taken_notebook">A notebook with that name already exists</string>
+    <string name="storage_error_name_taken_folder">A folder with that name already exists</string>
+    <string name="storage_error_not_found">That item is no longer there. Sync and try again.</string>
+    <string name="storage_error_unsupported_create">Your storage provider doesn\'t let other apps create files.</string>
+    <string name="storage_error_unsupported_rename">Your storage provider doesn\'t let other apps rename files.</string>
+    <string name="storage_error_unsupported_move">Your storage provider doesn\'t let other apps move files.</string>
+    <string name="storage_error_unsupported_delete">Your storage provider doesn\'t let other apps delete files.</string>
+    <string name="storage_error_unsupported_write">Your storage provider doesn\'t let other apps change files.</string>
+    <string name="storage_error_unsupported_read">Your storage provider doesn\'t let other apps read files.</string>
+    <string name="storage_error_provider">Your storage provider refused the change.</string>
+    <string name="storage_error_provider_detail">Your storage provider refused the change: %1$s</string>
+    <string name="storage_error_offline">Can\'t reach your storage provider. Nothing was changed.</string>
+    <string name="storage_error_conflict">This file changed somewhere else. Reload it before saving.</string>
+    <string name="storage_error_auth_failed">Your storage provider needs you to sign in again.</string>
 </resources>

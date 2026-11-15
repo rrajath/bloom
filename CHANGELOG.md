@@ -60,6 +60,7 @@ re-uploads the APKs to the existing release instead of failing.
 ### Fixed
 
 - Notebooks no longer vanish on cloud-backed vaults like Seafile while folders are still loading.
+- Failed renames, deletes and creates now show the real reason instead of "already exists".
 
 ## [1.15.0] - 2026-11-14
 

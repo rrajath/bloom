@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.vault
 
+import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.isOk
 import com.rrajath.grove.vault.storage.getOrNull
 import android.content.Intent
@@ -214,8 +215,11 @@ sealed class NotebooksUiState {
 sealed interface NotebookEditEvent {
     /** The create/rename went through; the screen dismisses the open name dialog. */
     data object Succeeded : NotebookEditEvent
-    /** [message] names the collision; the screen toasts it and leaves the dialog open. */
-    data class NameTaken(val message: String) : NotebookEditEvent
+    /**
+     * The operation failed for [error]; the screen toasts [storageErrorMessage]
+     * and leaves any open name dialog mounted so the user can correct the name.
+     */
+    data class Failed(val error: StorageError, val subject: StorageSubject = StorageSubject.Notebook) : NotebookEditEvent
     /** A one-off outcome to toast (attachment moves and deletes). */
     data class Message(val message: String) : NotebookEditEvent
 }
@@ -502,13 +506,12 @@ class NotebooksViewModel(
     fun createNotebook(name: String, dir: String = "") {
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
-            if (vault.createNotebook(name.trim(), dir.trim('/')).isOk) {
+            val created = vault.createNotebook(name.trim(), dir.trim('/'))
+            if (created is StorageError) {
+                _editEvents.emit(NotebookEditEvent.Failed(created))
+            } else {
                 _editEvents.emit(NotebookEditEvent.Succeeded)
                 sync.requestSync("notebook created")
-            } else {
-                _editEvents.emit(
-                    NotebookEditEvent.NameTaken("A notebook with that name already exists")
-                )
             }
         }
     }
@@ -527,7 +530,12 @@ class NotebooksViewModel(
     ) {
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
-            val newPath = vault.moveNotebook(path, newDir.trim('/')).getOrNull()
+            val moved = vault.moveNotebook(path, newDir.trim('/'))
+            if (moved is StorageError) {
+                _editEvents.emit(NotebookEditEvent.Failed(moved))
+                return@launch
+            }
+            val newPath = moved.getOrNull()
             if (newPath != null) {
                 database.indexDao().removeNotebook(path)
                 val lifecycle = attachments()
@@ -584,15 +592,14 @@ class NotebooksViewModel(
             return
         }
         viewModelScope.launch {
-            if (vault.renameNotebook(oldName, newName).isOk) {
+            val renamed = vault.renameNotebook(oldName, newName)
+            if (renamed is StorageError) {
+                _editEvents.emit(NotebookEditEvent.Failed(renamed))
+            } else {
                 database.indexDao().removeNotebook(oldName)
                 settingsRepository.moveNotebookStyle(oldName, target)
                 favoritesRepository?.rebaseFile(oldName, target)
                 _editEvents.emit(NotebookEditEvent.Succeeded)
-            } else {
-                _editEvents.emit(
-                    NotebookEditEvent.NameTaken("A notebook with that name already exists")
-                )
             }
             sync.requestSync("notebook renamed")
         }
@@ -605,7 +612,10 @@ class NotebooksViewModel(
     ) {
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
-            if (vault.deleteNotebook(name).isOk) {
+            val deleted = vault.deleteNotebook(name)
+            if (deleted is StorageError) {
+                _editEvents.emit(NotebookEditEvent.Failed(deleted))
+            } else {
                 database.indexDao().removeNotebook(name)
                 val lifecycle = attachments()
                 if (lifecycle != null && !inventory.isEmpty) {
@@ -681,7 +691,8 @@ class NotebooksViewModel(
         }
         viewModelScope.launch {
             val affected = affectedPaths(dir)
-            val renamedTo = vault.renameFolder(dir, newName).getOrNull()
+            val renamed = vault.renameFolder(dir, newName)
+            val renamedTo = renamed.getOrNull()
             if (renamedTo != null) {
                 attachments()?.let { lifecycle ->
                     val result = withContext(dispatchers.io) {
@@ -700,10 +711,8 @@ class NotebooksViewModel(
                 favoritesRepository?.rebaseFolder(trimmed, renamedTo)
                 _editEvents.emit(NotebookEditEvent.Succeeded)
                 sync.requestSync("folder renamed")
-            } else {
-                _editEvents.emit(
-                    NotebookEditEvent.NameTaken("A folder with that name already exists")
-                )
+            } else if (renamed is StorageError) {
+                _editEvents.emit(NotebookEditEvent.Failed(renamed, StorageSubject.Folder))
             }
         }
     }
@@ -716,7 +725,14 @@ class NotebooksViewModel(
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
             val affected = affectedPaths(dir)
-            if ((vault.deleteFolder(dir).getOrNull() ?: 0) > 0) {
+            val deleted = vault.deleteFolder(dir)
+            if (deleted is StorageError) {
+                _editEvents.emit(NotebookEditEvent.Failed(deleted, StorageSubject.Folder))
+                // A refusal partway still removed the earlier files: let sync reconcile the index.
+                sync.requestSync("folder delete failed")
+                return@launch
+            }
+            if ((deleted.getOrNull() ?: 0) > 0) {
                 attachments()?.let { lifecycle ->
                     withContext(dispatchers.io) { runCatching { lifecycle.deleteFolderAttachments(dir) } }
                 }

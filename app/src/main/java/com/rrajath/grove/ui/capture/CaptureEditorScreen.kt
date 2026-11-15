@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.ui.vault.storageErrorMessage
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureInserter
 import com.rrajath.grove.capture.CaptureTemplate
@@ -829,7 +830,7 @@ fun CaptureEditorScreen(
             )
             (saveState as? SaveState.Failed)?.let { failed ->
                 Text(
-                    failed.message,
+                    failed.error?.let { storageErrorMessage(LocalContext.current, it) } ?: failed.message,
                     fontFamily = PlexSans, fontSize = 13.sp, color = c.red,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
                 )

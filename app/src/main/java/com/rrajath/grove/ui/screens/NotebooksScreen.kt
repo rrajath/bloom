@@ -124,6 +124,7 @@ import com.rrajath.grove.ui.vault.TREE_EXPAND_MILLIS
 import com.rrajath.grove.ui.vault.drillLevel
 import com.rrajath.grove.ui.vault.groupNotebookTreeRuns
 import com.rrajath.grove.ui.vault.NotebookEditEvent
+import com.rrajath.grove.ui.vault.storageErrorMessage
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.ui.attach.NotebookDeleteAttachmentsSheet
 import com.rrajath.grove.ui.attach.NotebookMoveAttachmentsSheet
@@ -190,8 +191,8 @@ fun NotebooksScreen(
                     renameTarget = null
                     folderRenameTarget = null
                 }
-                is NotebookEditEvent.NameTaken ->
-                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                is NotebookEditEvent.Failed ->
+                    Toast.makeText(context, storageErrorMessage(context, event.error, event.subject), Toast.LENGTH_SHORT).show()
                 is NotebookEditEvent.Message ->
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
             }

@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.vault
 
+import com.rrajath.grove.vault.storage.StorageOp
+import com.rrajath.grove.vault.storage.StorageError
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.data.FavoriteNote
@@ -22,6 +24,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -299,5 +302,99 @@ class NotebooksViewModelIntegrationTest {
         settleUntil { (vm.state.value as? NotebooksUiState.Loaded)?.livePins == listOf(work, inbox) }
         vm.movePin(work, -1)
         settleUntil { settingsRepository.settings.first().pinnedItems == listOf(work, stale, inbox) }
+    }
+
+    // --- failures reach the screen as a typed event, one per result kind ---
+
+    private suspend fun TestScope.collectEvents(vm: NotebooksViewModel): MutableList<NotebookEditEvent> {
+        val events = mutableListOf<NotebookEditEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.editEvents.collect { events += it } }
+        advanceUntilIdle()
+        return events
+    }
+
+    @Test
+    fun `createNotebook onto an existing name emits NameTaken`() = runTest {
+        val vm = seededVm()
+        val events = collectEvents(vm)
+
+        vm.createNotebook("inbox")
+        advanceUntilIdle()
+        settleUntil { events.isNotEmpty() }
+
+        assertEquals(listOf<NotebookEditEvent>(NotebookEditEvent.Failed(StorageError.NameTaken)), events)
+    }
+
+    @Test
+    fun `a refused rename emits the provider's reason, not already exists`() = runTest {
+        val vm = seededVm()
+        val events = collectEvents(vm)
+        val refused = StorageError.Unsupported(StorageOp.Rename)
+        store.failWith(StorageOp.Rename, refused)
+
+        vm.renameNotebook("reading-list.org", "library")
+        settleUntil { events.isNotEmpty() }
+
+        assertEquals(listOf<NotebookEditEvent>(NotebookEditEvent.Failed(refused)), events)
+        assertTrue(store.exists("reading-list.org"))
+    }
+
+    @Test
+    fun `a refused move emits Failed and leaves the notebook where it was`() = runTest {
+        val vm = seededVm()
+        val events = collectEvents(vm)
+        store.failWith(StorageOp.Rename, StorageError.ProviderError("no space"))
+
+        vm.moveNotebook("inbox.org", "work")
+        settleUntil { events.isNotEmpty() }
+
+        assertEquals(listOf<NotebookEditEvent>(NotebookEditEvent.Failed(StorageError.ProviderError("no space"))), events)
+        assertTrue(store.exists("inbox.org"))
+        assertTrue("the index row must survive a failed move", indexedFileNames().contains("inbox.org"))
+    }
+
+    @Test
+    fun `a refused delete reports every error kind and keeps the notebook and its index row`() = runTest {
+        val vm = seededVm()
+        val events = collectEvents(vm)
+        val kinds = listOf(
+            StorageError.Unsupported(StorageOp.Delete),
+            StorageError.ProviderError(null),
+            StorageError.Offline,
+            StorageError.AuthFailed,
+            StorageError.Conflict("1:1"),
+            StorageError.NotFound,
+        )
+        for ((i, kind) in kinds.withIndex()) {
+            store.failWith(StorageOp.Delete, kind)
+            vm.deleteNotebook("table.org")
+            settleUntil { events.size == i + 1 }
+        }
+
+        assertEquals(kinds.map { NotebookEditEvent.Failed(it) }, events)
+        assertTrue(store.exists("table.org"))
+        assertTrue(indexedFileNames().contains("table.org"))
+    }
+
+    @Test
+    fun `a refused folder rename and delete name the folder`() = runTest {
+        val vm = seededVm()
+        val events = collectEvents(vm)
+        store.failWith(StorageOp.Rename, StorageError.Unsupported(StorageOp.Rename))
+        store.failWith(StorageOp.Delete, StorageError.Offline)
+
+        vm.renameFolder("work", "jobs")
+        settleUntil { events.size == 1 }
+        vm.deleteFolder("work")
+        settleUntil { events.size == 2 }
+
+        assertEquals(
+            listOf<NotebookEditEvent>(
+                NotebookEditEvent.Failed(StorageError.Unsupported(StorageOp.Rename), StorageSubject.Folder),
+                NotebookEditEvent.Failed(StorageError.Offline, StorageSubject.Folder),
+            ),
+            events,
+        )
+        assertTrue(store.exists("work/status.org"))
     }
 }
