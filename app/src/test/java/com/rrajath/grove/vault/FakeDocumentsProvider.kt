@@ -217,7 +217,14 @@ class FakeDocumentsProvider : ContentProvider() {
         val f = fileFor(DocumentsContract.getDocumentId(uri))
         // A lazily created file comes into being on its first write.
         if (lazyCreate && !f.exists() && 'w' in mode) {
-            if (writeMakesFolders) f.parentFile?.mkdirs()
+            if (writeMakesFolders) {
+                // Folders the upload makes are as stale in listings as the files.
+                var d = f.parentFile
+                val made = mutableListOf<File>()
+                while (d != null && !d.exists()) { made += d; d = d.parentFile }
+                f.parentFile?.mkdirs()
+                if (hideCreatedFromListings) made.forEach { hiddenCreated += it.relativeTo(root).invariantSeparatorsPath }
+            }
             if (f.parentFile?.isDirectory == true) f.createNewFile()
         }
         if (!f.isFile) throw FileNotFoundException(uri.toString())

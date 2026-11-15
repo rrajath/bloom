@@ -198,13 +198,50 @@ class BackendFileStoreLazyCreateTest {
 
     @Test
     fun `a failed folder create on Seafile is reported as unsupported`() = runTest {
-        val store = store()
+        store()
         provider.failDirCreate = true
+        val backend = SafBackend(
+            context,
+            FakeDocumentsProvider.treeUri(FakeDocumentsProvider.OPAQUE_AUTHORITY),
+            listingDeadlineMs = 200,
+            profile = ProviderProfiles.SEAFILE,
+        )
 
         assertEquals(
             com.rrajath.grove.vault.storage.StorageError.Unsupported(com.rrajath.grove.vault.storage.StorageOp.CreateFolder),
-            store.createWithContent("projects/plan.org", "* Plan\n"),
+            backend.createDir(backend.rootId, "projects"),
         )
+    }
+
+    @Test
+    fun `a notebook reaches new folders when the provider can't create folders`() = runTest {
+        val store = store()
+        provider.failDirCreate = true
+        file("work").mkdirs()
+
+        assertTrue(store.createWithContent("work/acme/q4/plan.org", "* Plan\n").isOk)
+        assertTrue(store.create("work/acme/q4/notes.org").isOk)
+
+        assertEquals("* Plan\n", file("work/acme/q4/plan.org").readText())
+        assertTrue(file("work/acme/q4/notes.org").isFile)
+        assertEquals(listOf("work/acme/q4/notes.org", "work/acme/q4/plan.org"), store.list().map { it.name })
+    }
+
+    @Test
+    fun `a notebook in a new folder survives a listing that doesn't show the folder yet`() = runTest {
+        val store = store()
+        provider.failDirCreate = true
+        provider.hideCreatedFromListings = true
+        store.list()
+
+        assertTrue(store.createWithContent("inbox/today.org", "x").isOk)
+        assertTrue(file("inbox/today.org").isFile)
+
+        // Neither the folder nor the file is listed yet, but the file stays.
+        assertEquals(listOf("inbox/today.org"), store.list().map { it.name })
+        clock += LAZY_CREATE_GRACE_MS + 1
+        provider.revealCreated()
+        assertEquals(listOf("inbox/today.org"), store.list().map { it.name })
     }
 
     @Test

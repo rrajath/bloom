@@ -104,6 +104,12 @@ class BackendFileStore(
      */
     private val recentCreates: MutableMap<String, RecentCreate> = ConcurrentHashMap()
 
+    /**
+     * Folders a [recentCreates] file's first write made ([ProviderProfile.writeCreatesFolders]),
+     * by path, with when. Their files are kept while a stale listing doesn't show the folder yet.
+     */
+    private val recentDirs: MutableMap<String, Long> = ConcurrentHashMap()
+
     /** Why the vault root couldn't be listed completely on the last walk; null when it could. */
     @Volatile
     private var rootProblem: String? = null
@@ -228,6 +234,7 @@ class BackendFileStore(
         entries: MutableList<FileEntry>,
     ) {
         val t = now()
+        recentDirs.entries.removeAll { (path, at) -> path in dirs || t - at > LAZY_CREATE_GRACE_MS }
         val iter = recentCreates.entries.iterator()
         while (iter.hasNext()) {
             val (path, recent) = iter.next()
@@ -235,7 +242,8 @@ class BackendFileStore(
                 path in files || t - recent.at > LAZY_CREATE_GRACE_MS -> iter.remove()
                 // Renamed or deleted here since (the old caches no longer hold it under
                 // this id), or its folder is gone: the file went with it.
-                docIds[path] != recent.docId || path.substringBeforeLast('/', "") !in dirs -> iter.remove()
+                docIds[path] != recent.docId ||
+                    path.substringBeforeLast('/', "").let { it !in dirs && it !in recentDirs } -> iter.remove()
                 else -> {
                     files[path] = recent.docId
                     entries.add(recent.entry)
@@ -416,11 +424,22 @@ class BackendFileStore(
     private suspend fun createFile(name: String, content: ByteArray?): StorageResult<Unit> = withContext(Dispatchers.IO) {
         if (resolve(name) != null) return@withContext StorageError.NameTaken
         val (dir, leaf) = splitPath(name)
-        val parent = when (val r = resolveDir(dir, createMissing = true)) {
+        val foldersOnWrite = backend.profile.writeCreatesFolders
+        val existing = when (val r = resolveDir(dir, createMissing = !foldersOnWrite)) {
             is StorageResult.Ok -> r.value
+            StorageError.NotFound -> if (foldersOnWrite) null else return@withContext StorageError.NotFound
             is StorageError -> return@withContext r
         }
-        val created = backend.createFile(parent.docId, leaf)
+        // Folder creates there may fail (Seafile's always do), but the first write
+        // makes any folder the file's path names: create the file from the nearest
+        // folder that exists, with the rest of its path as the name.
+        val parent = existing ?: nearestDir(dir)
+        val createName = if (existing != null) leaf else name.split('/').drop(segmentCount(parent.path)).joinToString("/")
+        val created = if ('/' in createName) {
+            backend.createFileAtPath(parent.docId, createName)
+        } else {
+            backend.createFile(parent.docId, createName)
+        }
         listingChanged(Unit)
         when (created) {
             is StorageResult.Ok -> {
@@ -433,11 +452,17 @@ class BackendFileStore(
                         return@withContext written
                     }
                 }
-                val path = childPath(parent.path, leaf)
+                val path = childPath(parent.path, createName)
                 docIds[path] = created.value
                 if (backend.profile.createIsLazy) {
                     val entry = FileEntry(path, System.currentTimeMillis(), bytes?.size?.toLong() ?: 0L)
                     recentCreates[path] = RecentCreate(created.value, now(), entry)
+                }
+                // The folders that write made: a listing may not show them for a while either.
+                var newDir = path.substringBeforeLast('/', "")
+                while (newDir.length > parent.path.length) {
+                    recentDirs[newDir] = now()
+                    newDir = newDir.substringBeforeLast('/', "")
                 }
                 ok
             }
@@ -705,6 +730,18 @@ class BackendFileStore(
         }
         return StorageResult.Ok(current)
     }
+
+    /** The deepest listed folder at or above [dir] (the tree root at worst). */
+    private fun nearestDir(dir: String): DirRef {
+        var p = dir
+        while (p.isNotEmpty()) {
+            dirKey(p)?.let { path -> dirDocIds[path]?.let { return DirRef(path, it) } }
+            p = p.substringBeforeLast('/', "")
+        }
+        return DirRef("", rootDocId)
+    }
+
+    private fun segmentCount(path: String): Int = if (path.isEmpty()) 0 else path.count { it == '/' } + 1
 
     // --- Raw access for attachments ---------------------------------------
     //
