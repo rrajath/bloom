@@ -901,6 +901,49 @@ class EditorViewModelIntegrationTest {
         assertFalse(vm.state.value.dirty)
     }
 
+    /**
+     * Seadroid 4.0.15: a write returns before its upload, and its stat and read
+     * keep answering the file as it was until the folder listing refreshes.
+     */
+    private class LaggingStore(private val inner: FakeFileStore) : com.rrajath.grove.vault.FileStore by inner {
+        var lag = false
+        private val before = mutableMapOf<String, Pair<String, com.rrajath.grove.vault.FileEntry?>>()
+        override suspend fun write(
+            name: String,
+            content: String,
+            ifMatch: String?,
+        ): com.rrajath.grove.vault.storage.StorageResult<String> {
+            if (lag && name !in before) before[name] = inner.read(name) to inner.stat(name)
+            return inner.write(name, content, ifMatch)
+        }
+        override suspend fun read(name: String): String = before[name]?.first ?: inner.read(name)
+        override suspend fun stat(name: String): com.rrajath.grove.vault.FileEntry? =
+            if (name in before) before.getValue(name).second else inner.stat(name)
+    }
+
+    @Test
+    fun `keep both reloads the merge even when the provider still reads the old file`() = runTest {
+        val lagging = LaggingStore(store)
+        vaultFlow.value = Vault(lagging, parseDispatcher = mainDispatcherRule.dispatcher)
+        val ref = NoteRef("projects.org", headlineLine("projects.org", "Ship v2"))
+        val vm = editor()
+        vm.load(ref)
+        advanceUntilIdle()
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** NEXT Mine\n")
+        store.write("projects.org", store.read("projects.org") + "* Theirs\n")
+        vm.save()
+        advanceUntilIdle()
+        vm.compareStale()
+        advanceUntilIdle()
+
+        lagging.lag = true
+        vm.keepBothStale(onDone = { vm.load(ref) })
+        advanceUntilIdle()
+
+        assertTrue(store.read("projects.org").contains("*** NEXT Mine"))
+        assertTrue("the editor shows the merge it just wrote", vm.state.value.buffer.contains("*** NEXT Mine"))
+    }
+
     @Test
     fun `keep both refreshes compare instead of writing when the file moved again`() = runTest {
         val line = headlineLine("projects.org", "Ship v2")

@@ -1081,7 +1081,11 @@ class EditorViewModel(
                 val merged = withContext(dispatchers.default) {
                     ConflictResolver.keepBoth(mainText = compare.fileText, conflictText = compare.mineText)
                 }
-                when (val written = vault.trySave(s.fileName, merged, ifMatch = compare.fileRevision)) {
+                val parsed = withContext(dispatchers.default) { vault.parse(merged) }
+                // The parse primes the vault's cache, so the reload in [onDone] shows the
+                // merge: Seafile 4.0.15 serves the pre-write file for a read right after a
+                // write (its upload runs in the background), under the same stale marker.
+                when (val written = vault.trySave(s.fileName, merged, parsed = parsed, ifMatch = compare.fileRevision)) {
                     is StorageResult.Ok -> {
                         sync.requestReindex(s.fileName, merged, "kept both versions")
                         _state.update { it.copy(staleCompare = null, staleFile = false, dirty = false, saveError = null) }

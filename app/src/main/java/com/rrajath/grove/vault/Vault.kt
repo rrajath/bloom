@@ -195,6 +195,9 @@ class Vault(
         return contentHash(text) == contentHash
     }
 
+    /** Parses [text] with this vault's keywords, for a [trySave] `parsed` that primes the cache. */
+    fun parse(text: String): OrgDocument = OrgParser.parse(text, keywords)
+
     /** Current revision marker ("mtime:size") of a file, or null if missing. */
     suspend fun revision(fileName: String): String? =
         store.stat(fileName)?.let { "${it.lastModified}:${it.size}" }
