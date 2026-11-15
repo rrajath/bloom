@@ -1,6 +1,6 @@
 package com.rrajath.grove.sync
 
-import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageResult
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -207,17 +207,28 @@ class SyncManager(
      * otherwise a no-op reads to the user as "Keep both" silently doing nothing
      * (indistinguishable from "kept current").
      */
-    override suspend fun resolveConflict(baseName: String, resolution: ConflictResolution): Boolean {
-        val store = store ?: return false
-        val copyName = database.indexDao().conflictFileNameFor(baseName) ?: return false
+    override suspend fun resolveConflict(baseName: String, resolution: ConflictResolution): ConflictResolveResult {
+        val store = store ?: return ConflictResolveResult.NotApplied
+        val copyName = database.indexDao().conflictFileNameFor(baseName) ?: return ConflictResolveResult.NotApplied
         val applied = ConflictResolver.apply(store, baseName, copyName, resolution)
-        if (applied is StorageError) {
+        if (applied !is StorageResult.Ok) {
             log("conflict on $baseName not resolved: $applied")
-            return false
+            return ConflictResolveResult.NotApplied
         }
         log("conflict on $baseName resolved: ${resolution.name.lowercase()}")
         requestSync("conflict resolved")
-        return true
+        return when (applied.value) {
+            CopyCleanup.DELETED -> ConflictResolveResult.Resolved
+            CopyCleanup.REMAINS -> {
+                log("conflict copy $copyName left in place: the provider won't delete it")
+                ConflictResolveResult.CopyRemains(copyName, store.capabilities.value.profile.displayName)
+            }
+        }
+    }
+
+    override suspend fun conflictCopyKeptBy(copyName: String): Int? {
+        val caps = store?.capabilities?.value ?: return null
+        return if (caps.ofFile(copyName).delete) null else caps.profile.displayName
     }
 
     /** Force Load: drop the cached index for this notebook and re-pull from disk. */

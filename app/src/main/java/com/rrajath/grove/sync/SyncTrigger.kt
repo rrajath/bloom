@@ -1,5 +1,7 @@
 package com.rrajath.grove.sync
 
+import androidx.annotation.StringRes
+
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -32,6 +34,26 @@ interface SyncTrigger {
     /** The base file's text paired with its pending conflict copy's text, or null if no conflict. */
     suspend fun conflictTexts(baseName: String): Pair<String, String>?
 
-    /** Apply [resolution] to [baseName]'s conflict copy; false if nothing was written. */
-    suspend fun resolveConflict(baseName: String, resolution: ConflictResolution): Boolean
+    /**
+     * The provider's display name when it won't let Bloom delete the conflict
+     * copy [copyName] (resolving then leaves it for the user to remove there);
+     * null when the copy can be deleted. A string resource id (`@StringRes`
+     * can't annotate a suspend function's return).
+     */
+    suspend fun conflictCopyKeptBy(copyName: String): Int?
+
+    /** Apply [resolution] to [baseName]'s conflict copy. */
+    suspend fun resolveConflict(baseName: String, resolution: ConflictResolution): ConflictResolveResult
+}
+
+/** What [SyncTrigger.resolveConflict] did. */
+sealed interface ConflictResolveResult {
+    /** The base file took the resolution and the copy is gone. */
+    data object Resolved : ConflictResolveResult
+
+    /** The base file took the resolution, but [provider] wouldn't delete [copyName]. */
+    data class CopyRemains(val copyName: String, @StringRes val provider: Int) : ConflictResolveResult
+
+    /** Nothing was written: no store, the copy vanished, or the write was refused. */
+    data object NotApplied : ConflictResolveResult
 }

@@ -38,7 +38,7 @@ data class NotebookEntity(
     val revision: String,
     val noteCount: Int,
     val lastModified: Long,
-    /** Name of a Syncthing .sync-conflict file shadowing this notebook, if any. */
+    /** Name of a sync tool's conflict copy shadowing this notebook, if any (see `ConflictSchemes`). */
     val conflictFileName: String?,
     /** Cached `#+TITLE:` preamble value, so the list doesn't re-parse files just to display it. */
     val title: String? = null,

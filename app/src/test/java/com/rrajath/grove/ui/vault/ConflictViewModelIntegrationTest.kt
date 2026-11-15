@@ -3,7 +3,9 @@ package com.rrajath.grove.ui.vault
 import android.app.Application
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.sync.ConflictResolution
-import com.rrajath.grove.sync.SyncConflicts
+import com.rrajath.grove.R
+import com.rrajath.grove.sync.ConflictResolveResult
+import com.rrajath.grove.sync.conflicts.ConflictSchemes
 import com.rrajath.grove.testing.FakeFileStore
 import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
@@ -79,7 +81,7 @@ class ConflictViewModelIntegrationTest {
         assertEquals(OrgFixtures.CONFLICT_FILE, state.fileName)
         assertEquals(OrgFixtures.CONFLICT_LOCAL, state.currentText)
         assertEquals(OrgFixtures.CONFLICT_REMOTE, state.copyText)
-        assertEquals(SyncConflicts.label(OrgFixtures.CONFLICT_SIBLING), state.copyLabel)
+        assertEquals(ConflictSchemes.parse(OrgFixtures.CONFLICT_SIBLING)!!.label, state.copyLabel)
         assertEquals("2026-09-03 12:00", state.copyLabel)
     }
 
@@ -113,7 +115,7 @@ class ConflictViewModelIntegrationTest {
         val vm = conflictVm(
             FakeSyncTrigger(
                 onConflictTexts = { OrgFixtures.CONFLICT_LOCAL to OrgFixtures.CONFLICT_REMOTE },
-                onResolveConflict = { _, resolution -> resolutions += resolution; true },
+                onResolveConflict = { _, resolution -> resolutions += resolution; ConflictResolveResult.Resolved },
             ),
         )
         vm.load(OrgFixtures.CONFLICT_FILE)
@@ -134,7 +136,7 @@ class ConflictViewModelIntegrationTest {
                 // The copy vanished from under the picker: resolveConflict is a no-op
                 // and conflictTexts now returns null, so the reload lands on NoConflict.
                 onConflictTexts = { null },
-                onResolveConflict = { _, _ -> false },
+                onResolveConflict = { _, _ -> ConflictResolveResult.NotApplied },
             ),
         )
         vm.load(OrgFixtures.CONFLICT_FILE)
@@ -145,5 +147,57 @@ class ConflictViewModelIntegrationTest {
 
         assertEquals(ConflictUiState.NoConflict, vm.state.value)
         assertTrue(vm.state.value !is ConflictUiState.Resolved)
+    }
+
+    @Test
+    fun `load names the tool that made the copy`() = runTest {
+        seedConflictRow()
+        val vm = conflictVm()
+
+        vm.load(OrgFixtures.CONFLICT_FILE)
+        advanceUntilIdle()
+
+        val state = vm.state.value as ConflictUiState.Loaded
+        assertEquals("Syncthing", state.schemeName)
+        assertEquals(null, state.copyKeptBy)
+    }
+
+    @Test
+    fun `load says up front when the provider will keep the copy`() = runTest {
+        seedConflictRow()
+        val vm = conflictVm(
+            FakeSyncTrigger(
+                onConflictTexts = { OrgFixtures.CONFLICT_LOCAL to OrgFixtures.CONFLICT_REMOTE },
+                onConflictCopyKeptBy = { R.string.storage_provider_seafile },
+            ),
+        )
+
+        vm.load(OrgFixtures.CONFLICT_FILE)
+        advanceUntilIdle()
+
+        assertEquals(R.string.storage_provider_seafile, (vm.state.value as ConflictUiState.Loaded).copyKeptBy)
+    }
+
+    @Test
+    fun `resolve asks for cleanup when the provider kept the copy`() = runTest {
+        seedConflictRow()
+        val vm = conflictVm(
+            FakeSyncTrigger(
+                onConflictTexts = { OrgFixtures.CONFLICT_LOCAL to OrgFixtures.CONFLICT_REMOTE },
+                onResolveConflict = { _, _ ->
+                    ConflictResolveResult.CopyRemains(OrgFixtures.CONFLICT_SIBLING, R.string.storage_provider_seafile)
+                },
+            ),
+        )
+        vm.load(OrgFixtures.CONFLICT_FILE)
+        advanceUntilIdle()
+
+        vm.resolve(OrgFixtures.CONFLICT_FILE, ConflictResolution.KEEP_CONFLICT_COPY)
+        advanceUntilIdle()
+
+        assertEquals(
+            ConflictUiState.CleanupNeeded(OrgFixtures.CONFLICT_SIBLING, R.string.storage_provider_seafile),
+            vm.state.value,
+        )
     }
 }

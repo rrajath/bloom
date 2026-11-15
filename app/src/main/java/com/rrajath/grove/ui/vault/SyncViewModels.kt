@@ -1,11 +1,13 @@
 package com.rrajath.grove.ui.vault
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.data.SyncLogEntity
 import com.rrajath.grove.sync.ConflictResolution
-import com.rrajath.grove.sync.SyncConflicts
+import com.rrajath.grove.sync.ConflictResolveResult
+import com.rrajath.grove.sync.conflicts.ConflictSchemes
 import com.rrajath.grove.sync.SyncTrigger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,7 +24,18 @@ sealed class ConflictUiState {
         val currentText: String,
         val copyText: String,
         val copyLabel: String,
+        /** The tool that made the copy ("Seafile"), or null for a name no scheme claims. */
+        val schemeName: String? = null,
+        /** The provider's name when it won't let Bloom delete the copy; null when it can. */
+        @StringRes val copyKeptBy: Int? = null,
     ) : ConflictUiState()
+
+    /**
+     * The base file took the resolution, but [provider] wouldn't delete
+     * [copyName]: the user removes it there. Until then the next sync flags the
+     * conflict again.
+     */
+    data class CleanupNeeded(val copyName: String, @StringRes val provider: Int) : ConflictUiState()
 
     data object Resolved : ConflictUiState()
 }
@@ -42,11 +55,14 @@ class ConflictViewModel(
             _state.value = if (texts == null || copyName == null) {
                 ConflictUiState.NoConflict
             } else {
+                val copy = ConflictSchemes.parse(copyName)
                 ConflictUiState.Loaded(
                     fileName = fileName,
                     currentText = texts.first,
                     copyText = texts.second,
-                    copyLabel = SyncConflicts.label(copyName),
+                    copyLabel = copy?.label ?: copyName,
+                    schemeName = copy?.scheme?.displayName,
+                    copyKeptBy = sync.conflictCopyKeptBy(copyName),
                 )
             }
         }
@@ -54,17 +70,19 @@ class ConflictViewModel(
 
     fun resolve(fileName: String, resolution: ConflictResolution) {
         viewModelScope.launch {
-            val applied = sync.resolveConflict(fileName, resolution)
-            if (applied) {
-                _state.value = ConflictUiState.Resolved
-            } else {
-                // The conflict copy vanished from under us (e.g. a background sync
-                // or Syncthing itself cleared it while the picker was open):
-                // nothing was written. Reload instead of reporting success, so the
-                // user sees the real state (no conflict, or a fresh copy to
-                // resolve) rather than a silent no-op that looks like "kept
-                // current".
-                load(fileName)
+            when (val applied = sync.resolveConflict(fileName, resolution)) {
+                ConflictResolveResult.Resolved -> _state.value = ConflictUiState.Resolved
+                is ConflictResolveResult.CopyRemains ->
+                    _state.value = ConflictUiState.CleanupNeeded(applied.copyName, applied.provider)
+                ConflictResolveResult.NotApplied -> {
+                    // The conflict copy vanished from under us (e.g. a background
+                    // sync or the sync tool itself cleared it while the picker was
+                    // open), or the write was refused: nothing was written. Reload
+                    // instead of reporting success, so the user sees the real state
+                    // (no conflict, or a fresh copy to resolve) rather than a silent
+                    // no-op that looks like "kept current".
+                    load(fileName)
+                }
             }
         }
     }

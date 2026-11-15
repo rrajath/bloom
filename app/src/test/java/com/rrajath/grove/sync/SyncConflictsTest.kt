@@ -1,5 +1,6 @@
 package com.rrajath.grove.sync
 
+import com.rrajath.grove.sync.conflicts.ConflictSchemes
 import com.rrajath.grove.vault.JvmFileStore
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -52,31 +53,31 @@ class SyncConflictsTest {
 
     @Test
     fun `recognizes syncthing conflict names`() {
-        assertTrue(SyncConflicts.isConflictFile(copy))
-        assertFalse(SyncConflicts.isConflictFile("journal.org"))
-        assertFalse(SyncConflicts.isConflictFile("sync-conflict-notes.org"))
+        assertTrue(ConflictSchemes.isConflictFile(copy))
+        assertFalse(ConflictSchemes.isConflictFile("journal.org"))
+        assertFalse(ConflictSchemes.isConflictFile("sync-conflict-notes.org"))
     }
 
     @Test
     fun `base name strips the conflict infix`() {
-        assertEquals("journal.org", SyncConflicts.baseName(copy))
-        assertEquals(null, SyncConflicts.baseName("journal.org"))
+        assertEquals("journal.org", ConflictSchemes.baseName(copy))
+        assertEquals(null, ConflictSchemes.baseName("journal.org"))
     }
 
     @Test
     fun `conflict names keep their vault-relative directory prefix`() {
         val nested = "projects/clients/acme.sync-conflict-20250611-143200-ABCDEF7.org"
-        assertTrue(SyncConflicts.isConflictFile(nested))
-        assertEquals("projects/clients/acme.org", SyncConflicts.baseName(nested))
+        assertTrue(ConflictSchemes.isConflictFile(nested))
+        assertEquals("projects/clients/acme.org", ConflictSchemes.baseName(nested))
         assertEquals(
             mapOf("projects/clients/acme.org" to nested),
-            SyncConflicts.detect(listOf("projects/clients/acme.org", nested, "root.org")),
+            ConflictSchemes.detect(listOf("projects/clients/acme.org", nested, "root.org")),
         )
     }
 
     @Test
     fun `label formats the timestamp`() {
-        assertEquals("2025-06-11 14:32", SyncConflicts.label(copy))
+        assertEquals("2025-06-11 14:32", ConflictSchemes.parse(copy)!!.label)
     }
 
     @Test
@@ -87,7 +88,7 @@ class SyncConflictsTest {
             copy,
             "other.org",
         )
-        assertEquals(mapOf("journal.org" to copy), SyncConflicts.detect(names))
+        assertEquals(mapOf("journal.org" to copy), ConflictSchemes.detect(names))
     }
 
     @Test
@@ -210,5 +211,35 @@ class SyncConflictsTest {
 
         assertEquals("* Mine\n", store.read("journal.org"))
         assertFalse(store.exists(copy))
+    }
+
+    @Test
+    fun `apply reports the copy left in place when the provider won't delete it`() = runTest {
+        val copy = "journal (SFConflict alex@host 2026-11-08-10-12-33).org"
+        val store = com.rrajath.grove.testing.FakeFileStore(
+            mapOf("journal.org" to "* Mine\n", copy to "* Theirs\n"),
+        )
+        store.failWith(
+            com.rrajath.grove.vault.storage.StorageOp.Delete,
+            com.rrajath.grove.vault.storage.StorageError.Unsupported(com.rrajath.grove.vault.storage.StorageOp.Delete),
+        )
+
+        val result = ConflictResolver.apply(store, "journal.org", copy, ConflictResolution.KEEP_CONFLICT_COPY)
+
+        assertEquals(com.rrajath.grove.vault.storage.StorageResult.Ok(CopyCleanup.REMAINS), result)
+        assertEquals("* Theirs\n", store.read("journal.org"))
+        assertTrue(store.exists(copy))
+    }
+
+    @Test
+    fun `apply reports the copy deleted when it is gone`() = runTest {
+        val copy = "journal.sync-conflict-20250611-143200-DEVICE.org"
+        val store = com.rrajath.grove.testing.FakeFileStore(
+            mapOf("journal.org" to "* Mine\n", copy to "* Theirs\n"),
+        )
+
+        val result = ConflictResolver.apply(store, "journal.org", copy, ConflictResolution.KEEP_CURRENT)
+
+        assertEquals(com.rrajath.grove.vault.storage.StorageResult.Ok(CopyCleanup.DELETED), result)
     }
 }

@@ -61,6 +61,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 - Offline banner and read-only notes when the vault's provider can't be reached.
 - Settings › Sync shows the vault's storage provider and what it allows.
+- Detects Seafile and Nextcloud desktop conflict copies instead of listing them as notebooks.
 
 ### Changed
 

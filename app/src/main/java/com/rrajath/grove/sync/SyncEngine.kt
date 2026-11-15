@@ -1,5 +1,6 @@
 package com.rrajath.grove.sync
 
+import com.rrajath.grove.sync.conflicts.ConflictSchemes
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import kotlinx.coroutines.async
@@ -37,7 +38,7 @@ sealed class SyncState {
 data class SyncResult(
     val pulled: List<String>,
     val removed: List<String>,
-    /** Notebook file name → Syncthing conflict copy file name. */
+    /** Notebook file name → its conflict copy's file name (any [com.rrajath.grove.sync.conflicts.ConflictScheme]). */
     val conflicts: Map<String, String>,
     val completedAt: Long,
     /** Folders the provider couldn't finish listing; their notebooks were left as indexed. */
@@ -121,10 +122,10 @@ class SyncEngine(
             // image, a stray file Syncthing touched) are dropped here so they
             // never reach the notification/UI layer, which only understands
             // notebooks.
-            val conflicts = SyncConflicts.detect(entries.map { it.name })
+            val conflicts = ConflictSchemes.detect(entries.map { it.name })
                 .filterKeys { it.endsWith(".org") }
             val notebooks = entries.filter {
-                it.name.endsWith(".org") && !SyncConflicts.isConflictFile(it.name)
+                it.name.endsWith(".org") && !ConflictSchemes.isConflictFile(it.name)
             }
 
             val known = index.knownNotebooks()
@@ -193,7 +194,7 @@ class SyncEngine(
                 log("removed $it from index")
             }
             // Conflict markers can change without the file content changing
-            // (Syncthing dropping a .sync-conflict copy next to it).
+            // (a sync tool dropping a conflict copy next to it).
             val changedNames = changed.mapTo(HashSet()) { it.name }
             notebooks.forEach { nb ->
                 if (nb.name !in changedNames && known[nb.name]?.conflictFileName != conflictFor(nb.name)) {

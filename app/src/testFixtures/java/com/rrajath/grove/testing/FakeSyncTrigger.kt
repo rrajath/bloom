@@ -1,6 +1,7 @@
 package com.rrajath.grove.testing
 
 import com.rrajath.grove.sync.ConflictResolution
+import com.rrajath.grove.sync.ConflictResolveResult
 import com.rrajath.grove.sync.SyncResult
 import com.rrajath.grove.sync.SyncState
 import com.rrajath.grove.sync.SyncTrigger
@@ -13,14 +14,16 @@ import kotlinx.coroutines.flow.asStateFlow
  * WorkManager, a `FileObserver` and a foreground `Service`, it just remembers
  * which sync side-effects a VM asked for so a test can assert on them.
  *
- * The conflict helpers ([conflictTexts], [resolveConflict]) delegate to
+ * The conflict helpers ([conflictTexts], [resolveConflict], [conflictCopyKeptBy]) delegate to
  * caller-supplied lambdas; the defaults behave as "no conflict".
  *
  * See internal/test-suite-01-integration-robolectric.md § Test conventions.
  */
 class FakeSyncTrigger(
     private val onConflictTexts: suspend (String) -> Pair<String, String>? = { null },
-    private val onResolveConflict: suspend (String, ConflictResolution) -> Boolean = { _, _ -> false },
+    private val onResolveConflict: suspend (String, ConflictResolution) -> ConflictResolveResult =
+        { _, _ -> ConflictResolveResult.NotApplied },
+    private val onConflictCopyKeptBy: suspend (String) -> Int? = { null },
 ) : SyncTrigger {
 
     data class ReindexCall(val fileName: String, val text: String, val reason: String)
@@ -67,8 +70,10 @@ class FakeSyncTrigger(
     override suspend fun conflictTexts(baseName: String): Pair<String, String>? =
         onConflictTexts(baseName)
 
-    override suspend fun resolveConflict(baseName: String, resolution: ConflictResolution): Boolean =
+    override suspend fun resolveConflict(baseName: String, resolution: ConflictResolution): ConflictResolveResult =
         onResolveConflict(baseName, resolution)
+
+    override suspend fun conflictCopyKeptBy(copyName: String): Int? = onConflictCopyKeptBy(copyName)
 
     // --- test helpers ---
 

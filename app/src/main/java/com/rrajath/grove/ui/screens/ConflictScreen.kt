@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -42,7 +43,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.difflib.DiffUtils
 import com.github.difflib.UnifiedDiffUtils
+import com.rrajath.grove.R
 import com.rrajath.grove.sync.ConflictResolution
+import com.rrajath.grove.ui.components.StorageNoticeBanner
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
@@ -50,7 +53,7 @@ import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.vault.ConflictUiState
 import com.rrajath.grove.ui.vault.ConflictViewModel
 
-/** Conflict picker (design spec §10) over a Syncthing .sync-conflict copy. */
+/** Conflict picker (design spec §10) over a sync tool's conflict copy (any `ConflictScheme`). */
 @Composable
 fun ConflictScreen(
     notebookId: String,
@@ -88,6 +91,24 @@ fun ConflictScreen(
                 Text("No conflict on this notebook", fontFamily = PlexSans, color = c.ink2)
             }
 
+            is ConflictUiState.CleanupNeeded -> Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+            ) {
+                StorageNoticeBanner(
+                    message = stringResource(
+                        R.string.conflict_cleanup_needed,
+                        s.copyName,
+                        stringResource(s.provider),
+                        stringResource(R.string.app_name),
+                    ),
+                )
+                Spacer(Modifier.height(18.dp))
+                PrimaryButton("Done", onClick = onBack)
+            }
+
             is ConflictUiState.Loaded -> Column(
                 Modifier
                     .fillMaxSize()
@@ -113,7 +134,7 @@ fun ConflictScreen(
                     }
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "This file changed on two devices. Syncthing kept the newer " +
+                        "This file changed in two places. ${s.schemeName ?: "Your sync tool"} kept one " +
                                 "version and saved the other as a conflict copy. Pick what to keep.",
                         fontFamily = PlexSans, fontSize = 13.sp, lineHeight = 1.5.em, color = c.ink,
                     )
@@ -143,7 +164,8 @@ fun ConflictScreen(
                 }
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "Either way the .sync-conflict copy is removed afterwards.",
+                    s.copyKeptBy?.let { stringResource(R.string.conflict_copy_kept_note, stringResource(it)) }
+                        ?: "Either way the conflict copy is removed afterwards.",
                     fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink3,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),

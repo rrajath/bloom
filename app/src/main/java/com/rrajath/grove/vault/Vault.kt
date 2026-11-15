@@ -3,6 +3,7 @@ package com.rrajath.grove.vault
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
+import com.rrajath.grove.sync.conflicts.ConflictSchemes
 import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.StorageOp
 import com.rrajath.grove.vault.storage.StorageResult
@@ -153,7 +154,7 @@ class Vault(
         }
 
     /**
-     * Every `.org` file in the vault (sync-conflict copies excluded; ignored
+     * Every `.org` file in the vault (conflict copies excluded; ignored
      * files/folders are already excluded by the `FileStore`), without parsing
      * any of them. For callers that only need file paths — [renameFolder] and
      * [deleteFolder] used to go through [notebooks], which parses every file
@@ -161,7 +162,7 @@ class Vault(
      */
     private suspend fun listOrgFiles(): List<FileEntry> =
         store.list().filter {
-            it.name.endsWith(".org") && !it.name.contains(".sync-conflict-")
+            it.name.endsWith(".org") && !ConflictSchemes.isConflictFile(it.name)
         }
 
     /**

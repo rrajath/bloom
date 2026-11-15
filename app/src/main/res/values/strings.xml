@@ -86,6 +86,10 @@
     <string name="storage_error_provider_detail">Your storage provider refused the change: %1$s</string>
     <string name="storage_error_offline">Can\'t reach your storage provider. Nothing was changed.</string>
     <string name="storage_error_conflict">This file changed somewhere else. Reload it before saving.</string>
+    <!-- Conflict screen, when the provider won't let Bloom delete the conflict copy. %1$s: provider. -->
+    <string name="conflict_copy_kept_note">%1$s doesn\'t let other apps delete files, so delete the copy there afterwards.</string>
+    <!-- %1$s: the copy's path, %2$s: provider, %3$s: app name. -->
+    <string name="conflict_cleanup_needed">Saved. %2$s doesn\'t let other apps delete files: delete %1$s in %2$s to finish cleaning up. Until then, %3$s keeps flagging this conflict.</string>
     <string name="storage_error_auth_failed">Your storage provider needs you to sign in again.</string>
 
     <!-- Offline mode (ui/components/StorageBanners.kt): the vault's provider can't be reached, so the

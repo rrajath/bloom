@@ -1,5 +1,6 @@
 package com.rrajath.grove.sync
 
+import com.rrajath.grove.sync.conflicts.ConflictSchemes
 import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.StorageResult
 import com.rrajath.grove.vault.FileEntry
@@ -415,7 +416,7 @@ class SyncEngineTest {
         val inner = JvmFileStore(tmp.root)
         val partial = object : FileStore by inner {
             override suspend fun listTree() = TreeListing(
-                inner.list().filterNot { SyncConflicts.isConflictFile(it.name) },
+                inner.list().filterNot { ConflictSchemes.isConflictFile(it.name) },
                 incompleteDirs = setOf("sub"),
             )
         }

@@ -6,45 +6,12 @@ import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.StorageResult
 import com.rrajath.grove.vault.storage.isOk
 
-/**
- * Syncthing conflict-copy handling. When both sides change a file, Syncthing
- * keeps the newer content in place and writes the loser as
- * `name.sync-conflict-YYYYMMDD-HHMMSS-DEVICEID.org` in the same directory.
- *
- * Names here are vault-relative paths. The `(.+)` head of [CONFLICT] spans the
- * directory prefix too, so `projects/acme.sync-conflict-….org` maps back to the
- * base `projects/acme.org` in its own directory.
- */
-object SyncConflicts {
+/** What happened to the conflict copy once its base file took a resolution. */
+enum class CopyCleanup {
+    DELETED,
 
-    private val CONFLICT = Regex("""^(.+)\.sync-conflict-(\d{8})-(\d{6})-([A-Za-z0-9]+)(\.[^.]+)?$""")
-
-    fun isConflictFile(name: String): Boolean = CONFLICT.matches(name)
-
-    /** Base notebook file name a conflict copy belongs to, or null. */
-    fun baseName(conflictFileName: String): String? {
-        val m = CONFLICT.matchEntire(conflictFileName) ?: return null
-        return m.groupValues[1] + m.groupValues[5]
-    }
-
-    /** Human-readable "when" of a conflict copy: `2025-06-11 14:32`. */
-    fun label(conflictFileName: String): String {
-        val m = CONFLICT.matchEntire(conflictFileName) ?: return conflictFileName
-        val d = m.groupValues[2]
-        val t = m.groupValues[3]
-        return "${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)} " +
-                "${t.substring(0, 2)}:${t.substring(2, 4)}"
-    }
-
-    /**
-     * Map of base file → conflict copy for every base that has one.
-     * If several copies exist, the newest (lexicographically greatest) wins.
-     */
-    fun detect(names: List<String>): Map<String, String> =
-        names.filter { isConflictFile(it) }
-            .sorted()
-            .mapNotNull { copy -> baseName(copy)?.let { base -> base to copy } }
-            .toMap()
+    /** The provider wouldn't delete it (Seafile lets no other app delete); the user removes it there. */
+    REMAINS,
 }
 
 object ConflictResolver {
@@ -54,15 +21,15 @@ object ConflictResolver {
      * [copyName]. The copy is the only other copy of the text, so it is deleted
      * only once the base file really took the resolution: a refused write
      * returns its error and leaves both files as they were. A copy that then
-     * can't be deleted still counts as resolved (the next sync flags it again
-     * if it survives).
+     * can't be deleted still counts as resolved, reported as [CopyCleanup.REMAINS]:
+     * the next sync flags it again until it's gone.
      */
     suspend fun apply(
         store: FileStore,
         baseName: String,
         copyName: String,
         resolution: ConflictResolution,
-    ): StorageResult<Unit> {
+    ): StorageResult<CopyCleanup> {
         val written = when (resolution) {
             ConflictResolution.KEEP_CURRENT -> StorageResult.Ok("")
             ConflictResolution.KEEP_CONFLICT_COPY -> store.write(baseName, store.read(copyName))
@@ -72,8 +39,8 @@ object ConflictResolver {
             )
         }
         if (written is StorageError) return written
-        store.delete(copyName)
-        return StorageResult.Ok(Unit)
+        val deleted = store.delete(copyName)
+        return StorageResult.Ok(if (deleted.isOk) CopyCleanup.DELETED else CopyCleanup.REMAINS)
     }
 
     /**
