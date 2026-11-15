@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import com.rrajath.grove.ui.components.OfflineBanner
@@ -387,7 +388,10 @@ fun NotebooksScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             if (s.notebooks.isEmpty()) {
-                                CenterMessage("✦", "No .org files here yet", "Capture a note or make a notebook from the bar below")
+                                CenterMessage(
+                                    "✦", "No .org files here yet", "Capture a note or make a notebook from the bar below",
+                                    pullable = true,
+                                )
                             } else {
                                 val listState = rememberLazyListState()
                                 Box(Modifier.fillMaxSize()) {
@@ -469,7 +473,10 @@ fun NotebooksScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             if (s.notebooks.isEmpty()) {
-                                CenterMessage("✦", "No .org files here yet", "Capture a note or make a notebook from the bar below")
+                                CenterMessage(
+                                    "✦", "No .org files here yet", "Capture a note or make a notebook from the bar below",
+                                    pullable = true,
+                                )
                             } else {
                                 val listState = rememberLazyListState()
                                 // Each top-level folder + its visible descendants is one list
@@ -1366,9 +1373,12 @@ private fun NoVaultState(onChooseFolder: () -> Unit) {
 }
 
 @Composable
-private fun CenterMessage(glyph: String, title: String, subtitle: String? = null) {
+internal fun CenterMessage(glyph: String, title: String, subtitle: String? = null, pullable: Boolean = false) {
     val c = MaterialTheme.grove
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    // [pullable]: inside a PullToRefreshBox the pull gesture needs a scrollable child, or an
+    // empty list can't be pulled to refresh. The Box keeps its full-size centring.
+    val base = if (pullable) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxSize()
+    Box(base, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(glyph, fontFamily = PlexMono, fontSize = 28.sp, color = c.ink3)
             Spacer(Modifier.height(10.dp))
