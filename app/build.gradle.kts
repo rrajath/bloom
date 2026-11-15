@@ -278,7 +278,20 @@ androidComponents {
     // the androidx.baselineprofile plugin derives for the :macrobenchmark module.
     val testHookVariants = setOf("debug", "benchmarkRelease", "nonMinifiedRelease")
 
+    // The "Performance" build. Both plugin-derived variants install under their
+    // own applicationId, so benchmarking or profile generation on a phone never
+    // replaces (or fails against) the production com.rrajath.grove install, and
+    // the perf build sits next to release and debug. Its launcher label comes
+    // from src/benchmarkRelease and src/nonMinifiedRelease. Keep in sync with
+    // BenchmarkVault.TARGET_PACKAGE; scripts/perf-benchmark.sh greps for this
+    // literal to refuse commits that predate the perf variant.
+    val perfVariants = setOf("benchmarkRelease", "nonMinifiedRelease")
+    val perfApplicationId = "com.rrajath.grove.perf"
+
     onVariants { variant ->
+        if (variant.name in perfVariants) {
+            variant.applicationId.set(perfApplicationId)
+        }
         val variantName = variant.name.replaceFirstChar { it.uppercase() }
         val copyTask = tasks.register<CopyChangelogTask>("copy${variantName}ChangelogAsset") {
             inputFile.set(rootProject.file("CHANGELOG.md"))
@@ -397,4 +410,18 @@ tasks.register("printVersionName") {
 // (MAJOR*10000 + MINOR*100 + PATCH), as stamped into the APK.
 tasks.register("printVersionCode") {
     doLast { println(storedVersionCode) }
+}
+
+// Friendly names for the "Performance" build (com.rrajath.grove.perf, see the
+// perfVariants block above). It is the androidx.baselineprofile plugin's
+// `benchmarkRelease` variant: minified like release, profileable, debug-signed.
+tasks.register("assemblePerf") {
+    group = "build"
+    description = "Assembles the Performance build (benchmarkRelease, com.rrajath.grove.perf)."
+    dependsOn("assembleBenchmarkRelease")
+}
+tasks.register("installPerf") {
+    group = "install"
+    description = "Installs the Performance build (benchmarkRelease, com.rrajath.grove.perf)."
+    dependsOn("installBenchmarkRelease")
 }

@@ -23,8 +23,12 @@ import androidx.test.uiautomator.Until
  */
 object BenchmarkVault {
 
-    /** :app's `benchmark` variant installs under the release applicationId. */
-    const val TARGET_PACKAGE = "com.rrajath.grove"
+    /**
+     * The "Performance" build: :app's `benchmarkRelease` / `nonMinifiedRelease`
+     * variants install under their own applicationId (set in app/build.gradle.kts),
+     * so they sit beside the production and debug installs instead of replacing them.
+     */
+    const val TARGET_PACKAGE = "com.rrajath.grove.perf"
 
     const val EXTRA_DIRECT_VAULT = "grove_test_direct_vault"
     const val EXTRA_SEED = "grove_test_seed"

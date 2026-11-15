@@ -95,12 +95,20 @@ scroll jank, and regenerates the Baseline Profile that ships in the APK. It is
 **not** run in CI: benchmark numbers off a shared-runner emulator are noise, so
 run it locally on a real device instead.
 
+The benchmarks run against the Performance build (`com.rrajath.grove.perf`,
+launcher label "Bloom Perf"), a minified, profileable variant that installs next
+to the release and debug builds instead of replacing them.
+
 ```bash
-./gradlew :macrobenchmark:connectedBenchmarkReleaseAndroidTest   # startup + scroll benchmarks
-./gradlew :app:generateBaselineProfile                           # writes app/src/release/generated/baselineProfiles/
+scripts/perf-benchmark.sh                 # benchmark the working copy on the connected phone
+scripts/perf-benchmark.sh <commit>        # benchmark another commit (built in a temp dir)
+./gradlew :app:installPerf                # install the Performance build by hand
+./gradlew :app:generateBaselineProfile    # writes app/src/release/generated/baselineProfiles/
 ```
 
-Results land in `macrobenchmark/build/outputs/connected_android_test_additional_output/`.
+The script stores each run (summary, raw JSON, device state) under the
+gitignored `internal/benchmarks/`. Compare a before and an after run on the same
+phone to spot regressions.
 
 ### First run
 
