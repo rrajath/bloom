@@ -11,6 +11,9 @@ import android.net.Uri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -92,6 +95,34 @@ class BackendFileStore(
     @Volatile
     private var rootProblem: String? = null
 
+    // Per-document capabilities, keyed like [docIds] / [dirDocIds]. Filled from
+    // the same listings; a missing entry means "never listed", which operations
+    // treat as allowed (the provider's refusal is then mapped instead).
+    private val fileCaps: MutableMap<String, StorageCapabilities> = ConcurrentHashMap()
+    private val dirCaps: MutableMap<String, StorageCapabilities> = ConcurrentHashMap()
+
+    @Volatile
+    private var rootCaps: StorageCapabilities = StorageCapabilities.ALL
+
+    @Volatile
+    private var rootCapsLoaded = false
+
+    private val _capabilities = MutableStateFlow(VaultCapabilities(profile = backend.profile))
+    override val capabilities: StateFlow<VaultCapabilities> = _capabilities.asStateFlow()
+
+    /** Republishes [capabilities] from the caches (walks drop vanished paths from them). */
+    private fun publishCapabilities() {
+        _capabilities.value = VaultCapabilities(
+            profile = backend.profile,
+            root = rootCaps,
+            files = HashMap(fileCaps),
+            dirs = HashMap(dirCaps),
+        )
+    }
+
+    /** What the file at [key] (a [docIds] key) allows; ALL when it was never listed. */
+    private fun capsOfFile(key: String): StorageCapabilities = fileCaps[key] ?: StorageCapabilities.ALL
+
     private val ok: StorageResult<Unit> = StorageResult.Ok(Unit)
 
     /** What a missing source or parent means: the provider being unreachable, or really not there. */
@@ -138,10 +169,12 @@ class BackendFileStore(
                         if (child.isDir) {
                             if (isSkippedVaultDir(child.name, dir, skipRoots) || ignore.isDirIgnored(child.name, path)) continue
                             dirs[path] = child.docId
+                            dirCaps[path] = child.capabilities
                             visit(path, child.docId)
                         } else {
                             if (ignore.isFileIgnored(child.name, path)) continue
                             files[path] = child.docId
+                            fileCaps[path] = child.capabilities
                             entries.add(FileEntry(path, child.lastModified, child.size))
                         }
                     }
@@ -159,6 +192,17 @@ class BackendFileStore(
         dirDocIds = dirs
         listed = incomplete.isEmpty()
         rootProblem = rootReason
+        fileCaps.keys.retainAll(files.keys)
+        dirCaps.keys.retainAll(dirs.keys)
+        // The root's own flags: one query, the first time the provider answers
+        // for it (a root's flags don't change while its tree is in use).
+        if (!rootCapsLoaded && rootReason == null) {
+            backend.stat(rootDocId).getOrNull()?.let {
+                rootCaps = it.capabilities
+                rootCapsLoaded = true
+            }
+        }
+        publishCapabilities()
         return TreeListing(entries.sortedBy { it.name }, incomplete.toSet(), rootReason)
     }
 
@@ -202,15 +246,17 @@ class BackendFileStore(
             if (child.isDir) {
                 if (isSkippedVaultDir(child.name, dir, skipRoots) || ignore.isDirIgnored(child.name, path)) continue
                 dirDocIds[path] = child.docId
+                dirCaps[path] = child.capabilities
                 seenDirs += path
             } else {
                 if (ignore.isFileIgnored(child.name, path)) continue
                 docIds[path] = child.docId
+                fileCaps[path] = child.capabilities
                 seenFiles += path
                 entries.add(FileEntry(path, child.lastModified, child.size))
             }
         }
-        if (listing !is Listing.Complete) return entries
+        if (listing !is Listing.Complete) return entries.also { publishCapabilities() }
         val prefix = if (dir.isEmpty()) "" else "$dir/"
         fun isDirectChild(path: String) = path.startsWith(prefix) && '/' !in path.removePrefix(prefix)
         docIds.keys.removeAll { isDirectChild(it) && it !in seenFiles }
@@ -218,6 +264,7 @@ class BackendFileStore(
         val goneDirs = dirDocIds.keys.filter { isDirectChild(it) && it !in seenDirs }
         dirDocIds.keys.removeAll { key -> goneDirs.any { key == it || key.startsWith("$it/") } }
         docIds.keys.removeAll { key -> goneDirs.any { key.startsWith("$it/") } }
+        publishCapabilities()
         return entries
     }
 
@@ -260,7 +307,7 @@ class BackendFileStore(
         /** This provider's document ids aren't paths: only a listing can answer. */
         data object Unsupported : DirectLookup
         data object Missing : DirectLookup
-        data class Found(val docId: String) : DirectLookup
+        data class Found(val docId: String, val caps: StorageCapabilities) : DirectLookup
     }
 
     /**
@@ -287,7 +334,7 @@ class BackendFileStore(
         return when {
             entry.isDir -> DirectLookup.Missing
             entry.name != segments.last() -> DirectLookup.Unsupported
-            else -> DirectLookup.Found(entry.docId)
+            else -> DirectLookup.Found(entry.docId, entry.capabilities)
         }
     }
 
@@ -356,19 +403,26 @@ class BackendFileStore(
             val caseOnly = newKey == oldKey && sameDir
             if (newKey != null && !caseOnly) return@withContext StorageError.NameTaken
             val docId = docIds[oldKey] ?: return@withContext StorageError.NotFound
+            val caps = capsOfFile(oldKey)
+            val oldLeaf = oldKey.substringAfterLast('/')
 
             val result = when {
+                // A same-folder rename has no emulation: copying to the new name
+                // would leave the original behind, since it can't be removed either.
+                (caseOnly || sameDir) && !caps.rename -> StorageError.Unsupported(StorageOp.Rename)
                 // The provider sees [newLeaf] as taken (by this very file) and
                 // would pick `work (1).org`; going through a free name avoids that.
                 caseOnly -> renameVia(docId, ".$newLeaf.renaming", newLeaf)
                 sameDir -> backend.rename(docId, newLeaf).map { }
-                else -> moveAcrossDirs(docId, oldKey, oldDir, newDir, newLeaf, newName)
+                else -> moveAcrossDirs(docId, caps, oldKey, oldLeaf, oldDir, newDir, newLeaf, newName)
             }
             listingChanged(Unit)
 
             if (result.isOk) {
                 docIds.remove(oldKey)
                 docIds.remove(newName)
+                fileCaps.remove(oldKey)?.let { fileCaps[newName] = it }
+                publishCapabilities()
             }
             result
         }
@@ -390,18 +444,26 @@ class BackendFileStore(
 
     /**
      * Cross-directory move through the backend, falling back to copy + delete
-     * for providers that refuse it (an unsupported or failed move). Any other
-     * error is the answer. When the delete half of the fallback fails, the copy
-     * is removed again, so a failed move doesn't leave the file in two places.
+     * for providers that refuse it (an unsupported or failed move), but only
+     * when the file can be deleted: otherwise the copy would leave it in two
+     * places, so the answer is [StorageError.Unsupported] before anything is
+     * copied (or any target folder created). Any other error is the answer.
+     * When the delete half of the fallback fails, the copy is removed again.
      */
     private suspend fun moveAcrossDirs(
         docId: String,
+        caps: StorageCapabilities,
         oldName: String,
+        oldLeaf: String,
         oldDir: String,
         newDir: String,
         newLeaf: String,
         newName: String,
     ): StorageResult<Unit> {
+        // A native move keeps the leaf; a new leaf on top needs a rename too.
+        val nativeMove = caps.move && (newLeaf == oldLeaf || caps.rename)
+        if (!nativeMove && !caps.delete) return StorageError.Unsupported(StorageOp.Move)
+
         val sourceParent = when (val r = resolveDir(oldDir, createMissing = false)) {
             is StorageResult.Ok -> r.value
             is StorageError -> return r
@@ -411,14 +473,17 @@ class BackendFileStore(
             is StorageError -> return r
         }
 
-        when (val moved = backend.move(docId, sourceParent.docId, targetParent.docId)) {
-            is StorageResult.Ok -> {
-                val currentName = backend.stat(moved.value).getOrNull()?.name
-                if (currentName != null && currentName != newLeaf) backend.rename(moved.value, newLeaf)
-                return ok
+        if (nativeMove) {
+            when (val moved = backend.move(docId, sourceParent.docId, targetParent.docId)) {
+                is StorageResult.Ok -> {
+                    val currentName = backend.stat(moved.value).getOrNull()?.name
+                    if (currentName != null && currentName != newLeaf) backend.rename(moved.value, newLeaf)
+                    return ok
+                }
+                is StorageError.Unsupported, is StorageError.ProviderError ->
+                    if (!caps.delete) return moved
+                is StorageError -> return moved
             }
-            is StorageError.Unsupported, is StorageError.ProviderError -> Unit
-            is StorageError -> return moved
         }
 
         // Provider refused the move: copy the bytes then delete the source.
@@ -447,9 +512,15 @@ class BackendFileStore(
     override suspend fun delete(name: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         val key = resolve(name) ?: return@withContext missing()
         val docId = docIds[key] ?: return@withContext StorageError.NotFound
+        // No provider call for what the file's flags already rule out.
+        if (!capsOfFile(key).delete) return@withContext StorageError.Unsupported(StorageOp.Delete)
         val result = backend.delete(docId)
         listingChanged(Unit)
-        if (result.isOk) docIds.remove(key)
+        if (result.isOk) {
+            docIds.remove(key)
+            fileCaps.remove(key)
+            publishCapabilities()
+        }
         result
     }
 
@@ -519,11 +590,17 @@ class BackendFileStore(
                 // The provider echoes the spelling asked for, whatever the file's
                 // real one is; the parent's listing has the real one.
                 lookupDir(name.substringBeforeLast('/', ""))?.let { queryDir(it.path, it.docId) }
-                cachedKey(name) ?: name.also { docIds[it] = direct.docId }
+                cachedKey(name) ?: name.also { learnFile(it, direct) }
             } else {
-                name.also { docIds[it] = direct.docId }
+                name.also { learnFile(it, direct) }
             }
         }
+    }
+
+    private fun learnFile(key: String, found: DirectLookup.Found) {
+        docIds[key] = found.docId
+        fileCaps[key] = found.caps
+        publishCapabilities()
     }
 
     private fun cachedKey(name: String): String? {
@@ -759,6 +836,7 @@ class BackendFileStore(
         require('/' !in newLeaf && newLeaf.isNotBlank()) { "Bad leaf name: $newLeaf" }
         val path = name.trim('/')
         val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext StorageError.NotFound
+        if (!meta.capabilities.rename) return@withContext StorageError.Unsupported(StorageOp.Rename)
         val dir = path.substringBeforeLast('/', "")
         val newPath = if (dir.isEmpty()) newLeaf else "$dir/$newLeaf"
         if (rawLookup(newPath) != null) return@withContext StorageError.NameTaken
@@ -777,6 +855,7 @@ class BackendFileStore(
     override suspend fun deleteRaw(name: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         val path = name.trim('/')
         val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext StorageError.NotFound
+        if (!meta.capabilities.delete) return@withContext StorageError.Unsupported(StorageOp.Delete)
         val result = backend.delete(meta.docId)
         listingChanged(Unit)
         if (result.isOk) forgetTree(path)
@@ -831,6 +910,7 @@ class BackendFileStore(
         val path = dir.trim('/')
         require(path.isNotEmpty()) { "Refusing to delete the vault root" }
         val meta = rawLookup(path)?.takeIf { it.isDir } ?: return@withContext StorageError.NotFound
+        if (!meta.capabilities.delete) return@withContext StorageError.Unsupported(StorageOp.Delete)
         val result = deleteTree(path, meta.docId)
         forgetTree(path)
         result
@@ -862,6 +942,8 @@ class BackendFileStore(
         val parentPath = dstParent.trim('/')
         require(srcPath.isNotEmpty()) { "Refusing to move the vault root" }
         val meta = rawLookup(srcPath)?.takeIf { it.isDir } ?: return@withContext StorageError.NotFound
+        // Copy + delete is the fallback; without delete it would leave the tree in two places.
+        if (!meta.capabilities.canRelocate) return@withContext StorageError.Unsupported(StorageOp.Move)
         val dstPath = if (parentPath.isEmpty()) meta.name else "$parentPath/${meta.name}"
         if (dstPath == srcPath || dstPath.startsWith("$srcPath/")) return@withContext StorageError.NameTaken
         if (rawLookup(dstPath) != null) return@withContext StorageError.NameTaken
@@ -870,10 +952,17 @@ class BackendFileStore(
         val dstParentId = ensureRawDir(parentPath) ?: return@withContext StorageError.ProviderError(null)
 
         // A provider move isn't available everywhere (API 24, and not every provider).
-        val moved = backend.move(meta.docId, srcParentId, dstParentId).also { listingChanged(Unit) }
+        val moved: StorageResult<String> = if (meta.capabilities.move) {
+            backend.move(meta.docId, srcParentId, dstParentId).also { listingChanged(Unit) }
+        } else {
+            StorageError.Unsupported(StorageOp.Move)
+        }
         forgetTree(srcPath)
         forgetTree(dstPath)
-        if (moved.isOk) return@withContext ok
+        when (moved) {
+            is StorageResult.Ok -> return@withContext ok
+            is StorageError -> if (!meta.capabilities.delete) return@withContext moved
+        }
 
         // Fallback: copy the tree, and only delete the source once it's all there.
         val copied = copyTree(srcPath, meta.docId, dstPath)

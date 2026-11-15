@@ -4,12 +4,15 @@ import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageOp
 import com.rrajath.grove.vault.storage.StorageResult
 import com.rrajath.grove.vault.storage.isOk
 import com.rrajath.grove.vault.storage.map
+import com.rrajath.grove.vault.storage.VaultCapabilities
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -131,6 +134,9 @@ class Vault(
     /** The [FileStore] backing this vault, for callers (e.g. Dailies) that need
      *  it directly rather than going through a `Vault`-level method. */
     fun fileStore(): FileStore = store
+
+    /** What the vault's provider lets other apps do, per file and folder (see [FileStore.capabilities]). */
+    val capabilities: StateFlow<VaultCapabilities> get() = store.capabilities
 
     suspend fun notebooks(): List<Notebook> =
         listOrgFiles().map { entry ->
@@ -266,6 +272,10 @@ class Vault(
             .filter { it.startsWith(prefix) }
             .map { it to newDir + "/" + it.removePrefix(prefix) }
         if (moves.isEmpty()) return StorageError.NotFound
+        // Refuse before moving anything: a provider that can't move these files
+        // would otherwise leave the folder half renamed.
+        val caps = store.capabilities.value
+        if (moves.any { (from, _) -> !caps.ofFile(from).canRelocate }) return StorageError.Unsupported(StorageOp.Move)
         // Reject if the destination folder already exists (any file already sits
         // under it) or a moved file's target path is taken — both compared
         // case-insensitively, since the sync target is often a case-insensitive
@@ -300,7 +310,11 @@ class Vault(
         val prefix = "$trimmed/"
         var deleted = 0
         var failure: StorageError? = null
-        for (name in listOrgFiles().map { it.name }.filter { it.startsWith(prefix) }) {
+        val doomed = listOrgFiles().map { it.name }.filter { it.startsWith(prefix) }
+        // All or nothing up front: don't delete half a folder and then hit a file the provider protects.
+        val caps = store.capabilities.value
+        if (doomed.any { !caps.ofFile(it).delete }) return StorageError.Unsupported(StorageOp.Delete)
+        for (name in doomed) {
             val result = store.delete(name)
             if (result is StorageError) {
                 failure = result

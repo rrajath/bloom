@@ -64,6 +64,12 @@ class SafBackendTest : StorageBackendContract() {
 
     override fun dirExists(path: String) = File(tmp.root, path).isDirectory
 
+    override fun restrict(path: String, caps: StorageCapabilities) {
+        provider.flagsByPath[path] = flagsOf(caps, isDir = File(tmp.root, path).isDirectory)
+        // Every other document reports the full set a local provider gives.
+        provider.reportedFlags = FULL_FILE_FLAGS
+    }
+
     private suspend fun idOf(backend: StorageBackend, name: String) =
         backend.listChildren(dirId("")).entries.first { it.name == name }.docId
 
@@ -187,3 +193,20 @@ class SafBackendTest : StorageBackendContract() {
         assertEquals("after cancellation", 0, observersOn(root))
     }
 }
+
+/** The flags a fully capable local file reports. */
+internal const val FULL_FILE_FLAGS = Document.FLAG_SUPPORTS_WRITE or Document.FLAG_SUPPORTS_DELETE or
+    Document.FLAG_SUPPORTS_RENAME or Document.FLAG_SUPPORTS_MOVE or Document.FLAG_SUPPORTS_COPY
+
+/** [caps] as `COLUMN_FLAGS`, the inverse of [StorageCapabilities.fromFlags]. */
+internal fun flagsOf(caps: StorageCapabilities, isDir: Boolean): Int {
+    var f = 0
+    if (caps.delete) f = f or Document.FLAG_SUPPORTS_DELETE
+    if (caps.rename) f = f or Document.FLAG_SUPPORTS_RENAME
+    if (caps.move) f = f or Document.FLAG_SUPPORTS_MOVE
+    if (caps.copy) f = f or Document.FLAG_SUPPORTS_COPY
+    if (!isDir && caps.write) f = f or Document.FLAG_SUPPORTS_WRITE
+    if (isDir && caps.createChildren) f = f or Document.FLAG_DIR_SUPPORTS_CREATE
+    return f
+}
+

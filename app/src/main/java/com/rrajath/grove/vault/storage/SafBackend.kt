@@ -30,28 +30,28 @@ class SafBackend(
     private val treeUri: Uri,
     /** How long a loading directory is waited on before the listing is [Listing.Partial]. */
     private val listingDeadlineMs: Long = DEFAULT_LISTING_DEADLINE_MS,
+    /**
+     * The provider's declared quirks, by the tree's authority. On local storage
+     * names match case-insensitively: there `inbox.org` *is* an existing
+     * `Inbox.org`, and creating it makes the provider pick a free name
+     * (`inbox (1).org`) instead.
+     */
+    override val profile: ProviderProfile = ProviderProfiles.forAuthority(treeUri.authority),
 ) : StorageBackend {
 
     private val resolver get() = context.contentResolver
 
     override val rootId: String get() = DocumentsContract.getTreeDocumentId(treeUri)
 
-    /**
-     * Shared storage and SD cards (FAT/exFAT) match names case-insensitively:
-     * there `inbox.org` *is* an existing `Inbox.org`, and creating it makes the
-     * provider pick a free name (`inbox (1).org`) instead.
-     */
-    override val caseInsensitive: Boolean = treeUri.authority == EXTERNAL_STORAGE_AUTHORITY
-
     override fun docIdForPath(path: String): String? {
-        if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) return null
+        if (!profile.pathDocIds) return null
         val root = rootId
         if (':' !in root) return null
         return if (root.endsWith(':')) "$root$path" else "$root/$path"
     }
 
     override fun absolutePath(name: String): String? =
-        if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) null else externalStoragePath(rootId, name)
+        if (!profile.pathDocIds) null else externalStoragePath(rootId, name)
 
     override fun contentUri(docId: String): Uri? = docUri(docId)
 
@@ -244,14 +244,19 @@ class SafBackend(
                 ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
         }.getOrNull()
 
-    private fun entryOf(cursor: Cursor, fallbackId: String): DocEntry? {
+    /** A [PROJECTION] row as a [DocEntry]; null when it has no name (or no id and no [fallbackId]). */
+    private fun entryOf(cursor: Cursor, fallbackId: String?): DocEntry? {
+        val docId = cursor.getString(0) ?: fallbackId ?: return null
         val name = cursor.getString(1) ?: return null
+        val isDir = cursor.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR
+        val flags = if (cursor.isNull(5)) null else cursor.getInt(5)
         return DocEntry(
-            docId = cursor.getString(0) ?: fallbackId,
+            docId = docId,
             name = name,
             lastModified = cursor.getLong(2),
             size = cursor.getLong(3),
-            isDir = cursor.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR,
+            isDir = isDir,
+            capabilities = StorageCapabilities.fromFlags(flags, isDir),
         )
     }
 
@@ -319,12 +324,7 @@ class SafBackend(
         }
         val loading = extras?.getBoolean(DocumentsContract.EXTRA_LOADING, false) == true
         val entries = buildList {
-            while (cursor.moveToNext()) {
-                val docId = cursor.getString(0) ?: continue
-                val name = cursor.getString(1) ?: continue
-                val isDir = cursor.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR
-                add(DocEntry(docId, name, cursor.getLong(2), cursor.getLong(3), isDir))
-            }
+            while (cursor.moveToNext()) entryOf(cursor, fallbackId = null)?.let(::add)
         }
         val uris = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             cursor.notificationUris.orEmpty()
@@ -343,6 +343,7 @@ class SafBackend(
             DocumentsContract.Document.COLUMN_LAST_MODIFIED,
             DocumentsContract.Document.COLUMN_SIZE,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_FLAGS,
         )
     }
 }

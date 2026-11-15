@@ -49,6 +49,13 @@ class FakeDocumentsProvider : ContentProvider() {
      * write, but no rename/delete/move). Null leaves the column unreported.
      */
     var reportedFlags: Int? = null
+
+    /**
+     * Per-document `COLUMN_FLAGS`, by vault-relative path ("" is the root);
+     * wins over [reportedFlags]. Models a provider with mixed flags (Seafile's
+     * repos versus the files in them).
+     */
+    val flagsByPath: MutableMap<String, Int> = ConcurrentHashMap()
     private lateinit var authority: String
 
     /**
@@ -133,7 +140,7 @@ class FakeDocumentsProvider : ContentProvider() {
 
     private fun MatrixCursor.addFile(f: File, displayName: String = f.name) {
         val row = newRow()
-        reportedFlags?.let { row.add(Document.COLUMN_FLAGS, it) }
+        (flagsByPath[f.relativeTo(root).invariantSeparatorsPath] ?: reportedFlags)?.let { row.add(Document.COLUMN_FLAGS, it) }
         row.add(Document.COLUMN_DOCUMENT_ID, idFor(f))
         row.add(Document.COLUMN_DISPLAY_NAME, displayName)
         row.add(Document.COLUMN_LAST_MODIFIED, f.lastModified())

@@ -33,7 +33,11 @@ class FakeFileStoreOverridesTest {
         assertTrue("found no FileStore members; the filter is wrong", members.size > 10)
 
         val missing = members.filterNot { name ->
-            Regex("""override\s+(suspend\s+)?fun\s+$name\s*\(""").containsMatchIn(source)
+            Regex("""override\s+(suspend\s+)?fun\s+$name\s*\(""").containsMatchIn(source) ||
+                // A property's getter (getCapabilities) is overridden as `override val capabilities`.
+                (name.startsWith("get") && name.length > 3 &&
+                    Regex("""override\s+val\s+${name.removePrefix("get").replaceFirstChar { it.lowercase() }}\b""")
+                        .containsMatchIn(source))
         }
 
         assertTrue(

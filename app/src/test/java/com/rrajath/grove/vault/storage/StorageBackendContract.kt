@@ -37,6 +37,9 @@ abstract class StorageBackendContract {
 
     protected abstract fun dirExists(path: String): Boolean
 
+    /** Makes the provider report [caps] for the document at [path] ("" is the root). */
+    protected abstract fun restrict(path: String, caps: StorageCapabilities)
+
     /** The backend's handle for [name] inside the directory [dir], from a listing. */
     private suspend fun idOf(backend: StorageBackend, dir: String, name: String): String =
         backend.listChildren(dirId(dir)).entries.first { it.name == name }.docId
@@ -264,5 +267,25 @@ abstract class StorageBackendContract {
 
         assertEquals(StorageError.Conflict(current), written)
         assertEquals("one", fileText("a.org"))
+    }
+
+    @Test
+    fun `each listed document carries its own capabilities`() = runTest {
+        seedFile("locked.org")
+        seedFile("free.org")
+        seedDir("repo")
+        val noRenameMoveDelete = StorageCapabilities(delete = false, rename = false, move = false, copy = false)
+        restrict("locked.org", noRenameMoveDelete)
+        restrict("repo", StorageCapabilities(rename = false, move = false, copy = false))
+        val backend = newBackend()
+
+        val entries = backend.listChildren(dirId("")).entries.associateBy { it.name }
+
+        val lockedFile = noRenameMoveDelete.copy(createChildren = false)
+        assertEquals(lockedFile, entries.getValue("locked.org").capabilities)
+        assertEquals(StorageCapabilities(createChildren = false), entries.getValue("free.org").capabilities)
+        val repo = entries.getValue("repo").capabilities
+        assertTrue(repo.delete && repo.createChildren && !repo.rename && !repo.move)
+        assertEquals(lockedFile, (backend.stat(entries.getValue("locked.org").docId) as StorageResult.Ok).value.capabilities)
     }
 }

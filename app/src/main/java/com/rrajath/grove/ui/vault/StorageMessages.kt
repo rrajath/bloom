@@ -1,7 +1,10 @@
 package com.rrajath.grove.ui.vault
 
 import android.content.Context
+import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
+import com.rrajath.grove.vault.storage.ProviderProfile
+import com.rrajath.grove.vault.storage.ProviderProfiles
 import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.StorageOp
 
@@ -13,13 +16,14 @@ enum class StorageSubject { Notebook, Folder }
  * kind, so a refused rename never reads as "already exists". Exhaustive on
  * purpose: a new error kind must be given a message here before it compiles.
  *
- * The provider is named generically ("your storage provider") until provider
- * profiles can supply its display name.
+ * [provider] names the provider in an [StorageError.Unsupported] message; it
+ * defaults to the current vault's.
  */
 fun storageErrorMessage(
     context: Context,
     error: StorageError,
     subject: StorageSubject = StorageSubject.Notebook,
+    provider: ProviderProfile = currentProviderProfile(context),
 ): String = when (error) {
     StorageError.NameTaken -> context.getString(
         if (subject == StorageSubject.Folder) {
@@ -29,16 +33,7 @@ fun storageErrorMessage(
         },
     )
     StorageError.NotFound -> context.getString(R.string.storage_error_not_found)
-    is StorageError.Unsupported -> context.getString(
-        when (error.op) {
-            StorageOp.Create -> R.string.storage_error_unsupported_create
-            StorageOp.Rename -> R.string.storage_error_unsupported_rename
-            StorageOp.Move -> R.string.storage_error_unsupported_move
-            StorageOp.Delete -> R.string.storage_error_unsupported_delete
-            StorageOp.Write -> R.string.storage_error_unsupported_write
-            StorageOp.Read -> R.string.storage_error_unsupported_read
-        },
-    )
+    is StorageError.Unsupported -> unsupportedReason(context, error.op, provider)
     is StorageError.ProviderError ->
         if (error.message.isNullOrBlank()) {
             context.getString(R.string.storage_error_provider)
@@ -49,3 +44,21 @@ fun storageErrorMessage(
     is StorageError.Conflict -> context.getString(R.string.storage_error_conflict)
     StorageError.AuthFailed -> context.getString(R.string.storage_error_auth_failed)
 }
+
+/** "Seafile doesn't let other apps rename files.": why [op] is refused or disabled. */
+fun unsupportedReason(context: Context, op: StorageOp, provider: ProviderProfile): String = context.getString(
+    when (op) {
+        StorageOp.Create -> R.string.storage_error_unsupported_create
+        StorageOp.Rename -> R.string.storage_error_unsupported_rename
+        StorageOp.Move -> R.string.storage_error_unsupported_move
+        StorageOp.Delete -> R.string.storage_error_unsupported_delete
+        StorageOp.Write -> R.string.storage_error_unsupported_write
+        StorageOp.Read -> R.string.storage_error_unsupported_read
+    },
+    context.getString(provider.displayName),
+)
+
+/** The current vault's provider profile; [ProviderProfiles.DEFAULT] outside the app (tests) or with no vault. */
+fun currentProviderProfile(context: Context): ProviderProfile =
+    (context.applicationContext as? GroveApplication)?.fileStore?.value?.capabilities?.value?.profile
+        ?: ProviderProfiles.DEFAULT

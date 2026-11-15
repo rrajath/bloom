@@ -5,6 +5,10 @@ import com.rrajath.grove.attach.AttachSkipRoots
 import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.StorageOp
 import com.rrajath.grove.vault.storage.StorageResult
+import com.rrajath.grove.vault.storage.VaultCapabilities
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -61,6 +65,13 @@ data class TreeListing(
  * don't support them keep the throwing defaults.
  */
 interface FileStore {
+    /**
+     * What the provider lets other apps do, per listed file and folder, as of
+     * the last listing. Stores with no provider (tests, plain files) allow
+     * everything.
+     */
+    val capabilities: StateFlow<VaultCapabilities> get() = ALL_CAPABILITIES
+
     /** All files in the vault, recursively (not filtered to .org; callers apply ignore rules). */
     suspend fun list(): List<FileEntry>
 
@@ -251,3 +262,6 @@ internal fun isAttachShard(name: String): Boolean =
     name.length == 2 ||
         (name.length == 6 && name.all { it in '0'..'9' }) ||
         name == "__"
+
+/** [FileStore.capabilities] for stores that allow everything. */
+private val ALL_CAPABILITIES: StateFlow<VaultCapabilities> = MutableStateFlow(VaultCapabilities.UNKNOWN).asStateFlow()

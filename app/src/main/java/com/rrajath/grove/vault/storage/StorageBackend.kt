@@ -20,6 +20,8 @@ data class DocEntry(
      * backends that can't tell.
      */
     val revision: String? = if (isDir) null else "$lastModified:$size",
+    /** What the provider lets other apps do to this document ([StorageCapabilities.ALL] when it doesn't say). */
+    val capabilities: StorageCapabilities = StorageCapabilities.ALL,
 )
 
 /**
@@ -65,8 +67,11 @@ interface StorageBackend {
     /** The document id of the vault's root directory. */
     val rootId: String
 
+    /** What has to be declared about this provider because no signal shows it. */
+    val profile: ProviderProfile
+
     /** True when the provider matches names in any case, so `inbox.org` is an existing `Inbox.org`. */
-    val caseInsensitive: Boolean
+    val caseInsensitive: Boolean get() = profile.caseInsensitiveNames
 
     /**
      * The document id of the file or folder at the vault-relative [path], for a

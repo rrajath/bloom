@@ -7,6 +7,8 @@ import com.rrajath.grove.vault.TreeListing
 import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.StorageOp
 import com.rrajath.grove.vault.storage.StorageResult
+import com.rrajath.grove.vault.storage.VaultCapabilities
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
@@ -65,6 +67,9 @@ class FakeFileStore(
 
     private fun underDotDir(name: String): Boolean =
         name.split('/').dropLast(1).any { it.startsWith(".") }
+
+    /** Settable so tests can model a provider that refuses rename/move/delete. */
+    override val capabilities: MutableStateFlow<VaultCapabilities> = MutableStateFlow(VaultCapabilities.UNKNOWN)
 
     override suspend fun list(): List<FileEntry> = mutex.withLock {
         files.entries
