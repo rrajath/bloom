@@ -12,7 +12,9 @@ import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 import java.io.File
 import java.io.FileNotFoundException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.concurrent.thread
 import org.robolectric.Robolectric
 
 /**
@@ -37,6 +39,47 @@ class FakeDocumentsProvider : ContentProvider() {
     var supportsMove = true
     var caseInsensitive = false
     private lateinit var authority: String
+
+    /**
+     * Document ids of directories whose children query answers an empty cursor
+     * flagged EXTRA_LOADING, until [finishLoading]. A dir that is never
+     * finished models a provider that never loads.
+     */
+    val loadingDirs: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Document ids of directories whose children query answers EXTRA_ERROR. */
+    val errorDirs: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** When true, the first children query of every directory is a loading one. */
+    var everyDirLoadsFirst = false
+
+    /** When >= 0, a loading directory finishes by itself this many ms after its first loading query. */
+    var autoFinishLoadingMs = -1L
+
+    /** Notify on the non-tree children URI (what Seafile does) instead of the tree-scoped one the query used. */
+    var notifyOutOfTree = false
+
+    private val loadedOnce: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val autoFinishScheduled: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Ends a loading directory and notifies, as a real provider does once its fetch lands. */
+    fun finishLoading(docId: String) {
+        loadingDirs.remove(docId)
+        val uri = if (notifyOutOfTree) {
+            DocumentsContract.buildChildDocumentsUri(authority, docId)
+        } else {
+            DocumentsContract.buildChildDocumentsUriUsingTree(treeUri(authority), docId)
+        }
+        context!!.contentResolver.notifyChange(uri, null)
+    }
+
+    /** [finishLoading] from another thread after [delayMs], so the waiting side really suspends first. */
+    fun finishLoadingLater(docId: String, delayMs: Long) {
+        thread(isDaemon = true) {
+            Thread.sleep(delayMs)
+            finishLoading(docId)
+        }
+    }
 
     override fun onCreate(): Boolean = true
 
@@ -99,6 +142,18 @@ class FakeDocumentsProvider : ContentProvider() {
         val cursor = MatrixCursor(projection ?: DEFAULT_PROJECTION)
         if (uri.lastPathSegment == "children") {
             if (!f.isDirectory) throw FileNotFoundException(docId)
+            if (docId in errorDirs) {
+                cursor.extras = Bundle().apply { putString(DocumentsContract.EXTRA_ERROR, "Simulated provider error") }
+                return cursor
+            }
+            if (everyDirLoadsFirst && loadedOnce.add(docId)) loadingDirs.add(docId)
+            if (docId in loadingDirs) {
+                // Seafile-style: an empty cursor now, the rows after the provider notifies.
+                cursor.extras = Bundle().apply { putBoolean(DocumentsContract.EXTRA_LOADING, true) }
+                cursor.setNotificationUri(context!!.contentResolver, uri)
+                if (autoFinishLoadingMs >= 0 && autoFinishScheduled.add(docId)) finishLoadingLater(docId, autoFinishLoadingMs)
+                return cursor
+            }
             f.listFiles().orEmpty().sortedBy { it.name }.forEach { cursor.addFile(it) }
         } else {
             if (!f.exists()) throw FileNotFoundException(docId)
