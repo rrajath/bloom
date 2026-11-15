@@ -1,13 +1,23 @@
 ---
 title: Conflict Resolution
-description: What happens when Syncthing leaves behind a .sync-conflict-* copy, and how to resolve it inside Bloom.
+description: What happens when Syncthing, Seafile or Nextcloud leaves behind a conflict copy, and how to resolve it inside Bloom.
 ---
 
 import ThemeShot from '../../../components/ThemeShot.astro';
 import syncConflictLight from '../assets/light/sync-conflict.png';
 import syncConflictDark from '../assets/dark/sync-conflict.png';
 
-When two devices edit the same `.org` file while disconnected, Syncthing resolves the collision by keeping both copies: your device's version, plus a `.sync-conflict-*` file holding the other side's changes. Bloom detects these copies during its normal sync pass and surfaces them for resolution rather than silently picking one.
+When two devices edit the same `.org` file while disconnected, the sync tool resolves the collision by keeping both copies: one version under the original name, plus a conflict copy holding the other side's changes. Bloom detects these copies during its normal sync pass and surfaces them for resolution rather than silently picking one, or listing the copy as a notebook of its own.
+
+Bloom recognizes the conflict copies these tools make:
+
+| Tool | Conflict copy name |
+|---|---|
+| Syncthing | `journal.sync-conflict-20261108-101233-ABCDEF1.org` |
+| Seafile desktop client | `journal (SFConflict alex@example.com 2026-11-08-10-12-33).org` |
+| Nextcloud desktop client | `journal (conflicted copy 2026-11-08 101233).org`, or `journal_conflict-20261108-101233.org` from older clients |
+
+Seafile's and Nextcloud's Android apps don't make conflict copies; Bloom's own save check covers edits made there (see [Edit mode](/features/edit-mode#stale-file-protection)).
 
 ## The conflict screen
 
@@ -26,6 +36,8 @@ Three choices:
 - **Keep current**: discard the conflict copy, keep what's on your device
 - **Keep conflict copy**: replace your device's version with the conflict copy's content
 - **Keep both**: the current copy and the conflict copy get interspersed so that nothing is lost
+
+Afterwards the conflict copy is deleted. Some providers don't let other apps delete files (Seafile, for one): the screen says so before you choose, and afterwards asks you to delete the copy in the provider's own app. Until you do, Bloom keeps flagging the conflict.
 
 There's no automatic merge in v1; every conflict gets a deliberate choice. There's no hunk-level conflict resolution either.
 
