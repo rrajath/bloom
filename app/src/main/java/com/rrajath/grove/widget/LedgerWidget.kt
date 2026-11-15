@@ -801,7 +801,7 @@ class MarkDoneAction : ActionCallback {
                         ?.let { OrgMutations.advanceRepeatingPlanning(doc, headline, it, LocalDateTime.now()) }
                 else -> null
             } ?: return run { Log.w(TAG, "headline at $fileName:$lineIndex has no keyword and nothing to advance") }
-            vault.save(fileName, newText)
+            vault.save(fileName, newText, base = doc)
             app.reindexNow(fileName, newText)
             app.syncManager.requestReindex(fileName, newText, "ledger widget advance repeater")
             LedgerWidget().updateAll(context)
@@ -817,12 +817,12 @@ class MarkDoneAction : ActionCallback {
             val result = AutoArchive.apply(vault, settings, doc, fileName, headline, doneKeyword, LocalDateTime.now())
         ) {
             is StateChangeResult.Plain -> {
-                vault.save(fileName, result.text)
+                vault.save(fileName, result.text, base = doc)
                 app.reindexNow(fileName, result.text)
                 app.syncManager.requestReindex(fileName, result.text, "ledger widget mark done")
             }
             is StateChangeResult.Archived -> {
-                vault.save(fileName, result.sourceText)
+                vault.save(fileName, result.sourceText, base = doc)
                 app.reindexNow(fileName, result.sourceText)
                 app.syncManager.requestReindex(fileName, result.sourceText, "ledger widget mark done")
                 if (result.destFile != fileName) {

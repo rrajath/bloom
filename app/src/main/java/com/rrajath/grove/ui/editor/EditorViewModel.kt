@@ -586,7 +586,7 @@ class EditorViewModel(
                 val result = AutoArchive.apply(vault, currentSettings, doc, s.fileName, headline, keyword, LocalDateTime.now())
             ) {
                 is StateChangeResult.Plain -> {
-                    vault.save(s.fileName, result.text)
+                    vault.save(s.fileName, result.text, base = doc)
                     sync.requestReindex(s.fileName, result.text, "note state set")
                     val newHeadline = result.doc.headlines.firstOrNull { it.lineIndex == s.lineIndex }
                     val revision = vault.revision(s.fileName)
@@ -810,7 +810,7 @@ class EditorViewModel(
         val doc = vault.open(s.fileName) ?: return@withLock
         val edit = applyMoveOutcomeText(doc, outcome)
         if (edit.text == doc.text) return@withLock
-        vault.save(s.fileName, edit.text)
+        vault.save(s.fileName, edit.text, base = doc)
         sync.requestReindex(s.fileName, edit.text, "attachment moved")
         setAttachBaseline(s.fileName, OrgParser.parse(edit.text, doc.keywords))
         val after = vault.revision(s.fileName)
@@ -1015,7 +1015,7 @@ class EditorViewModel(
         val owner = doc.fileOwner()
         if (owner.id != null || owner.dirProperty != null) return@withLock true
         val newText = withContext(dispatchers.default) { OrgMutations.upsertFileProperty(doc, "ID", id) }
-        vault.save(path, newText)
+        vault.save(path, newText, base = doc)
         sync.requestReindex(path, newText, "attach file id")
         val after = vault.revision(path)
         _state.update { s ->
@@ -1126,7 +1126,7 @@ class EditorViewModel(
                     ?.let { it.lineIndex until doc.subtreeEndLine(it) }
             if (span != null) {
                 val newText = doc.lines.filterIndexed { i, _ -> i !in span }.joinToString("\n")
-                vault.save(s.fileName, newText)
+                vault.save(s.fileName, newText, base = doc)
                 sync.requestReindex(s.fileName, newText, "empty note discarded")
             }
             onDeleted()

@@ -77,7 +77,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
                 }
             }
             if (newText != null) {
-                vault.save(reminder.fileName, newText)
+                vault.save(reminder.fileName, newText, base = doc)
                 app.syncManager.requestReindex(reminder.fileName, newText, "reminder completed")
                 true
             } else false

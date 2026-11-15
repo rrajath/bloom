@@ -415,4 +415,51 @@ class VaultTest {
         assertEquals(StorageError.Conflict(null), v.trySave("a.org", "* Mine\n", ifMatch = read))
         assertFalse(store.exists("a.org"))
     }
+
+    @Test
+    fun `a save based on a document read before an external edit is refused`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* One\n"))
+        val v = Vault(store)
+        val doc = v.open("a.org")!!
+
+        store.write("a.org", "* Changed elsewhere\n")
+        val result = v.trySave("a.org", doc.text + "* Mine\n", base = doc)
+
+        assertTrue(result is StorageError.Conflict)
+        assertEquals("* Changed elsewhere\n", store.read("a.org"))
+        assertTrue(runCatching { v.save("a.org", "x", base = doc) }.exceptionOrNull() is StorageException)
+    }
+
+    @Test
+    fun `a base whose marker moved without its text changing still saves`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* One\n"))
+        val v = Vault(store)
+        val doc = v.open("a.org")!!
+        store.touch("a.org")
+
+        assertTrue(v.trySave("a.org", "* One\n* Two\n", base = doc).isOk)
+        assertEquals("* One\n* Two\n", store.read("a.org"))
+    }
+
+    @Test
+    fun `the parse handed to a save is the base of the next one`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* One\n"))
+        val v = Vault(store)
+        val first = v.open("a.org")!!
+        val second = com.rrajath.grove.org.OrgParser.parse("* One\n* Two\n")
+        assertTrue(v.trySave("a.org", second.text, parsed = second, base = first).isOk)
+        assertEquals(v.revision("a.org"), v.revisionOf(second))
+
+        store.write("a.org", "* Changed elsewhere\n")
+        assertTrue(v.trySave("a.org", "* Three\n", base = second) is StorageError.Conflict)
+    }
+
+    @Test
+    fun `a document the vault didn't hand out saves unconditionally`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* One\n"))
+        val v = Vault(store)
+        val foreign = com.rrajath.grove.org.OrgParser.parse("* One\n")
+        assertNull(v.revisionOf(foreign))
+        assertTrue(v.trySave("a.org", "* Two\n", base = foreign).isOk)
+    }
 }

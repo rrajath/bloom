@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.vault
 
+import com.rrajath.grove.vault.storage.StorageResult
+import com.rrajath.grove.vault.StorageException
 import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.VaultCapabilities
 import com.rrajath.grove.vault.storage.isOk
@@ -1008,7 +1010,13 @@ class DocumentViewModel(
      * return-from-editor reload, Outline's return from a swipe) then hits the
      * cache instead of re-reading and re-parsing the file it just wrote.
      */
-    private suspend fun saveDoc(fileName: String, newText: String, syncReason: String, newDoc: OrgDocument? = null) {
+    private suspend fun saveDoc(
+        fileName: String,
+        newText: String,
+        syncReason: String,
+        newDoc: OrgDocument? = null,
+        base: OrgDocument? = null,
+    ) {
         val vault = vaultFlow.value ?: return
         val p = pending?.takeIf { it.fileName == fileName }
         if (p != null && p.wholeFile) {
@@ -1031,8 +1039,16 @@ class DocumentViewModel(
             pending = null
             onPendingPersisted()
         }
-        vault.save(fileName, newText, newDoc)
-        sync.requestReindex(fileName, newText, syncReason)
+        // Conditional on the revision [base] was read at: an edit made elsewhere
+        // since (the outline can sit open for a long time) isn't overwritten.
+        when (val written = vault.trySave(fileName, newText, newDoc, base = base)) {
+            is StorageResult.Ok -> sync.requestReindex(fileName, newText, syncReason)
+            is StorageError.Conflict -> {
+                showToast("The file changed somewhere else, so that edit wasn't saved")
+                load(fileName)
+            }
+            is StorageError -> throw StorageException(written)
+        }
     }
 
     /** Show an already-parsed [document] immediately, with no disk round-trip; a
@@ -1489,7 +1505,7 @@ class DocumentViewModel(
                 OrgParser.parse(newText, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "favorite added id", newDoc)
+            saveDoc(loaded.fileName, newText, "favorite added id", newDoc, base = loaded.document)
             onResolved(newId)
         }
     }
@@ -1568,7 +1584,7 @@ class DocumentViewModel(
             }
             undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
             publish(loaded.fileName, loaded.document, finalDoc)
-            saveDoc(loaded.fileName, finalText, "intro promoted to heading", finalDoc)
+            saveDoc(loaded.fileName, finalText, "intro promoted to heading", finalDoc, base = loaded.document)
             showSnack("Added a blank heading for this content")
             if (describe.isNotEmpty()) showToast(describe)
             _introPromotedLine.value = newLine
@@ -1617,7 +1633,7 @@ class DocumentViewModel(
             undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text), deferred)
             _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
             publish(loaded.fileName, loaded.document, result.doc, result.remap)
-            saveDoc(loaded.fileName, result.text, "outline edit", result.doc)
+            saveDoc(loaded.fileName, result.text, "outline edit", result.doc, base = loaded.document)
             showSnack(
                 when {
                     result.attempted == 1 -> singleMessage
@@ -1756,7 +1772,7 @@ class DocumentViewModel(
                 OrgParser.parse(newText, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "note added", newDoc)
+            saveDoc(loaded.fileName, newText, "note added", newDoc, base = loaded.document)
             onCreated(lineIndex)
         }
     }
@@ -1789,7 +1805,7 @@ class DocumentViewModel(
                     after?.let { advancedRepeatingPlanning(headline, it, keyword, loaded.document.keywords) }
                         ?.takeIf { it.any }
                         ?.let { _repeatAdvanced.value = RepeatAdvance(headline.lineIndex, it, ++eventId) }
-                    saveDoc(loaded.fileName, result.text, "state set", result.doc)
+                    saveDoc(loaded.fileName, result.text, "state set", result.doc, base = loaded.document)
                     // A recurring task keeps its keyword and just moves its date, so say where it went.
                     val next = after?.let { nextRepeatOccurrence(headline, it) }
                     if (next != null) {
@@ -1810,7 +1826,7 @@ class DocumentViewModel(
                     _selectedLines.value = emptySet()
                     publish(loaded.fileName, loaded.document, result.sourceDoc)
                     if (result.destFile != loaded.fileName) vault.save(result.destFile, result.destText)
-                    saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc)
+                    saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc, base = loaded.document)
                     if (result.destFile != loaded.fileName) {
                         followAttachments(
                             listOf(
@@ -1849,7 +1865,7 @@ class DocumentViewModel(
                 OrgParser.parse(newText, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "checklist toggled", newDoc)
+            saveDoc(loaded.fileName, newText, "checklist toggled", newDoc, base = loaded.document)
         }
     }
 
@@ -1869,7 +1885,7 @@ class DocumentViewModel(
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "priority set", newDoc)
+            saveDoc(loaded.fileName, newText, "priority set", newDoc, base = loaded.document)
             showToast("Priority → ${priority?.let { "#$it" } ?: "none"}")
         }
     }
@@ -1883,7 +1899,7 @@ class DocumentViewModel(
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "tags set", newDoc)
+            saveDoc(loaded.fileName, newText, "tags set", newDoc, base = loaded.document)
         }
     }
 
@@ -1907,7 +1923,7 @@ class DocumentViewModel(
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "planning edit", newDoc)
+            saveDoc(loaded.fileName, newText, "planning edit", newDoc, base = loaded.document)
             val fmt = LocalDates.formatter("EEEMMMd", "EEE, MMM d")
             val parts = listOfNotNull(
                 scheduled?.let { "Scheduled · ${it.date.format(fmt)}" },
@@ -1934,7 +1950,7 @@ class DocumentViewModel(
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "planning edit", newDoc)
+            saveDoc(loaded.fileName, newText, "planning edit", newDoc, base = loaded.document)
             showToast(
                 if (ts == null) "$label cleared"
                 else "$label · ${LocalDates.format(ts.date, "EEEMMMd", "EEE, MMM d")}"
@@ -1952,7 +1968,7 @@ class DocumentViewModel(
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "org-id generated", newDoc)
+            saveDoc(loaded.fileName, newText, "org-id generated", newDoc, base = loaded.document)
             showToast("org-id generated")
         }
     }
@@ -1974,7 +1990,7 @@ class DocumentViewModel(
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
-            saveDoc(loaded.fileName, newText, "note added", newDoc)
+            saveDoc(loaded.fileName, newText, "note added", newDoc, base = loaded.document)
             showToast("Note added")
         }
     }
@@ -2014,7 +2030,7 @@ class DocumentViewModel(
                 vault.save(file, after)
                 sync.requestReindex(file, after, "state set")
             }
-            saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc)
+            saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc, base = loaded.document)
             followAttachments(
                 listOf(FileRewrite(loaded.fileName, loaded.document.text, result.sourceText)) +
                     result.destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
@@ -2088,7 +2104,7 @@ class DocumentViewModel(
             undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
             _selectedLines.value = _selectedLines.value.mapNotNull(result.remap).toSet()
             publish(loaded.fileName, loaded.document, result.doc, result.remap)
-            saveDoc(loaded.fileName, result.text, syncReason, result.doc)
+            saveDoc(loaded.fileName, result.text, syncReason, result.doc, base = loaded.document)
             showSnack(message(result.applied))
         }
     }
@@ -2299,7 +2315,7 @@ class DocumentViewModel(
             vault.save(write.destFile, write.destText)
             sync.requestReindex(write.destFile, write.destText, syncReason)
         }
-        saveDoc(loaded.fileName, write.sourceText, syncReason, newSourceDoc)
+        saveDoc(loaded.fileName, write.sourceText, syncReason, newSourceDoc, base = loaded.document)
         if (write.destFile != loaded.fileName) {
             followAttachments(
                 listOf(
@@ -2414,7 +2430,7 @@ class DocumentViewModel(
             vault.save(file, after)
             sync.requestReindex(file, after, syncReason)
         }
-        saveDoc(loaded.fileName, sourceText, syncReason, sourceDoc)
+        saveDoc(loaded.fileName, sourceText, syncReason, sourceDoc, base = loaded.document)
         followAttachments(
             listOf(FileRewrite(loaded.fileName, loaded.document.text, sourceText)) +
                 destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
@@ -2455,7 +2471,7 @@ class DocumentViewModel(
                 undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
                 _selectedLines.value = emptySet()
                 publish(loaded.fileName, loaded.document, result.second)
-                saveDoc(loaded.fileName, result.first, "refile", result.second)
+                saveDoc(loaded.fileName, result.first, "refile", result.second, base = loaded.document)
                 showSnack("Refiled to $destLabel › ${targetTitle ?: "top level"}")
                 rememberRefileTarget(destFile, headingPath)
             } else {
@@ -2479,9 +2495,9 @@ class DocumentViewModel(
                 )
                 _selectedLines.value = emptySet()
                 publish(loaded.fileName, loaded.document, newSourceDoc)
-                vault.save(destFile, newDestText)
+                vault.save(destFile, newDestText, base = destDoc)
                 sync.requestReindex(destFile, newDestText, "refile")
-                saveDoc(loaded.fileName, newSourceText, "refile", newSourceDoc)
+                saveDoc(loaded.fileName, newSourceText, "refile", newSourceDoc, base = loaded.document)
                 followAttachments(
                     listOf(
                         FileRewrite(loaded.fileName, loaded.document.text, newSourceText),

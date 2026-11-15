@@ -470,7 +470,7 @@ class SearchViewModel(
             val result = AutoArchive.apply(vault, currentSettings, doc, fileName, headline, keyword, LocalDateTime.now())
         ) {
             is StateChangeResult.Plain -> {
-                vault.save(fileName, result.text)
+                vault.save(fileName, result.text, base = doc)
                 sync.requestReindex(fileName, result.text, "search state set")
                 // A recurring task keeps its keyword and just moves its date, so say where it went.
                 val next = result.doc.headlines.firstOrNull { it.lineIndex == lineIndex }
@@ -486,7 +486,7 @@ class SearchViewModel(
                 } else {
                     listOf(fileName to doc.text, result.destFile to result.destTextBefore)
                 }
-                vault.save(fileName, result.sourceText)
+                vault.save(fileName, result.sourceText, base = doc)
                 sync.requestReindex(fileName, result.sourceText, "search state set")
                 if (result.destFile != fileName) {
                     vault.save(result.destFile, result.destText)
@@ -519,7 +519,7 @@ class SearchViewModel(
             val newText = withContext(dispatchers.default) {
                 OrgMutations.setPlanningAndActiveTimestamps(doc, headline, scheduled, deadline, active)
             }
-            vault.save(fileName, newText)
+            vault.save(fileName, newText, base = doc)
             sync.requestReindex(fileName, newText, "search planning edit")
         }
     }

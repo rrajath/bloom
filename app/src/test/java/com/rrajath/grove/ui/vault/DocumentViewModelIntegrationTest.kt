@@ -489,6 +489,26 @@ class DocumentViewModelIntegrationTest {
     }
 
     @Test
+    fun `an outline edit after the file changed elsewhere isn't saved over that change`() = runTest {
+        store.write("projects.org", "* TODO Groceries\n- [ ] milk\n* TODO Other\n")
+        val vm = loaded("projects.org")
+        val toasts = mutableListOf<OutlineToast?>()
+        backgroundScope.launch { vm.toast.toList(toasts) }
+        // Edited on another device; this outline hasn't reloaded yet.
+        store.write("projects.org", "* TODO Groceries\n- [ ] milk\n* TODO Other\n* TODO Added elsewhere\n")
+
+        vm.toggleChecklistDone(1)
+        advanceUntilIdle()
+
+        val after = store.read("projects.org")
+        assertTrue(after, after.contains("Added elsewhere"))
+        assertTrue(after, after.contains("- [ ] milk"))
+        assertTrue(toasts.any { it?.message?.contains("changed somewhere else") == true })
+        assertTrue("the outline reloads the file", loadedDoc(vm).text.contains("Added elsewhere"))
+        assertTrue("nothing reindexed for an edit that wasn't saved", sync.reindexCalls.isEmpty())
+    }
+
+    @Test
     fun `a state change and a checklist tap on the same note in quick succession both land`() = runTest {
         store.write("projects.org", "* TODO Groceries\n- [ ] milk\n- [ ] eggs\n* TODO Other\n")
         val vm = loaded("projects.org")

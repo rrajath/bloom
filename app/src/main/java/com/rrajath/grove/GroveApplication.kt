@@ -424,7 +424,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             doc.text, request.owner, request.newId, result.names, request.autoTag,
         )
             ?: return ATTACH_KEPT_NOT_FOUND
-        v.save(request.orgFile, edit.text)
+        v.save(request.orgFile, edit.text, base = doc)
         syncManager.requestReindex(request.orgFile, edit.text, "attach")
         return com.rrajath.grove.attach.successMessage(request, result)
     }

@@ -140,6 +140,16 @@ class Vault(
      */
     private val generations = mutableMapOf<String, Long>()
 
+    /**
+     * The revision each document this vault handed out was read at, or written
+     * at for a parse passed to [trySave]: what a save based on that document
+     * passes as `ifMatch` (see [trySave]'s `base`). Weak keys, compared by
+     * identity ([OrgDocument] doesn't override equals), so a document nobody
+     * holds any more drops out on its own.
+     */
+    private val servedRevisions: MutableMap<OrgDocument, String> =
+        java.util.Collections.synchronizedMap(java.util.WeakHashMap())
+
     /** The [FileStore] backing this vault, for callers (e.g. Dailies) that need
      *  it directly rather than going through a `Vault`-level method. */
     fun fileStore(): FileStore = store
@@ -365,10 +375,13 @@ class Vault(
      * evicted; the next read (e.g. Read mode's return-from-editor reload)
      * hits the cache instead of re-parsing the file it just wrote.
      */
-    suspend fun save(fileName: String, content: String, parsed: OrgDocument? = null) {
-        val result = trySave(fileName, content, parsed)
+    suspend fun save(fileName: String, content: String, parsed: OrgDocument? = null, base: OrgDocument? = null) {
+        val result = trySave(fileName, content, parsed, base = base)
         if (result is StorageError) throw StorageException(result)
     }
+
+    /** The revision [doc] was read (or written) at, when this vault handed it out. */
+    fun revisionOf(doc: OrgDocument): String? = servedRevisions[doc]
 
     /**
      * [save] that reports a failure as a [StorageError] instead of throwing, for
@@ -379,13 +392,22 @@ class Vault(
      * happens if the file is still at that revision; otherwise, or if the file is
      * gone, [StorageError.Conflict]. The check lives in the backend: stat then
      * write on SAF, an atomic `If-Match` on a backend that has one.
+     *
+     * [base] is the document [content] was computed from, as this vault handed
+     * it out: the write is then conditional on the revision [base] was read at,
+     * so an edit made elsewhere since isn't overwritten. A file whose revision
+     * moved while its text still equals [base]'s (a provider's marker catching
+     * up with Bloom's own write, Seafile) is written anyway.
      */
     suspend fun trySave(
         fileName: String,
         content: String,
         parsed: OrgDocument? = null,
         ifMatch: String? = null,
+        base: OrgDocument? = null,
     ): StorageResult<Unit> {
+        @Suppress("NAME_SHADOWING")
+        val ifMatch = ifMatch ?: base?.let(::revisionOf)
         // On a case-insensitive store `inbox.org` is an existing `Inbox.org`: write
         // that file under its real name (the line-ending memo and cache key on it).
         var name = store.canonicalName(fileName)
@@ -402,11 +424,17 @@ class Vault(
             false
         }
         if (!createdWithContent) {
-            val written = store.write(name, content, ifMatch)
+            var written = store.write(name, content, ifMatch)
+            if (written is StorageError.Conflict && base != null && written.currentRevision != null &&
+                readOrNull(name) == base.text
+            ) {
+                written = store.write(name, content, written.currentRevision)
+            }
             if (written is StorageError) return written
         }
         val entry = if (parsed != null) store.stat(name) else null
         if (entry != null) {
+            servedRevisions[parsed!!] = "${entry.lastModified}:${entry.size}"
             val key = CacheKey(entry.name, entry.lastModified, entry.size)
             cacheMutex.withLock {
                 generations[name] = (generations[name] ?: 0) + 1
@@ -419,6 +447,14 @@ class Vault(
             evictParse(name)
         }
         return StorageResult.Ok(Unit)
+    }
+
+    private suspend fun readOrNull(name: String): String? = try {
+        store.read(name)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     /** Drop every cached parse of [fileName] (any revision). */
@@ -438,7 +474,10 @@ class Vault(
      * the same key share one parse via [inFlight] instead of each doing their
      * own read+parse of the same bytes.
      */
-    private suspend fun document(entry: FileEntry): OrgDocument {
+    private suspend fun document(entry: FileEntry): OrgDocument =
+        parsedDocument(entry).also { servedRevisions[it] = "${entry.lastModified}:${entry.size}" }
+
+    private suspend fun parsedDocument(entry: FileEntry): OrgDocument {
         val key = CacheKey(entry.name, entry.lastModified, entry.size)
 
         var owner = false

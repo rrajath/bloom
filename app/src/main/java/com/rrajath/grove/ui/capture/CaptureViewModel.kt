@@ -355,7 +355,7 @@ class CaptureViewModel(
         val doc = withContext(dispatchers.default) { vault.open(path) } ?: return@withLock
         val newText = applyMoveOutcomeText(doc, outcome).text
         if (newText == doc.text) return@withLock
-        vault.save(path, newText)
+        vault.save(path, newText, base = doc)
         sync.requestReindex(path, newText, "attachment renamed")
     }
 

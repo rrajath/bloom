@@ -81,7 +81,7 @@ object ShareIntake {
                 body = note.body,
             ),
         )
-        vault.save(fileName, newText)
+        vault.save(fileName, newText, base = doc)
         app.syncManager.requestReindex(fileName, newText, "shared note")
         toast(app, "Saved to $fileName")
     }
