@@ -2,7 +2,6 @@ package com.rrajath.grove.macrobenchmark
 
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.FrameTimingMetric
-import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
@@ -36,9 +35,13 @@ class ScrollBenchmark {
         packageName = BenchmarkVault.TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = CompilationMode.Partial(),
-        startupMode = StartupMode.COLD,
         iterations = 10,
+        // No startupMode: StartupMode.COLD kills the process *after* setupBlock,
+        // which threw away the list setupBlock just opened and left the measure
+        // block waiting on a dead app. Kill here instead, so every iteration
+        // still starts from a fresh process but the measured scroll has a screen.
         setupBlock = {
+            killProcess()
             pressHome()
             startActivityAndWait { it.withSeededVault(vaultSize) }
             device.awaitNotebooks()
@@ -62,9 +65,13 @@ class ScrollBenchmark {
         packageName = BenchmarkVault.TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = CompilationMode.Partial(),
-        startupMode = StartupMode.COLD,
         iterations = 10,
+        // No startupMode: StartupMode.COLD kills the process *after* setupBlock,
+        // which threw away the list setupBlock just opened and left the measure
+        // block waiting on a dead app. Kill here instead, so every iteration
+        // still starts from a fresh process but the measured scroll has a screen.
         setupBlock = {
+            killProcess()
             pressHome()
             startActivityAndWait { it.withSeededVault(vaultSize) }
             device.awaitNotebooks()
