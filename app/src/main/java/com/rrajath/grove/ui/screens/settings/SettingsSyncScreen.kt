@@ -16,7 +16,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.rrajath.grove.R
 import com.rrajath.grove.settings.GroveSettings
+import com.rrajath.grove.vault.storage.VaultCapabilities
 import com.rrajath.grove.settings.SyncMode
 import com.rrajath.grove.ui.components.SegmentedControl
 import com.rrajath.grove.ui.theme.PlexMono
@@ -32,6 +37,8 @@ fun SettingsSyncScreen(
     onSetPeriodicMinutes: (Int) -> Unit,
     onOpenSyncLog: () -> Unit,
     onSetVaultUri: (String) -> Unit,
+    /** The vault's provider and what it allows; null hides the Provider row (no vault yet). */
+    provider: VaultCapabilities? = null,
 ) {
     val c = MaterialTheme.grove
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -55,6 +62,19 @@ fun SettingsSyncScreen(
                     settings.vaultTreeUri?.let { uriDisplayName(it) } ?: "tap to choose",
                     fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,
                 )
+            }
+            if (provider != null && settings.vaultTreeUri != null) {
+                RowDivider()
+                // Read-only: what the provider allows is discovered, never a setting.
+                SettingsRow(
+                    label = stringResource(R.string.settings_sync_provider),
+                    description = providerSummary(LocalContext.current, provider),
+                ) {
+                    Text(
+                        stringResource(provider.profile.displayName),
+                        fontFamily = PlexMono, fontSize = 12.sp, color = c.ink2,
+                    )
+                }
             }
             RowDivider()
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
@@ -106,3 +126,25 @@ fun SettingsSyncScreen(
         }
     }
 }
+
+/**
+ * One line on what the vault's provider allows across its files: "Rename,
+ * move and delete all work", or which of them it rules out. Move counts as
+ * working when the file can be copied and then deleted.
+ */
+internal fun providerSummary(context: Context, provider: VaultCapabilities): String {
+    val files = provider.allFiles
+    val missing = buildList {
+        if (!files.rename) add(context.getString(R.string.storage_verb_rename))
+        if (!files.canRelocate) add(context.getString(R.string.storage_verb_move))
+        if (!files.delete) add(context.getString(R.string.storage_verb_delete))
+    }
+    if (missing.isEmpty()) return context.getString(R.string.settings_sync_provider_full)
+    val verbs = if (missing.size == 1) {
+        missing.single()
+    } else {
+        missing.dropLast(1).joinToString(", ") + " " + context.getString(R.string.storage_verb_or) + " " + missing.last()
+    }
+    return context.getString(R.string.settings_sync_provider_limited, verbs)
+}
+

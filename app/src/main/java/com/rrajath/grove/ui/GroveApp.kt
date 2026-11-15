@@ -1038,6 +1038,7 @@ private fun GroveNavigation(
                     onSetPeriodicMinutes = viewModel::setPeriodicSyncMinutes,
                     onOpenSyncLog = { navController.navigate(Routes.SYNC_LOG) },
                     onSetVaultUri = viewModel::setVaultTreeUri,
+                    provider = rememberVaultCapabilities(),
                 )
             }
             screen(Routes.SETTINGS_NOTES) {
@@ -1257,3 +1258,14 @@ private fun GroveNavigation(
         )
     }
 }
+
+/** The current vault's provider capabilities, for Settings > Sync; null outside the app (tests) or with no vault. */
+@Composable
+private fun rememberVaultCapabilities(): com.rrajath.grove.vault.storage.VaultCapabilities? {
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? GroveApplication ?: return null
+    val store by app.fileStore.collectAsStateWithLifecycle()
+    val current = store ?: return null
+    val caps by current.capabilities.collectAsStateWithLifecycle()
+    return caps
+}
+

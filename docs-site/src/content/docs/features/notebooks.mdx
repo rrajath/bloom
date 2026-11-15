@@ -49,6 +49,8 @@ Long-pressing a notebook card opens a context menu with:
 - **Resolve conflict**: jumps straight to the [conflict resolution](/features/conflict-resolution) screen when a Syncthing conflict copy exists for this file
 - **Delete**: see below
 
+Some storage providers don't let other apps rename, move or delete their files (Seafile is one). On such a vault those items stay in the menu but are greyed out, with a line underneath saying why, for example "Seafile doesn't let other apps rename files." Move still works when the provider allows deleting, since Bloom then copies the file and removes the original.
+
 ### Deleting a notebook is permanent
 
 Android's Storage Access Framework has no system trash for files in a folder you granted, so Bloom deletes the file outright after a confirmation prompt. If your vault syncs with Syncthing and you have its file versioning turned on, the previous copy is kept on the peer and you can restore it from there. Otherwise the file is gone.
@@ -62,6 +64,8 @@ Subfolders in your sync directory show up as folder rows in the list. Long-press
 - **Rename**: renames the folder and moves every `.org` file inside it, keeping each file's icon color and pinned position. The old, now-empty folder is removed
 - **Change icon color**: pick the folder tile's color from the theme palette
 - **Delete**: after a confirmation prompt, permanently deletes every `.org` file inside the folder (the same permanent delete as a single notebook) and removes the emptied folder
+
+If the provider protects any file inside the folder, **Rename** and **Delete** are greyed out with the reason, and nothing in the folder is touched.
 
 ### Flat list
 

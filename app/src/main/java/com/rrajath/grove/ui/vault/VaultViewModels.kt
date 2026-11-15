@@ -1,6 +1,7 @@
 package com.rrajath.grove.ui.vault
 
 import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.VaultCapabilities
 import com.rrajath.grove.vault.storage.isOk
 import com.rrajath.grove.vault.storage.getOrNull
 import android.content.Intent
@@ -92,6 +93,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -309,6 +311,17 @@ class NotebooksViewModel(
     private val builtTree: Flow<NotebooksUiState.Loaded?> = treeInputs
         .map { inputs -> inputs?.let { buildLoaded(it) } }
         .flowOn(dispatchers.default)
+
+    /**
+     * What the vault's provider lets other apps do, per notebook and folder:
+     * the long-press menus show what it rules out disabled, with the reason
+     * ([ItemActionBlocks]). Kept out of [state] so a capability refresh never
+     * rebuilds the tree.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val capabilities: StateFlow<VaultCapabilities> = vaultFlow
+        .flatMapLatest { it?.capabilities ?: kotlinx.coroutines.flow.flowOf(VaultCapabilities.UNKNOWN) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultCapabilities.UNKNOWN)
 
     val state: StateFlow<NotebooksUiState> = combine(
         builtTree,

@@ -60,6 +60,11 @@ re-uploads the APKs to the existing release instead of failing.
 ### Added
 
 - Offline banner and read-only notes when the vault's provider can't be reached.
+- Settings › Sync shows the vault's storage provider and what it allows.
+
+### Changed
+
+- Rename, move and delete are disabled with a reason when the vault's provider doesn't support them.
 
 ### Fixed
 

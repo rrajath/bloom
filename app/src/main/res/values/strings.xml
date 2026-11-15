@@ -65,6 +65,13 @@
     <string name="storage_provider_local">Local storage</string>
     <string name="storage_provider_seafile" translatable="false">Seafile</string>
     <string name="storage_provider_nextcloud" translatable="false">Nextcloud</string>
+    <string name="storage_verb_rename">rename</string>
+    <string name="storage_verb_move">move</string>
+    <string name="storage_verb_delete">delete</string>
+    <string name="storage_verb_or">or</string>
+    <string name="settings_sync_provider">Provider</string>
+    <string name="settings_sync_provider_full">Rename, move and delete all work</string>
+    <string name="settings_sync_provider_limited">Doesn\'t let other apps %1$s files</string>
     <string name="storage_error_name_taken_notebook">A notebook with that name already exists</string>
     <string name="storage_error_name_taken_folder">A folder with that name already exists</string>
     <string name="storage_error_not_found">That item is no longer there. Sync and try again.</string>

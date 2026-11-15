@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import com.rrajath.grove.ui.components.OfflineBanner
 import com.rrajath.grove.ui.components.GroveDropdownMenu
+import com.rrajath.grove.ui.components.ProviderGatedMenuItem
 import com.rrajath.grove.ui.components.NameDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.Icons
@@ -119,6 +120,10 @@ import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.util.pluralCount
 import com.rrajath.grove.ui.vault.FOLDER_DRILL_THRESHOLD
 import com.rrajath.grove.ui.vault.FolderNode
+import com.rrajath.grove.ui.vault.ItemActionBlocks
+import com.rrajath.grove.ui.vault.unsupportedReason
+import com.rrajath.grove.vault.storage.StorageOp
+import com.rrajath.grove.vault.storage.VaultCapabilities
 import com.rrajath.grove.ui.vault.NotebookItem
 import com.rrajath.grove.ui.vault.NotebookTreeRow
 import com.rrajath.grove.ui.vault.NotebookTreeRun
@@ -148,6 +153,7 @@ fun NotebooksScreen(
 ) {
     val c = MaterialTheme.grove
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val capabilities by viewModel.capabilities.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Macrobenchmark's timeToFullDisplayMs: signal Activity.reportFullyDrawn()
@@ -337,6 +343,7 @@ fun NotebooksScreen(
                             onMove = { moveTarget = nb.fileName },
                             onChangeIcon = { styleTarget = nb.fileName },
                             onDelete = { notebookDeleteTarget = nb.fileName },
+                            blocked = actionReasons(ItemActionBlocks.forNotebook(capabilities, nb.fileName), capabilities),
                             onForceReload = { viewModel.forceReload(nb.fileName) },
                             onPin = { viewModel.pinNotebook(nb.fileName) },
                             onUnpin = { viewModel.unpinNotebook(nb.fileName) },
@@ -369,6 +376,7 @@ fun NotebooksScreen(
                             onRename = { folderRenameTarget = node.dir },
                             onChangeColor = { folderColorTarget = node.dir },
                             onDelete = { folderDeleteTarget = node.dir },
+                            blocked = actionReasons(ItemActionBlocks.forFolder(capabilities, node.dir), capabilities),
                         )
                     }
 
@@ -1064,6 +1072,8 @@ private fun FolderRow(
     onRename: () -> Unit = {},
     onChangeColor: () -> Unit = {},
     onDelete: () -> Unit = {},
+    /** Why the provider rules out rename/delete here; [ActionReasons.NONE] when it doesn't. */
+    blocked: ActionReasons = ActionReasons.NONE,
 ) {
     val c = MaterialTheme.grove
     val (fg, bg) = monogramPalette(c, node.colorKey)
@@ -1167,18 +1177,12 @@ private fun FolderRow(
                     onClick = { menuOpen = false; onPin() },
                 )
             }
-            DropdownMenuItem(
-                text = { Text("Rename", fontFamily = PlexSans, color = c.ink) },
-                onClick = { menuOpen = false; onRename() },
-            )
+            ProviderGatedMenuItem("Rename", blocked.rename, onClick = { menuOpen = false; onRename() })
             DropdownMenuItem(
                 text = { Text("Change icon color", fontFamily = PlexSans, color = c.ink) },
                 onClick = { menuOpen = false; onChangeColor() },
             )
-            DropdownMenuItem(
-                text = { Text("Delete", fontFamily = PlexSans, color = c.red) },
-                onClick = { menuOpen = false; onDelete() },
-            )
+            ProviderGatedMenuItem("Delete", blocked.delete, onClick = { menuOpen = false; onDelete() }, destructive = true)
         }
       }
     }
@@ -1219,6 +1223,8 @@ private fun FileRow(
     onMove: () -> Unit,
     onChangeIcon: () -> Unit,
     onDelete: () -> Unit,
+    /** Why the provider rules out rename/move/delete here; [ActionReasons.NONE] when it doesn't. */
+    blocked: ActionReasons = ActionReasons.NONE,
     onForceReload: () -> Unit,
     onPin: () -> Unit,
     onUnpin: () -> Unit,
@@ -1304,14 +1310,8 @@ private fun FileRow(
                     onClick = { menuOpen = false; onPin() },
                 )
             }
-            DropdownMenuItem(
-                text = { Text("Rename", fontFamily = PlexSans, color = c.ink) },
-                onClick = { menuOpen = false; onRename() },
-            )
-            DropdownMenuItem(
-                text = { Text("Move to folder", fontFamily = PlexSans, color = c.ink) },
-                onClick = { menuOpen = false; onMove() },
-            )
+            ProviderGatedMenuItem("Rename", blocked.rename, onClick = { menuOpen = false; onRename() })
+            ProviderGatedMenuItem("Move to folder", blocked.move, onClick = { menuOpen = false; onMove() })
             DropdownMenuItem(
                 text = { Text("Change icon color", fontFamily = PlexSans, color = c.ink) },
                 onClick = { menuOpen = false; onChangeIcon() },
@@ -1326,13 +1326,26 @@ private fun FileRow(
                     onClick = { menuOpen = false; onOpenConflict() },
                 )
             }
-            DropdownMenuItem(
-                text = { Text("Delete", fontFamily = PlexSans, color = c.red) },
-                onClick = { menuOpen = false; onDelete() },
-            )
+            ProviderGatedMenuItem("Delete", blocked.delete, onClick = { menuOpen = false; onDelete() }, destructive = true)
         }
       }
     }
+}
+
+/** The reason line under each file action the provider rules out; null where it's allowed. */
+@androidx.compose.runtime.Immutable
+internal data class ActionReasons(val rename: String? = null, val move: String? = null, val delete: String? = null) {
+    companion object {
+        val NONE = ActionReasons()
+    }
+}
+
+@Composable
+private fun actionReasons(blocks: ItemActionBlocks, caps: VaultCapabilities): ActionReasons {
+    if (blocks == ItemActionBlocks.NONE) return ActionReasons.NONE
+    val context = LocalContext.current
+    fun reason(op: StorageOp?) = op?.let { unsupportedReason(context, it, caps.profile) }
+    return ActionReasons(reason(blocks.rename), reason(blocks.move), reason(blocks.delete))
 }
 
 @Composable
