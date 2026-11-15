@@ -3,7 +3,7 @@ package com.rrajath.grove.vault
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.vault.storage.SafBackend
-import com.rrajath.grove.vault.storage.SafFileStore
+import com.rrajath.grove.vault.storage.BackendFileStore
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -19,14 +19,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * [SafFileStore] over providers that answer a children query with an empty
+ * [BackendFileStore] over providers that answer a children query with an empty
  * "still loading" cursor first (Seafile, Nextcloud): nothing may read that as
  * an empty folder, and what the store already knew must survive an unfinished
  * listing.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [34])
-class SafFileStoreLoadingTest {
+class BackendFileStoreLoadingTest {
 
     @get:Rule
     val tmp = TemporaryFolder()
@@ -38,10 +38,10 @@ class SafFileStoreLoadingTest {
         File(tmp.root, path).apply { parentFile?.mkdirs() }.writeText(text)
 
     /** A store that gives up on a loading folder after [deadlineMs]. */
-    private fun store(deadlineMs: Long = 150): Pair<SafFileStore, FakeDocumentsProvider> {
+    private fun store(deadlineMs: Long = 150): Pair<BackendFileStore, FakeDocumentsProvider> {
         val provider = FakeDocumentsProvider.install(tmp.root)
         val tree = FakeDocumentsProvider.treeUri()
-        return SafFileStore(context, tree, backend = SafBackend(context, tree, deadlineMs)) to provider
+        return BackendFileStore(SafBackend(context, tree, deadlineMs)) to provider
     }
 
     @Test

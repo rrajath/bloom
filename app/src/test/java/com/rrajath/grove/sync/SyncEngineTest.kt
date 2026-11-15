@@ -17,7 +17,7 @@ import org.junit.rules.TemporaryFolder
 
 /**
  * [FileStore] that counts whole-directory [list] calls vs. targeted [stat]
- * calls, and (like `SafFileStore`) serves [stat] as a single-file lookup rather
+ * calls, and (like `BackendFileStore`) serves [stat] as a single-file lookup rather
  * than falling through to [list]. Used to prove the single-file reindex path
  * never enumerates the vault.
  */

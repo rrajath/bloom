@@ -20,7 +20,7 @@ import org.robolectric.Robolectric
 /**
  * A java.io-backed documents provider with path document ids
  * (`primary:vault/a/b.org`) like the platform's ExternalStorageProvider. Lets
- * Robolectric tests drive [SafFileStore] end to end and count the cursor
+ * Robolectric tests drive [BackendFileStore] end to end and count the cursor
  * queries it issues.
  *
  * A plain [ContentProvider] speaking the DocumentsContract protocol, not a
@@ -221,7 +221,7 @@ class FakeDocumentsProvider : ContentProvider() {
         const val AUTHORITY = "com.android.externalstorage.documents"
         const val ROOT_ID = "primary:vault"
 
-        /** A provider whose ids SafFileStore doesn't treat as paths, so it has to walk. */
+        /** A provider whose ids BackendFileStore doesn't treat as paths, so it has to walk. */
         const val OPAQUE_AUTHORITY = "com.example.fake.documents"
 
         // DocumentsContract's @hide call protocol.

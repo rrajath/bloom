@@ -1,5 +1,9 @@
 package com.rrajath.grove.vault.storage
 
+import android.net.Uri
+import java.io.InputStream
+import java.io.OutputStream
+
 /**
  * One child of a directory, as a [StorageBackend] reports it. [docId] is the
  * backend's own handle for the document (a SAF document id), opaque to callers.
@@ -43,16 +47,84 @@ sealed interface Listing {
     }
 }
 
+/** What an operation was trying to do, for [StorageError.Unsupported]. */
+enum class StorageOp { Create, Rename, Move, Delete, Write, Read }
+
 /**
  * The operations a storage provider must offer the vault, in terms of document
- * ids. [SafBackend] is the only implementation; the interface is the seam for
- * a future built-in network client, so nothing above it may assume SAF.
+ * ids: transport only, with no path logic and no caching (that is
+ * [BackendFileStore]'s job). [SafBackend] is the only implementation; the
+ * interface is the seam for a future built-in network client, so nothing above
+ * it may assume SAF.
+ *
+ * Mutations return a [StorageResult] and never throw (cancellation aside): a
+ * provider that throws, returns null, or lacks the operation is mapped to the
+ * matching [StorageError].
  */
 interface StorageBackend {
+    /** The document id of the vault's root directory. */
+    val rootId: String
+
+    /** True when the provider matches names in any case, so `inbox.org` is an existing `Inbox.org`. */
+    val caseInsensitive: Boolean
+
+    /**
+     * The document id of the file or folder at the vault-relative [path], for a
+     * provider whose ids are paths (local storage); null when ids are opaque
+     * and only a listing can find a document.
+     */
+    fun docIdForPath(path: String): String?
+
+    /** The device filesystem path of [name] (vault-relative), or null when the backend can't know one. */
+    fun absolutePath(name: String): String?
+
+    /**
+     * A URI another app can read for [docId], possibly slow to produce (a
+     * network backend would download first, hence callers must not use it on the
+     * main thread or in tight loops).
+     */
+    fun contentUri(docId: String): Uri?
+
     /**
      * Children of the directory [dirId]. Suspends while the provider reports
      * it is still loading, up to the backend's deadline, then returns
      * [Listing.Partial] with what it has.
      */
     suspend fun listChildren(dirId: String): Listing
+
+    /** Metadata for [docId]; [StorageError.NotFound] when it's gone. */
+    suspend fun stat(docId: String): StorageResult<DocEntry>
+
+    /** Opens [docId] for reading. The caller closes the stream. */
+    suspend fun openRead(docId: String): StorageResult<InputStream>
+
+    /** Opens the existing file [docId] for writing, truncating it. The caller closes the stream. */
+    suspend fun openWrite(docId: String): StorageResult<OutputStream>
+
+    /**
+     * Replaces the content of [docId] with [content]. When [ifMatch] is set and
+     * the file's current revision differs, returns [StorageError.Conflict]
+     * without writing; a backend with no atomic compare-and-set emulates that
+     * with a stat first. Returns the new revision.
+     */
+    suspend fun write(docId: String, content: ByteArray, ifMatch: String? = null): StorageResult<String>
+
+    /**
+     * Creates an empty file called exactly [name] in [parentId] and returns its
+     * document id. A provider that renames to dodge a clash (`a (1).org`) gets
+     * the stray removed and [StorageError.NameTaken] returned.
+     */
+    suspend fun createFile(parentId: String, name: String): StorageResult<String>
+
+    /** Creates a folder called exactly [name] in [parentId]; same naming rule as [createFile]. */
+    suspend fun createDir(parentId: String, name: String): StorageResult<String>
+
+    /** Deletes [docId] (a folder goes with its children where the provider allows it). */
+    suspend fun delete(docId: String): StorageResult<Unit>
+
+    /** Renames [docId] to [newName] in place; returns its (possibly new) document id. */
+    suspend fun rename(docId: String, newName: String): StorageResult<String>
+
+    /** Moves [docId] from [fromParent] to [toParent]; returns its (possibly new) document id. */
+    suspend fun move(docId: String, fromParent: String, toParent: String): StorageResult<String>
 }

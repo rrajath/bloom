@@ -222,7 +222,7 @@ class SyncEngine(
     /**
      * Re-index a single already-known file the caller just wrote, skipping the
      * whole-directory [list] + revision diff [sync] does. Reads only this file's
-     * metadata via [FileStore.stat] (which [com.rrajath.grove.vault.storage.SafFileStore]
+     * metadata via [FileStore.stat] (which [com.rrajath.grove.vault.storage.BackendFileStore]
      * serves as a targeted single-document query, not a full enumeration), so the
      * cost is independent of vault size. For the in-app single-note save path,
      * where the changed file and its new text are already in hand.

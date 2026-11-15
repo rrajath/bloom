@@ -7,11 +7,7 @@ import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.vault.SKIP_ATTACH_SHARDS
 import com.rrajath.grove.vault.TreeListing
 import com.rrajath.grove.vault.isSkippedVaultDir
-import android.annotation.SuppressLint
-import android.content.Context
 import android.net.Uri
-import android.os.Build
-import android.provider.DocumentsContract
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -27,45 +23,41 @@ import java.io.OutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Storage Access Framework implementation over a persisted tree URI
- * (ACTION_OPEN_DOCUMENT_TREE).
+ * The vault as a [FileStore], over any [StorageBackend] (today the Storage
+ * Access Framework, via [SafBackend]). It owns what is the same for every
+ * provider: vault-relative paths, the path -> document-id caches, skip/ignore
+ * rules, and the emulations (a case-only rename, move as copy + delete). The
+ * backend owns the transport.
  *
- * The vault is a tree: [list] walks every subdirectory (one child-documents
- * cursor query per directory), skipping dot-directories and attachment shards
- * ([isSkippedVaultDir]). Names are
- * vault-relative paths with `/` separators. Writes use mode "wt": without
- * truncate, writing shorter content than the existing file leaves trailing
- * garbage.
+ * The vault is a tree: [list] walks every subdirectory (one children query per
+ * directory), skipping dot-directories and attachment shards
+ * ([isSkippedVaultDir]). Names are vault-relative paths with `/` separators.
  *
  * Path -> document-id caches (files and directories) are warmed by [list] and
  * rebuilt on a cache miss. Recursive listing costs one query per directory;
  * fine for typical org vaults, a watch item for very large trees.
  */
-class SafFileStore(
-    private val context: Context,
-    private val treeUri: Uri,
+class BackendFileStore(
+    private val backend: StorageBackend,
     private val ignore: IgnorePatterns = IgnorePatterns(""),
     skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
     /** Where shards are skipped (from the attach config); a config change builds a new store. */
     attachRoots: AttachSkipRoots = AttachSkipRoots.DataOnly,
     /** Monotonic millis, for how long a raw file id counts as just verified. */
     private val now: () -> Long = android.os.SystemClock::elapsedRealtime,
-    /** Where listings come from; tests shorten the loading deadline through it. */
-    private val backend: StorageBackend = SafBackend(context, treeUri),
 ) : FileStore {
 
     private val skipRoots = attachRoots.takeIf { skipAttachShards }
 
-    private val resolver get() = context.contentResolver
-    private val rootDocId get() = DocumentsContract.getTreeDocumentId(treeUri)
+    private val rootDocId get() = backend.rootId
 
     /**
-     * Shared storage and SD cards (FAT/exFAT) match names case-insensitively:
-     * there `inbox.org` *is* an existing `Inbox.org`, and creating it makes the
-     * provider pick a free name (`inbox (1).org`) instead. Lookups here then
-     * resolve to the existing file's spelling ([resolve]).
+     * Whether the provider matches names in any case: there `inbox.org` *is* an
+     * existing `Inbox.org`, and creating it makes the provider pick a free name
+     * (`inbox (1).org`) instead. Lookups here then resolve to the existing
+     * file's spelling ([resolve]).
      */
-    private val caseInsensitive = treeUri.authority == EXTERNAL_STORAGE_AUTHORITY
+    private val caseInsensitive = backend.caseInsensitive
 
     // ConcurrentHashMap, not plain maps: Vault (and therefore this store) is a
     // process-wide singleton reached concurrently by SyncEngine on appScope and
@@ -95,14 +87,6 @@ class SafFileStore(
      */
     @Volatile
     private var listed = false
-
-    private val projection = arrayOf(
-        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-        DocumentsContract.Document.COLUMN_LAST_MODIFIED,
-        DocumentsContract.Document.COLUMN_SIZE,
-        DocumentsContract.Document.COLUMN_MIME_TYPE,
-    )
 
     override suspend fun list(): List<FileEntry> = listTree().entries
 
@@ -276,10 +260,8 @@ class SafFileStore(
      * Applies the same skip/ignore rules as [list], and defers to a listing when
      * the provider's name differs in case, so the answer always matches [list]'s.
      */
-    private fun directLookup(name: String): DirectLookup {
-        if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) return DirectLookup.Unsupported
-        val root = rootDocId
-        if (':' !in root) return DirectLookup.Unsupported
+    private suspend fun directLookup(name: String): DirectLookup {
+        val docId = backend.docIdForPath(name) ?: return DirectLookup.Unsupported
         val segments = name.split('/')
         var path = ""
         for (dir in segments.dropLast(1)) {
@@ -290,19 +272,12 @@ class SafFileStore(
             }
         }
         if (ignore.isFileIgnored(segments.last(), name)) return DirectLookup.Missing
-        val docId = if (root.endsWith(':')) "$root$name" else "$root/$name"
-        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-        // A missing file surfaces as a null cursor or a thrown FileNotFoundException,
-        // depending on the platform version.
-        val cursor = runCatching { resolver.query(uri, projection, null, null, null) }.getOrNull()
-            ?: return DirectLookup.Missing
-        return cursor.use {
-            when {
-                !it.moveToFirst() -> DirectLookup.Missing
-                it.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR -> DirectLookup.Missing
-                it.getString(1) != segments.last() -> DirectLookup.Unsupported
-                else -> DirectLookup.Found(it.getString(0) ?: docId)
-            }
+        // A missing file surfaces as NotFound however the platform reports it.
+        val entry = backend.stat(docId).getOrNull() ?: return DirectLookup.Missing
+        return when {
+            entry.isDir -> DirectLookup.Missing
+            entry.name != segments.last() -> DirectLookup.Unsupported
+            else -> DirectLookup.Found(entry.docId)
         }
     }
 
@@ -314,59 +289,44 @@ class SafFileStore(
 
     override suspend fun stat(name: String): FileEntry? = withContext(Dispatchers.IO) {
         val key = resolve(name) ?: return@withContext null
-        resolver.query(
-            uriOf(key) ?: return@withContext null,
-            arrayOf(
-                DocumentsContract.Document.COLUMN_LAST_MODIFIED,
-                DocumentsContract.Document.COLUMN_SIZE,
-            ),
-            null, null, null,
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) FileEntry(key, cursor.getLong(0), cursor.getLong(1)) else null
-        }
+        val entry = backend.stat(docIds[key] ?: return@withContext null).getOrNull() ?: return@withContext null
+        FileEntry(key, entry.lastModified, entry.size)
     }
 
     override suspend fun canonicalName(name: String): String = resolve(name) ?: name
 
     override suspend fun read(name: String): String = withContext(Dispatchers.IO) {
-        val uri = documentUri(name) ?: error("File not found in vault: $name")
-        resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-            ?: error("Cannot open $name")
+        val docId = documentId(name) ?: error("File not found in vault: $name")
+        val stream = backend.openRead(docId).getOrNull() ?: error("Cannot open $name")
+        stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
     }
 
     override suspend fun write(name: String, content: String): Unit = withContext(Dispatchers.IO) {
-        val uri = documentUri(name) ?: error("File not found in vault: $name")
-        // "wt" = write + truncate. Plain "w" does NOT truncate on all providers.
-        resolver.openOutputStream(uri, "wt")?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
-            ?: error("Cannot write $name")
+        val docId = documentId(name) ?: error("File not found in vault: $name")
+        if (!backend.write(docId, content.toByteArray(Charsets.UTF_8)).isOk) error("Cannot write $name")
     }
 
     override suspend fun create(name: String): Boolean = withContext(Dispatchers.IO) {
         if (resolve(name) != null) return@withContext false
         val (dir, leaf) = splitPath(name)
         val parent = resolveDir(dir, createMissing = true) ?: return@withContext false
-        val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, parent.docId)
-        // "application/octet-stream" has no mapped extension, so stock providers
-        // keep the name as-is ("text/plain" would make "test.org" -> "test.org.txt").
-        var created = listingChanged(DocumentsContract.createDocument(
-            resolver, parentUri, "application/octet-stream", leaf,
-        )) ?: return@withContext false
-        val actualName = displayNameOf(created)
-        if (actualName != null && actualName != leaf) {
-            listingChanged(DocumentsContract.renameDocument(resolver, created, leaf))?.let { created = it }
-            val finalName = displayNameOf(created)
-            if (finalName != null && finalName != leaf) {
+        when (val created = backend.createFile(parent.docId, leaf)) {
+            is StorageResult.Ok -> {
+                listingChanged(Unit)
+                docIds[childPath(parent.path, leaf)] = created.value
+                true
+            }
+            StorageError.NameTaken -> {
                 // Still not [leaf]: a file the cache didn't know about holds that
                 // name (in another case, on a case-insensitive provider), and the
-                // provider made this one `name (2).org`. Drop it and learn the
-                // real file, so a write to [name] reaches that one instead.
-                runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, created)) }
+                // provider made this one `name (2).org`; the backend dropped it.
+                // Learn the real file, so a write to [name] reaches that one instead.
+                listingChanged(Unit)
                 queryDir(parent.path, parent.docId)
-                return@withContext false
+                false
             }
+            is StorageError -> false
         }
-        docIds[childPath(parent.path, leaf)] = DocumentsContract.getDocumentId(created)
-        true
     }
 
     override suspend fun rename(oldName: String, newName: String): Boolean =
@@ -381,96 +341,74 @@ class SafFileStore(
             val sameDir = sameName(oldDir, newDir)
             val caseOnly = newKey == oldKey && sameDir
             if (newKey != null && !caseOnly) return@withContext false
-            val uri = uriOf(oldKey) ?: return@withContext false
+            val docId = docIds[oldKey] ?: return@withContext false
 
-            val result: Uri? = when {
+            val ok = when {
                 // The provider sees [newLeaf] as taken (by this very file) and
                 // would pick `work (1).org`; going through a free name avoids that.
-                caseOnly -> renameVia(uri, ".$newLeaf.renaming", newLeaf)
-                sameDir ->
-                    runCatching { listingChanged(DocumentsContract.renameDocument(resolver, uri, newLeaf)) }.getOrNull()
-                else -> moveAcrossDirs(uri, oldKey, oldDir, newDir, newLeaf, newName)
+                caseOnly -> renameVia(docId, ".$newLeaf.renaming", newLeaf)
+                sameDir -> backend.rename(docId, newLeaf).isOk
+                else -> moveAcrossDirs(docId, oldKey, oldDir, newDir, newLeaf, newName)
             }
+            listingChanged(Unit)
 
-            if (result != null) {
+            if (ok) {
                 docIds.remove(oldKey)
                 docIds.remove(newName)
-                true
-            } else {
-                false
             }
+            ok
         }
 
-    /** Renames [uri] to [temp], then to [leaf]; puts the old name back if the second step fails. */
-    private fun renameVia(uri: Uri, temp: String, leaf: String): Uri? {
-        val oldLeaf = displayNameOf(uri) ?: return null
-        val tempUri = runCatching { listingChanged(DocumentsContract.renameDocument(resolver, uri, temp)) }
-            .getOrNull() ?: return null
-        return runCatching { listingChanged(DocumentsContract.renameDocument(resolver, tempUri, leaf)) }.getOrNull()
-            ?: run {
-                runCatching { listingChanged(DocumentsContract.renameDocument(resolver, tempUri, oldLeaf)) }
-                null
-            }
+    /** Renames [docId] to [temp], then to [leaf]; puts the old name back if the second step fails. */
+    private suspend fun renameVia(docId: String, temp: String, leaf: String): Boolean {
+        val oldLeaf = backend.stat(docId).getOrNull()?.name ?: return false
+        val tempId = backend.rename(docId, temp).getOrNull() ?: return false
+        if (backend.rename(tempId, leaf).isOk) return true
+        backend.rename(tempId, oldLeaf)
+        return false
     }
 
     /**
-     * Cross-directory move via [DocumentsContract.moveDocument], falling back to
-     * copy + delete for providers that refuse it. Returns a non-null URI on
-     * success.
+     * Cross-directory move through the backend, falling back to copy + delete
+     * for providers that refuse it. True on success.
      */
     private suspend fun moveAcrossDirs(
-        uri: Uri,
+        docId: String,
         oldName: String,
         oldDir: String,
         newDir: String,
         newLeaf: String,
         newName: String,
-    ): Uri? {
-        val sourceParent = resolveDir(oldDir, createMissing = false) ?: return null
-        val targetParent = resolveDir(newDir, createMissing = true) ?: return null
-        val sourceParentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, sourceParent.docId)
-        val targetParentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, targetParent.docId)
+    ): Boolean {
+        val sourceParent = resolveDir(oldDir, createMissing = false) ?: return false
+        val targetParent = resolveDir(newDir, createMissing = true) ?: return false
 
-        // DocumentsContract.moveDocument needs API 24; below that, skip straight
-        // to the copy + delete fallback below instead of ever attempting it.
-        val moved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            runCatching {
-                listingChanged(DocumentsContract.moveDocument(resolver, uri, sourceParentUri, targetParentUri))
-            }.getOrNull()
-        } else {
-            null
-        }
-
+        val moved = backend.move(docId, sourceParent.docId, targetParent.docId).getOrNull()
         if (moved == null) {
-            // Provider refused moveDocument: copy the bytes then delete the source.
-            val content = runCatching { read(oldName) }.getOrNull() ?: return null
-            if (!create(newName)) return null
+            // Provider refused the move: copy the bytes then delete the source.
+            val content = runCatching { read(oldName) }.getOrNull() ?: return false
+            if (!create(newName)) return false
             write(newName, content)
-            return if (delete(oldName)) documentUri(newName) else null
+            return delete(oldName)
         }
 
-        val currentName = displayNameOf(moved)
-        if (currentName != null && currentName != newLeaf) {
-            runCatching { listingChanged(DocumentsContract.renameDocument(resolver, moved, newLeaf)) }
-                .getOrNull()?.let { return it }
-        }
-        return moved
+        val currentName = backend.stat(moved).getOrNull()?.name
+        if (currentName != null && currentName != newLeaf) backend.rename(moved, newLeaf)
+        return true
     }
 
     override suspend fun delete(name: String): Boolean = withContext(Dispatchers.IO) {
         val key = resolve(name) ?: return@withContext false
-        val uri = uriOf(key) ?: return@withContext false
-        val ok = runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, uri)) }
-            .getOrDefault(false)
+        val docId = docIds[key] ?: return@withContext false
+        val ok = backend.delete(docId).isOk
+        listingChanged(Unit)
         if (ok) docIds.remove(key)
         ok
     }
 
     override suspend fun exists(name: String): Boolean = resolve(name) != null
 
-    override fun absolutePath(name: String): String? =
-        if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) null
-        else externalStoragePath(rootDocId, name)
+    override fun absolutePath(name: String): String? = backend.absolutePath(name)
 
     override suspend fun pruneEmptyDirs(dir: String): Unit = withContext(Dispatchers.IO) {
         val asked = dir.trim('/')
@@ -502,25 +440,15 @@ class SafFileStore(
         val listing = backend.listChildren(docId)
         if (listing !is Listing.Complete || listing.entries.isNotEmpty()) return false
 
-        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-        val removed = runCatching {
-            listingChanged(DocumentsContract.deleteDocument(resolver, uri))
-        }.getOrDefault(false)
+        val removed = backend.delete(docId).isOk
+        listingChanged(Unit)
 
         if (removed) dirDocIds.remove(path)
         return removed
     }
 
-    private fun displayNameOf(uri: Uri): String? =
-        resolver.query(
-            uri, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null,
-        )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
-
-    private suspend fun documentUri(name: String): Uri? = resolve(name)?.let(::uriOf)
-
-    /** Null when a concurrent [list] dropped [key] since it was resolved. */
-    private fun uriOf(key: String): Uri? =
-        docIds[key]?.let { DocumentsContract.buildDocumentUriUsingTree(treeUri, it) }
+    /** The document id of the file at [name]; null when it's absent, or a concurrent [list] dropped it. */
+    private suspend fun documentId(name: String): String? = resolve(name)?.let { docIds[it] }
 
     /**
      * The [docIds] key for the file at [name] (its real spelling, on a
@@ -574,18 +502,13 @@ class SafFileStore(
         for (segment in dir.split('/')) {
             current = dirKey(childPath(current.path, segment))?.let { path -> dirDocIds[path]?.let { DirRef(path, it) } }
                 ?: run {
-                    val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, current.docId)
-                    val newDir = listingChanged(DocumentsContract.createDocument(
-                        resolver, parentUri, DocumentsContract.Document.MIME_TYPE_DIR, segment,
-                    )) ?: return null
-                    if (displayNameOf(newDir).let { it != null && it != segment }) {
-                        // Something unlisted (a skipped or ignored folder, in any
-                        // case) holds the name; the provider made `name (1)`.
-                        runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, newDir)) }
-                        return null
-                    }
+                    // NameTaken: something unlisted (a skipped or ignored folder, in
+                    // any case) holds the name; the provider made `name (1)` and the
+                    // backend removed it again.
+                    val newDirId = backend.createDir(current.docId, segment).also { listingChanged(Unit) }
+                        .getOrNull() ?: return null
                     val path = childPath(current.path, segment)
-                    DirRef(path, DocumentsContract.getDocumentId(newDir)).also { dirDocIds[path] = it.docId }
+                    DirRef(path, newDirId).also { dirDocIds[path] = it.docId }
                 }
         }
         return current
@@ -594,20 +517,12 @@ class SafFileStore(
     // --- Raw access for attachments ---------------------------------------
     //
     // Attachment files live under skipped shard dirs, so the listing-backed
-    // caches above never hold them and documentUri() treats them as missing.
+    // caches above never hold them and documentId() treats them as missing.
     // These members resolve paths on their own, ignoring every skip/ignore
     // rule: on the local-storage provider (path document ids) one query per
     // lookup, elsewhere a cached id validated with one query, falling back to
     // a walk from the nearest known parent. Their ids go in separate caches
     // that list() never wipes.
-
-    private data class DocMeta(
-        val docId: String,
-        val name: String,
-        val lastModified: Long,
-        val size: Long,
-        val isDir: Boolean,
-    )
 
     /** raw relative path -> document id, for files / directories resolved here. */
     private val rawFileIds: MutableMap<String, String> = ConcurrentHashMap()
@@ -624,7 +539,7 @@ class SafFileStore(
     private val rawVerifiedAt: MutableMap<String, Long> = ConcurrentHashMap()
 
     /** A directory's child names as one query listed them, and when. */
-    private class Listing(val at: Long, val names: Set<String>)
+    private class DirSnapshot(val at: Long, val names: Set<String>)
 
     /**
      * raw dir path -> its last listing. A lookup of a path whose parent was
@@ -635,7 +550,7 @@ class SafFileStore(
      * ([listingChanged]); changes from outside (Syncthing) show up once the
      * window has passed, or at once after [dropRawSnapshots] (sync, foreground).
      */
-    private val rawListings: MutableMap<String, Listing> = ConcurrentHashMap()
+    private val rawListings: MutableMap<String, DirSnapshot> = ConcurrentHashMap()
 
     /** Drops every [rawListings] snapshot after a structural change; returns [result]. */
     private fun <T> listingChanged(result: T): T {
@@ -648,8 +563,8 @@ class SafFileStore(
         rawVerifiedAt.clear()
     }
 
-    private fun recordListing(path: String, children: List<DocMeta>) {
-        rawListings[path] = Listing(now(), children.mapTo(HashSet()) { it.name })
+    private fun recordListing(path: String, children: List<DocEntry>) {
+        rawListings[path] = DirSnapshot(now(), children.mapTo(HashSet()) { it.name })
     }
 
     /** True when [path]'s parent was listed recently and didn't contain it. */
@@ -659,38 +574,20 @@ class SafFileStore(
         return path.substringAfterLast('/') !in listing.names
     }
 
-    private fun metaOf(cursor: android.database.Cursor, fallbackId: String): DocMeta? {
-        val name = cursor.getString(1) ?: return null
-        return DocMeta(
-            docId = cursor.getString(0) ?: fallbackId,
-            name = name,
-            lastModified = cursor.getLong(2),
-            size = cursor.getLong(3),
-            isDir = cursor.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR,
-        )
-    }
-
     /** One query for [docId]'s metadata; null when it's gone or the provider refuses. */
-    private fun queryDoc(docId: String): DocMeta? {
-        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-        val cursor = runCatching { resolver.query(uri, projection, null, null, null) }.getOrNull()
-            ?: return null
-        return cursor.use { if (it.moveToFirst()) metaOf(it, docId) else null }
-    }
+    private suspend fun queryDoc(docId: String): DocEntry? = backend.stat(docId).getOrNull()
 
     /** A directory's children as the raw side sees them, and whether the provider finished listing. */
-    private class RawChildren(val metas: List<DocMeta>, val complete: Boolean)
+    private class RawChildren(val metas: List<DocEntry>, val complete: Boolean)
 
     /** Children of [docId], or null when the provider rejects the id or can't be reached. */
     private suspend fun queryChildren(docId: String): RawChildren? {
         val listing = backend.listChildren(docId)
         if (listing is Listing.Failed) return null
-        return RawChildren(listing.entries.map { it.toMeta() }, complete = listing is Listing.Complete)
+        return RawChildren(listing.entries, complete = listing is Listing.Complete)
     }
 
-    private fun DocEntry.toMeta() = DocMeta(docId, name, lastModified, size, isDir)
-
-    private fun remember(path: String, meta: DocMeta) {
+    private fun remember(path: String, meta: DocEntry) {
         if (meta.isDir) {
             rawDirIds[path] = meta.docId
             rawFileIds.remove(path)
@@ -722,16 +619,8 @@ class SafFileStore(
         rawListings.clear()
     }
 
-    /** The provider's document id for [path] when ids are paths (local storage), else null. */
-    private fun pathDocId(path: String): String? {
-        if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) return null
-        val root = rootDocId
-        if (':' !in root) return null
-        return if (root.endsWith(':')) "$root$path" else "$root/$path"
-    }
-
     /** Metadata for whatever is at [path] (file or directory), or null. Never consults skip rules. */
-    private suspend fun rawLookup(path: String): DocMeta? {
+    private suspend fun rawLookup(path: String): DocEntry? {
         if (path.isEmpty()) return queryDoc(rootDocId)
         val leaf = path.substringAfterLast('/')
         val cached = rawFileIds[path] ?: rawDirIds[path] ?: docIds[path] ?: dirDocIds[path]
@@ -741,7 +630,7 @@ class SafFileStore(
             forgetTree(path)
         }
         if (knownAbsent(path)) return null
-        pathDocId(path)?.let { id ->
+        backend.docIdForPath(path)?.let { id ->
             val meta = queryDoc(id) ?: return null
             // A different-case match on a case-insensitive volume isn't this
             // name: settle it from the parent's listing below.
@@ -752,8 +641,8 @@ class SafFileStore(
     }
 
     /** Finds [leaf] among the children of [parentDocId] (at [parentPath]), caching every child seen. */
-    private suspend fun rawChild(parentPath: String, parentDocId: String, leaf: String): DocMeta? {
-        var found: DocMeta? = null
+    private suspend fun rawChild(parentPath: String, parentDocId: String, leaf: String): DocEntry? {
+        var found: DocEntry? = null
         val children = queryChildren(parentDocId) ?: return null
         // Only a finished listing may answer "missing" for later lookups.
         if (children.complete) recordListing(parentPath, children.metas)
@@ -771,26 +660,19 @@ class SafFileStore(
         rawLookup(path)?.let { return if (it.isDir) it.docId else null }
         val parentId = ensureRawDir(path.substringBeforeLast('/', "")) ?: return null
         val leaf = path.substringAfterLast('/')
-        val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, parentId)
-        val created = runCatching {
-            listingChanged(DocumentsContract.createDocument(resolver, parentUri, DocumentsContract.Document.MIME_TYPE_DIR, leaf))
-        }.getOrNull() ?: return null
-        val docId = DocumentsContract.getDocumentId(created)
+        val docId = backend.createDir(parentId, leaf).also { listingChanged(Unit) }.getOrNull() ?: return null
         rawDirIds[path] = docId
         return docId
     }
 
-    private suspend fun rawFileUri(name: String): Uri? {
+    private suspend fun rawFileId(name: String): String? {
         val path = name.trim('/')
-        val id = freshFileId(path) ?: rawLookup(path)?.takeIf { !it.isDir }?.docId ?: return null
-        return DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
+        return freshFileId(path) ?: rawLookup(path)?.takeIf { !it.isDir }?.docId
     }
 
-    // Recycle: the stream is the return value; FileStore callers close it.
-    @SuppressLint("Recycle")
     override suspend fun openInput(name: String): InputStream = withContext(Dispatchers.IO) {
-        val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
-        resolver.openInputStream(uri) ?: throw FileNotFoundException(name)
+        val id = rawFileId(name) ?: throw FileNotFoundException(name)
+        backend.openRead(id).getOrNull() ?: throw FileNotFoundException(name)
     }
 
     override suspend fun createBinary(name: String): Boolean = withContext(Dispatchers.IO) {
@@ -798,30 +680,17 @@ class SafFileStore(
         if (rawLookup(path) != null) return@withContext false
         val (dir, leaf) = splitPath(path)
         val parentId = ensureRawDir(dir) ?: return@withContext false
-        val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, parentId)
-        // octet-stream so the provider doesn't append an extension (see create()).
-        var created = runCatching {
-            listingChanged(DocumentsContract.createDocument(resolver, parentUri, "application/octet-stream", leaf))
-        }.getOrNull() ?: return@withContext false
-        val actualName = displayNameOf(created)
-        if (actualName != null && actualName != leaf) {
-            val renamed = runCatching { listingChanged(DocumentsContract.renameDocument(resolver, created, leaf)) }.getOrNull()
-            if (renamed == null) {
-                // Couldn't get the exact name: don't leave a stray "x (1).jpg" behind.
-                runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, created)) }
-                return@withContext false
-            }
-            created = renamed
-        }
-        rawFileIds[path] = DocumentsContract.getDocumentId(created)
+        // The backend keeps the exact name (octet-stream, so no extension is
+        // appended) and doesn't leave a stray "x (1).jpg" behind when it can't.
+        val docId = backend.createFile(parentId, leaf).also { listingChanged(Unit) }.getOrNull()
+            ?: return@withContext false
+        rawFileIds[path] = docId
         true
     }
 
-    // Recycle: the stream is the return value; FileStore callers close it.
-    @SuppressLint("Recycle")
     override suspend fun openOutput(name: String): OutputStream = withContext(Dispatchers.IO) {
-        val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
-        resolver.openOutputStream(uri, "wt") ?: throw FileNotFoundException(name)
+        val id = rawFileId(name) ?: throw FileNotFoundException(name)
+        backend.openWrite(id).getOrNull() ?: throw FileNotFoundException(name)
     }
 
     override suspend fun statRaw(name: String): FileEntry? = withContext(Dispatchers.IO) {
@@ -836,19 +705,17 @@ class SafFileStore(
         val dir = path.substringBeforeLast('/', "")
         val newPath = if (dir.isEmpty()) newLeaf else "$dir/$newLeaf"
         if (rawLookup(newPath) != null) return@withContext false
-        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, meta.docId)
-        val renamed = runCatching { listingChanged(DocumentsContract.renameDocument(resolver, uri, newLeaf)) }.getOrNull()
+        val renamed = backend.rename(meta.docId, newLeaf).also { listingChanged(Unit) }.getOrNull()
             ?: return@withContext false
         forgetTree(path)
-        rawFileIds[newPath] = DocumentsContract.getDocumentId(renamed)
+        rawFileIds[newPath] = renamed
         true
     }
 
     override suspend fun deleteRaw(name: String): Boolean = withContext(Dispatchers.IO) {
         val path = name.trim('/')
         val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext false
-        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, meta.docId)
-        val ok = runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, uri)) }.getOrDefault(false)
+        val ok = backend.delete(meta.docId).also { listingChanged(Unit) }.isOk
         if (ok) forgetTree(path)
         ok
     }
@@ -886,7 +753,7 @@ class SafFileStore(
      * directory. A listing the provider didn't finish returns the rows it had
      * (use [isDirEmptyRaw], not emptiness of this, to decide a directory is empty).
      */
-    private suspend fun rawChildren(path: String): List<Pair<String, DocMeta>> {
+    private suspend fun rawChildren(path: String): List<Pair<String, DocEntry>> {
         val docId = if (path.isEmpty()) rootDocId else rawLookup(path)?.takeIf { it.isDir }?.docId
             ?: return emptyList()
         val prefix = if (path.isEmpty()) "" else "$path/"
@@ -912,20 +779,18 @@ class SafFileStore(
      * a non-empty one, empty it first and retry.
      */
     private suspend fun deleteTree(path: String, docId: String): Boolean {
-        val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-        if (runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, uri)) }.getOrDefault(false)) return true
+        if (backend.delete(docId).also { listingChanged(Unit) }.isOk) return true
         val children = queryChildren(docId) ?: return false
         for (child in children.metas) {
             val childPath = "$path/${child.name}"
             val ok = if (child.isDir) {
                 deleteTree(childPath, child.docId)
             } else {
-                val childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, child.docId)
-                runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, childUri)) }.getOrDefault(false)
+                backend.delete(child.docId).also { listingChanged(Unit) }.isOk
             }
             if (!ok) return false
         }
-        return runCatching { listingChanged(DocumentsContract.deleteDocument(resolver, uri)) }.getOrDefault(false)
+        return backend.delete(docId).also { listingChanged(Unit) }.isOk
     }
 
     override suspend fun moveDir(src: String, dstParent: String): Boolean = withContext(Dispatchers.IO) {
@@ -939,22 +804,11 @@ class SafFileStore(
         val srcParentId = rawLookup(srcPath.substringBeforeLast('/', ""))?.docId ?: return@withContext false
         val dstParentId = ensureRawDir(parentPath) ?: return@withContext false
 
-        // moveDocument needs API 24 and isn't supported by every provider.
-        val moved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            runCatching {
-                listingChanged(DocumentsContract.moveDocument(
-                    resolver,
-                    DocumentsContract.buildDocumentUriUsingTree(treeUri, meta.docId),
-                    DocumentsContract.buildDocumentUriUsingTree(treeUri, srcParentId),
-                    DocumentsContract.buildDocumentUriUsingTree(treeUri, dstParentId),
-                ))
-            }.getOrNull()
-        } else {
-            null
-        }
+        // A provider move isn't available everywhere (API 24, and not every provider).
+        val moved = backend.move(meta.docId, srcParentId, dstParentId).also { listingChanged(Unit) }
         forgetTree(srcPath)
         forgetTree(dstPath)
-        if (moved != null) return@withContext true
+        if (moved.isOk) return@withContext true
 
         // Fallback: copy the tree, and only delete the source once it's all there.
         val copied = copyTree(srcPath, meta.docId, dstPath)
@@ -968,7 +822,6 @@ class SafFileStore(
 
     private suspend fun copyTree(srcPath: String, srcDocId: String, dstPath: String): Boolean {
         val dstId = ensureRawDir(dstPath) ?: return false
-        val dstUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, dstId)
         val children = queryChildren(srcDocId) ?: return false
         // The caller deletes the source after a successful copy: a copy from a
         // listing that wasn't finished would silently drop the unseen files.
@@ -978,25 +831,21 @@ class SafFileStore(
                 if (!copyTree("$srcPath/${child.name}", child.docId, "$dstPath/${child.name}")) return false
                 continue
             }
-            val created = runCatching {
-                listingChanged(DocumentsContract.createDocument(resolver, dstUri, "application/octet-stream", child.name))
-            }.getOrNull() ?: return false
-            val srcUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, child.docId)
+            val created = backend.createFile(dstId, child.name).also { listingChanged(Unit) }.getOrNull()
+                ?: return false
+            val input = backend.openRead(child.docId).getOrNull() ?: return false
+            val output = backend.openWrite(created).getOrNull() ?: run { input.close(); return false }
             val ok = runCatching {
-                resolver.openInputStream(srcUri)!!.use { input ->
-                    resolver.openOutputStream(created, "wt")!!.use { output -> input.copyTo(output, COPY_BUFFER) }
-                }
+                input.use { i -> output.use { o -> i.copyTo(o, COPY_BUFFER) } }
             }.isSuccess
             if (!ok) return false
-            val actual = displayNameOf(created)
-            if (actual != null && actual != child.name) {
-                runCatching { listingChanged(DocumentsContract.renameDocument(resolver, created, child.name)) }.getOrNull() ?: return false
-            }
         }
         return true
     }
 
-    override suspend fun contentUri(name: String): Uri? = withContext(Dispatchers.IO) { rawFileUri(name) }
+    override suspend fun contentUri(name: String): Uri? = withContext(Dispatchers.IO) {
+        rawFileId(name)?.let(backend::contentUri)
+    }
 
     private fun splitPath(path: String): Pair<String, String> {
         val i = path.lastIndexOf('/')
@@ -1011,22 +860,3 @@ private const val WALK_CONCURRENCY = 4
 
 /** How long a just-queried raw file id is reused for opens without another query. */
 internal const val RAW_FRESH_MS = 2_000L
-
-/** The platform's local-storage documents provider, whose document ids are paths. */
-private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
-
-/**
- * Maps a local-storage tree root id (`<volume>:<path>`) plus a vault-relative
- * [name] to its filesystem path: the `primary` volume is internal shared storage
- * (`/storage/emulated/0`), any other volume id (an SD card's `1234-ABCD`) mounts
- * at `/storage/<id>`. Null for an id that isn't in that form.
- */
-internal fun externalStoragePath(rootDocId: String, name: String): String? {
-    val colon = rootDocId.indexOf(':')
-    if (colon <= 0) return null
-    val volume = rootDocId.substring(0, colon)
-    val volumeRoot = if (volume.equals("primary", ignoreCase = true)) "/storage/emulated/0" else "/storage/$volume"
-    return listOf(volumeRoot, rootDocId.substring(colon + 1).trim('/'), name.trim('/'))
-        .filter { it.isNotEmpty() }
-        .joinToString("/")
-}

@@ -2,7 +2,8 @@ package com.rrajath.grove.vault
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import com.rrajath.grove.vault.storage.SafFileStore
+import com.rrajath.grove.vault.storage.BackendFileStore
+import com.rrajath.grove.vault.storage.SafBackend
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -16,22 +17,22 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * [SafFileStore] on shared storage, where `inbox.org` and `Inbox.org` are one
+ * [BackendFileStore] on shared storage, where `inbox.org` and `Inbox.org` are one
  * file. Asking for the wrong case used to miss the cache, create the file, and
  * leave the provider's `inbox (2).org` behind on every capture.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [34])
-class SafFileStoreCaseInsensitiveTest {
+class BackendFileStoreCaseInsensitiveTest {
 
     @get:Rule
     val tmp = TemporaryFolder()
 
     private val context get() = ApplicationProvider.getApplicationContext<Application>()
 
-    private fun store(): SafFileStore {
+    private fun store(): BackendFileStore {
         FakeDocumentsProvider.install(tmp.root).caseInsensitive = true
-        return SafFileStore(context, FakeDocumentsProvider.treeUri())
+        return BackendFileStore(SafBackend(context, FakeDocumentsProvider.treeUri()))
     }
 
     private fun write(path: String, text: String) =

@@ -4,7 +4,8 @@ import android.app.Application
 import com.rrajath.grove.attach.ownerOf
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.vault.storage.RAW_FRESH_MS
-import com.rrajath.grove.vault.storage.SafFileStore
+import com.rrajath.grove.vault.storage.BackendFileStore
+import com.rrajath.grove.vault.storage.SafBackend
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
@@ -21,14 +22,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * [SafFileStore]'s attachment support against a java.io-backed documents
+ * [BackendFileStore]'s attachment support against a java.io-backed documents
  * provider: the `data/` shard skip in traversal (and that it keeps the
  * number of SAF queries per sync flat), and the raw binary/directory APIs on
  * both a path-id provider (local storage) and an opaque-id one (walks).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [34])
-class SafFileStoreAttachmentsTest {
+class BackendFileStoreAttachmentsTest {
 
     @get:Rule
     val tmp = TemporaryFolder()
@@ -38,9 +39,9 @@ class SafFileStoreAttachmentsTest {
     private fun store(
         authority: String = FakeDocumentsProvider.AUTHORITY,
         skipShards: Boolean = true,
-    ): Pair<SafFileStore, FakeDocumentsProvider> {
+    ): Pair<BackendFileStore, FakeDocumentsProvider> {
         val provider = FakeDocumentsProvider.install(tmp.root, authority)
-        return SafFileStore(context, FakeDocumentsProvider.treeUri(authority), skipAttachShards = skipShards) to provider
+        return BackendFileStore(SafBackend(context, FakeDocumentsProvider.treeUri(authority)), skipAttachShards = skipShards) to provider
     }
 
     private fun write(path: String, text: String = "x") =
@@ -102,8 +103,8 @@ class SafFileStoreAttachmentsTest {
         for (authority in listOf(FakeDocumentsProvider.AUTHORITY, FakeDocumentsProvider.OPAQUE_AUTHORITY)) {
             var clock = 0L
             val provider = FakeDocumentsProvider.install(tmp.root, authority)
-            val saf = SafFileStore(
-                context, FakeDocumentsProvider.treeUri(authority), skipAttachShards = true, now = { clock },
+            val saf = BackendFileStore(
+                SafBackend(context, FakeDocumentsProvider.treeUri(authority)), skipAttachShards = true, now = { clock },
             )
             assertNotNull(saf.statRaw("data/3F/2504E0/photo.jpg"))
             provider.queries.set(0)
@@ -127,8 +128,8 @@ class SafFileStoreAttachmentsTest {
         write("data/3F/2504E0/present.jpg")
         var clock = 0L
         val provider = FakeDocumentsProvider.install(tmp.root, FakeDocumentsProvider.OPAQUE_AUTHORITY)
-        val saf = SafFileStore(
-            context, FakeDocumentsProvider.treeUri(FakeDocumentsProvider.OPAQUE_AUTHORITY),
+        val saf = BackendFileStore(
+            SafBackend(context, FakeDocumentsProvider.treeUri(FakeDocumentsProvider.OPAQUE_AUTHORITY)),
             skipAttachShards = true, now = { clock },
         )
         assertNotNull(saf.statRaw("data/3F/2504E0/present.jpg"))

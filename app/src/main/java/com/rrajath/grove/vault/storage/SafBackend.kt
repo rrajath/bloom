@@ -1,5 +1,6 @@
 package com.rrajath.grove.vault.storage
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.database.ContentObserver
 import android.database.Cursor
@@ -11,6 +12,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.FileNotFoundException
+import java.io.InputStream
+import java.io.OutputStream
 
 /**
  * [StorageBackend] over the Storage Access Framework, for any documents
@@ -29,6 +33,29 @@ class SafBackend(
 ) : StorageBackend {
 
     private val resolver get() = context.contentResolver
+
+    override val rootId: String get() = DocumentsContract.getTreeDocumentId(treeUri)
+
+    /**
+     * Shared storage and SD cards (FAT/exFAT) match names case-insensitively:
+     * there `inbox.org` *is* an existing `Inbox.org`, and creating it makes the
+     * provider pick a free name (`inbox (1).org`) instead.
+     */
+    override val caseInsensitive: Boolean = treeUri.authority == EXTERNAL_STORAGE_AUTHORITY
+
+    override fun docIdForPath(path: String): String? {
+        if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) return null
+        val root = rootId
+        if (':' !in root) return null
+        return if (root.endsWith(':')) "$root$path" else "$root/$path"
+    }
+
+    override fun absolutePath(name: String): String? =
+        if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) null else externalStoragePath(rootId, name)
+
+    override fun contentUri(docId: String): Uri? = docUri(docId)
+
+    private fun docUri(docId: String): Uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
 
     /** One children query's result: its rows, whether the provider is still loading, and where it will notify. */
     private class Answer(
@@ -95,6 +122,161 @@ class SafBackend(
         }
     }
 
+    override suspend fun stat(docId: String): StorageResult<DocEntry> = withContext(Dispatchers.IO) {
+        val cursor = try {
+            resolver.query(docUri(docId), PROJECTION, null, null, null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: FileNotFoundException) {
+            return@withContext StorageError.NotFound
+        } catch (e: Exception) {
+            return@withContext providerError(e)
+        } ?: return@withContext StorageError.NotFound
+        cursor.use {
+            if (!it.moveToFirst()) return@withContext StorageError.NotFound
+            StorageResult.Ok(entryOf(it, docId) ?: return@withContext StorageError.NotFound)
+        }
+    }
+
+    // Recycle: the stream is the return value; callers close it.
+    @SuppressLint("Recycle")
+    override suspend fun openRead(docId: String): StorageResult<InputStream> = withContext(Dispatchers.IO) {
+        guarded(StorageOp.Read) { resolver.openInputStream(docUri(docId)) }
+            .let { it.orNotFound() }
+    }
+
+    // Recycle: the stream is the return value; callers close it.
+    @SuppressLint("Recycle")
+    override suspend fun openWrite(docId: String): StorageResult<OutputStream> = withContext(Dispatchers.IO) {
+        // "wt" = write + truncate. Plain "w" does NOT truncate on all providers.
+        guarded(StorageOp.Write) { resolver.openOutputStream(docUri(docId), "wt") }
+            .let { it.orNotFound() }
+    }
+
+    override suspend fun write(docId: String, content: ByteArray, ifMatch: String?): StorageResult<String> =
+        withContext(Dispatchers.IO) {
+            if (ifMatch != null) {
+                // No atomic compare-and-set over SAF: look first. A race between this
+                // and the write is possible, so this narrows the window rather than closing it.
+                when (val current = stat(docId)) {
+                    is StorageError -> return@withContext current
+                    is StorageResult.Ok -> if (current.value.revision != ifMatch) {
+                        return@withContext StorageError.Conflict(current.value.revision)
+                    }
+                }
+            }
+            val written = guarded(StorageOp.Write) {
+                resolver.openOutputStream(docUri(docId), "wt")?.use { it.write(content) }
+            }
+            when (written) {
+                is StorageError -> written
+                is StorageResult.Ok -> when {
+                    written.value == null -> StorageError.NotFound
+                    else -> when (val after = stat(docId)) {
+                        is StorageResult.Ok -> StorageResult.Ok(after.value.revision.orEmpty())
+                        // The write landed but the follow-up stat didn't: the content is saved.
+                        is StorageError -> StorageResult.Ok("")
+                    }
+                }
+            }
+        }
+
+    override suspend fun createFile(parentId: String, name: String): StorageResult<String> =
+        createNamed(parentId, name, "application/octet-stream")
+
+    override suspend fun createDir(parentId: String, name: String): StorageResult<String> =
+        createNamed(parentId, name, DocumentsContract.Document.MIME_TYPE_DIR)
+
+    /**
+     * "application/octet-stream" has no mapped extension, so stock providers keep
+     * a file's name as-is ("text/plain" would make "test.org" -> "test.org.txt").
+     * A provider that still picked another name (`name (1).org`, because something
+     * we can't see holds [name]) gets one rename attempt, then the stray removed.
+     */
+    private suspend fun createNamed(parentId: String, name: String, mime: String): StorageResult<String> =
+        withContext(Dispatchers.IO) {
+            var created = guarded(StorageOp.Create) {
+                DocumentsContract.createDocument(resolver, docUri(parentId), mime, name)
+            }.orProviderRefused().let { if (it is StorageError) return@withContext it else (it as StorageResult.Ok).value }
+            val actual = displayNameOf(created)
+            if (actual != null && actual != name) {
+                guarded(StorageOp.Rename) { DocumentsContract.renameDocument(resolver, created, name) }
+                    .getOrNull()?.let { created = it }
+                val final = displayNameOf(created)
+                if (final != null && final != name) {
+                    guarded(StorageOp.Delete) { DocumentsContract.deleteDocument(resolver, created) }
+                    return@withContext StorageError.NameTaken
+                }
+            }
+            StorageResult.Ok(DocumentsContract.getDocumentId(created))
+        }
+
+    override suspend fun delete(docId: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
+        when (val r = guarded(StorageOp.Delete) { DocumentsContract.deleteDocument(resolver, docUri(docId)) }) {
+            is StorageError -> r
+            is StorageResult.Ok -> if (r.value) StorageResult.Ok(Unit) else StorageError.ProviderError(null)
+        }
+    }
+
+    override suspend fun rename(docId: String, newName: String): StorageResult<String> = withContext(Dispatchers.IO) {
+        guarded(StorageOp.Rename) { DocumentsContract.renameDocument(resolver, docUri(docId), newName) }
+            .orProviderRefused()
+            .map { DocumentsContract.getDocumentId(it) }
+    }
+
+    override suspend fun move(docId: String, fromParent: String, toParent: String): StorageResult<String> =
+        withContext(Dispatchers.IO) {
+            // moveDocument needs API 24 and isn't supported by every provider.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return@withContext StorageError.Unsupported(StorageOp.Move)
+            guarded(StorageOp.Move) {
+                DocumentsContract.moveDocument(resolver, docUri(docId), docUri(fromParent), docUri(toParent))
+            }.orProviderRefused().map { DocumentsContract.getDocumentId(it) }
+        }
+
+    private fun displayNameOf(uri: Uri): String? =
+        runCatching {
+            resolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)
+                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+        }.getOrNull()
+
+    private fun entryOf(cursor: Cursor, fallbackId: String): DocEntry? {
+        val name = cursor.getString(1) ?: return null
+        return DocEntry(
+            docId = cursor.getString(0) ?: fallbackId,
+            name = name,
+            lastModified = cursor.getLong(2),
+            size = cursor.getLong(3),
+            isDir = cursor.getString(4) == DocumentsContract.Document.MIME_TYPE_DIR,
+        )
+    }
+
+    /** Runs a provider call and maps whatever it throws; cancellation passes through. */
+    private inline fun <T> guarded(op: StorageOp, block: () -> T): StorageResult<T> = try {
+        StorageResult.Ok(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: UnsupportedOperationException) {
+        StorageError.Unsupported(op)
+    } catch (e: FileNotFoundException) {
+        StorageError.NotFound
+    } catch (e: Exception) {
+        providerError(e)
+    }
+
+    private fun providerError(e: Exception) = StorageError.ProviderError(e.message ?: e.javaClass.simpleName)
+
+    /** A provider that answered null refused without saying why. */
+    private fun <T : Any> StorageResult<T?>.orProviderRefused(): StorageResult<T> = when (this) {
+        is StorageError -> this
+        is StorageResult.Ok -> value?.let { StorageResult.Ok(it) } ?: StorageError.ProviderError(null)
+    }
+
+    /** A null stream means the document couldn't be opened. */
+    private fun <T : Any> StorageResult<T?>.orNotFound(): StorageResult<T> = when (this) {
+        is StorageError -> this
+        is StorageResult.Ok -> value?.let { StorageResult.Ok(it) } ?: StorageError.NotFound
+    }
+
     private fun query(childrenUri: Uri): Outcome {
         val cursor = try {
             resolver.query(childrenUri, PROJECTION, null, null, null)
@@ -139,4 +321,23 @@ class SafBackend(
             DocumentsContract.Document.COLUMN_MIME_TYPE,
         )
     }
+}
+
+/** The platform's local-storage documents provider, whose document ids are paths. */
+internal const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
+
+/**
+ * Maps a local-storage tree root id (`<volume>:<path>`) plus a vault-relative
+ * [name] to its filesystem path: the `primary` volume is internal shared storage
+ * (`/storage/emulated/0`), any other volume id (an SD card's `1234-ABCD`) mounts
+ * at `/storage/<id>`. Null for an id that isn't in that form.
+ */
+internal fun externalStoragePath(rootDocId: String, name: String): String? {
+    val colon = rootDocId.indexOf(':')
+    if (colon <= 0) return null
+    val volume = rootDocId.substring(0, colon)
+    val volumeRoot = if (volume.equals("primary", ignoreCase = true)) "/storage/emulated/0" else "/storage/$volume"
+    return listOf(volumeRoot, rootDocId.substring(colon + 1).trim('/'), name.trim('/'))
+        .filter { it.isNotEmpty() }
+        .joinToString("/")
 }

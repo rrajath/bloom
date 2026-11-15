@@ -27,7 +27,7 @@ import kotlinx.coroutines.sync.withLock
 class FakeFileStore(
     initial: Map<String, String> = emptyMap(),
     /** When true, [write] on a path with no existing entry throws — matching
-     *  [com.rrajath.grove.vault.storage.SafFileStore]'s real contract (its `write` needs an
+     *  [com.rrajath.grove.vault.storage.BackendFileStore]'s real contract (its `write` needs an
      *  already-resolved SAF document URI; only [create] makes one). Default false
      *  keeps every existing caller's permissive-write assumption unchanged. */
     private val strictWrite: Boolean = false,

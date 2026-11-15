@@ -38,7 +38,8 @@ import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.widget.CaptureNotification
 import com.rrajath.grove.vault.JvmFileStore
 import com.rrajath.grove.vault.LineEndingFileStore
-import com.rrajath.grove.vault.storage.SafFileStore
+import com.rrajath.grove.vault.storage.BackendFileStore
+import com.rrajath.grove.vault.storage.SafBackend
 import com.rrajath.grove.vault.TestVaultHook
 import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.widget.LedgerWidget
@@ -242,7 +243,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             when {
                 attachRoots == null -> null
                 testRoot != null -> JvmFileStore(testRoot, ignore, attachRoots = attachRoots)
-                uriString != null -> SafFileStore(this, uriString.toUri(), ignore, attachRoots = attachRoots)
+                uriString != null -> BackendFileStore(SafBackend(this, uriString.toUri()), ignore, attachRoots = attachRoots)
                 else -> null
             }?.let(::LineEndingFileStore)
         }.stateIn(appScope, SharingStarted.Eagerly, null)
