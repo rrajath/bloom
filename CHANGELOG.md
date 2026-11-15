@@ -80,6 +80,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Saving on Seafile now catches an edit made on the web since you opened the note, instead of overwriting it.
 - Keep both in Compare now shows the merged text in the editor right away on Seafile.
 - An outline edit refused because the file changed elsewhere now says so, instead of confirming the edit.
+- A refile or archive refused because the file changed elsewhere no longer leaves a copy in the destination.
 
 ## [1.15.0] - 2026-11-14
 

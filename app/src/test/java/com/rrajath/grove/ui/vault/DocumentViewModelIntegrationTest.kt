@@ -942,6 +942,29 @@ class DocumentViewModelIntegrationTest {
     }
 
     @Test
+    fun `a refile whose source changed elsewhere leaves both files as they were`() = runTest {
+        TestVaultSeeder.index(db, store)
+        val vm = loaded("projects.org")
+        val toasts = mutableListOf<OutlineToast?>()
+        backgroundScope.launch { vm.toast.toList(toasts) }
+        val destBefore = store.read("reading-list.org")
+
+        vm.startRefile(headline(vm, "Backlog"))
+        advanceUntilIdle()
+        vm.refilePickNotebook("reading-list.org")
+        advanceUntilIdle()
+        // Edited on another device while the picker was open.
+        store.write("projects.org", store.read("projects.org") + "* TODO Added elsewhere\n")
+        val sourceBefore = store.read("projects.org")
+        vm.refileConfirm()
+        advanceUntilIdle()
+
+        assertEquals("the source keeps the other device's edit and the subtree", sourceBefore, store.read("projects.org"))
+        assertEquals("the destination is put back", destBefore, store.read("reading-list.org"))
+        assertTrue(toasts.any { it?.message?.contains("changed somewhere else") == true })
+    }
+
+    @Test
     fun `refile to another folder pins the inherited DIR, and undo takes it back`() = runTest {
         store.write("Notes/trip.org", "* Trip\n:PROPERTIES:\n:DIR: photos\n:END:\n** Day\n[[attachment:a.jpg]]\n")
         store.write("Archive/a.org", "* Inbox\n")

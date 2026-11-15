@@ -1057,6 +1057,46 @@ class DocumentViewModel(
     /** [saveDoc] refused a write over a change made elsewhere; the user was told and the outline reloads. */
     private class SaveRefused : RuntimeException()
 
+    /** A destination a move (refile, archive) wrote before its source's guarded save: [file] held [before]. */
+    private class DestWrite(val file: String, val before: String, val written: OrgDocument)
+
+    /**
+     * Writes a move's destination [file] (from [before] to [after]) ahead of the
+     * source's save, keeping the parse it wrote so [saveSourceAfter] can undo it.
+     */
+    private suspend fun writeDest(
+        vault: Vault,
+        file: String,
+        before: String,
+        after: String,
+        syncReason: String,
+        base: OrgDocument? = null,
+    ): DestWrite {
+        val parsed = withContext(dispatchers.default) { vault.parse(after) }
+        vault.save(file, after, parsed, base = base)
+        sync.requestReindex(file, after, syncReason)
+        return DestWrite(file, before, parsed)
+    }
+
+    /**
+     * Runs a move's source save ([saveSource]) after its [dests] were written. If
+     * the source changed elsewhere and the save is refused, each destination goes
+     * back to its text before the move, unless it changed again since, so the
+     * moved headings aren't left in both files.
+     */
+    private suspend fun saveSourceAfter(vault: Vault, dests: List<DestWrite>, saveSource: suspend () -> Unit) {
+        try {
+            saveSource()
+        } catch (e: SaveRefused) {
+            dests.forEach { d ->
+                if (vault.trySave(d.file, d.before, base = d.written).isOk) {
+                    sync.requestReindex(d.file, d.before, "move undone")
+                }
+            }
+            throw e
+        }
+    }
+
     /** Show an already-parsed [document] immediately, with no disk round-trip; a
      *  following [load] still refreshes it (and is a no-op if nothing changed). */
     fun show(fileName: String, document: OrgDocument) {
@@ -1833,8 +1873,14 @@ class DocumentViewModel(
                     )
                     _selectedLines.value = emptySet()
                     publish(loaded.fileName, loaded.document, result.sourceDoc)
-                    if (result.destFile != loaded.fileName) vault.save(result.destFile, result.destText)
-                    saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc, base = loaded.document)
+                    val dests = if (result.destFile != loaded.fileName) {
+                        listOf(writeDest(vault, result.destFile, result.destTextBefore, result.destText, "state set"))
+                    } else {
+                        emptyList()
+                    }
+                    saveSourceAfter(vault, dests) {
+                        saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc, base = loaded.document)
+                    }
                     if (result.destFile != loaded.fileName) {
                         followAttachments(
                             listOf(
@@ -2034,11 +2080,10 @@ class DocumentViewModel(
                 loaded.fileName, loaded.document, result.sourceDoc,
                 remap = result.remap, uiRemap = result.remap.takeIf { result.archivedTo.isEmpty() },
             )
-            result.destWrites.forEach { (file, _, after) ->
-                vault.save(file, after)
-                sync.requestReindex(file, after, "state set")
+            val dests = result.destWrites.map { (file, before, after) -> writeDest(vault, file, before, after, "state set") }
+            saveSourceAfter(vault, dests) {
+                saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc, base = loaded.document)
             }
-            saveDoc(loaded.fileName, result.sourceText, "state set", result.sourceDoc, base = loaded.document)
             followAttachments(
                 listOf(FileRewrite(loaded.fileName, loaded.document.text, result.sourceText)) +
                     result.destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
@@ -2319,11 +2364,14 @@ class DocumentViewModel(
         _selectedLines.value = emptySet()
         val newSourceDoc = OrgParser.parse(write.sourceText, loaded.document.keywords)
         publish(loaded.fileName, loaded.document, newSourceDoc)
-        if (write.destFile != loaded.fileName) {
-            vault.save(write.destFile, write.destText)
-            sync.requestReindex(write.destFile, write.destText, syncReason)
+        val dests = if (write.destFile != loaded.fileName) {
+            listOf(writeDest(vault, write.destFile, write.destTextBefore, write.destText, syncReason))
+        } else {
+            emptyList()
         }
-        saveDoc(loaded.fileName, write.sourceText, syncReason, newSourceDoc, base = loaded.document)
+        saveSourceAfter(vault, dests) {
+            saveDoc(loaded.fileName, write.sourceText, syncReason, newSourceDoc, base = loaded.document)
+        }
         if (write.destFile != loaded.fileName) {
             followAttachments(
                 listOf(
@@ -2434,11 +2482,10 @@ class DocumentViewModel(
         )
         _selectedLines.value = emptySet()
         publish(loaded.fileName, loaded.document, sourceDoc)
-        destWrites.forEach { (file, _, after) ->
-            vault.save(file, after)
-            sync.requestReindex(file, after, syncReason)
+        val dests = destWrites.map { (file, before, after) -> writeDest(vault, file, before, after, syncReason) }
+        saveSourceAfter(vault, dests) {
+            saveDoc(loaded.fileName, sourceText, syncReason, sourceDoc, base = loaded.document)
         }
-        saveDoc(loaded.fileName, sourceText, syncReason, sourceDoc, base = loaded.document)
         followAttachments(
             listOf(FileRewrite(loaded.fileName, loaded.document.text, sourceText)) +
                 destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
@@ -2503,9 +2550,10 @@ class DocumentViewModel(
                 )
                 _selectedLines.value = emptySet()
                 publish(loaded.fileName, loaded.document, newSourceDoc)
-                vault.save(destFile, newDestText, base = destDoc)
-                sync.requestReindex(destFile, newDestText, "refile")
-                saveDoc(loaded.fileName, newSourceText, "refile", newSourceDoc, base = loaded.document)
+                val dest = writeDest(vault, destFile, destDoc.text, newDestText, "refile", base = destDoc)
+                saveSourceAfter(vault, listOf(dest)) {
+                    saveDoc(loaded.fileName, newSourceText, "refile", newSourceDoc, base = loaded.document)
+                }
                 followAttachments(
                     listOf(
                         FileRewrite(loaded.fileName, loaded.document.text, newSourceText),
