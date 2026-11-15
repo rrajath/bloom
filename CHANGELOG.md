@@ -71,6 +71,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Notebooks no longer vanish on cloud-backed vaults like Seafile while folders are still loading.
 - Failed renames, deletes and creates now show the real reason instead of "already exists".
 - Pull to refresh now works on an empty notebooks list.
+- Creating notebooks and attaching images now works on Seafile vaults.
 
 ## [1.15.0] - 2026-11-14
 

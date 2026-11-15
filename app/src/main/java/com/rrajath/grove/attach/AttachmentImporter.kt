@@ -120,7 +120,11 @@ class AttachmentImporter(
                 if (processed != null) wanted = withJpegExtension(wanted)
                 val name = taken.claim(wanted)
                 if (name != wanted) renamed += name
-                val partPath = joinPath(dir, name + AttachmentFiles.PART_SUFFIX)
+                // A lazy-create provider (Seafile) has no file until the stream is
+                // written, so nobody sees a partial one; it can't rename either.
+                // Write the final name directly there.
+                val staged = !store.createsLazily
+                val partPath = if (staged) joinPath(dir, name + AttachmentFiles.PART_SUFFIX) else joinPath(dir, name)
                 val total = processed?.length() ?: src.size
                 val open: () -> InputStream? =
                     if (processed != null) ({ FileInputStream(processed) }) else ({ opener.open(src.uri) })
@@ -135,7 +139,7 @@ class AttachmentImporter(
                     cleanUp(partPath)
                     return ImportResult.Failed(name, failure)
                 }
-                if (!store.renameRaw(partPath, name).isOk) {
+                if (staged && !store.renameRaw(partPath, name).isOk) {
                     cleanUp(partPath)
                     return ImportResult.Failed(name, ImportFailure.WriteFailed)
                 }

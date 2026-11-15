@@ -5,7 +5,9 @@ import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.editor.AutoLinkSuggestion
+import com.rrajath.grove.vault.StorageException
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.vault.storage.StorageError
 import java.time.LocalDateTime
 
 /**
@@ -67,8 +69,9 @@ object RoamNodeCreator {
         val resolvedPath = if (template.roamDirectory.isBlank()) "$stem.org" else "${template.roamDirectory}/$stem.org"
 
         val newText = if (vault.open(resolvedPath) == null) {
-            vault.createNotebook(resolvedPath)
-            vault.save(resolvedPath, fullText)
+            // Created with its text in one step: one upload on a lazy-create provider.
+            val created = vault.createNotebook(resolvedPath, content = fullText)
+            if (created is StorageError) throw StorageException(created)
             fullText
         } else {
             // Defensive fallback: resolvedPath already exists on disk (e.g. a

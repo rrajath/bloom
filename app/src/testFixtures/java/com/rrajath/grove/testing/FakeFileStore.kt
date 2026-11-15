@@ -116,6 +116,17 @@ class FakeFileStore(
         StorageResult.Ok(Unit)
     }
 
+    override suspend fun createWithContent(name: String, content: String): StorageResult<Unit> = mutex.withLock {
+        injected[StorageOp.Create]?.let { return@withLock it }
+        val key = normalize(name)
+        if (files.containsKey(key)) return@withLock StorageError.NameTaken
+        files[key] = Node(content, tick())
+        StorageResult.Ok(Unit)
+    }
+
+    /** Tests set `capabilities.value = VaultCapabilities(profile = ProviderProfiles.SEAFILE)` for a lazy store. */
+    override val createsLazily: Boolean get() = capabilities.value.profile.createIsLazy
+
     override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> = mutex.withLock {
         injected[StorageOp.Rename]?.let { return@withLock it }
         val from = normalize(oldName)

@@ -130,6 +130,21 @@ interface FileStore {
     suspend fun create(name: String): StorageResult<Unit>
 
     /**
+     * [create] the file with [content] in it, in one step. On a provider whose
+     * create only reserves the name ([com.rrajath.grove.vault.storage.ProviderProfile.createIsLazy]),
+     * this is one upload instead of an empty one and then the real one; on the
+     * others it closes the window where the new file sits empty.
+     */
+    suspend fun createWithContent(name: String, content: String): StorageResult<Unit> {
+        val created = create(name)
+        if (created is StorageError) return created
+        return when (val written = write(name, content)) {
+            is StorageResult.Ok -> StorageResult.Ok(Unit)
+            is StorageError -> written
+        }
+    }
+
+    /**
      * Rename or move a file. [newName] may be in a different directory, in which
      * case intermediate directories are created. [StorageError.NameTaken] if the
      * target already exists, [StorageError.NotFound] if the source is missing.
@@ -167,6 +182,14 @@ interface FileStore {
      * [StorageError.NameTaken] if anything already exists there.
      */
     suspend fun createBinary(name: String): StorageResult<Unit> = StorageError.Unsupported(StorageOp.Create)
+
+    /**
+     * True when a new file only exists once something is written to it, so
+     * nobody can see a half-written one: callers may write it under its final
+     * name instead of staging through a `.part` file and a rename (which such
+     * a provider may not support).
+     */
+    val createsLazily: Boolean get() = capabilities.value.profile.createIsLazy
 
     /** Opens the existing file [name] for writing, truncating it (mode "wt"). */
     suspend fun openOutput(name: String): OutputStream = unsupported()

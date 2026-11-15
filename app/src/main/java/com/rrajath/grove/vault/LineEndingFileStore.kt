@@ -33,6 +33,12 @@ class LineEndingFileStore(private val delegate: FileStore) : FileStore by delega
         return delegate.write(name, if (name in crlf) lf.replace("\n", "\r\n") else lf, ifMatch)
     }
 
+    /** A new file has no remembered endings: `\n`, like any other write to it. */
+    override suspend fun createWithContent(name: String, content: String): StorageResult<Unit> {
+        crlf.remove(name)
+        return delegate.createWithContent(name, normalizeLineEndings(content))
+    }
+
     override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> {
         val renamed = delegate.rename(oldName, newName)
         if (renamed.isOk && crlf.remove(oldName)) crlf.add(newName)

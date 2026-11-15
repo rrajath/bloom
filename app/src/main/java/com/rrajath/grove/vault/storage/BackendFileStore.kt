@@ -91,6 +91,19 @@ class BackendFileStore(
     @Volatile
     private var listed = false
 
+    /** A file this store created on a lazy-create provider, as it would list it. */
+    private class RecentCreate(val docId: String, val at: Long, val entry: FileEntry)
+
+    /**
+     * Files created here on a lazy-create provider in the last [LAZY_CREATE_GRACE_MS],
+     * by path. Such a provider can answer a listing from a cache taken before the
+     * upload (Seafile keeps one for 5s), so a walk right after a create would
+     * otherwise drop the new file's id and the next save would find no file.
+     * A walk that doesn't see one yet keeps it; once listed, or after the grace
+     * window, it's dropped from here.
+     */
+    private val recentCreates: MutableMap<String, RecentCreate> = ConcurrentHashMap()
+
     /** Why the vault root couldn't be listed completely on the last walk; null when it could. */
     @Volatile
     private var rootProblem: String? = null
@@ -187,6 +200,7 @@ class BackendFileStore(
         fun underIncomplete(path: String) = incomplete.any { it.isEmpty() || path.startsWith("$it/") }
         docIds.forEach { (path, id) -> if (underIncomplete(path)) files.putIfAbsent(path, id) }
         dirDocIds.forEach { (path, id) -> if (path.isNotEmpty() && underIncomplete(path)) dirs.putIfAbsent(path, id) }
+        keepRecentCreates(files, dirs, entries)
 
         docIds = files
         dirDocIds = dirs
@@ -206,6 +220,29 @@ class BackendFileStore(
         return TreeListing(entries.sortedBy { it.name }, incomplete.toSet(), rootReason)
     }
 
+
+    /** Puts [recentCreates] the walk didn't see back into its results; forgets listed or expired ones. */
+    private fun keepRecentCreates(
+        files: MutableMap<String, String>,
+        dirs: Map<String, String>,
+        entries: MutableList<FileEntry>,
+    ) {
+        val t = now()
+        val iter = recentCreates.entries.iterator()
+        while (iter.hasNext()) {
+            val (path, recent) = iter.next()
+            when {
+                path in files || t - recent.at > LAZY_CREATE_GRACE_MS -> iter.remove()
+                // Renamed or deleted here since (the old caches no longer hold it under
+                // this id), or its folder is gone: the file went with it.
+                docIds[path] != recent.docId || path.substringBeforeLast('/', "") !in dirs -> iter.remove()
+                else -> {
+                    files[path] = recent.docId
+                    entries.add(recent.entry)
+                }
+            }
+        }
+    }
 
     /**
      * One children query for [dir] (plus one per path segment whose id isn't
@@ -364,7 +401,19 @@ class BackendFileStore(
             backend.write(docId, content.toByteArray(Charsets.UTF_8), ifMatch)
         }
 
-    override suspend fun create(name: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun create(name: String): StorageResult<Unit> = createFile(name, content = null)
+
+    override suspend fun createWithContent(name: String, content: String): StorageResult<Unit> =
+        createFile(name, content.toByteArray(Charsets.UTF_8))
+
+    /**
+     * Creates the file [name] and writes [content] into it (none: an empty file).
+     * On a lazy-create provider the create only reserves an id, so something is
+     * always written (empty bytes when [content] is null): that upload is what
+     * makes the file exist. The id the provider handed back is kept, because a
+     * lookup could not find the file before that write lands.
+     */
+    private suspend fun createFile(name: String, content: ByteArray?): StorageResult<Unit> = withContext(Dispatchers.IO) {
         if (resolve(name) != null) return@withContext StorageError.NameTaken
         val (dir, leaf) = splitPath(name)
         val parent = when (val r = resolveDir(dir, createMissing = true)) {
@@ -375,7 +424,21 @@ class BackendFileStore(
         listingChanged(Unit)
         when (created) {
             is StorageResult.Ok -> {
-                docIds[childPath(parent.path, leaf)] = created.value
+                val bytes = content ?: if (backend.profile.createIsLazy) ByteArray(0) else null
+                if (bytes != null) {
+                    val written = backend.write(created.value, bytes)
+                    if (written is StorageError) {
+                        // A lazy provider only reserved the name: nothing to remove.
+                        if (!backend.profile.createIsLazy) backend.delete(created.value)
+                        return@withContext written
+                    }
+                }
+                val path = childPath(parent.path, leaf)
+                docIds[path] = created.value
+                if (backend.profile.createIsLazy) {
+                    val entry = FileEntry(path, System.currentTimeMillis(), bytes?.size?.toLong() ?: 0L)
+                    recentCreates[path] = RecentCreate(created.value, now(), entry)
+                }
                 ok
             }
             StorageError.NameTaken -> {
@@ -631,7 +694,7 @@ class BackendFileStore(
                     // NameTaken: something unlisted (a skipped or ignored folder, in
                     // any case) holds the name; the provider made `name (1)` and the
                     // backend removed it again.
-                    val created = backend.createDir(current.docId, segment).also { listingChanged(Unit) }
+                    val created = makeDir(current.docId, segment)
                     val newDirId = when (created) {
                         is StorageResult.Ok -> created.value
                         is StorageError -> return created
@@ -742,6 +805,7 @@ class BackendFileStore(
         }
         drop(rawFileIds)
         drop(rawDirIds)
+        drop(unwrittenIds)
         rawVerifiedAt.keys.removeAll { it == path || it.startsWith("$path/") }
         drop(docIds)
         drop(dirDocIds)
@@ -789,10 +853,20 @@ class BackendFileStore(
         rawLookup(path)?.let { return if (it.isDir) it.docId else null }
         val parentId = ensureRawDir(path.substringBeforeLast('/', "")) ?: return null
         val leaf = path.substringAfterLast('/')
-        val docId = backend.createDir(parentId, leaf).also { listingChanged(Unit) }.getOrNull() ?: return null
+        val docId = makeDir(parentId, leaf).getOrNull() ?: return null
         rawDirIds[path] = docId
         return docId
     }
+
+    /**
+     * [StorageBackend.createDir]. Seafile answers mkdir with an id whether or not
+     * the server made the folder, and its listings come from a 5s cache that a
+     * create doesn't invalidate, so a listing can't confirm it either. A folder
+     * that wasn't made shows up instead when the file created in it is written,
+     * which on a lazy-create provider happens at once ([createFile]).
+     */
+    private suspend fun makeDir(parentId: String, name: String): StorageResult<String> =
+        backend.createDir(parentId, name).also { listingChanged(Unit) }
 
     private suspend fun rawFileId(name: String): String? {
         val path = name.trim('/')
@@ -816,14 +890,24 @@ class BackendFileStore(
         when (created) {
             is StorageResult.Ok -> {
                 rawFileIds[path] = created.value
+                rawVerifiedAt[path] = now()
+                if (backend.profile.createIsLazy) unwrittenIds[path] = created.value
                 ok
             }
             is StorageError -> created
         }
     }
 
+    /**
+     * raw path -> id of a file [createBinary] made on a lazy-create provider that
+     * nothing has been written to yet. No query can find it (it doesn't exist
+     * until written), so [openOutput] uses this id however long the caller took.
+     */
+    private val unwrittenIds: MutableMap<String, String> = ConcurrentHashMap()
+
     override suspend fun openOutput(name: String): OutputStream = withContext(Dispatchers.IO) {
-        val id = rawFileId(name) ?: throw FileNotFoundException(name)
+        val path = name.trim('/')
+        val id = unwrittenIds.remove(path) ?: rawFileId(name) ?: throw FileNotFoundException(name)
         backend.openWrite(id).getOrNull() ?: throw FileNotFoundException(name)
     }
 
@@ -1024,3 +1108,6 @@ private const val WALK_CONCURRENCY = 4
 
 /** How long a just-queried raw file id is reused for opens without another query. */
 internal const val RAW_FRESH_MS = 2_000L
+
+/** How long a file just created on a lazy-create provider is kept when listings don't show it yet. */
+internal const val LAZY_CREATE_GRACE_MS = 15_000L

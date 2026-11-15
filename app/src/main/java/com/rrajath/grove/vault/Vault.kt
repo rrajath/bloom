@@ -171,14 +171,15 @@ class Vault(
     /**
      * Create an empty notebook file, in [dir] (a vault-relative directory, ""
      * for the vault root). [name] may itself contain `/` segments, which are
-     * appended under [dir]. Missing directories are created. Returns false if
-     * the resulting path is already taken ([StorageError.NameTaken]).
+     * appended under [dir]. Missing directories are created. [content] is
+     * written in the same step, so a lazy-create provider uploads once.
+     * [StorageError.NameTaken] if the resulting path is already taken.
      */
-    suspend fun createNotebook(name: String, dir: String = ""): StorageResult<Unit> {
+    suspend fun createNotebook(name: String, dir: String = "", content: String = ""): StorageResult<Unit> {
         val leaf = if (name.endsWith(".org")) name else "$name.org"
         val fileName = vaultPath(dir, leaf)
         if (pathTaken(fileName)) return StorageError.NameTaken
-        return store.create(fileName)
+        return if (content.isEmpty()) store.create(fileName) else store.createWithContent(fileName, content)
     }
 
     /**
@@ -349,14 +350,20 @@ class Vault(
         // On a case-insensitive store `inbox.org` is an existing `Inbox.org`: write
         // that file under its real name (the line-ending memo and cache key on it).
         var name = store.canonicalName(fileName)
-        if (store.stat(name) == null) {
-            val created = store.create(name)
+        // A new file is created with its content in one step (one upload on a lazy-create provider).
+        val createdWithContent = if (store.stat(name) == null) {
+            val created = store.createWithContent(name, content)
             // NameTaken: the file turned up under another spelling meanwhile; write to that one.
             if (created is StorageError && created != StorageError.NameTaken) return created
             if (created is StorageError) name = store.canonicalName(fileName)
+            created.isOk
+        } else {
+            false
         }
-        val written = store.write(name, content)
-        if (written is StorageError) return written
+        if (!createdWithContent) {
+            val written = store.write(name, content)
+            if (written is StorageError) return written
+        }
         val entry = if (parsed != null) store.stat(name) else null
         if (entry != null) {
             val key = CacheKey(entry.name, entry.lastModified, entry.size)

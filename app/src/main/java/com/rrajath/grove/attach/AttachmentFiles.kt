@@ -135,6 +135,8 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
      * cancellation (cancellation is rethrown).
      */
     suspend fun copyFile(src: String, dst: String): Boolean {
+        // On a lazy-create provider dst only exists once the stream below is written;
+        // the store keeps the id createBinary got, so openOutput doesn't look for it.
         if (!store.createBinary(dst).isOk) return false
         try {
             store.openInput(src).use { input ->

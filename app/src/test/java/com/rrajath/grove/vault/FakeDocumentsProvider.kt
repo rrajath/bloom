@@ -68,6 +68,25 @@ class FakeDocumentsProvider : ContentProvider() {
     /** Document ids of directories whose children query answers EXTRA_ERROR. */
     val errorDirs: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /**
+     * Seafile-style lazy create: creating a file only hands back an id, and the
+     * file exists once it is opened for writing. Folders are still made at once.
+     */
+    var lazyCreate = false
+
+    /**
+     * Seafile-style stale listings: files created through this provider stay
+     * out of children listings (as a listing cache taken before the create
+     * would) until [revealCreated].
+     */
+    var hideCreatedFromListings = false
+
+    /** Relative paths of files created while [hideCreatedFromListings] was on and not yet revealed. */
+    val hiddenCreated: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Ends [hideCreatedFromListings]' staleness, as the provider's cache expiring would. */
+    fun revealCreated() = hiddenCreated.clear()
+
     /** When true, the first children query of every directory is a loading one. */
     var everyDirLoadsFirst = false
 
@@ -173,7 +192,9 @@ class FakeDocumentsProvider : ContentProvider() {
                 if (autoFinishLoadingMs >= 0 && autoFinishScheduled.add(docId)) finishLoadingLater(docId, autoFinishLoadingMs)
                 return cursor
             }
-            f.listFiles().orEmpty().sortedBy { it.name }.forEach { cursor.addFile(it) }
+            f.listFiles().orEmpty().sortedBy { it.name }
+                .filter { it.relativeTo(root).invariantSeparatorsPath !in hiddenCreated }
+                .forEach { cursor.addFile(it) }
         } else {
             if (!f.exists()) throw FileNotFoundException(docId)
             // ExternalStorageProvider reports File.getName() of the path asked for.
@@ -184,6 +205,8 @@ class FakeDocumentsProvider : ContentProvider() {
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         val f = fileFor(DocumentsContract.getDocumentId(uri))
+        // A lazily created file comes into being on its first write.
+        if (lazyCreate && !f.exists() && 'w' in mode && f.parentFile?.isDirectory == true) f.createNewFile()
         if (!f.isFile) throw FileNotFoundException(uri.toString())
         return ParcelFileDescriptor.open(f, ParcelFileDescriptor.parseMode(mode))
     }
@@ -205,7 +228,9 @@ class FakeDocumentsProvider : ContentProvider() {
                     while (target.exists()) target = File(parent, "$name (${n++})")
                 }
                 val isDir = extras.getString(Document.COLUMN_MIME_TYPE) == Document.MIME_TYPE_DIR
-                check(if (isDir) target.mkdir() else target.createNewFile()) { "Couldn't create $target" }
+                // Lazy: only an id; the file appears on its first write (openFile).
+                if (isDir || !lazyCreate) check(if (isDir) target.mkdir() else target.createNewFile()) { "Couldn't create $target" }
+                if (!isDir && hideCreatedFromListings) hiddenCreated += target.relativeTo(root).invariantSeparatorsPath
                 out.putParcelable(EXTRA_URI, docUri(idFor(target)))
             }
             METHOD_RENAME_DOCUMENT -> {
