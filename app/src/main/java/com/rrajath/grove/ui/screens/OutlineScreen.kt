@@ -1,6 +1,7 @@
 package com.rrajath.grove.ui.screens
 
 import androidx.compose.ui.text.AnnotatedString
+import com.rrajath.grove.ui.components.OfflineBanner
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.ui.attach.HeadingDeleteAttachmentsSheet
 import com.rrajath.grove.ui.attach.linkSafeTake
@@ -652,6 +653,7 @@ fun OutlineScreen(
                 // Otherwise the in-list items render them instead.
                 val pinnedHeader = doc.headlines.isEmpty() && !showIntroRow
                 Column(Modifier.fillMaxSize().padding(padding)) {
+                    OfflineBanner()
                     if (pinnedHeader && showPropertyDrawers && doc.filePropertyDrawer.isNotEmpty()) {
                         CollapsibleKvSection(
                             label = ":PROPERTIES:",

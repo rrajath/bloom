@@ -40,6 +40,11 @@ class FakeSyncTrigger(
     private val _state = MutableStateFlow<SyncState>(SyncState.Idle)
     override val state: StateFlow<SyncState> = _state.asStateFlow()
 
+    /** Moves the fake sync state machine, e.g. to [SyncState.Offline] for the read-only editors. */
+    fun setState(state: SyncState) {
+        _state.value = state
+    }
+
     private val _lastResult = MutableStateFlow<SyncResult?>(null)
     override val lastResult: StateFlow<SyncResult?> = _lastResult.asStateFlow()
 

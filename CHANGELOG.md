@@ -57,6 +57,10 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+
+- Offline banner and read-only notes when the vault's provider can't be reached.
+
 ### Fixed
 
 - Notebooks no longer vanish on cloud-backed vaults like Seafile while folders are still loading.

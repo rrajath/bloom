@@ -46,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +69,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.R
+import com.rrajath.grove.ui.vault.storageErrorMessage
+import com.rrajath.grove.ui.components.StorageNoticeBanner
+import com.rrajath.grove.ui.components.OfflineBanner
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
 import com.rrajath.grove.org.LineEditing
@@ -478,6 +483,15 @@ fun EditNoteScreen(
                 }
                 return@Column
             }
+            val offline by viewModel.offline.collectAsStateWithLifecycle()
+            if (offline) OfflineBanner(readOnlyNote = true)
+            state.saveError?.let { error ->
+                StorageNoticeBanner(
+                    message = storageErrorMessage(context, error),
+                    actionLabel = stringResource(R.string.offline_banner_retry),
+                    onAction = { viewModel.save() },
+                )
+            }
             if (state.staleFile) {
                 StaleFileBanner(
                     onOverwrite = { viewModel.save(force = true) },
@@ -493,6 +507,7 @@ fun EditNoteScreen(
                 ContentFontScale(editModeFontSize) {
                     BasicTextField(
                         state = textState,
+                        readOnly = offline,
                         inputTransformation = remember(state.keywords, capitalizeHeadings) {
                             orgInputTransformation(state.keywords, capitalizeHeadings)
                         },

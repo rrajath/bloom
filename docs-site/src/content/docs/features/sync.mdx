@@ -39,6 +39,14 @@ This runs on:
 
 Notebook cards on the home screen show a pill for synced / modified / syncing state, so you can see at a glance whether Bloom's index matches disk.
 
+## When the storage provider is unreachable
+
+If the app that holds your vault folder (Seafile, Nextcloud, a cloud-sync folder) can't be reached, Bloom keeps showing the notebooks it last synced and puts an amber banner at the top of Notebooks, Outline and Agenda. Tap **Retry** in the banner to try again.
+
+While the banner is up, Bloom is read only: notes open with their text visible but not editable, and a banner above the note says so. Nothing is deleted or changed, and your notebooks come back on their own once the provider answers.
+
+If a rename, delete, create or save is refused, Bloom says why instead of "already exists". A note you were editing stays on screen with its unsaved text, and **Retry** in the banner saves it again.
+
 ## Sync log
 
 Settings → Sync → **Sync log** shows a history of past sync runs: when they happened, what changed, and whether they succeeded, useful for diagnosing a stale index or confirming a background sync actually ran.

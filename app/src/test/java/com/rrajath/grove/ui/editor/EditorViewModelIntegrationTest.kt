@@ -1,5 +1,8 @@
 package com.rrajath.grove.ui.editor
 
+import com.rrajath.grove.vault.storage.StorageOp
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.sync.SyncState
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.attach.AttachDirChange
@@ -681,5 +684,89 @@ class EditorViewModelIntegrationTest {
             // The templates DataStore is process-wide; put the defaults back for later tests.
             templatesRepository.save(DefaultTemplates.all)
         }
+    }
+
+    // --- storage failures and offline mode ---
+
+    @Test
+    fun `a refused save keeps the buffer dirty, says why, and a retry clears it`() = runTest {
+        val line = headlineLine("projects.org", "Ship v2")
+        val vm = editor()
+        vm.load(NoteRef("projects.org", line))
+        advanceUntilIdle()
+        val edited = vm.state.value.buffer.trimEnd() + "\n*** TODO Extra subtask\n"
+        vm.onBufferChange(edited)
+        val before = store.snapshot()
+        store.failWith(StorageOp.Write, StorageError.Offline)
+
+        vm.save()
+        advanceUntilIdle()
+
+        assertEquals(StorageError.Offline, vm.state.value.saveError)
+        assertTrue("the typed text must stay unsaved, not dropped", vm.state.value.dirty)
+        assertEquals(edited, vm.state.value.buffer)
+        assertEquals("nothing reached the file", before, store.snapshot())
+        assertTrue("no reindex for a save that didn't happen", sync.reindexCalls.isEmpty())
+
+        store.failWith(StorageOp.Write, null)
+        vm.save()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.saveError)
+        assertFalse(vm.state.value.dirty)
+        assertTrue(store.read("projects.org").contains("Extra subtask"))
+    }
+
+    @Test
+    fun `every storage error kind lands in saveError`() = runTest {
+        val line = headlineLine("projects.org", "Ship v2")
+        val vm = editor()
+        vm.load(NoteRef("projects.org", line))
+        advanceUntilIdle()
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** TODO X\n")
+
+        for (kind in listOf(
+            StorageError.Unsupported(StorageOp.Write),
+            StorageError.ProviderError("nope"),
+            StorageError.AuthFailed,
+            StorageError.Conflict("1:2"),
+        )) {
+            store.failWith(StorageOp.Write, kind)
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(kind, vm.state.value.saveError)
+        }
+    }
+
+    @Test
+    fun `dismissSaveError clears the notice without touching the buffer`() = runTest {
+        val vm = editor()
+        vm.load(NoteRef("projects.org", headlineLine("projects.org", "Ship v2")))
+        advanceUntilIdle()
+        vm.onBufferChange(vm.state.value.buffer + "x")
+        store.failWith(StorageOp.Write, StorageError.Offline)
+        vm.save()
+        advanceUntilIdle()
+
+        vm.dismissSaveError()
+
+        assertNull(vm.state.value.saveError)
+        assertTrue(vm.state.value.dirty)
+    }
+
+    @Test
+    fun `the editor is offline exactly while the sync state is Offline`() = runTest {
+        val vm = editor()
+        backgroundScope.launch { vm.offline.collect {} }
+        advanceUntilIdle()
+        assertFalse(vm.offline.value)
+
+        sync.setState(SyncState.Offline("provider unreachable"))
+        advanceUntilIdle()
+        assertTrue(vm.offline.value)
+
+        sync.setState(SyncState.Idle)
+        advanceUntilIdle()
+        assertFalse(vm.offline.value)
     }
 }

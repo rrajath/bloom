@@ -33,6 +33,7 @@ import com.rrajath.grove.settings.ThemePreference
 import com.rrajath.grove.ui.theme.isNightMode
 import com.rrajath.grove.ui.theme.systemDarkThemeSupported
 import com.rrajath.grove.sync.SyncManager
+import com.rrajath.grove.ui.vault.installStorageFailureHandler
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.widget.CaptureNotification
@@ -476,6 +477,9 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+
+        // A refused write nobody handles toasts its reason instead of crashing the app.
+        installStorageFailureHandler(this)
 
         // Warm the notification tint before anything can post a notification.
         notificationMarkColor

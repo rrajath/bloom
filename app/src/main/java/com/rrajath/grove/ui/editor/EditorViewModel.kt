@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.editor
 
+import com.rrajath.grove.sync.SyncState
+import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachDirMoves
 import com.rrajath.grove.attach.AttachFileContext
@@ -110,6 +112,11 @@ data class EditorUiState(
     val error: String? = null,
     /** File changed on disk since load; offer overwrite (Force Save). */
     val staleFile: Boolean = false,
+    /**
+     * Why the last save didn't reach the file; null once a save succeeds. The
+     * buffer stays dirty, so nothing typed is lost and the next save retries.
+     */
+    val saveError: StorageError? = null,
     val allTags: ImmutableList<String> = persistentListOf(),
     /**
      * Counts buffer rewrites that did *not* come from the text field: today
@@ -156,6 +163,17 @@ class EditorViewModel(
 
     private val _state = MutableStateFlow(EditorUiState())
     val state: StateFlow<EditorUiState> = _state
+
+    /**
+     * True while the vault's provider can't be reached ([SyncState.Offline]):
+     * the editors open read-only, since a save would fail. A buffer already
+     * being edited keeps its text; a save that then fails sets
+     * [EditorUiState.saveError] instead of dropping it.
+     */
+    val offline: StateFlow<Boolean> = sync.state
+        .map { it is SyncState.Offline }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), sync.state.value is SyncState.Offline)
 
     /** Serializes writes so an idle auto-save and an explicit save can't race. */
     private val saveMutex = Mutex()
@@ -869,13 +887,20 @@ class EditorViewModel(
                 EditRegion.WHOLE_FILE -> error("WHOLE_FILE is handled before this withContext block")
             }
         } ?: return false
-        vault.save(s.fileName, newText)
+        val written = vault.trySave(s.fileName, newText)
+        if (written is StorageError) {
+            // Keep the buffer dirty and say why: the next save (the idle timer, or
+            // Save) retries, and nothing the user typed is dropped.
+            _state.update { it.copy(saveError = written) }
+            return false
+        }
         val newRevision = vault.revision(s.fileName)
         // Only this one file changed and we hold its new text: reindex it
         // directly instead of a full-vault list+diff (PERFORMANCE_AUDIT #1).
         sync.requestReindex(s.fileName, newText, "note saved")
         _state.update { current ->
             current.copy(
+                saveError = null,
                 // Still dirty if the user typed while the write was in flight:
                 // those characters are only in memory, and the idle timer (keyed
                 // on the buffer) will have already re-armed for them.
@@ -942,6 +967,10 @@ class EditorViewModel(
 
     fun dismissStale() {
         _state.update { it.copy(staleFile = false) }
+    }
+
+    fun dismissSaveError() {
+        _state.update { it.copy(saveError = null) }
     }
 
     fun isCurrentHeadingBlank(): Boolean = currentHeadline?.title.isNullOrBlank()

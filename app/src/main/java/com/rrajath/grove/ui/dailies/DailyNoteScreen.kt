@@ -571,7 +571,10 @@ fun DailyNoteScreen(
                         textState, n.fileName, fieldLoaded, onOwnerAttached = editorViewModel::noteAttachedOwner,
                     )
 
+                    val offline by editorViewModel.offline.collectAsStateWithLifecycle()
                     WholeFileEditorBody(
+                        readOnly = offline,
+                        onRetrySave = { editorViewModel.save() },
                         state = editState,
                         textState = textState,
                         scrollState = scrollState,

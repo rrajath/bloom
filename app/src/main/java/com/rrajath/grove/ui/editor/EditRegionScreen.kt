@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +63,10 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.R
+import com.rrajath.grove.ui.vault.storageErrorMessage
+import com.rrajath.grove.ui.components.StorageNoticeBanner
+import com.rrajath.grove.ui.components.OfflineBanner
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
@@ -429,7 +434,10 @@ fun EditRegionScreen(
                 }
                 return@Column
             }
+            val offline by viewModel.offline.collectAsStateWithLifecycle()
             WholeFileEditorBody(
+                readOnly = offline,
+                onRetrySave = { viewModel.save() },
                 attach = attach,
                 state = state,
                 textState = textState,
@@ -558,6 +566,10 @@ internal fun WholeFileEditorBody(
     /** Empty room below the last line. Dailies passes 80dp so its floating date
      *  pills (shown with the keyboard down) don't cover the last line. */
     bottomClearance: androidx.compose.ui.unit.Dp = 18.dp,
+    /** The vault's provider is unreachable: the field is read-only and a banner says so. */
+    readOnly: Boolean = false,
+    /** Retry for [EditorUiState.saveError]'s banner. */
+    onRetrySave: () -> Unit = {},
     /** Whether this editor has the suggestion strip at all. When true, its [SuggestionSlot]
      *  is reserved above the toolbar whenever the keyboard is up, chips or not, regardless
      *  of which suggestion providers are on (callers gate those: [autoLinkSuggestions] and
@@ -624,6 +636,15 @@ internal fun WholeFileEditorBody(
         onDispose { onSuggestionSlotShownChange(false) }
     }
     Column(modifier) {
+        if (readOnly) OfflineBanner(readOnlyNote = true)
+        state.saveError?.let { error ->
+            val context = androidx.compose.ui.platform.LocalContext.current
+            StorageNoticeBanner(
+                message = storageErrorMessage(context, error),
+                actionLabel = stringResource(R.string.offline_banner_retry),
+                onAction = onRetrySave,
+            )
+        }
         if (state.staleFile) {
             StaleFileBanner(onOverwrite = onOverwriteStale, onReload = onReloadStale)
         }
@@ -631,6 +652,7 @@ internal fun WholeFileEditorBody(
             ContentFontScale(editModeFontSize) {
                 BasicTextField(
                     state = textState,
+                    readOnly = readOnly,
                     inputTransformation = remember(state.keywords, capitalizeHeadings) {
                         orgInputTransformation(state.keywords, capitalizeHeadings)
                     },

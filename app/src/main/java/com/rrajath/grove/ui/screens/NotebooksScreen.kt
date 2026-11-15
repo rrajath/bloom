@@ -36,6 +36,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import com.rrajath.grove.ui.components.OfflineBanner
 import com.rrajath.grove.ui.components.GroveDropdownMenu
 import com.rrajath.grove.ui.components.NameDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -301,6 +302,7 @@ fun NotebooksScreen(
                     NoVaultState(onChooseFolder = { folderPicker.launch(null) })
 
                 is NotebooksUiState.Loaded -> {
+                    OfflineBanner()
                     ReminderPermissionBanner(pendingCount = s.remindersPendingPermission)
 
                     // Read once as primitives instead of inside the row closures below: `s` is
@@ -879,7 +881,7 @@ private fun SyncStatusIcon(state: NotebooksUiState.Loaded, context: android.cont
         }
         is SyncState.Offline -> {
             // Same amber warning as an error: the notebooks shown are the last indexed ones.
-            // The proper offline banner and read-only mode arrive with the typed-results work.
+            // The banner above the list (OfflineBanner) says it in full; this toast gives the reason.
             IconButton(
                 onClick = {
                     Toast.makeText(context, "Can't reach the vault: ${sync.reason}", Toast.LENGTH_SHORT).show()

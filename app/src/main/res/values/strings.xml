@@ -74,4 +74,10 @@
     <string name="storage_error_offline">Can\'t reach your storage provider. Nothing was changed.</string>
     <string name="storage_error_conflict">This file changed somewhere else. Reload it before saving.</string>
     <string name="storage_error_auth_failed">Your storage provider needs you to sign in again.</string>
+
+    <!-- Offline mode (ui/components/StorageBanners.kt): the vault's provider can't be reached, so the
+         notebooks shown are the last synced ones and nothing can be changed. -->
+    <string name="offline_banner_message">Can\'t reach your storage provider. Showing your last synced notebooks, read only.</string>
+    <string name="offline_editor_read_only">Offline: this note is read only until your storage provider is back.</string>
+    <string name="offline_banner_retry">Retry</string>
 </resources>

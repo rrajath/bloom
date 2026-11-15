@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.ui.components.OfflineBanner
 import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
@@ -149,6 +150,7 @@ fun AgendaScreen(
 
     Scaffold(containerColor = c.bg) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            OfflineBanner()
             AgendaHeader(
                 day = state.headerDay,
                 date = state.headerDate,
