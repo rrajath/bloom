@@ -1,8 +1,11 @@
 package com.rrajath.grove.testing
 
+import android.net.Uri
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import java.io.FileNotFoundException
+import java.io.InputStream
+import java.io.OutputStream
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -96,6 +99,60 @@ class FakeFileStore(
     override suspend fun exists(name: String): Boolean = mutex.withLock {
         files.containsKey(normalize(name))
     }
+
+    // --- FileStore members that have a default ---
+    //
+    // Every member with a default body is overridden here on purpose, even where
+    // the override only repeats the default. An inherited default compiles to a
+    // bridge here that does `invokespecial FileStore.member`. With minSdk 23, D8
+    // moves the default body out of FileStore in the app APK, leaving the
+    // interface method abstract, but doesn't rewrite this bridge in the
+    // instrumented-test APK, so the call throws AbstractMethodError on the
+    // emulator (never on the JVM). FakeFileStoreOverridesTest fails when a
+    // FileStore member has no explicit override here.
+
+    override suspend fun listDir(dir: String): List<FileEntry> {
+        val trimmed = dir.trim('/')
+        val prefix = if (trimmed.isEmpty()) "" else "$trimmed/"
+        return list().filter { it.name.startsWith(prefix) && '/' !in it.name.removePrefix(prefix) }
+    }
+
+    /** Names match exactly here, like [com.rrajath.grove.vault.JvmFileStore]. */
+    override suspend fun canonicalName(name: String): String = name
+
+    /** Directories aren't real entities in this fake. */
+    override suspend fun pruneEmptyDirs(dir: String) {}
+
+    override fun absolutePath(name: String): String? = null
+
+    override suspend fun openInput(name: String): InputStream = unsupported()
+
+    override suspend fun createBinary(name: String): Boolean = unsupported()
+
+    override suspend fun openOutput(name: String): OutputStream = unsupported()
+
+    override suspend fun statRaw(name: String): FileEntry? = unsupported()
+
+    override suspend fun renameRaw(name: String, newLeaf: String): Boolean = unsupported()
+
+    override suspend fun deleteRaw(name: String): Boolean = unsupported()
+
+    override suspend fun dirExists(dir: String): Boolean = unsupported()
+
+    override suspend fun listDirRaw(dir: String): List<FileEntry> = unsupported()
+
+    override suspend fun listSubdirs(dir: String): List<String> = unsupported()
+
+    override suspend fun deleteDir(dir: String): Boolean = unsupported()
+
+    override suspend fun moveDir(src: String, dstParent: String): Boolean = unsupported()
+
+    override suspend fun contentUri(name: String): Uri? = null
+
+    override fun dropRawSnapshots() {}
+
+    private fun unsupported(): Nothing =
+        throw UnsupportedOperationException("This FileStore doesn't support attachment file access")
 
     // --- test helpers ---
 
