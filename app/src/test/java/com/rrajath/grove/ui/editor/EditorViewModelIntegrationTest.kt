@@ -148,6 +148,47 @@ class EditorViewModelIntegrationTest {
     }
 
     @Test
+    fun `a revision that moves without the text changing doesn't block the save`() = runTest {
+        // Seafile reports a save's own mtime and size only once its listing
+        // refreshes, so the marker moves seconds after Bloom wrote the file.
+        val line = headlineLine("projects.org", "Ship v2")
+        val vm = editor()
+        vm.load(NoteRef("projects.org", line))
+        advanceUntilIdle()
+
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** TODO First\n")
+        vm.save()
+        advanceUntilIdle()
+        store.touch("projects.org")
+
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** TODO Second\n")
+        vm.save()
+        advanceUntilIdle()
+
+        assertFalse("an unchanged file isn't stale", vm.state.value.staleFile)
+        assertFalse(vm.state.value.dirty)
+        val saved = store.read("projects.org")
+        assertTrue(saved, saved.contains("*** TODO First\n*** TODO Second"))
+        assertEquals("the subtree is replaced, not appended", 1, Regex("TODO First").findAll(saved).count())
+    }
+
+    @Test
+    fun `a moved revision right after load doesn't block the first save`() = runTest {
+        val line = headlineLine("projects.org", "Ship v2")
+        val vm = editor()
+        vm.load(NoteRef("projects.org", line))
+        advanceUntilIdle()
+        store.touch("projects.org")
+
+        vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** TODO Later\n")
+        vm.save()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.staleFile)
+        assertTrue(store.read("projects.org").contains("*** TODO Later"))
+    }
+
+    @Test
     fun `save refuses a file changed underneath until forced`() = runTest {
         val line = headlineLine("projects.org", "Ship v2")
         val vm = editor()
@@ -155,7 +196,8 @@ class EditorViewModelIntegrationTest {
         advanceUntilIdle()
 
         vm.onBufferChange(vm.state.value.buffer.trimEnd() + "\n*** NEXT Follow up\n")
-        store.touch("projects.org") // external edit bumps the revision
+        // An external edit: new text, so a new revision.
+        store.write("projects.org", store.read("projects.org") + "* Added elsewhere\n")
 
         vm.save()
         advanceUntilIdle()

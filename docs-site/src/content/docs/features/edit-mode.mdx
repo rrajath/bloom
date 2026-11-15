@@ -104,7 +104,7 @@ Edit mode saves automatically:
 
 ## Stale-file protection
 
-Before saving, Bloom checks the file's on-disk revision. If something else changed the file since you opened it (another device via sync, an external editor), you're prompted to **Overwrite** or **Reload** rather than silently clobbering the other change.
+Before saving, Bloom checks the file's on-disk revision. If something else changed the file since you opened it (another device via sync, an external editor), you're prompted to **Overwrite** or **Reload** rather than silently clobbering the other change. Bloom compares the file's content, not just its timestamp, so a provider that updates timestamps late (Seafile) doesn't trigger the prompt when nothing really changed.
 
 ## Discarding a blank note
 

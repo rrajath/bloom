@@ -73,6 +73,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Pull to refresh now works on an empty notebooks list.
 - Creating notebooks and attaching images now works on Seafile vaults.
 - Attachments and new notebooks now reach new folders on Seafile, and a refused folder create says why.
+- Editing on Seafile no longer shows a false "file changed" banner or a stale outline after saving.
 
 ## [1.15.0] - 2026-11-14
 

@@ -131,6 +131,14 @@ class Vault(
     // read+parse. Only ever touched under [cacheMutex].
     private val inFlight = mutableMapOf<CacheKey, CompletableDeferred<OrgDocument>>()
 
+    /**
+     * Per file, bumped by every save and eviction. A parse only enters [cache]
+     * if no save happened while it read: on a provider whose mtime and size lag
+     * its writes (Seafile), a save can leave the key unchanged, so a parse of the
+     * old text that finished late would be served as current. Under [cacheMutex].
+     */
+    private val generations = mutableMapOf<String, Long>()
+
     /** The [FileStore] backing this vault, for callers (e.g. Dailies) that need
      *  it directly rather than going through a `Vault`-level method. */
     fun fileStore(): FileStore = store
@@ -155,6 +163,26 @@ class Vault(
         store.list().filter {
             it.name.endsWith(".org") && !it.name.contains(".sync-conflict-")
         }
+
+    /**
+     * True when [fileName] holds exactly the text whose [contentHash] a caller
+     * recorded when it last loaded or saved the file; false when [contentHash] is
+     * null or the file is missing, unreadable or different. Reads the file. For
+     * telling a real change from a revision marker that moved on its own: a
+     * provider like Seafile reports a write's new mtime and size only once its
+     * listing cache refreshes, seconds after Bloom's own save.
+     */
+    suspend fun hasContent(fileName: String, contentHash: String?): Boolean {
+        if (contentHash == null) return false
+        val text = try {
+            store.read(store.canonicalName(fileName))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return false
+        }
+        return contentHash(text) == contentHash
+    }
 
     /** Current revision marker ("mtime:size") of a file, or null if missing. */
     suspend fun revision(fileName: String): String? =
@@ -368,6 +396,8 @@ class Vault(
         if (entry != null) {
             val key = CacheKey(entry.name, entry.lastModified, entry.size)
             cacheMutex.withLock {
+                generations[name] = (generations[name] ?: 0) + 1
+                inFlight.keys.removeAll { it.name == name }
                 cache.keys.removeAll { it.name == name }
                 if (cache.size > 64) cache.remove(cache.keys.first())
                 cache[key] = parsed!!
@@ -380,6 +410,9 @@ class Vault(
 
     /** Drop every cached parse of [fileName] (any revision). */
     private suspend fun evictParse(fileName: String) = cacheMutex.withLock {
+        generations[fileName] = (generations[fileName] ?: 0) + 1
+        // A parse already reading keeps its waiters, but later callers start afresh.
+        inFlight.keys.removeAll { it.name == fileName }
         cache.keys.removeAll { it.name == fileName }
     }
 
@@ -396,8 +429,10 @@ class Vault(
         val key = CacheKey(entry.name, entry.lastModified, entry.size)
 
         var owner = false
+        var generation = 0L
         val deferred = cacheMutex.withLock {
             cache[key]?.let { return it }
+            generation = generations[entry.name] ?: 0
             inFlight.getOrPut(key) {
                 owner = true
                 CompletableDeferred()
@@ -408,18 +443,27 @@ class Vault(
         return try {
             val doc = withContext(parseDispatcher) { OrgParser.parse(store.read(entry.name), keywords) }
             cacheMutex.withLock {
-                // Drop stale parses of the same file, cap total cache size.
-                cache.keys.removeAll { it.name == entry.name }
-                if (cache.size > 64) cache.remove(cache.keys.first())
-                cache[key] = doc
-                inFlight.remove(key)
+                // A save landed while this read: it may hold the old text, so serve it to
+                // its waiters but don't cache it (the next lookup reads again).
+                if ((generations[entry.name] ?: 0) == generation) {
+                    // Drop stale parses of the same file, cap total cache size.
+                    cache.keys.removeAll { it.name == entry.name }
+                    if (cache.size > 64) cache.remove(cache.keys.first())
+                    cache[key] = doc
+                }
+                if (inFlight[key] === deferred) inFlight.remove(key)
             }
             deferred.complete(doc)
             doc
         } catch (e: Throwable) {
-            cacheMutex.withLock { inFlight.remove(key) }
+            cacheMutex.withLock { if (inFlight[key] === deferred) inFlight.remove(key) }
             deferred.completeExceptionally(e)
             throw e
         }
     }
 }
+
+/** SHA-256 of [text] (UTF-8), hex: what [Vault.hasContent] compares. */
+fun contentHash(text: String): String =
+    java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }

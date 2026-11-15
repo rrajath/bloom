@@ -36,6 +36,7 @@ import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.settings.SettingsSource
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.vault.contentHash
 import com.rrajath.grove.ui.vault.LinkedReferencesResult
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.OutlineSnack
@@ -107,6 +108,13 @@ data class EditorUiState(
      *  end-of-buffer on first load. */
     val cursor: Int? = null,
     val loadedRevision: String? = null,
+    /**
+     * [contentHash] of the file text as of [loadedRevision], when known. A save
+     * whose revision check fails goes ahead anyway if the file still holds this
+     * text: the marker moved without the content changing (Seafile reports its
+     * own upload's mtime and size seconds after the save).
+     */
+    val loadedContentHash: String? = null,
     val keywords: OrgKeywords = OrgKeywords.DEFAULT,
     val dirty: Boolean = false,
     val error: String? = null,
@@ -280,6 +288,7 @@ class EditorViewModel(
                     ownedSpan = snap.ownedSpan,
                     dirty = false,
                     loadedRevision = revision,
+                    loadedContentHash = snap.files.lastOrNull { (name, _) -> name == snap.fileName }?.second?.let(::contentHash),
                     bufferRevision = it.bufferRevision + 1,
                 )
             }
@@ -324,6 +333,7 @@ class EditorViewModel(
                 buffer = OrgMutations.subtreeText(doc, headline),
                 ownedSpan = headline.lineIndex until doc.subtreeEndLine(headline),
                 loadedRevision = vault.revision(ref.fileName),
+                loadedContentHash = contentHash(doc.text),
                 keywords = keywords.value,
                 allTags = tags,
             )
@@ -411,6 +421,7 @@ class EditorViewModel(
                 regionRange = range,
                 buffer = buffer,
                 loadedRevision = vault.revision(fileName),
+                loadedContentHash = contentHash(doc.text),
                 keywords = keywords.value,
             )
         }
@@ -485,7 +496,7 @@ class EditorViewModel(
             val fileName = _state.value.fileName
             val revision = vaultFlow.value?.revision(fileName)
             // The mutation may have moved the buffer's lines; fall back to the subtree.
-            _state.update { it.copy(dirty = false, loadedRevision = revision, ownedSpan = null) }
+            _state.update { it.copy(dirty = false, loadedRevision = revision, loadedContentHash = null, ownedSpan = null) }
         }
     }
 
@@ -569,6 +580,7 @@ class EditorViewModel(
                             ownedSpan = newHeadline?.let { h -> h.lineIndex until result.doc.subtreeEndLine(h) },
                             dirty = false,
                             loadedRevision = revision,
+                            loadedContentHash = contentHash(result.text),
                             bufferRevision = it.bufferRevision + 1,
                         )
                     }
@@ -621,6 +633,7 @@ class EditorViewModel(
                             ownedSpan = destHeadline?.let { h -> h.lineIndex until destDoc.subtreeEndLine(h) },
                             dirty = false,
                             loadedRevision = destRevision,
+                            loadedContentHash = contentHash(result.destText),
                             bufferRevision = it.bufferRevision + 1,
                         )
                     }
@@ -793,12 +806,17 @@ class EditorViewModel(
             if (patch == null || (!untouched && patch.buffer != s.buffer)) {
                 // Lines moved or the buffer changed meanwhile: only the old in-place
                 // rename case can keep the buffer as is.
-                return@update if (edit.insertions.isEmpty()) cur.copy(loadedRevision = after) else cur
+                return@update if (edit.insertions.isEmpty()) {
+                    cur.copy(loadedRevision = after, loadedContentHash = contentHash(edit.text))
+                } else {
+                    cur
+                }
             }
             val buffer = if (untouched) patch.buffer else cur.buffer
             val shift = { line: Int -> line + edit.insertions.filter { (at, _) -> at < line }.sumOf { it.second } }
             cur.copy(
                 loadedRevision = after,
+                loadedContentHash = contentHash(edit.text),
                 buffer = buffer,
                 bufferRevision = if (buffer != cur.buffer) cur.bufferRevision + 1 else cur.bufferRevision,
                 ownedSpan = cur.ownedSpan?.let { patch.start until patch.start + patch.count },
@@ -822,7 +840,14 @@ class EditorViewModel(
         // The exact text this save is responsible for. Anything typed after
         // this line belongs to the next save, not this one.
         val savedBuffer = s.buffer
-        val currentRevision = vault.revision(s.fileName)
+        val markerRevision = vault.revision(s.fileName)
+        // A moved marker with the same text isn't a change (see loadedContentHash):
+        // carry on as if it hadn't moved, so the owned span still applies.
+        val currentRevision = if (markerRevision != s.loadedRevision && vault.hasContent(s.fileName, s.loadedContentHash)) {
+            s.loadedRevision
+        } else {
+            markerRevision
+        }
         if (!force && currentRevision != s.loadedRevision) {
             _state.update { it.copy(staleFile = true) }
             return false
@@ -909,6 +934,7 @@ class EditorViewModel(
                 ownedSpan = writtenSpan ?: current.ownedSpan,
                 staleFile = false,
                 loadedRevision = newRevision,
+                loadedContentHash = contentHash(newText),
                 lastSavedAt = LocalDateTime.now(),
             )
         }

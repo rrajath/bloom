@@ -82,7 +82,7 @@ Pinned notebooks and folders share **one ordered list**, `GroveSettings.pinnedIt
 
 The `flatten_notebook_folders` setting (Settings → Look and Feel) swaps the inline tree for a single flat list: `NotebooksViewModel` takes a dedicated state branch that fills `flatRows` / `flatPinned` from `NotebookTree.flatNotebookRows` / `flatPinnedRows` (pure, path-grouped; a pinned folder expands to its files inline, de-duped against nested pins) instead of `rows` / `pinnedStrip`, and `NotebooksScreen` renders every entry as a `FileRow(flat = true, showPathSubtitle = true)` — no folder rows, drill view, or expand/collapse-all. It's a view toggle only: folder identity, moves, and the pin list are unchanged.
 
-A file's **revision** is the string `"mtime:size"`: cheap to compute from a directory listing and good enough to detect external edits.
+A file's **revision** is the string `"mtime:size"`: cheap to compute from a directory listing and good enough to detect external edits. Some providers' markers lag their own writes: Seafile answers a stat from a listing cache its upload doesn't refresh, so the marker moves seconds after Bloom's save. The editor therefore also keeps `loadedContentHash` (SHA-256 of the file text it last loaded or saved); when the revision differs at save time, `Vault.hasContent` reads the file and only a different text raises the stale-file banner. For the same reason a save can leave the marker unchanged, so `Vault`'s parse cache (keyed by name, mtime and size) keeps a per-file generation that every save and eviction bumps, and a parse that started before a save is never cached.
 
 ## Sync (`sync/` + `data/`)
 
