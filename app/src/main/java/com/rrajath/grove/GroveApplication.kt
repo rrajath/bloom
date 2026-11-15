@@ -272,6 +272,9 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             notify = { message ->
                 android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
             },
+            describeError = { error ->
+                com.rrajath.grove.ui.vault.storageErrorMessage(this, error, com.rrajath.grove.ui.vault.StorageSubject.Folder)
+            },
             photoProcessor = com.rrajath.grove.attach.ImageTranscoder(java.io.File(cacheDir, "attach-transcode")),
             photoLongEdge = { settingsRepository.settings.first().attachPhotoSize.longEdge },
             onFilesAdded = { if (attachmentStatusCacheLazy.isInitialized()) attachmentStatusCache.invalidateMissing() },

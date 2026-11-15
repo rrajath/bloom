@@ -847,15 +847,31 @@ class BackendFileStore(
         return found
     }
 
-    /** Document id of directory [path], creating it and missing ancestors. Null on failure or a file in the way. */
-    private suspend fun ensureRawDir(path: String): String? {
-        if (path.isEmpty()) return rootDocId
-        rawLookup(path)?.let { return if (it.isDir) it.docId else null }
-        val parentId = ensureRawDir(path.substringBeforeLast('/', "")) ?: return null
+    /** Document id of directory [path], creating it and missing ancestors. [StorageError.NameTaken] for a file in the way. */
+    private suspend fun ensureRawDir(path: String): StorageResult<String> {
+        if (path.isEmpty()) return StorageResult.Ok(rootDocId)
+        rawLookup(path)?.let { return if (it.isDir) StorageResult.Ok(it.docId) else StorageError.NameTaken }
+        val parentId = when (val parent = ensureRawDir(path.substringBeforeLast('/', ""))) {
+            is StorageResult.Ok -> parent.value
+            is StorageError -> return parent
+        }
         val leaf = path.substringAfterLast('/')
-        val docId = makeDir(parentId, leaf).getOrNull() ?: return null
-        rawDirIds[path] = docId
-        return docId
+        return makeDir(parentId, leaf).also { r -> r.getOrNull()?.let { rawDirIds[path] = it } }
+    }
+
+    /**
+     * The deepest existing folder at or above [path], as (path, document id).
+     * [StorageError.NameTaken] when a file sits where a folder should be.
+     */
+    private suspend fun nearestRawDir(path: String): StorageResult<Pair<String, String>> {
+        var p = path
+        while (p.isNotEmpty()) {
+            rawLookup(p)?.let { meta ->
+                return if (meta.isDir) StorageResult.Ok(p to meta.docId) else StorageError.NameTaken
+            }
+            p = p.substringBeforeLast('/', "")
+        }
+        return StorageResult.Ok("" to rootDocId)
     }
 
     /**
@@ -881,11 +897,28 @@ class BackendFileStore(
     override suspend fun createBinary(name: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         val path = name.trim('/')
         if (rawLookup(path) != null) return@withContext StorageError.NameTaken
-        val (dir, leaf) = splitPath(path)
-        val parentId = ensureRawDir(dir) ?: return@withContext StorageError.ProviderError(null)
-        // The backend keeps the exact name (octet-stream, so no extension is
-        // appended) and doesn't leave a stray "x (1).jpg" behind when it can't.
-        val created = backend.createFile(parentId, leaf)
+        val (dir, _) = splitPath(path)
+        val created = if (backend.profile.writeCreatesFolders) {
+            // Folder creates there may fail (Seafile's always do), but the first
+            // write makes any folder the file's path names. Create the file from
+            // the nearest folder that exists, with the rest of its path as the name.
+            when (val near = nearestRawDir(dir)) {
+                is StorageResult.Ok -> {
+                    val (base, baseId) = near.value
+                    val rest = if (base.isEmpty()) path else path.removePrefix("$base/")
+                    if ('/' in rest) backend.createFileAtPath(baseId, rest) else backend.createFile(baseId, rest)
+                }
+                is StorageError -> return@withContext near
+            }
+        } else {
+            val parentId = when (val parent = ensureRawDir(dir)) {
+                is StorageResult.Ok -> parent.value
+                is StorageError -> return@withContext parent
+            }
+            // The backend keeps the exact name (octet-stream, so no extension is
+            // appended) and doesn't leave a stray "x (1).jpg" behind when it can't.
+            backend.createFile(parentId, splitPath(path).second)
+        }
         listingChanged(Unit)
         when (created) {
             is StorageResult.Ok -> {
@@ -1033,7 +1066,10 @@ class BackendFileStore(
         if (rawLookup(dstPath) != null) return@withContext StorageError.NameTaken
         val srcParentId = rawLookup(srcPath.substringBeforeLast('/', ""))?.docId
             ?: return@withContext StorageError.NotFound
-        val dstParentId = ensureRawDir(parentPath) ?: return@withContext StorageError.ProviderError(null)
+        val dstParentId = when (val parent = ensureRawDir(parentPath)) {
+            is StorageResult.Ok -> parent.value
+            is StorageError -> return@withContext parent
+        }
 
         // A provider move isn't available everywhere (API 24, and not every provider).
         val moved: StorageResult<String> = if (meta.capabilities.move) {
@@ -1059,7 +1095,10 @@ class BackendFileStore(
     }
 
     private suspend fun copyTree(srcPath: String, srcDocId: String, dstPath: String): StorageResult<Unit> {
-        val dstId = ensureRawDir(dstPath) ?: return StorageError.ProviderError(null)
+        val dstId = when (val dst = ensureRawDir(dstPath)) {
+            is StorageResult.Ok -> dst.value
+            is StorageError -> return dst
+        }
         val children = queryChildren(srcDocId) ?: return StorageError.ProviderError(null)
         // The caller deletes the source after a successful copy: a copy from a
         // listing that wasn't finished would silently drop the unseen files.

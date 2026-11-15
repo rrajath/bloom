@@ -49,6 +49,7 @@ fun storageErrorMessage(
 fun unsupportedReason(context: Context, op: StorageOp, provider: ProviderProfile): String = context.getString(
     when (op) {
         StorageOp.Create -> R.string.storage_error_unsupported_create
+        StorageOp.CreateFolder -> R.string.storage_error_unsupported_create_folder
         StorageOp.Rename -> R.string.storage_error_unsupported_rename
         StorageOp.Move -> R.string.storage_error_unsupported_move
         StorageOp.Delete -> R.string.storage_error_unsupported_delete

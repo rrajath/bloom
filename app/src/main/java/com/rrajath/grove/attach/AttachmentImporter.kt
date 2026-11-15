@@ -1,5 +1,7 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.errorOrNull
 import com.rrajath.grove.vault.storage.isOk
 import com.rrajath.grove.vault.FileStore
 import java.io.File
@@ -53,8 +55,12 @@ sealed interface ImportResult {
     /** Every item landed. [names] are the final names, in pick order. */
     data class Success(val names: List<String>, val renamed: Set<String>) : ImportResult
 
-    /** Item [name] failed; nothing from this import is left behind. */
-    data class Failed(val name: String, val failure: ImportFailure) : ImportResult
+    /**
+     * Item [name] failed; nothing from this import is left behind. [error] is
+     * the vault's own reason when it refused the write, worded better than
+     * [failure] by the UI (`storageErrorMessage`).
+     */
+    data class Failed(val name: String, val failure: ImportFailure, val error: StorageError? = null) : ImportResult
 }
 
 /**
@@ -137,11 +143,12 @@ class AttachmentImporter(
                 }
                 if (failure != null) {
                     cleanUp(partPath)
-                    return ImportResult.Failed(name, failure)
+                    return ImportResult.Failed(name, failure.first, failure.second)
                 }
-                if (staged && !store.renameRaw(partPath, name).isOk) {
+                val renamedInto = if (staged) store.renameRaw(partPath, name) else null
+                if (renamedInto != null && !renamedInto.isOk) {
                     cleanUp(partPath)
-                    return ImportResult.Failed(name, ImportFailure.WriteFailed)
+                    return ImportResult.Failed(name, ImportFailure.WriteFailed, renamedInto.errorOrNull())
                 }
                 written += name
             } finally {
@@ -151,17 +158,21 @@ class AttachmentImporter(
         return ImportResult.Success(written.toList(), renamed)
     }
 
-    /** Streams one source into [partPath]. Null on success, else why it failed. */
-    private suspend fun copyOne(open: () -> InputStream?, partPath: String, onBytes: (Long) -> Unit): ImportFailure? {
+    /** Streams one source into [partPath]. Null on success, else why it failed (and the vault's error, if any). */
+    private suspend fun copyOne(
+        open: () -> InputStream?,
+        partPath: String,
+        onBytes: (Long) -> Unit,
+    ): Pair<ImportFailure, StorageError?>? {
         val input = try {
             open()
         } catch (e: FileNotFoundException) {
             null
         } catch (e: SecurityException) {
             null
-        } ?: return ImportFailure.SourceUnavailable
+        } ?: return ImportFailure.SourceUnavailable to null
         input.use { stream ->
-            if (!store.createBinary(partPath).isOk) return ImportFailure.WriteFailed
+            store.createBinary(partPath).errorOrNull()?.let { return ImportFailure.WriteFailed to it }
             try {
                 store.openOutput(partPath).use { out ->
                     val buffer = ByteArray(COPY_BUFFER)
@@ -172,7 +183,7 @@ class AttachmentImporter(
                         val n = try {
                             stream.read(buffer)
                         } catch (e: IOException) {
-                            return ImportFailure.SourceUnavailable
+                            return ImportFailure.SourceUnavailable to null
                         }
                         if (n < 0) break
                         out.write(buffer, 0, n)
@@ -187,9 +198,9 @@ class AttachmentImporter(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: IOException) {
-                return if (isNoSpace(e)) ImportFailure.StorageFull else ImportFailure.WriteFailed
+                return (if (isNoSpace(e)) ImportFailure.StorageFull else ImportFailure.WriteFailed) to null
             } catch (e: Exception) {
-                return ImportFailure.WriteFailed
+                return ImportFailure.WriteFailed to null
             }
         }
         return null

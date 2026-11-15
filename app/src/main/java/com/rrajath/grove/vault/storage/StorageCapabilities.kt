@@ -23,7 +23,7 @@ data class StorageCapabilities(
 ) {
     /** Whether [op] is allowed on this document. */
     fun supports(op: StorageOp): Boolean = when (op) {
-        StorageOp.Create -> createChildren
+        StorageOp.Create, StorageOp.CreateFolder -> createChildren
         StorageOp.Rename -> rename
         StorageOp.Move -> move
         StorageOp.Delete -> delete

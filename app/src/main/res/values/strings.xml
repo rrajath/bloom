@@ -76,6 +76,7 @@
     <string name="storage_error_name_taken_folder">A folder with that name already exists</string>
     <string name="storage_error_not_found">That item is no longer there. Sync and try again.</string>
     <string name="storage_error_unsupported_create">%1$s doesn\'t let other apps create files.</string>
+    <string name="storage_error_unsupported_create_folder">%1$s doesn\'t let other apps create folders.</string>
     <string name="storage_error_unsupported_rename">%1$s doesn\'t let other apps rename files.</string>
     <string name="storage_error_unsupported_move">%1$s doesn\'t let other apps move files.</string>
     <string name="storage_error_unsupported_delete">%1$s doesn\'t let other apps delete files.</string>

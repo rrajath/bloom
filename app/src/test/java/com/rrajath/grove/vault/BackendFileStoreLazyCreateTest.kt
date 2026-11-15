@@ -44,6 +44,7 @@ class BackendFileStoreLazyCreateTest {
     private fun store(lazy: Boolean = true): BackendFileStore {
         provider = FakeDocumentsProvider.install(tmp.root, FakeDocumentsProvider.OPAQUE_AUTHORITY)
         provider.lazyCreate = lazy
+        provider.writeMakesFolders = lazy
         val backend = SafBackend(
             context,
             FakeDocumentsProvider.treeUri(FakeDocumentsProvider.OPAQUE_AUTHORITY),
@@ -167,6 +168,55 @@ class BackendFileStoreLazyCreateTest {
         val result = importer.import("data/AB/CD", listOf(AttachSource("u", "x.bin", 4)), pruneStop = "")
         assertEquals(ImportResult.Success(listOf("x.bin"), emptySet()), result)
         assertEquals(4L, file("data/AB/CD/x.bin").length())
+    }
+
+    @Test
+    fun `an attachment reaches a new folder when the provider can't create folders`() = runTest {
+        val store = store()
+        provider.failDirCreate = true
+        file("data").mkdirs()
+        val importer = AttachmentImporter(store, { ByteArrayInputStream(ByteArray(6)) })
+
+        val result = importer.import("data/8B/41D2F0", listOf(AttachSource("u", "photo.jpg", 6)), pruneStop = "")
+
+        assertEquals(ImportResult.Success(listOf("photo.jpg"), emptySet()), result)
+        assertEquals(6L, file("data/8B/41D2F0/photo.jpg").length())
+    }
+
+    @Test
+    fun `a second attachment into the same new folder lands next to the first`() = runTest {
+        val store = store()
+        provider.failDirCreate = true
+        val importer = AttachmentImporter(store, { ByteArrayInputStream(ByteArray(2)) })
+        val sources = listOf(AttachSource("u1", "a.jpg", 2), AttachSource("u2", "b.jpg", 2))
+
+        val result = importer.import("data/AB/CD", sources, pruneStop = "")
+
+        assertEquals(ImportResult.Success(listOf("a.jpg", "b.jpg"), emptySet()), result)
+        assertEquals(setOf("a.jpg", "b.jpg"), file("data/AB/CD").list()!!.toSet())
+    }
+
+    @Test
+    fun `a failed folder create on Seafile is reported as unsupported`() = runTest {
+        val store = store()
+        provider.failDirCreate = true
+
+        assertEquals(
+            com.rrajath.grove.vault.storage.StorageError.Unsupported(com.rrajath.grove.vault.storage.StorageOp.CreateFolder),
+            store.createWithContent("projects/plan.org", "* Plan\n"),
+        )
+    }
+
+    @Test
+    fun `an attachment that can't get its folder names the provider's reason`() = runTest {
+        val store = store(lazy = false)
+        provider.failDirCreate = true
+        val importer = AttachmentImporter(store, { ByteArrayInputStream(ByteArray(2)) })
+
+        val result = importer.import("data/AB/CD", listOf(AttachSource("u", "a.jpg", 2)), pruneStop = "")
+
+        result as ImportResult.Failed
+        assertTrue(result.error is com.rrajath.grove.vault.storage.StorageError.ProviderError)
     }
 
     @Test

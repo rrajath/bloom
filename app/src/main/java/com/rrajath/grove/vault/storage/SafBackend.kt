@@ -185,7 +185,25 @@ class SafBackend(
         createNamed(parentId, name, "application/octet-stream")
 
     override suspend fun createDir(parentId: String, name: String): StorageResult<String> =
-        createNamed(parentId, name, DocumentsContract.Document.MIME_TYPE_DIR)
+        when (val r = createNamed(parentId, name, DocumentsContract.Document.MIME_TYPE_DIR)) {
+            is StorageError.ProviderError, is StorageError.Unsupported ->
+                if (profile.folderCreateBroken) StorageError.Unsupported(StorageOp.CreateFolder) else r
+            else -> r
+        }
+
+    /**
+     * No display-name check as in [createNamed]: the provider reports the leaf,
+     * not [relativePath], and nothing exists yet to compare against.
+     */
+    override suspend fun createFileAtPath(ancestorId: String, relativePath: String): StorageResult<String> {
+        if (!profile.writeCreatesFolders) return StorageError.Unsupported(StorageOp.CreateFolder)
+        return withContext(Dispatchers.IO) {
+            guarded(StorageOp.Create) {
+                DocumentsContract.createDocument(resolver, docUri(ancestorId), "application/octet-stream", relativePath)
+            }.orRefused(StorageOp.Create, ancestorId, DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE)
+                .map { DocumentsContract.getDocumentId(it) }
+        }
+    }
 
     /**
      * "application/octet-stream" has no mapped extension, so stock providers keep

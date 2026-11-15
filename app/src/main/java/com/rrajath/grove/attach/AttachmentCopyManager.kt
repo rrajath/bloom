@@ -3,6 +3,7 @@ package com.rrajath.grove.attach
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.vault.FileStore
+import com.rrajath.grove.vault.storage.StorageError
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -72,6 +73,8 @@ class AttachmentCopyManager(
     private val fallback: suspend (AttachDone) -> String?,
     /** Shows a message when no editor is listening (an app-level toast on device). */
     private val notify: (String) -> Unit,
+    /** Words a vault error for the failure toast; null keeps the generic reason. */
+    private val describeError: (StorageError) -> String? = { null },
     private val clock: () -> Long = System::currentTimeMillis,
     /** Resizes/converts Camera and Photos images (Settings § Attachments); null copies as-is. */
     private val photoProcessor: PhotoProcessor? = null,
@@ -177,15 +180,21 @@ class AttachmentCopyManager(
             return
         }
         val message = when (val r = done.result) {
-            is ImportResult.Failed -> failureMessage(r)
+            is ImportResult.Failed -> failureMessage(r, describeError)
             is ImportResult.Success -> withContext(io) { fallback(done) }
         }
         message?.let(notify)
     }
 }
 
-/** `Couldn't attach receipt.pdf: storage full`. */
-fun failureMessage(r: ImportResult.Failed): String = "Couldn't attach ${r.name}: ${r.failure.reason}"
+/**
+ * `Couldn't attach receipt.pdf: storage full`. [describe] words the vault's
+ * own error when there is one (`Seafile doesn't let other apps create folders`).
+ */
+fun failureMessage(r: ImportResult.Failed, describe: (StorageError) -> String? = { null }): String {
+    val reason = r.error?.let(describe)?.trimEnd('.') ?: r.failure.reason
+    return "Couldn't attach ${r.name}: $reason"
+}
 
 /**
  * The toast for a successful attach (6.6 / 1q). A rename only gets its own

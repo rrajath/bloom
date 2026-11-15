@@ -75,6 +75,16 @@ class FakeDocumentsProvider : ContentProvider() {
     var lazyCreate = false
 
     /**
+     * Seafile-style upload: a lazily created file's first write makes the
+     * folders its path names (`relative_path`), so a file can be created
+     * through folders that don't exist yet.
+     */
+    var writeMakesFolders = false
+
+    /** Seafile 4.0.15's bug: every folder create throws. */
+    var failDirCreate = false
+
+    /**
      * Seafile-style stale listings: files created through this provider stay
      * out of children listings (as a listing cache taken before the create
      * would) until [revealCreated].
@@ -206,7 +216,10 @@ class FakeDocumentsProvider : ContentProvider() {
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         val f = fileFor(DocumentsContract.getDocumentId(uri))
         // A lazily created file comes into being on its first write.
-        if (lazyCreate && !f.exists() && 'w' in mode && f.parentFile?.isDirectory == true) f.createNewFile()
+        if (lazyCreate && !f.exists() && 'w' in mode) {
+            if (writeMakesFolders) f.parentFile?.mkdirs()
+            if (f.parentFile?.isDirectory == true) f.createNewFile()
+        }
         if (!f.isFile) throw FileNotFoundException(uri.toString())
         return ParcelFileDescriptor.open(f, ParcelFileDescriptor.parseMode(mode))
     }
@@ -228,6 +241,7 @@ class FakeDocumentsProvider : ContentProvider() {
                     while (target.exists()) target = File(parent, "$name (${n++})")
                 }
                 val isDir = extras.getString(Document.COLUMN_MIME_TYPE) == Document.MIME_TYPE_DIR
+                check(!(isDir && failDirCreate)) { "Simulated folder create failure" }
                 // Lazy: only an id; the file appears on its first write (openFile).
                 if (isDir || !lazyCreate) check(if (isDir) target.mkdir() else target.createNewFile()) { "Couldn't create $target" }
                 if (!isDir && hideCreatedFromListings) hiddenCreated += target.relativeTo(root).invariantSeparatorsPath

@@ -60,6 +60,8 @@ import com.rrajath.grove.data.IndexedAttachOwner
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.settings.AttachAutoTag
 import com.rrajath.grove.ui.vault.OutlineToast
+import com.rrajath.grove.ui.vault.StorageSubject
+import com.rrajath.grove.ui.vault.storageErrorMessage
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import java.io.File
@@ -606,7 +608,7 @@ class AttachController internal constructor(
     /** A copy finished while this editor is open: write the links, or report the failure. */
     internal fun onDone(done: AttachDone) {
         when (val r = done.result) {
-            is ImportResult.Failed -> showToast(failureMessage(r))
+            is ImportResult.Failed -> showToast(failureMessage(r) { storageErrorMessage(context, it, StorageSubject.Folder) })
             is ImportResult.Success -> {
                 r.names.forEach { added += "${done.request.dir}/$it" }
                 // An inherited :DIR: leaves the heading itself unchanged; recording it

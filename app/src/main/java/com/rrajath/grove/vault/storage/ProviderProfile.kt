@@ -24,6 +24,18 @@ data class ProviderProfile(
     val createIsLazy: Boolean = false,
     /** The provider keeps both sides of a conflicting edit as a conflict copy. */
     val makesConflictCopies: Boolean = true,
+    /**
+     * A file created with a slash-separated name under an existing folder
+     * (`ab/cdef/photo.jpg`) lands at that path, and its first write makes the
+     * missing folders. Files can then reach folders the provider can't create.
+     */
+    val writeCreatesFolders: Boolean = false,
+    /**
+     * Creating a folder fails although the folder advertises creates (a provider
+     * bug), so a failed folder create is reported as unsupported, not as a
+     * one-off error. Bloom still tries first, in case the provider was fixed.
+     */
+    val folderCreateBroken: Boolean = false,
 )
 
 /** The known providers, looked up by a vault tree URI's authority. */
@@ -46,6 +58,11 @@ object ProviderProfiles {
         createIsLazy = true,
         // The desktop client makes SFConflict copies; the Android app doesn't.
         makesConflictCopies = false,
+        // Its upload sends the folder as `relative_path`, which the server creates.
+        writeCreatesFolders = true,
+        // Seadroid 4.0.15/4.0.16 declare `String createDirSync(...)` without a
+        // Call<> wrapper, so every SAF folder create throws in Retrofit.
+        folderCreateBroken = true,
     )
 
     /**

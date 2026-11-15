@@ -50,7 +50,7 @@ sealed interface Listing {
 }
 
 /** What an operation was trying to do, for [StorageError.Unsupported]. */
-enum class StorageOp { Create, Rename, Move, Delete, Write, Read }
+enum class StorageOp { Create, CreateFolder, Rename, Move, Delete, Write, Read }
 
 /**
  * The operations a storage provider must offer the vault, in terms of document
@@ -123,6 +123,16 @@ interface StorageBackend {
 
     /** Creates a folder called exactly [name] in [parentId]; same naming rule as [createFile]. */
     suspend fun createDir(parentId: String, name: String): StorageResult<String>
+
+    /**
+     * Creates the file at [relativePath] (slash-separated, through folders that
+     * may not exist yet) under the existing folder [ancestorId], for a provider
+     * whose first write makes the missing folders
+     * ([ProviderProfile.writeCreatesFolders]). Others answer
+     * [StorageError.Unsupported] for [StorageOp.CreateFolder].
+     */
+    suspend fun createFileAtPath(ancestorId: String, relativePath: String): StorageResult<String> =
+        StorageError.Unsupported(StorageOp.CreateFolder)
 
     /** Deletes [docId] (a folder goes with its children where the provider allows it). */
     suspend fun delete(docId: String): StorageResult<Unit>
