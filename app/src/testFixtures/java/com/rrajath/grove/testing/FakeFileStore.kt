@@ -4,6 +4,9 @@ import android.net.Uri
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.TreeListing
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageOp
+import com.rrajath.grove.vault.storage.StorageResult
 import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
@@ -38,6 +41,15 @@ class FakeFileStore(
     private val files = HashMap<String, Node>()
     private val mutex = Mutex()
     private var clock = 0L
+    private val injected = java.util.concurrent.ConcurrentHashMap<StorageOp, StorageError>()
+
+    /**
+     * Makes every [op] return [error] until cleared with `null`, as a provider
+     * that refuses it would. Lets a ViewModel test drive each result kind.
+     */
+    fun failWith(op: StorageOp, error: StorageError?) {
+        if (error == null) injected.remove(op) else injected[op] = error
+    }
 
     init {
         initial.forEach { (name, content) -> files[normalize(name)] = Node(content, tick()) }
@@ -77,31 +89,42 @@ class FakeFileStore(
         files[normalize(name)]?.content ?: throw FileNotFoundException(name)
     }
 
-    override suspend fun write(name: String, content: String) = mutex.withLock {
+    override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> = mutex.withLock {
+        injected[StorageOp.Write]?.let { return@withLock it }
         val key = normalize(name)
         if (strictWrite && !files.containsKey(key)) throw FileNotFoundException(name)
-        files[key] = Node(content, tick())
+        if (ifMatch != null) {
+            val current = files[key] ?: return@withLock StorageError.NotFound
+            val revision = "${current.modified}:${current.content.length}"
+            if (revision != ifMatch) return@withLock StorageError.Conflict(revision)
+        }
+        val node = Node(content, tick())
+        files[key] = node
+        StorageResult.Ok("${node.modified}:${node.content.length}")
     }
 
-    override suspend fun create(name: String): Boolean = mutex.withLock {
+    override suspend fun create(name: String): StorageResult<Unit> = mutex.withLock {
+        injected[StorageOp.Create]?.let { return@withLock it }
         val key = normalize(name)
-        if (files.containsKey(key)) return@withLock false
+        if (files.containsKey(key)) return@withLock StorageError.NameTaken
         files[key] = Node("", tick())
-        true
+        StorageResult.Ok(Unit)
     }
 
-    override suspend fun rename(oldName: String, newName: String): Boolean = mutex.withLock {
+    override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> = mutex.withLock {
+        injected[StorageOp.Rename]?.let { return@withLock it }
         val from = normalize(oldName)
         val to = normalize(newName)
-        val node = files[from] ?: return@withLock false
-        if (files.containsKey(to)) return@withLock false
+        val node = files[from] ?: return@withLock StorageError.NotFound
+        if (files.containsKey(to)) return@withLock StorageError.NameTaken
         files.remove(from)
         files[to] = node // keep the original mtime, like File.renameTo
-        true
+        StorageResult.Ok(Unit)
     }
 
-    override suspend fun delete(name: String): Boolean = mutex.withLock {
-        files.remove(normalize(name)) != null
+    override suspend fun delete(name: String): StorageResult<Unit> = mutex.withLock {
+        injected[StorageOp.Delete]?.let { return@withLock it }
+        if (files.remove(normalize(name)) != null) StorageResult.Ok(Unit) else StorageError.NotFound
     }
 
     override suspend fun exists(name: String): Boolean = mutex.withLock {
@@ -135,15 +158,16 @@ class FakeFileStore(
 
     override suspend fun openInput(name: String): InputStream = unsupported()
 
-    override suspend fun createBinary(name: String): Boolean = unsupported()
+    override suspend fun createBinary(name: String): StorageResult<Unit> = StorageError.Unsupported(StorageOp.Create)
 
     override suspend fun openOutput(name: String): OutputStream = unsupported()
 
     override suspend fun statRaw(name: String): FileEntry? = unsupported()
 
-    override suspend fun renameRaw(name: String, newLeaf: String): Boolean = unsupported()
+    override suspend fun renameRaw(name: String, newLeaf: String): StorageResult<Unit> =
+        StorageError.Unsupported(StorageOp.Rename)
 
-    override suspend fun deleteRaw(name: String): Boolean = unsupported()
+    override suspend fun deleteRaw(name: String): StorageResult<Unit> = StorageError.Unsupported(StorageOp.Delete)
 
     override suspend fun dirExists(dir: String): Boolean = unsupported()
 
@@ -151,9 +175,10 @@ class FakeFileStore(
 
     override suspend fun listSubdirs(dir: String): List<String> = unsupported()
 
-    override suspend fun deleteDir(dir: String): Boolean = unsupported()
+    override suspend fun deleteDir(dir: String): StorageResult<Unit> = StorageError.Unsupported(StorageOp.Delete)
 
-    override suspend fun moveDir(src: String, dstParent: String): Boolean = unsupported()
+    override suspend fun moveDir(src: String, dstParent: String): StorageResult<Unit> =
+        StorageError.Unsupported(StorageOp.Move)
 
     override suspend fun contentUri(name: String): Uri? = null
 

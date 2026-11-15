@@ -38,6 +38,17 @@ class FakeDocumentsProvider : ContentProvider() {
     val queries = AtomicInteger()
     var supportsMove = true
     var caseInsensitive = false
+
+    /** Each makes that operation fail the way a refusing provider does: DocumentsContract answers null/false. */
+    var failCreate = false
+    var failRename = false
+    var failDelete = false
+
+    /**
+     * When set, every document reports these `COLUMN_FLAGS` (what Seafile does:
+     * write, but no rename/delete/move). Null leaves the column unreported.
+     */
+    var reportedFlags: Int? = null
     private lateinit var authority: String
 
     /**
@@ -122,6 +133,7 @@ class FakeDocumentsProvider : ContentProvider() {
 
     private fun MatrixCursor.addFile(f: File, displayName: String = f.name) {
         val row = newRow()
+        reportedFlags?.let { row.add(Document.COLUMN_FLAGS, it) }
         row.add(Document.COLUMN_DOCUMENT_ID, idFor(f))
         row.add(Document.COLUMN_DISPLAY_NAME, displayName)
         row.add(Document.COLUMN_LAST_MODIFIED, f.lastModified())
@@ -175,6 +187,7 @@ class FakeDocumentsProvider : ContentProvider() {
         val out = Bundle()
         when (method) {
             METHOD_CREATE_DOCUMENT -> {
+                check(!failCreate) { "Simulated create failure" }
                 val parent = fileFor(docId)
                 val name = extras!!.getString(Document.COLUMN_DISPLAY_NAME)!!
                 var target = File(parent, name)
@@ -189,13 +202,19 @@ class FakeDocumentsProvider : ContentProvider() {
                 out.putParcelable(EXTRA_URI, docUri(idFor(target)))
             }
             METHOD_RENAME_DOCUMENT -> {
+                check(!failRename) { "Simulated rename failure" }
                 val f = fileFor(docId)
                 val name = extras!!.getString(Document.COLUMN_DISPLAY_NAME)!!
                 val target = File(f.parentFile, if (caseInsensitive) uniqueName(f.parentFile!!, name) else name)
                 check(!target.exists() && f.renameTo(target)) { "Couldn't rename $f" }
                 out.putParcelable(EXTRA_URI, docUri(idFor(target)))
             }
-            METHOD_DELETE_DOCUMENT -> check(fileFor(docId).deleteRecursively()) { "Couldn't delete $docId" }
+            METHOD_DELETE_DOCUMENT -> {
+                check(!failDelete) { "Simulated delete failure" }
+                val doomed = fileFor(docId)
+                if (!doomed.exists()) throw FileNotFoundException(docId)
+                check(doomed.deleteRecursively()) { "Couldn't delete $docId" }
+            }
             METHOD_MOVE_DOCUMENT -> {
                 if (!supportsMove) throw UnsupportedOperationException("Move not supported")
                 val targetParent = DocumentsContract.getDocumentId(extras!!.uri(EXTRA_TARGET_URI))

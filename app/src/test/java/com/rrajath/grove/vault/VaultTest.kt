@@ -1,5 +1,9 @@
 package com.rrajath.grove.vault
 
+import com.rrajath.grove.vault.storage.getOrNull
+import com.rrajath.grove.vault.storage.isOk
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageResult
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,7 +39,7 @@ class VaultTest {
         tmp.newFile("n.org").writeText("* Note")
 
         val v = vault()
-        assertTrue(v.deleteNotebook("n.org"))
+        assertTrue(v.deleteNotebook("n.org").isOk)
         assertEquals(emptyList<String>(), v.notebooks().map { it.fileName })
         assertFalse(tmp.root.resolve("n.org").exists())
         // No `.trash` copy is left behind.
@@ -49,7 +53,7 @@ class VaultTest {
         tmp.newFile("sub/keep.org").writeText("* Keep")
         val v = vault()
 
-        assertTrue(v.deleteNotebook("sub/dir/foo.org"))
+        assertTrue(v.deleteNotebook("sub/dir/foo.org").isOk)
         // `sub/dir` is gone; `sub` survives because `keep.org` still lives there.
         assertFalse(tmp.root.resolve("sub/dir").exists())
         assertTrue(tmp.root.resolve("sub/keep.org").exists())
@@ -76,9 +80,9 @@ class VaultTest {
     @Test
     fun `createNotebook appends org extension and rejects duplicates`() = runTest {
         val v = vault()
-        assertTrue(v.createNotebook("inbox"))
+        assertTrue(v.createNotebook("inbox").isOk)
         assertTrue(tmp.root.resolve("inbox.org").exists())
-        assertFalse(v.createNotebook("inbox.org"))
+        assertFalse(v.createNotebook("inbox.org").isOk)
     }
 
     @Test
@@ -121,9 +125,9 @@ class VaultTest {
     @Test
     fun `createNotebook into a directory creates missing folders`() = runTest {
         val v = vault()
-        assertTrue(v.createNotebook("tasks", dir = "work/2026"))
+        assertTrue(v.createNotebook("tasks", dir = "work/2026").isOk)
         assertTrue(tmp.root.resolve("work/2026/tasks.org").exists())
-        assertFalse(v.createNotebook("tasks.org", dir = "work/2026"))
+        assertFalse(v.createNotebook("tasks.org", dir = "work/2026").isOk)
     }
 
     @Test
@@ -131,10 +135,10 @@ class VaultTest {
         tmp.newFile("acme.org").writeText("* A")
         val v = vault()
 
-        assertEquals("clients/acme.org", v.moveNotebook("acme.org", "clients"))
+        assertEquals("clients/acme.org", v.moveNotebook("acme.org", "clients").getOrNull())
         assertFalse(tmp.root.resolve("acme.org").exists())
         assertEquals("* A", tmp.root.resolve("clients/acme.org").readText())
-        assertNull(v.moveNotebook("clients/acme.org", "clients"))
+        assertEquals(StorageError.NameTaken, v.moveNotebook("clients/acme.org", "clients"))
     }
 
     @Test
@@ -142,14 +146,14 @@ class VaultTest {
         tmp.newFile("acme.org").writeText("* A")
         val v = vault()
 
-        assertEquals("clients/2026/acme.org", v.moveNotebook("acme.org", "clients/2026"))
+        assertEquals("clients/2026/acme.org", v.moveNotebook("acme.org", "clients/2026").getOrNull())
         assertTrue(tmp.root.resolve("clients/2026/acme.org").exists())
     }
 
     @Test
     fun `createNotebook honours a typed nested name under a directory`() = runTest {
         val v = vault()
-        assertTrue(v.createNotebook("clients/acme.org", dir = "projects"))
+        assertTrue(v.createNotebook("clients/acme.org", dir = "projects").isOk)
         assertTrue(tmp.root.resolve("projects/clients/acme.org").exists())
     }
 
@@ -160,7 +164,7 @@ class VaultTest {
         tmp.root.resolve("projects/clients/acme.org").writeText("* A")
         val v = vault()
 
-        assertEquals("work", v.renameFolder("projects", "work"))
+        assertEquals("work", v.renameFolder("projects", "work").getOrNull())
         assertFalse(tmp.root.resolve("projects/grove.org").exists())
         assertEquals("* G", tmp.root.resolve("work/grove.org").readText())
         assertEquals("* A", tmp.root.resolve("work/clients/acme.org").readText())
@@ -176,7 +180,7 @@ class VaultTest {
         tmp.root.resolve("area/old/note.org").writeText("* N")
         val v = vault()
 
-        assertEquals("area/new", v.renameFolder("area/old", "new"))
+        assertEquals("area/new", v.renameFolder("area/old", "new").getOrNull())
         assertEquals("* N", tmp.root.resolve("area/new/note.org").readText())
         // The vacated source directory is not left on disk.
         assertFalse(tmp.root.resolve("area/old").exists())
@@ -190,8 +194,8 @@ class VaultTest {
         tmp.root.resolve("b/one.org").writeText("* 2")
         val v = vault()
 
-        assertNull(v.renameFolder("a", "a"))
-        assertNull(v.renameFolder("a", "b")) // b/one.org already exists
+        assertEquals(StorageError.NameTaken, v.renameFolder("a", "a"))
+        assertEquals(StorageError.NameTaken, v.renameFolder("a", "b")) // b/one.org already exists
         assertTrue(tmp.root.resolve("a/one.org").exists())
     }
 
@@ -203,7 +207,7 @@ class VaultTest {
         tmp.newFile("root.org").writeText("* R")
         val v = vault()
 
-        assertEquals(2, v.deleteFolder("projects"))
+        assertEquals(2, v.deleteFolder("projects").getOrNull())
         assertEquals(listOf("root.org"), v.notebooks().map { it.fileName })
         // Both the nested subfolder and the folder itself are gone from disk.
         assertFalse(tmp.root.resolve("projects").exists())
@@ -217,9 +221,9 @@ class VaultTest {
         tmp.root.resolve("bar/b.org").writeText("* B")
         val v = vault()
 
-        assertEquals(1, v.deleteFolder("foo"))
+        assertEquals(1, v.deleteFolder("foo").getOrNull())
         // The reported bug: this used to fail because `foo/a.org.trash` lingered.
-        assertEquals("foo", v.renameFolder("bar", "foo"))
+        assertEquals("foo", v.renameFolder("bar", "foo").getOrNull())
         assertEquals("* B", tmp.root.resolve("foo/b.org").readText())
     }
 
@@ -236,46 +240,51 @@ class VaultTest {
         override suspend fun list(): List<FileEntry> =
             files.map { (name, body) -> FileEntry(name, 0L, body.length.toLong()) }
         override suspend fun read(name: String): String = files.getValue(name)
-        override suspend fun write(name: String, content: String) { files[name] = content }
-        override suspend fun create(name: String): Boolean {
-            if (name in files) return false
+        override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> {
+            files[name] = content
+            return StorageResult.Ok("")
+        }
+        override suspend fun create(name: String): StorageResult<Unit> {
+            if (name in files) return StorageError.NameTaken
             files[name] = ""
-            return true
+            return StorageResult.Ok(Unit)
         }
-        override suspend fun rename(oldName: String, newName: String): Boolean {
-            if (oldName == newName || newName in files || oldName !in files) return false
+        override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> {
+            if (oldName == newName || newName in files) return StorageError.NameTaken
+            if (oldName !in files) return StorageError.NotFound
             files[newName] = files.remove(oldName)!!
-            return true
+            return StorageResult.Ok(Unit)
         }
-        override suspend fun delete(name: String): Boolean = files.remove(name) != null
+        override suspend fun delete(name: String): StorageResult<Unit> =
+            if (files.remove(name) != null) StorageResult.Ok(Unit) else StorageError.NotFound
         override suspend fun exists(name: String): Boolean = name in files
     }
 
     @Test
     fun `createNotebook rejects a case-only duplicate`() = runTest {
         val v = Vault(CaseSensitiveStore())
-        assertTrue(v.createNotebook("Work"))
-        assertFalse(v.createNotebook("work"))
-        assertFalse(v.createNotebook("WORK.org"))
+        assertTrue(v.createNotebook("Work").isOk)
+        assertFalse(v.createNotebook("work").isOk)
+        assertFalse(v.createNotebook("WORK.org").isOk)
     }
 
     @Test
     fun `renameNotebook rejects a rename onto an existing name case-insensitively`() = runTest {
         val v = Vault(CaseSensitiveStore())
-        assertTrue(v.createNotebook("inbox"))
-        assertTrue(v.createNotebook("archive"))
-        assertFalse(v.renameNotebook("inbox.org", "Archive"))
+        assertTrue(v.createNotebook("inbox").isOk)
+        assertTrue(v.createNotebook("archive").isOk)
+        assertFalse(v.renameNotebook("inbox.org", "Archive").isOk)
         // A case-only self-rename is still allowed.
-        assertTrue(v.renameNotebook("inbox.org", "Inbox"))
+        assertTrue(v.renameNotebook("inbox.org", "Inbox").isOk)
     }
 
     @Test
     fun `renameFolder rejects merging into an existing folder case-insensitively`() = runTest {
         val v = Vault(CaseSensitiveStore())
-        assertTrue(v.createNotebook("one", dir = "Alpha"))
-        assertTrue(v.createNotebook("two", dir = "Beta"))
-        assertNull(v.renameFolder("Alpha", "Beta"))
-        assertNull(v.renameFolder("Alpha", "beta"))
+        assertTrue(v.createNotebook("one", dir = "Alpha").isOk)
+        assertTrue(v.createNotebook("two", dir = "Beta").isOk)
+        assertEquals(StorageError.NameTaken, v.renameFolder("Alpha", "Beta"))
+        assertEquals(StorageError.NameTaken, v.renameFolder("Alpha", "beta"))
     }
 
     @Test
@@ -286,5 +295,96 @@ class VaultTest {
         v.save("roam/daily/2026-09-23.org", "* 19:20 Long run\n")
 
         assertEquals("* 19:20 Long run\n", store.read("roam/daily/2026-09-23.org"))
+    }
+
+    // --- StorageResult propagation ---
+
+    @Test
+    fun `createNotebook onto an existing name is NameTaken`() = runTest {
+        val v = vault()
+        assertTrue(v.createNotebook("Work").isOk)
+        assertEquals(StorageError.NameTaken, v.createNotebook("Work"))
+    }
+
+    @Test
+    fun `renameNotebook reports NameTaken for a taken target and NotFound for a missing source`() = runTest {
+        tmp.newFile("a.org").writeText("* A")
+        tmp.newFile("b.org").writeText("* B")
+        val v = vault()
+
+        assertEquals(StorageError.NameTaken, v.renameNotebook("a.org", "b"))
+        assertEquals(StorageError.NotFound, v.renameNotebook("nope.org", "c"))
+    }
+
+    @Test
+    fun `deleteNotebook of a missing file is NotFound`() = runTest {
+        assertEquals(StorageError.NotFound, vault().deleteNotebook("nope.org"))
+    }
+
+    @Test
+    fun `every store error reaches the caller unchanged`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* A"))
+        val v = Vault(store)
+        val errors = listOf(
+            StorageError.Unsupported(com.rrajath.grove.vault.storage.StorageOp.Delete),
+            StorageError.ProviderError("boom"),
+            StorageError.Offline,
+            StorageError.AuthFailed,
+        )
+        for (error in errors) {
+            store.failWith(com.rrajath.grove.vault.storage.StorageOp.Delete, error)
+            assertEquals(error, v.deleteNotebook("a.org"))
+        }
+        assertEquals("a failed delete must leave the notebook", listOf("a.org"), v.notebooks().map { it.fileName })
+    }
+
+    @Test
+    fun `trySave returns the error and leaves the file and cache alone`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* A"))
+        val v = Vault(store)
+        v.open("a.org")
+        store.failWith(com.rrajath.grove.vault.storage.StorageOp.Write, StorageError.Offline)
+
+        assertEquals(StorageError.Offline, v.trySave("a.org", "* changed"))
+        assertEquals("* A", store.read("a.org"))
+    }
+
+    @Test
+    fun `save throws a StorageException carrying the error`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("a.org" to "* A"))
+        store.failWith(com.rrajath.grove.vault.storage.StorageOp.Write, StorageError.AuthFailed)
+
+        val thrown = runCatching { Vault(store).save("a.org", "* changed") }.exceptionOrNull()
+
+        assertTrue(thrown is StorageException)
+        assertEquals(StorageError.AuthFailed, (thrown as StorageException).error)
+    }
+
+    @Test
+    fun `trySave of a new notebook whose create is refused returns that error`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore()
+        store.failWith(com.rrajath.grove.vault.storage.StorageOp.Create, StorageError.ProviderError("no"))
+
+        assertEquals(StorageError.ProviderError("no"), Vault(store).trySave("new.org", "* x"))
+    }
+
+    @Test
+    fun `renameFolder stops at the first refused move and returns its error`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("old/a.org" to "* A", "old/b.org" to "* B"))
+        store.failWith(com.rrajath.grove.vault.storage.StorageOp.Rename, StorageError.Unsupported(com.rrajath.grove.vault.storage.StorageOp.Rename))
+
+        val result = Vault(store).renameFolder("old", "new")
+
+        assertEquals(StorageError.Unsupported(com.rrajath.grove.vault.storage.StorageOp.Rename), result)
+        assertEquals(listOf("old/a.org", "old/b.org"), store.snapshot().keys.toList())
+    }
+
+    @Test
+    fun `deleteFolder stops at the first refused delete and returns its error`() = runTest {
+        val store = com.rrajath.grove.testing.FakeFileStore(mapOf("old/a.org" to "* A"))
+        store.failWith(com.rrajath.grove.vault.storage.StorageOp.Delete, StorageError.ProviderError(null))
+
+        assertEquals(StorageError.ProviderError(null), Vault(store).deleteFolder("old"))
+        assertEquals(listOf("old/a.org"), store.snapshot().keys.toList())
     }
 }

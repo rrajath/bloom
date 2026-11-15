@@ -1,6 +1,10 @@
 package com.rrajath.grove.sync
 
 import com.github.difflib.DiffUtils
+import com.rrajath.grove.vault.FileStore
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageResult
+import com.rrajath.grove.vault.storage.isOk
 
 /**
  * Syncthing conflict-copy handling. When both sides change a file, Syncthing
@@ -44,6 +48,33 @@ object SyncConflicts {
 }
 
 object ConflictResolver {
+
+    /**
+     * Applies [resolution] to [baseName] and then removes the conflict copy
+     * [copyName]. The copy is the only other copy of the text, so it is deleted
+     * only once the base file really took the resolution: a refused write
+     * returns its error and leaves both files as they were. A copy that then
+     * can't be deleted still counts as resolved (the next sync flags it again
+     * if it survives).
+     */
+    suspend fun apply(
+        store: FileStore,
+        baseName: String,
+        copyName: String,
+        resolution: ConflictResolution,
+    ): StorageResult<Unit> {
+        val written = when (resolution) {
+            ConflictResolution.KEEP_CURRENT -> StorageResult.Ok("")
+            ConflictResolution.KEEP_CONFLICT_COPY -> store.write(baseName, store.read(copyName))
+            ConflictResolution.KEEP_BOTH -> store.write(
+                baseName,
+                keepBoth(mainText = store.read(baseName), conflictText = store.read(copyName)),
+            )
+        }
+        if (written is StorageError) return written
+        store.delete(copyName)
+        return StorageResult.Ok(Unit)
+    }
 
     /**
      * "Keep both": line-diffs [mainText] against [conflictText] and, at every

@@ -1,5 +1,6 @@
 package com.rrajath.grove.vault
 
+import com.rrajath.grove.vault.storage.isOk
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -43,9 +44,9 @@ class JvmFileStoreTest {
 
     @Test
     fun `create makes intermediate directories`() = runTest {
-        assertTrue(store().create("a/b/c.org"))
+        assertTrue(store().create("a/b/c.org").isOk)
         assertTrue(tmp.root.resolve("a/b/c.org").exists())
-        assertFalse(store().create("a/b/c.org"))
+        assertFalse(store().create("a/b/c.org").isOk)
     }
 
     @Test
@@ -54,7 +55,7 @@ class JvmFileStoreTest {
         s.create("inbox.org")
         s.write("inbox.org", "* Task")
 
-        assertTrue(s.rename("inbox.org", "archive/2026/inbox.org"))
+        assertTrue(s.rename("inbox.org", "archive/2026/inbox.org").isOk)
         assertFalse(tmp.root.resolve("inbox.org").exists())
         assertEquals("* Task", tmp.root.resolve("archive/2026/inbox.org").readText())
     }
@@ -64,7 +65,7 @@ class JvmFileStoreTest {
         val s = store()
         s.create("a/one.org")
         s.create("b/two.org")
-        assertFalse(s.rename("a/one.org", "b/two.org"))
+        assertFalse(s.rename("a/one.org", "b/two.org").isOk)
         assertTrue(tmp.root.resolve("a/one.org").exists())
     }
 
@@ -79,7 +80,7 @@ class JvmFileStoreTest {
         assertTrue(s.exists("dir/note.org"))
         assertNull(s.stat("dir/missing.org"))
 
-        assertTrue(s.delete("dir/note.org"))
+        assertTrue(s.delete("dir/note.org").isOk)
         assertFalse(s.exists("dir/note.org"))
     }
 
@@ -89,7 +90,7 @@ class JvmFileStoreTest {
         s.create("a/b/c/note.org")
         s.create("a/keep.org")
 
-        assertTrue(s.delete("a/b/c/note.org"))
+        assertTrue(s.delete("a/b/c/note.org").isOk)
         s.pruneEmptyDirs("a/b/c")
 
         assertFalse(tmp.root.resolve("a/b").exists()) // b and c collapsed
@@ -101,7 +102,7 @@ class JvmFileStoreTest {
         val s = store()
         s.create("proj/sub/x.org")
 
-        assertTrue(s.delete("proj/sub/x.org"))
+        assertTrue(s.delete("proj/sub/x.org").isOk)
         s.pruneEmptyDirs("proj")
 
         assertFalse(tmp.root.resolve("proj").exists())
@@ -162,11 +163,11 @@ class JvmFileStoreTest {
         val s = JvmFileStore(tmp.root, skipAttachShards = true)
         val part = "data/3F/2504E0/photo.jpg.part"
         assertFalse(s.dirExists("data/3F"))
-        assertTrue(s.createBinary(part))
-        assertFalse(s.createBinary(part))
+        assertTrue(s.createBinary(part).isOk)
+        assertFalse(s.createBinary(part).isOk)
         s.openOutput(part).use { it.write(byteArrayOf(1, 2, 3)) }
-        assertTrue(s.renameRaw(part, "photo.jpg"))
-        assertFalse(s.renameRaw("data/3F/2504E0/missing.jpg", "x.jpg"))
+        assertTrue(s.renameRaw(part, "photo.jpg").isOk)
+        assertFalse(s.renameRaw("data/3F/2504E0/missing.jpg", "x.jpg").isOk)
 
         val final = "data/3F/2504E0/photo.jpg"
         assertEquals(3L, s.statRaw(final)?.size)
@@ -178,13 +179,13 @@ class JvmFileStoreTest {
         assertNull(s.contentUri(final))
         assertTrue(s.list().isEmpty())
 
-        assertTrue(s.moveDir("data/3F/2504E0", "Archive/data/3F"))
+        assertTrue(s.moveDir("data/3F/2504E0", "Archive/data/3F").isOk)
         assertFalse(s.dirExists("data/3F/2504E0"))
         assertEquals(3L, s.statRaw("Archive/data/3F/2504E0/photo.jpg")?.size)
 
-        assertTrue(s.deleteRaw("Archive/data/3F/2504E0/photo.jpg"))
-        assertFalse(s.deleteRaw("Archive/data/3F/2504E0/photo.jpg"))
-        assertTrue(s.deleteDir("Archive/data"))
+        assertTrue(s.deleteRaw("Archive/data/3F/2504E0/photo.jpg").isOk)
+        assertFalse(s.deleteRaw("Archive/data/3F/2504E0/photo.jpg").isOk)
+        assertTrue(s.deleteDir("Archive/data").isOk)
         assertFalse(s.dirExists("Archive/data"))
     }
 
@@ -193,7 +194,7 @@ class JvmFileStoreTest {
         val s = JvmFileStore(tmp.root)
         s.createBinary("a/data/3F/X/1.jpg")
         s.createBinary("b/data/3F/X/2.jpg")
-        assertFalse(s.moveDir("a/data/3F/X", "b/data/3F"))
+        assertFalse(s.moveDir("a/data/3F/X", "b/data/3F").isOk)
         assertTrue(s.dirExists("a/data/3F/X"))
     }
 }

@@ -1,5 +1,6 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.vault.storage.isOk
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import kotlinx.coroutines.CancellationException
@@ -40,13 +41,13 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
         TakenNames(store.listDirRaw(dir).mapTo(mutableListOf()) { it.name.substringAfterLast('/').removeSuffix(PART_SUFFIX) })
 
     /** Deletes one attachment file. */
-    suspend fun delete(path: String): Boolean = store.deleteRaw(path)
+    suspend fun delete(path: String): Boolean = store.deleteRaw(path).isOk
 
     /** Deletes an attach dir with everything in it. */
-    suspend fun deleteDir(dir: String): Boolean = store.deleteDir(dir)
+    suspend fun deleteDir(dir: String): Boolean = store.deleteDir(dir).isOk
 
     /** Moves [src] into [dstParent], keeping its name. False if the destination exists. */
-    suspend fun moveDir(src: String, dstParent: String): Boolean = store.moveDir(src, dstParent)
+    suspend fun moveDir(src: String, dstParent: String): Boolean = store.moveDir(src, dstParent).isOk
 
     /**
      * Copies the tree at [src] to [dst] (created when missing), renaming a file
@@ -77,7 +78,7 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
         val srcLeaf = src.trimEnd('/').substringAfterLast('/')
         val dstParent = dst.trimEnd('/').substringBeforeLast('/', "")
         if (!store.dirExists(dst) && dst.trimEnd('/').substringAfterLast('/') == srcLeaf &&
-            store.moveDir(src, dstParent)
+            store.moveDir(src, dstParent).isOk
         ) {
             return true
         }
@@ -87,7 +88,7 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
             val taken = takenNames(dst)
             for (file in files) {
                 val target = joinPath(dst, taken.claim(file.name.substringAfterLast('/')))
-                ok = (copyFile(file.name, target) && store.deleteRaw(file.name)) && ok
+                ok = (copyFile(file.name, target) && store.deleteRaw(file.name).isOk) && ok
             }
         }
         for (sub in store.listSubdirs(src)) {
@@ -124,7 +125,7 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
                 continue
             }
             if (!store.isDirEmptyRaw(current)) return
-            if (!store.deleteDir(current)) return
+            if (!store.deleteDir(current).isOk) return
             current = current.substringBeforeLast('/', "")
         }
     }
@@ -134,7 +135,7 @@ class AttachmentFiles(private val store: FileStore) : DirExists {
      * cancellation (cancellation is rethrown).
      */
     suspend fun copyFile(src: String, dst: String): Boolean {
-        if (!store.createBinary(dst)) return false
+        if (!store.createBinary(dst).isOk) return false
         try {
             store.openInput(src).use { input ->
                 store.openOutput(dst).use { output ->

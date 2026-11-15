@@ -1,5 +1,6 @@
 package com.rrajath.grove.vault
 
+import com.rrajath.grove.vault.storage.isOk
 import android.app.Application
 import com.rrajath.grove.attach.ownerOf
 import androidx.test.core.app.ApplicationProvider
@@ -144,7 +145,7 @@ class BackendFileStoreAttachmentsTest {
         assertEquals("first miss cost $firstMiss", 0, provider.queries.get())
 
         // Our own writes drop the listing, so a new file is found at once.
-        assertTrue(saf.createBinary("data/3F/2504E0/gone-1.jpg"))
+        assertTrue(saf.createBinary("data/3F/2504E0/gone-1.jpg").isOk)
         assertNotNull(saf.statRaw("data/3F/2504E0/gone-1.jpg"))
 
         // A file added from outside shows up once the window has passed...
@@ -165,7 +166,7 @@ class BackendFileStoreAttachmentsTest {
         write("data/3F/2504E0/photo.jpg")
         val (saf, _) = store()
         assertNotNull(saf.statRaw("data/3F/2504E0/photo.jpg"))
-        assertTrue(saf.deleteRaw("data/3F/2504E0/photo.jpg"))
+        assertTrue(saf.deleteRaw("data/3F/2504E0/photo.jpg").isOk)
         assertNull(saf.contentUri("data/3F/2504E0/photo.jpg"))
     }
 
@@ -191,8 +192,8 @@ class BackendFileStoreAttachmentsTest {
 
         val part = "data/3F/2504E0-4F89/photo.jpg.part"
         assertFalse(saf.dirExists("data/3F"))
-        assertTrue(saf.createBinary(part))
-        assertFalse("already exists", saf.createBinary(part))
+        assertTrue(saf.createBinary(part).isOk)
+        assertFalse("already exists", saf.createBinary(part).isOk)
         val bytes = ByteArray(200_000) { (it % 251).toByte() }
         saf.openOutput(part).use { it.write(bytes) }
 
@@ -200,7 +201,7 @@ class BackendFileStoreAttachmentsTest {
         assertEquals(listOf("3F"), saf.listSubdirs("data"))
         assertEquals(200_000L, saf.statRaw(part)?.size)
 
-        assertTrue(saf.renameRaw(part, "photo.jpg"))
+        assertTrue(saf.renameRaw(part, "photo.jpg").isOk)
         assertNull(saf.statRaw(part))
         val final = "data/3F/2504E0-4F89/photo.jpg"
         assertArrayEquals(bytes, saf.openInput(final).use { it.readBytes() })
@@ -212,9 +213,9 @@ class BackendFileStoreAttachmentsTest {
         // Traversal is unaffected by what the raw APIs touched.
         assertEquals(listOf("inbox.org"), saf.list().map { it.name })
 
-        assertTrue(saf.deleteRaw(final))
+        assertTrue(saf.deleteRaw(final).isOk)
         assertFalse(File(tmp.root, final).exists())
-        assertFalse(saf.deleteRaw(final))
+        assertFalse(saf.deleteRaw(final).isOk)
     }
 
     @Test
@@ -234,10 +235,10 @@ class BackendFileStoreAttachmentsTest {
         write("data/3F/2504E0/a.jpg")
         write("data/3F/2504E0/sub/b.pdf")
         val (saf, _) = store()
-        assertTrue(saf.deleteDir("data/3F/2504E0"))
+        assertTrue(saf.deleteDir("data/3F/2504E0").isOk)
         assertFalse(File(tmp.root, "data/3F/2504E0").exists())
         assertTrue(File(tmp.root, "data/3F").isDirectory)
-        assertFalse(saf.deleteDir("data/3F/2504E0"))
+        assertFalse(saf.deleteDir("data/3F/2504E0").isOk)
     }
 
     @Test
@@ -252,7 +253,7 @@ class BackendFileStoreAttachmentsTest {
         val (saf, provider) = store()
         provider.supportsMove = supportsMove
 
-        assertTrue(saf.moveDir("Notes/data/3F/2504E0", "Archive/data/3F"))
+        assertTrue(saf.moveDir("Notes/data/3F/2504E0", "Archive/data/3F").isOk)
         assertFalse(File(tmp.root, "Notes/data/3F/2504E0").exists())
         assertEquals("aaa", File(tmp.root, "Archive/data/3F/2504E0/a.jpg").readText())
         assertEquals("bb", File(tmp.root, "Archive/data/3F/2504E0/sub/b.pdf").readText())
@@ -300,7 +301,7 @@ class BackendFileStoreAttachmentsTest {
         val inv = lifecycle.inventoryForFile("image-test.org", com.rrajath.grove.org.OrgParser.parse(saf.read("image-test.org")))
         assertEquals(setOf(fileId, headingId), inv.dirs.map { it.id }.toSet())
 
-        assertTrue(saf.rename("image-test.org", "Folder/image-test.org"))
+        assertTrue(saf.rename("image-test.org", "Folder/image-test.org").isOk)
         val result = lifecycle.moveNotebookAttachments("image-test.org", "Folder/image-test.org", inv)
 
         assertEquals(2, result.moved)
@@ -317,7 +318,7 @@ class BackendFileStoreAttachmentsTest {
         write("Notes/data/3F/2504E0/a.jpg")
         write("Archive/data/3F/2504E0/other.jpg")
         val (saf, _) = store()
-        assertFalse(saf.moveDir("Notes/data/3F/2504E0", "Archive/data/3F"))
+        assertFalse(saf.moveDir("Notes/data/3F/2504E0", "Archive/data/3F").isOk)
         assertTrue(File(tmp.root, "Notes/data/3F/2504E0/a.jpg").exists())
     }
 }

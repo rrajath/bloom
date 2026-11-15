@@ -11,7 +11,7 @@ import org.junit.Test
 /**
  * What every [StorageBackend] must do, whatever it talks to. A backend's test
  * class extends this and supplies the fixture hooks; a future network backend
- * has to pass the same cases. M2 and M3 add mutation and capability cases.
+ * has to pass the same cases. M3 adds capability cases.
  */
 abstract class StorageBackendContract {
 
@@ -31,6 +31,15 @@ abstract class StorageBackendContract {
     protected abstract fun finishLoadingSoon(path: String, afterMs: Long)
 
     protected abstract fun markError(path: String)
+
+    /** The text of the file at [path], or null when there is none. */
+    protected abstract fun fileText(path: String): String?
+
+    protected abstract fun dirExists(path: String): Boolean
+
+    /** The backend's handle for [name] inside the directory [dir], from a listing. */
+    private suspend fun idOf(backend: StorageBackend, dir: String, name: String): String =
+        backend.listChildren(dirId(dir)).entries.first { it.name == name }.docId
 
     @Test
     fun `a settled directory lists as Complete with files and folders`() = runTest {
@@ -116,5 +125,144 @@ abstract class StorageBackendContract {
         val backend = newBackend()
 
         assertTrue(backend.listChildren(dirId("missing")) is Listing.Failed)
+    }
+
+    // --- mutations ---
+
+    @Test
+    fun `createFile makes an empty file and returns its id`() = runTest {
+        seedDir("sub")
+        val backend = newBackend()
+
+        val created = backend.createFile(dirId("sub"), "new.org")
+
+        assertTrue("got $created", created is StorageResult.Ok)
+        assertEquals("", fileText("sub/new.org"))
+        assertEquals(created.getOrNull(), idOf(backend, "sub", "new.org"))
+    }
+
+    @Test
+    fun `createFile on a taken name is NameTaken and leaves the original and no stray`() = runTest {
+        seedFile("a.org", "keep")
+        val backend = newBackend()
+
+        val created = backend.createFile(dirId(""), "a.org")
+
+        assertEquals(StorageError.NameTaken, created)
+        assertEquals("keep", fileText("a.org"))
+        assertEquals(listOf("a.org"), backend.listChildren(dirId("")).entries.map { it.name })
+    }
+
+    @Test
+    fun `createDir makes a folder`() = runTest {
+        val backend = newBackend()
+        seedFile("a.org")
+
+        val created = backend.createDir(dirId(""), "folder")
+
+        assertTrue("got $created", created is StorageResult.Ok)
+        assertTrue(dirExists("folder"))
+    }
+
+    @Test
+    fun `rename keeps the content under the new name`() = runTest {
+        seedFile("a.org", "body")
+        val backend = newBackend()
+
+        val renamed = backend.rename(idOf(backend, "", "a.org"), "b.org")
+
+        assertTrue("got $renamed", renamed is StorageResult.Ok)
+        assertEquals("body", fileText("b.org"))
+        assertNull(fileText("a.org"))
+    }
+
+    @Test
+    fun `delete removes the file and an unknown id is an error`() = runTest {
+        seedFile("a.org")
+        val backend = newBackend()
+        val id = idOf(backend, "", "a.org")
+
+        assertTrue(backend.delete(id) is StorageResult.Ok)
+        assertNull(fileText("a.org"))
+        assertTrue(backend.delete(id) is StorageError)
+    }
+
+    @Test
+    fun `move relocates the file or says it is unsupported`() = runTest {
+        seedFile("a.org", "body")
+        seedDir("sub")
+        val backend = newBackend()
+
+        val moved = backend.move(idOf(backend, "", "a.org"), dirId(""), dirId("sub"))
+
+        when (moved) {
+            is StorageResult.Ok -> {
+                assertEquals("body", fileText("sub/a.org"))
+                assertNull(fileText("a.org"))
+            }
+            is StorageError.Unsupported -> assertEquals("body", fileText("a.org"))
+            else -> org.junit.Assert.fail("a move is done or unsupported, not $moved")
+        }
+    }
+
+    @Test
+    fun `stat reports an entry and NotFound for an unknown id`() = runTest {
+        seedFile("a.org", "hello")
+        val backend = newBackend()
+
+        val entry = backend.stat(idOf(backend, "", "a.org")).getOrNull()
+
+        assertNotNull(entry)
+        assertEquals(5L, entry!!.size)
+        assertEquals(StorageError.NotFound, backend.stat(dirId("missing.org")))
+    }
+
+    @Test
+    fun `openRead streams the content and an unknown id is NotFound`() = runTest {
+        seedFile("a.org", "hello")
+        val backend = newBackend()
+
+        val text = backend.openRead(idOf(backend, "", "a.org")).getOrNull()!!.bufferedReader().use { it.readText() }
+
+        assertEquals("hello", text)
+        assertEquals(StorageError.NotFound, backend.openRead(dirId("missing.org")))
+    }
+
+    @Test
+    fun `write replaces the content and returns the new revision`() = runTest {
+        seedFile("a.org", "a much longer first version")
+        val backend = newBackend()
+        val id = idOf(backend, "", "a.org")
+
+        val written = backend.write(id, "short".toByteArray())
+
+        assertEquals("short", fileText("a.org"))
+        assertEquals(backend.stat(id).getOrNull()!!.revision, written.getOrNull())
+    }
+
+    @Test
+    fun `write with the current revision succeeds`() = runTest {
+        seedFile("a.org", "one")
+        val backend = newBackend()
+        val id = idOf(backend, "", "a.org")
+        val revision = backend.stat(id).getOrNull()!!.revision
+
+        val written = backend.write(id, "two".toByteArray(), ifMatch = revision)
+
+        assertTrue("got $written", written is StorageResult.Ok)
+        assertEquals("two", fileText("a.org"))
+    }
+
+    @Test
+    fun `write with a stale revision is a Conflict and leaves the file unchanged`() = runTest {
+        seedFile("a.org", "one")
+        val backend = newBackend()
+        val id = idOf(backend, "", "a.org")
+        val current = backend.stat(id).getOrNull()!!.revision
+
+        val written = backend.write(id, "two".toByteArray(), ifMatch = "0:0")
+
+        assertEquals(StorageError.Conflict(current), written)
+        assertEquals("one", fileText("a.org"))
     }
 }

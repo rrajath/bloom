@@ -1,5 +1,6 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.vault.storage.isOk
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.isAttachShard
@@ -273,7 +274,7 @@ class AttachmentLifecycle(
         // Fast path: an exclusive dir going to a fresh place with the same leaf is one move.
         if (c.wholeDir && !c.copy && !store.dirExists(c.to) &&
             c.to.substringAfterLast('/') == c.from.substringAfterLast('/') &&
-            store.moveDir(c.from, c.to.substringBeforeLast('/', ""))
+            store.moveDir(c.from, c.to.substringBeforeLast('/', "")).isOk
         ) {
             files.pruneEmpty(parentOf(c.from), stopAt = dirOf(c.orgFile))
             return true to emptyMap()
@@ -298,7 +299,7 @@ class AttachmentLifecycle(
                 }
                 if (target != dst) renamed[rel] = target.removePrefix("${c.to}/")
             }
-            if (!c.copy && !store.deleteRaw(src)) ok = false
+            if (!c.copy && !store.deleteRaw(src).isOk) ok = false
         }
         if (ok && !c.copy && c.wholeDir) {
             store.deleteDir(c.from)

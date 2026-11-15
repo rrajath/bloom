@@ -2,6 +2,7 @@ package com.rrajath.grove.vault.storage
 
 import android.app.Application
 import android.provider.DocumentsContract
+import android.provider.DocumentsContract.Document
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.vault.FakeDocumentsProvider
 import java.io.File
@@ -9,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -56,6 +58,76 @@ class SafBackendTest : StorageBackendContract() {
 
     override fun markError(path: String) {
         provider.errorDirs.add(dirId(path))
+    }
+
+    override fun fileText(path: String): String? = File(tmp.root, path).takeIf { it.isFile }?.readText()
+
+    override fun dirExists(path: String) = File(tmp.root, path).isDirectory
+
+    private suspend fun idOf(backend: StorageBackend, name: String) =
+        backend.listChildren(dirId("")).entries.first { it.name == name }.docId
+
+    @Test
+    fun `a refused rename with no rename flag is Unsupported`() = runTest {
+        seedFile("a.org")
+        provider.failRename = true
+        provider.reportedFlags = Document.FLAG_SUPPORTS_WRITE
+        val backend = newBackend()
+
+        assertEquals(StorageError.Unsupported(StorageOp.Rename), backend.rename(idOf(backend, "a.org"), "b.org"))
+        assertEquals("the file must still be there", "x", fileText("a.org"))
+    }
+
+    @Test
+    fun `a refused delete with no delete flag is Unsupported`() = runTest {
+        seedFile("a.org")
+        provider.failDelete = true
+        provider.reportedFlags = Document.FLAG_SUPPORTS_WRITE
+        val backend = newBackend()
+
+        assertEquals(StorageError.Unsupported(StorageOp.Delete), backend.delete(idOf(backend, "a.org")))
+    }
+
+    @Test
+    fun `a refused create with no create flag is Unsupported`() = runTest {
+        seedFile("a.org")
+        provider.failCreate = true
+        provider.reportedFlags = Document.FLAG_SUPPORTS_WRITE
+        val backend = newBackend()
+
+        assertEquals(StorageError.Unsupported(StorageOp.Create), backend.createFile(dirId(""), "b.org"))
+    }
+
+    @Test
+    fun `a refusal from a provider that advertises the operation is a ProviderError`() = runTest {
+        seedFile("a.org")
+        provider.failRename = true
+        provider.reportedFlags = Document.FLAG_SUPPORTS_RENAME
+        val backend = newBackend()
+
+        assertTrue(backend.rename(idOf(backend, "a.org"), "b.org") is StorageError.ProviderError)
+    }
+
+    @Test
+    fun `a refusal from a provider that reports no flags is a ProviderError`() = runTest {
+        seedFile("a.org")
+        provider.failDelete = true
+        val backend = newBackend()
+
+        assertTrue(backend.delete(idOf(backend, "a.org")) is StorageError.ProviderError)
+    }
+
+    @Test
+    fun `a move the provider does not support is Unsupported`() = runTest {
+        seedFile("a.org")
+        seedDir("sub")
+        provider.supportsMove = false
+        val backend = newBackend()
+
+        val moved = backend.move(idOf(backend, "a.org"), dirId(""), dirId("sub"))
+
+        assertTrue("got $moved", moved is StorageError)
+        assertEquals("x", fileText("a.org"))
     }
 
     private fun observersOn(docId: String) = shadowOf(context.contentResolver).let { shadow ->

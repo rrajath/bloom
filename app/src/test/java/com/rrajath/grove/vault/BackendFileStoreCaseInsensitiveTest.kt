@@ -1,5 +1,6 @@
 package com.rrajath.grove.vault
 
+import com.rrajath.grove.vault.storage.isOk
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.vault.storage.BackendFileStore
@@ -53,7 +54,7 @@ class BackendFileStoreCaseInsensitiveTest {
         assertEquals("#+title: Inbox\n* Capture 2\n", File(tmp.root, "Inbox.org").readText())
         assertEquals("Inbox.org", saf.stat("inbox.org")?.name)
         assertEquals("Inbox.org", saf.canonicalName("inbox.org"))
-        assertFalse(saf.create("inbox.org"))
+        assertFalse(saf.create("inbox.org").isOk)
     }
 
     @Test
@@ -84,7 +85,7 @@ class BackendFileStoreCaseInsensitiveTest {
         val saf = store()
         saf.list()
 
-        assertTrue(saf.rename("Work.org", "work.org"))
+        assertTrue(saf.rename("Work.org", "work.org").isOk)
 
         assertEquals(listOf("work.org"), names())
         assertEquals("w", File(tmp.root, "work.org").readText())
@@ -97,7 +98,7 @@ class BackendFileStoreCaseInsensitiveTest {
         val saf = store()
         saf.list()
 
-        assertFalse(saf.rename("a.org", "b.org"))
+        assertFalse(saf.rename("a.org", "b.org").isOk)
         assertEquals(listOf("B.org", "a.org"), names())
     }
 
@@ -107,7 +108,7 @@ class BackendFileStoreCaseInsensitiveTest {
         val saf = store()
         saf.list()
 
-        assertTrue(saf.create("projects/new.org"))
+        assertTrue(saf.create("projects/new.org").isOk)
 
         assertEquals(listOf("Projects/acme.org", "Projects/new.org"), names())
         assertEquals("Projects/new.org", saf.stat("projects/new.org")?.name)
@@ -132,7 +133,7 @@ class BackendFileStoreCaseInsensitiveTest {
         val saf = store()
         saf.list()
 
-        assertTrue(saf.rename("a.org", "projects/a.org"))
+        assertTrue(saf.rename("a.org", "projects/a.org").isOk)
 
         assertEquals(listOf("Projects/a.org", "Projects/keep.org"), names())
     }
@@ -143,7 +144,7 @@ class BackendFileStoreCaseInsensitiveTest {
         val saf = store()
         saf.list()
 
-        assertTrue(saf.delete("projects/only.org"))
+        assertTrue(saf.delete("projects/only.org").isOk)
         saf.pruneEmptyDirs("projects")
 
         assertFalse(File(tmp.root, "Projects").exists())

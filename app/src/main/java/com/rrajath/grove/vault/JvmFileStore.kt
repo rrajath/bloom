@@ -1,6 +1,8 @@
 package com.rrajath.grove.vault
 
 import com.rrajath.grove.attach.AttachSkipRoots
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageResult
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
@@ -47,24 +49,39 @@ class JvmFileStore(
 
     override fun absolutePath(name: String): String = resolve(name).absolutePath
 
-    override suspend fun write(name: String, content: String) {
-        resolve(name).apply { parentFile?.mkdirs() }.writeText(content)
+    override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> {
+        val target = resolve(name)
+        if (ifMatch != null) {
+            if (!target.exists()) return StorageError.NotFound
+            val current = revisionOf(target)
+            if (current != ifMatch) return StorageError.Conflict(current)
+        }
+        target.apply { parentFile?.mkdirs() }.writeText(content)
+        return StorageResult.Ok(revisionOf(target))
     }
 
-    override suspend fun create(name: String): Boolean {
+    private fun revisionOf(file: File) = "${file.lastModified()}:${file.length()}"
+
+    override suspend fun create(name: String): StorageResult<Unit> {
         val target = resolve(name)
         target.parentFile?.mkdirs()
-        return target.createNewFile()
+        return if (target.createNewFile()) ok else StorageError.NameTaken
     }
 
-    override suspend fun rename(oldName: String, newName: String): Boolean {
+    override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> {
+        val source = resolve(oldName)
         val target = resolve(newName)
-        if (target.exists()) return false
+        if (target.exists()) return StorageError.NameTaken
+        if (!source.exists()) return StorageError.NotFound
         target.parentFile?.mkdirs()
-        return resolve(oldName).renameTo(target)
+        return if (source.renameTo(target)) ok else StorageError.ProviderError(null)
     }
 
-    override suspend fun delete(name: String): Boolean = resolve(name).delete()
+    override suspend fun delete(name: String): StorageResult<Unit> {
+        val target = resolve(name)
+        if (!target.exists()) return StorageError.NotFound
+        return if (target.delete()) ok else StorageError.ProviderError(null)
+    }
 
     override suspend fun exists(name: String): Boolean = resolve(name).exists()
 
@@ -90,11 +107,11 @@ class JvmFileStore(
         return FileInputStream(f)
     }
 
-    override suspend fun createBinary(name: String): Boolean {
+    override suspend fun createBinary(name: String): StorageResult<Unit> {
         val target = resolve(name)
         val parent = target.parentFile
-        if (parent != null && !parent.isDirectory && !parent.mkdirs()) return false
-        return target.createNewFile()
+        if (parent != null && !parent.isDirectory && !parent.mkdirs()) return StorageError.ProviderError(null)
+        return if (target.createNewFile()) ok else StorageError.NameTaken
     }
 
     override suspend fun openOutput(name: String): OutputStream {
@@ -106,16 +123,20 @@ class JvmFileStore(
     override suspend fun statRaw(name: String): FileEntry? =
         resolve(name).takeIf { it.isFile }?.let { FileEntry(name.trim('/'), it.lastModified(), it.length()) }
 
-    override suspend fun renameRaw(name: String, newLeaf: String): Boolean {
+    override suspend fun renameRaw(name: String, newLeaf: String): StorageResult<Unit> {
         require('/' !in newLeaf && newLeaf.isNotBlank()) { "Bad leaf name: $newLeaf" }
         val src = resolve(name)
-        if (!src.isFile) return false
+        if (!src.isFile) return StorageError.NotFound
         val dst = File(src.parentFile, newLeaf)
-        if (dst.exists()) return false
-        return src.renameTo(dst)
+        if (dst.exists()) return StorageError.NameTaken
+        return if (src.renameTo(dst)) ok else StorageError.ProviderError(null)
     }
 
-    override suspend fun deleteRaw(name: String): Boolean = resolve(name).let { it.isFile && it.delete() }
+    override suspend fun deleteRaw(name: String): StorageResult<Unit> {
+        val f = resolve(name)
+        if (!f.isFile) return StorageError.NotFound
+        return if (f.delete()) ok else StorageError.ProviderError(null)
+    }
 
     override suspend fun dirExists(dir: String): Boolean = dirFile(dir).isDirectory
 
@@ -131,23 +152,26 @@ class JvmFileStore(
     override suspend fun listSubdirs(dir: String): List<String> =
         dirFile(dir).listFiles().orEmpty().filter { it.isDirectory }.map { it.name }.sorted()
 
-    override suspend fun deleteDir(dir: String): Boolean {
+    override suspend fun deleteDir(dir: String): StorageResult<Unit> {
         require(dir.trim('/').isNotEmpty()) { "Refusing to delete the vault root" }
         val d = dirFile(dir)
-        return d.isDirectory && d.deleteRecursively()
+        if (!d.isDirectory) return StorageError.NotFound
+        return if (d.deleteRecursively()) ok else StorageError.ProviderError(null)
     }
 
-    override suspend fun moveDir(src: String, dstParent: String): Boolean {
+    override suspend fun moveDir(src: String, dstParent: String): StorageResult<Unit> {
         require(src.trim('/').isNotEmpty()) { "Refusing to move the vault root" }
         val from = dirFile(src)
-        if (!from.isDirectory) return false
+        if (!from.isDirectory) return StorageError.NotFound
         val parent = dirFile(dstParent)
         val to = File(parent, from.name)
-        if (to.exists()) return false
-        if (!parent.isDirectory && !parent.mkdirs()) return false
-        if (from.renameTo(to)) return true
-        return from.copyRecursively(to) && from.deleteRecursively()
+        if (to.exists()) return StorageError.NameTaken
+        if (!parent.isDirectory && !parent.mkdirs()) return StorageError.ProviderError(null)
+        if (from.renameTo(to)) return ok
+        return if (from.copyRecursively(to) && from.deleteRecursively()) ok else StorageError.ProviderError(null)
     }
+
+    private val ok: StorageResult<Unit> = StorageResult.Ok(Unit)
 
     private fun dirFile(dir: String): File {
         val trimmed = dir.trim('/')

@@ -1,5 +1,6 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.vault.storage.isOk
 import com.rrajath.grove.vault.FileStore
 import java.io.File
 import java.io.FileInputStream
@@ -134,7 +135,7 @@ class AttachmentImporter(
                     cleanUp(partPath)
                     return ImportResult.Failed(name, failure)
                 }
-                if (!store.renameRaw(partPath, name)) {
+                if (!store.renameRaw(partPath, name).isOk) {
                     cleanUp(partPath)
                     return ImportResult.Failed(name, ImportFailure.WriteFailed)
                 }
@@ -156,7 +157,7 @@ class AttachmentImporter(
             null
         } ?: return ImportFailure.SourceUnavailable
         input.use { stream ->
-            if (!store.createBinary(partPath)) return ImportFailure.WriteFailed
+            if (!store.createBinary(partPath).isOk) return ImportFailure.WriteFailed
             try {
                 store.openOutput(partPath).use { out ->
                     val buffer = ByteArray(COPY_BUFFER)

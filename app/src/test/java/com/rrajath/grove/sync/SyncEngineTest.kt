@@ -1,5 +1,7 @@
 package com.rrajath.grove.sync
 
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageResult
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
@@ -38,7 +40,7 @@ private class CountingStore(private val root: File) : FileStore {
     }
 
     override suspend fun read(name: String) = inner.read(name)
-    override suspend fun write(name: String, content: String) = inner.write(name, content)
+    override suspend fun write(name: String, content: String, ifMatch: String?) = inner.write(name, content, ifMatch)
     override suspend fun create(name: String) = inner.create(name)
     override suspend fun rename(oldName: String, newName: String) = inner.rename(oldName, newName)
     override suspend fun delete(name: String) = inner.delete(name)
@@ -238,10 +240,10 @@ class SyncEngineTest {
         val broken = object : com.rrajath.grove.vault.FileStore {
             override suspend fun list() = throw IllegalStateException("disk gone")
             override suspend fun read(name: String) = ""
-            override suspend fun write(name: String, content: String) {}
-            override suspend fun create(name: String) = false
-            override suspend fun rename(oldName: String, newName: String) = false
-            override suspend fun delete(name: String) = false
+            override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> = StorageResult.Ok("")
+            override suspend fun create(name: String): StorageResult<Unit> = StorageError.NameTaken
+            override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> = StorageError.NotFound
+            override suspend fun delete(name: String): StorageResult<Unit> = StorageError.NotFound
             override suspend fun exists(name: String) = false
         }
         val e = SyncEngine(broken, index) { now }

@@ -88,6 +88,15 @@ class BackendFileStore(
     @Volatile
     private var listed = false
 
+    /** Why the vault root couldn't be listed completely on the last walk; null when it could. */
+    @Volatile
+    private var rootProblem: String? = null
+
+    private val ok: StorageResult<Unit> = StorageResult.Ok(Unit)
+
+    /** What a missing source or parent means: the provider being unreachable, or really not there. */
+    private fun missing(): StorageError = if (rootProblem != null) StorageError.Offline else StorageError.NotFound
+
     override suspend fun list(): List<FileEntry> = listTree().entries
 
     /**
@@ -149,6 +158,7 @@ class BackendFileStore(
         docIds = files
         dirDocIds = dirs
         listed = incomplete.isEmpty()
+        rootProblem = rootReason
         return TreeListing(entries.sortedBy { it.name }, incomplete.toSet(), rootReason)
     }
 
@@ -301,38 +311,42 @@ class BackendFileStore(
         stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
     }
 
-    override suspend fun write(name: String, content: String): Unit = withContext(Dispatchers.IO) {
-        val docId = documentId(name) ?: error("File not found in vault: $name")
-        if (!backend.write(docId, content.toByteArray(Charsets.UTF_8)).isOk) error("Cannot write $name")
-    }
+    override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> =
+        withContext(Dispatchers.IO) {
+            val docId = documentId(name) ?: return@withContext missing()
+            backend.write(docId, content.toByteArray(Charsets.UTF_8), ifMatch)
+        }
 
-    override suspend fun create(name: String): Boolean = withContext(Dispatchers.IO) {
-        if (resolve(name) != null) return@withContext false
+    override suspend fun create(name: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
+        if (resolve(name) != null) return@withContext StorageError.NameTaken
         val (dir, leaf) = splitPath(name)
-        val parent = resolveDir(dir, createMissing = true) ?: return@withContext false
-        when (val created = backend.createFile(parent.docId, leaf)) {
+        val parent = when (val r = resolveDir(dir, createMissing = true)) {
+            is StorageResult.Ok -> r.value
+            is StorageError -> return@withContext r
+        }
+        val created = backend.createFile(parent.docId, leaf)
+        listingChanged(Unit)
+        when (created) {
             is StorageResult.Ok -> {
-                listingChanged(Unit)
                 docIds[childPath(parent.path, leaf)] = created.value
-                true
+                ok
             }
             StorageError.NameTaken -> {
                 // Still not [leaf]: a file the cache didn't know about holds that
                 // name (in another case, on a case-insensitive provider), and the
                 // provider made this one `name (2).org`; the backend dropped it.
                 // Learn the real file, so a write to [name] reaches that one instead.
-                listingChanged(Unit)
                 queryDir(parent.path, parent.docId)
-                false
+                StorageError.NameTaken
             }
-            is StorageError -> false
+            is StorageError -> created
         }
     }
 
-    override suspend fun rename(oldName: String, newName: String): Boolean =
+    override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> =
         withContext(Dispatchers.IO) {
-            if (oldName == newName) return@withContext false
-            val oldKey = resolve(oldName) ?: return@withContext false
+            if (oldName == newName) return@withContext StorageError.NameTaken
+            val oldKey = resolve(oldName) ?: return@withContext missing()
             val newKey = resolve(newName)
             val (oldDir, _) = splitPath(oldKey)
             val (newDir, newLeaf) = splitPath(newName)
@@ -340,37 +354,45 @@ class BackendFileStore(
             // the same file; anything else already at [newName] blocks it.
             val sameDir = sameName(oldDir, newDir)
             val caseOnly = newKey == oldKey && sameDir
-            if (newKey != null && !caseOnly) return@withContext false
-            val docId = docIds[oldKey] ?: return@withContext false
+            if (newKey != null && !caseOnly) return@withContext StorageError.NameTaken
+            val docId = docIds[oldKey] ?: return@withContext StorageError.NotFound
 
-            val ok = when {
+            val result = when {
                 // The provider sees [newLeaf] as taken (by this very file) and
                 // would pick `work (1).org`; going through a free name avoids that.
                 caseOnly -> renameVia(docId, ".$newLeaf.renaming", newLeaf)
-                sameDir -> backend.rename(docId, newLeaf).isOk
+                sameDir -> backend.rename(docId, newLeaf).map { }
                 else -> moveAcrossDirs(docId, oldKey, oldDir, newDir, newLeaf, newName)
             }
             listingChanged(Unit)
 
-            if (ok) {
+            if (result.isOk) {
                 docIds.remove(oldKey)
                 docIds.remove(newName)
             }
-            ok
+            result
         }
 
     /** Renames [docId] to [temp], then to [leaf]; puts the old name back if the second step fails. */
-    private suspend fun renameVia(docId: String, temp: String, leaf: String): Boolean {
-        val oldLeaf = backend.stat(docId).getOrNull()?.name ?: return false
-        val tempId = backend.rename(docId, temp).getOrNull() ?: return false
-        if (backend.rename(tempId, leaf).isOk) return true
-        backend.rename(tempId, oldLeaf)
-        return false
+    private suspend fun renameVia(docId: String, temp: String, leaf: String): StorageResult<Unit> {
+        val oldLeaf = backend.stat(docId).getOrNull()?.name ?: return StorageError.NotFound
+        val tempId = when (val first = backend.rename(docId, temp)) {
+            is StorageResult.Ok -> first.value
+            is StorageError -> return first
+        }
+        val second = backend.rename(tempId, leaf)
+        if (second is StorageError) {
+            backend.rename(tempId, oldLeaf)
+            return second
+        }
+        return ok
     }
 
     /**
      * Cross-directory move through the backend, falling back to copy + delete
-     * for providers that refuse it. True on success.
+     * for providers that refuse it (an unsupported or failed move). Any other
+     * error is the answer. When the delete half of the fallback fails, the copy
+     * is removed again, so a failed move doesn't leave the file in two places.
      */
     private suspend fun moveAcrossDirs(
         docId: String,
@@ -379,31 +401,56 @@ class BackendFileStore(
         newDir: String,
         newLeaf: String,
         newName: String,
-    ): Boolean {
-        val sourceParent = resolveDir(oldDir, createMissing = false) ?: return false
-        val targetParent = resolveDir(newDir, createMissing = true) ?: return false
-
-        val moved = backend.move(docId, sourceParent.docId, targetParent.docId).getOrNull()
-        if (moved == null) {
-            // Provider refused the move: copy the bytes then delete the source.
-            val content = runCatching { read(oldName) }.getOrNull() ?: return false
-            if (!create(newName)) return false
-            write(newName, content)
-            return delete(oldName)
+    ): StorageResult<Unit> {
+        val sourceParent = when (val r = resolveDir(oldDir, createMissing = false)) {
+            is StorageResult.Ok -> r.value
+            is StorageError -> return r
+        }
+        val targetParent = when (val r = resolveDir(newDir, createMissing = true)) {
+            is StorageResult.Ok -> r.value
+            is StorageError -> return r
         }
 
-        val currentName = backend.stat(moved).getOrNull()?.name
-        if (currentName != null && currentName != newLeaf) backend.rename(moved, newLeaf)
-        return true
+        when (val moved = backend.move(docId, sourceParent.docId, targetParent.docId)) {
+            is StorageResult.Ok -> {
+                val currentName = backend.stat(moved.value).getOrNull()?.name
+                if (currentName != null && currentName != newLeaf) backend.rename(moved.value, newLeaf)
+                return ok
+            }
+            is StorageError.Unsupported, is StorageError.ProviderError -> Unit
+            is StorageError -> return moved
+        }
+
+        // Provider refused the move: copy the bytes then delete the source.
+        val content = try {
+            read(oldName)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return StorageError.ProviderError(e.message)
+        }
+        val created = create(newName)
+        if (created is StorageError) return created
+        val written = write(newName, content)
+        if (written is StorageError) {
+            delete(newName)
+            return written
+        }
+        val deleted = delete(oldName)
+        if (deleted is StorageError) {
+            delete(newName)
+            return deleted
+        }
+        return ok
     }
 
-    override suspend fun delete(name: String): Boolean = withContext(Dispatchers.IO) {
-        val key = resolve(name) ?: return@withContext false
-        val docId = docIds[key] ?: return@withContext false
-        val ok = backend.delete(docId).isOk
+    override suspend fun delete(name: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
+        val key = resolve(name) ?: return@withContext missing()
+        val docId = docIds[key] ?: return@withContext StorageError.NotFound
+        val result = backend.delete(docId)
         listingChanged(Unit)
-        if (ok) docIds.remove(key)
-        ok
+        if (result.isOk) docIds.remove(key)
+        result
     }
 
     override suspend fun exists(name: String): Boolean = resolve(name) != null
@@ -490,13 +537,15 @@ class BackendFileStore(
      * provider), walking (and optionally creating) one segment at a time.
      * The tree root for "".
      */
-    private suspend fun resolveDir(dir: String, createMissing: Boolean): DirRef? {
-        if (dir.isEmpty()) return DirRef("", rootDocId)
+    private suspend fun resolveDir(dir: String, createMissing: Boolean): StorageResult<DirRef> {
+        if (dir.isEmpty()) return StorageResult.Ok(DirRef("", rootDocId))
         fun cached() = dirKey(dir)?.let { path -> dirDocIds[path]?.let { DirRef(path, it) } }
-        cached()?.let { return it }
+        cached()?.let { return StorageResult.Ok(it) }
         list()
-        cached()?.let { return it }
-        if (!createMissing) return null
+        cached()?.let { return StorageResult.Ok(it) }
+        if (!createMissing) return missing()
+        // The root couldn't be listed, so the folder may well exist: creating it now would duplicate it.
+        if (rootProblem != null) return StorageError.Offline
 
         var current = DirRef("", rootDocId)
         for (segment in dir.split('/')) {
@@ -505,13 +554,16 @@ class BackendFileStore(
                     // NameTaken: something unlisted (a skipped or ignored folder, in
                     // any case) holds the name; the provider made `name (1)` and the
                     // backend removed it again.
-                    val newDirId = backend.createDir(current.docId, segment).also { listingChanged(Unit) }
-                        .getOrNull() ?: return null
+                    val created = backend.createDir(current.docId, segment).also { listingChanged(Unit) }
+                    val newDirId = when (created) {
+                        is StorageResult.Ok -> created.value
+                        is StorageError -> return created
+                    }
                     val path = childPath(current.path, segment)
                     DirRef(path, newDirId).also { dirDocIds[path] = it.docId }
                 }
         }
-        return current
+        return StorageResult.Ok(current)
     }
 
     // --- Raw access for attachments ---------------------------------------
@@ -675,17 +727,22 @@ class BackendFileStore(
         backend.openRead(id).getOrNull() ?: throw FileNotFoundException(name)
     }
 
-    override suspend fun createBinary(name: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun createBinary(name: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         val path = name.trim('/')
-        if (rawLookup(path) != null) return@withContext false
+        if (rawLookup(path) != null) return@withContext StorageError.NameTaken
         val (dir, leaf) = splitPath(path)
-        val parentId = ensureRawDir(dir) ?: return@withContext false
+        val parentId = ensureRawDir(dir) ?: return@withContext StorageError.ProviderError(null)
         // The backend keeps the exact name (octet-stream, so no extension is
         // appended) and doesn't leave a stray "x (1).jpg" behind when it can't.
-        val docId = backend.createFile(parentId, leaf).also { listingChanged(Unit) }.getOrNull()
-            ?: return@withContext false
-        rawFileIds[path] = docId
-        true
+        val created = backend.createFile(parentId, leaf)
+        listingChanged(Unit)
+        when (created) {
+            is StorageResult.Ok -> {
+                rawFileIds[path] = created.value
+                ok
+            }
+            is StorageError -> created
+        }
     }
 
     override suspend fun openOutput(name: String): OutputStream = withContext(Dispatchers.IO) {
@@ -698,26 +755,32 @@ class BackendFileStore(
         rawLookup(path)?.takeIf { !it.isDir }?.let { FileEntry(path, it.lastModified, it.size) }
     }
 
-    override suspend fun renameRaw(name: String, newLeaf: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun renameRaw(name: String, newLeaf: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         require('/' !in newLeaf && newLeaf.isNotBlank()) { "Bad leaf name: $newLeaf" }
         val path = name.trim('/')
-        val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext false
+        val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext StorageError.NotFound
         val dir = path.substringBeforeLast('/', "")
         val newPath = if (dir.isEmpty()) newLeaf else "$dir/$newLeaf"
-        if (rawLookup(newPath) != null) return@withContext false
-        val renamed = backend.rename(meta.docId, newLeaf).also { listingChanged(Unit) }.getOrNull()
-            ?: return@withContext false
-        forgetTree(path)
-        rawFileIds[newPath] = renamed
-        true
+        if (rawLookup(newPath) != null) return@withContext StorageError.NameTaken
+        val renamed = backend.rename(meta.docId, newLeaf)
+        listingChanged(Unit)
+        when (renamed) {
+            is StorageResult.Ok -> {
+                forgetTree(path)
+                rawFileIds[newPath] = renamed.value
+                ok
+            }
+            is StorageError -> renamed
+        }
     }
 
-    override suspend fun deleteRaw(name: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun deleteRaw(name: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         val path = name.trim('/')
-        val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext false
-        val ok = backend.delete(meta.docId).also { listingChanged(Unit) }.isOk
-        if (ok) forgetTree(path)
-        ok
+        val meta = rawLookup(path)?.takeIf { !it.isDir } ?: return@withContext StorageError.NotFound
+        val result = backend.delete(meta.docId)
+        listingChanged(Unit)
+        if (result.isOk) forgetTree(path)
+        result
     }
 
     override suspend fun dirExists(dir: String): Boolean = withContext(Dispatchers.IO) {
@@ -764,13 +827,13 @@ class BackendFileStore(
         }
     }
 
-    override suspend fun deleteDir(dir: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun deleteDir(dir: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         val path = dir.trim('/')
         require(path.isNotEmpty()) { "Refusing to delete the vault root" }
-        val meta = rawLookup(path)?.takeIf { it.isDir } ?: return@withContext false
-        val ok = deleteTree(path, meta.docId)
+        val meta = rawLookup(path)?.takeIf { it.isDir } ?: return@withContext StorageError.NotFound
+        val result = deleteTree(path, meta.docId)
         forgetTree(path)
-        ok
+        result
     }
 
     /**
@@ -778,69 +841,81 @@ class BackendFileStore(
      * directory (the platform's local-storage one does); for any that refuse
      * a non-empty one, empty it first and retry.
      */
-    private suspend fun deleteTree(path: String, docId: String): Boolean {
-        if (backend.delete(docId).also { listingChanged(Unit) }.isOk) return true
-        val children = queryChildren(docId) ?: return false
+    private suspend fun deleteTree(path: String, docId: String): StorageResult<Unit> {
+        val first = backend.delete(docId).also { listingChanged(Unit) }
+        if (first.isOk) return first
+        val children = queryChildren(docId) ?: return first
         for (child in children.metas) {
             val childPath = "$path/${child.name}"
-            val ok = if (child.isDir) {
+            val result = if (child.isDir) {
                 deleteTree(childPath, child.docId)
             } else {
-                backend.delete(child.docId).also { listingChanged(Unit) }.isOk
+                backend.delete(child.docId).also { listingChanged(Unit) }
             }
-            if (!ok) return false
+            if (result is StorageError) return result
         }
-        return backend.delete(docId).also { listingChanged(Unit) }.isOk
+        return backend.delete(docId).also { listingChanged(Unit) }
     }
 
-    override suspend fun moveDir(src: String, dstParent: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun moveDir(src: String, dstParent: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         val srcPath = src.trim('/')
         val parentPath = dstParent.trim('/')
         require(srcPath.isNotEmpty()) { "Refusing to move the vault root" }
-        val meta = rawLookup(srcPath)?.takeIf { it.isDir } ?: return@withContext false
+        val meta = rawLookup(srcPath)?.takeIf { it.isDir } ?: return@withContext StorageError.NotFound
         val dstPath = if (parentPath.isEmpty()) meta.name else "$parentPath/${meta.name}"
-        if (dstPath == srcPath || dstPath.startsWith("$srcPath/")) return@withContext false
-        if (rawLookup(dstPath) != null) return@withContext false
-        val srcParentId = rawLookup(srcPath.substringBeforeLast('/', ""))?.docId ?: return@withContext false
-        val dstParentId = ensureRawDir(parentPath) ?: return@withContext false
+        if (dstPath == srcPath || dstPath.startsWith("$srcPath/")) return@withContext StorageError.NameTaken
+        if (rawLookup(dstPath) != null) return@withContext StorageError.NameTaken
+        val srcParentId = rawLookup(srcPath.substringBeforeLast('/', ""))?.docId
+            ?: return@withContext StorageError.NotFound
+        val dstParentId = ensureRawDir(parentPath) ?: return@withContext StorageError.ProviderError(null)
 
         // A provider move isn't available everywhere (API 24, and not every provider).
         val moved = backend.move(meta.docId, srcParentId, dstParentId).also { listingChanged(Unit) }
         forgetTree(srcPath)
         forgetTree(dstPath)
-        if (moved.isOk) return@withContext true
+        if (moved.isOk) return@withContext ok
 
         // Fallback: copy the tree, and only delete the source once it's all there.
         val copied = copyTree(srcPath, meta.docId, dstPath)
-        if (!copied) {
+        if (copied is StorageError) {
             rawLookup(dstPath)?.takeIf { it.isDir }?.let { deleteTree(dstPath, it.docId) }
             forgetTree(dstPath)
-            return@withContext false
+            return@withContext copied
         }
         deleteTree(srcPath, meta.docId).also { forgetTree(srcPath) }
     }
 
-    private suspend fun copyTree(srcPath: String, srcDocId: String, dstPath: String): Boolean {
-        val dstId = ensureRawDir(dstPath) ?: return false
-        val children = queryChildren(srcDocId) ?: return false
+    private suspend fun copyTree(srcPath: String, srcDocId: String, dstPath: String): StorageResult<Unit> {
+        val dstId = ensureRawDir(dstPath) ?: return StorageError.ProviderError(null)
+        val children = queryChildren(srcDocId) ?: return StorageError.ProviderError(null)
         // The caller deletes the source after a successful copy: a copy from a
         // listing that wasn't finished would silently drop the unseen files.
-        if (!children.complete) return false
+        if (!children.complete) return StorageError.Offline
         for (child in children.metas) {
             if (child.isDir) {
-                if (!copyTree("$srcPath/${child.name}", child.docId, "$dstPath/${child.name}")) return false
+                val sub = copyTree("$srcPath/${child.name}", child.docId, "$dstPath/${child.name}")
+                if (sub is StorageError) return sub
                 continue
             }
-            val created = backend.createFile(dstId, child.name).also { listingChanged(Unit) }.getOrNull()
-                ?: return false
-            val input = backend.openRead(child.docId).getOrNull() ?: return false
-            val output = backend.openWrite(created).getOrNull() ?: run { input.close(); return false }
-            val ok = runCatching {
+            val created = backend.createFile(dstId, child.name).also { listingChanged(Unit) }
+            val createdId = when (created) {
+                is StorageResult.Ok -> created.value
+                is StorageError -> return created
+            }
+            val input = when (val r = backend.openRead(child.docId)) {
+                is StorageResult.Ok -> r.value
+                is StorageError -> return r
+            }
+            val output = when (val r = backend.openWrite(createdId)) {
+                is StorageResult.Ok -> r.value
+                is StorageError -> { input.close(); return r }
+            }
+            val copied = runCatching {
                 input.use { i -> output.use { o -> i.copyTo(o, COPY_BUFFER) } }
-            }.isSuccess
-            if (!ok) return false
+            }
+            copied.exceptionOrNull()?.let { return StorageError.ProviderError(it.message) }
         }
-        return true
+        return ok
     }
 
     override suspend fun contentUri(name: String): Uri? = withContext(Dispatchers.IO) {

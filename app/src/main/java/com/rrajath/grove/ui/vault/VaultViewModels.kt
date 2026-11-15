@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.vault
 
+import com.rrajath.grove.vault.storage.isOk
+import com.rrajath.grove.vault.storage.getOrNull
 import android.content.Intent
 import android.provider.DocumentsContract
 import androidx.core.net.toUri
@@ -500,7 +502,7 @@ class NotebooksViewModel(
     fun createNotebook(name: String, dir: String = "") {
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
-            if (vault.createNotebook(name.trim(), dir.trim('/'))) {
+            if (vault.createNotebook(name.trim(), dir.trim('/')).isOk) {
                 _editEvents.emit(NotebookEditEvent.Succeeded)
                 sync.requestSync("notebook created")
             } else {
@@ -525,7 +527,7 @@ class NotebooksViewModel(
     ) {
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
-            val newPath = vault.moveNotebook(path, newDir.trim('/'))
+            val newPath = vault.moveNotebook(path, newDir.trim('/')).getOrNull()
             if (newPath != null) {
                 database.indexDao().removeNotebook(path)
                 val lifecycle = attachments()
@@ -582,7 +584,7 @@ class NotebooksViewModel(
             return
         }
         viewModelScope.launch {
-            if (vault.renameNotebook(oldName, newName)) {
+            if (vault.renameNotebook(oldName, newName).isOk) {
                 database.indexDao().removeNotebook(oldName)
                 settingsRepository.moveNotebookStyle(oldName, target)
                 favoritesRepository?.rebaseFile(oldName, target)
@@ -603,7 +605,7 @@ class NotebooksViewModel(
     ) {
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
-            if (vault.deleteNotebook(name)) {
+            if (vault.deleteNotebook(name).isOk) {
                 database.indexDao().removeNotebook(name)
                 val lifecycle = attachments()
                 if (lifecycle != null && !inventory.isEmpty) {
@@ -679,7 +681,7 @@ class NotebooksViewModel(
         }
         viewModelScope.launch {
             val affected = affectedPaths(dir)
-            val renamedTo = vault.renameFolder(dir, newName)
+            val renamedTo = vault.renameFolder(dir, newName).getOrNull()
             if (renamedTo != null) {
                 attachments()?.let { lifecycle ->
                     val result = withContext(dispatchers.io) {
@@ -714,7 +716,7 @@ class NotebooksViewModel(
         val vault = vaultFlow.value ?: return
         viewModelScope.launch {
             val affected = affectedPaths(dir)
-            if (vault.deleteFolder(dir) > 0) {
+            if ((vault.deleteFolder(dir).getOrNull() ?: 0) > 0) {
                 attachments()?.let { lifecycle ->
                     withContext(dispatchers.io) { runCatching { lifecycle.deleteFolderAttachments(dir) } }
                 }

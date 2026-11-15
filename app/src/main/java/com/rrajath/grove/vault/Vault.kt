@@ -3,6 +3,10 @@ package com.rrajath.grove.vault
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageResult
+import com.rrajath.grove.vault.storage.isOk
+import com.rrajath.grove.vault.storage.map
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +96,13 @@ fun matchDenoteNotebook(identifier: String, notebooks: List<Notebook>, preferred
 }
 
 /**
+ * A storage failure surfaced as an exception, for the callers that save text
+ * and can't usefully carry on without it. [Vault.save] throws it; code that
+ * wants to tell the user why uses [Vault.trySave] and reads the [error].
+ */
+class StorageException(val error: StorageError) : java.io.IOException("Storage operation failed: $error")
+
+/**
  * Vault facade over a [FileStore]: lists notebooks (applying ignore rules),
  * parses documents, creates new notebooks. Pure Kotlin; android code supplies
  * the FileStore. Parses are cached by (name, mtime, size).
@@ -155,22 +166,22 @@ class Vault(
      * Create an empty notebook file, in [dir] (a vault-relative directory, ""
      * for the vault root). [name] may itself contain `/` segments, which are
      * appended under [dir]. Missing directories are created. Returns false if
-     * the resulting path is already taken.
+     * the resulting path is already taken ([StorageError.NameTaken]).
      */
-    suspend fun createNotebook(name: String, dir: String = ""): Boolean {
+    suspend fun createNotebook(name: String, dir: String = ""): StorageResult<Unit> {
         val leaf = if (name.endsWith(".org")) name else "$name.org"
         val fileName = vaultPath(dir, leaf)
-        if (pathTaken(fileName)) return false
+        if (pathTaken(fileName)) return StorageError.NameTaken
         return store.create(fileName)
     }
 
     /**
      * Create an empty file at exactly [path] (vault-relative), with no `.org`
      * appended, e.g. an Emacs-style `agenda.org_archive` archive target.
-     * Returns false if the path is already taken.
+     * [StorageError.NameTaken] if the path is already taken.
      */
-    suspend fun createFile(path: String): Boolean {
-        if (pathTaken(path)) return false
+    suspend fun createFile(path: String): StorageResult<Unit> {
+        if (pathTaken(path)) return StorageError.NameTaken
         return store.create(path)
     }
 
@@ -190,30 +201,30 @@ class Vault(
     /**
      * Rename and/or move a notebook. [newName] may be a bare name (kept in the
      * same directory) or a full vault-relative path (moved). Returns false if
-     * the target exists or the source is missing.
+     * the target exists ([StorageError.NameTaken]) or the source is missing.
      */
-    suspend fun renameNotebook(oldName: String, newName: String): Boolean {
+    suspend fun renameNotebook(oldName: String, newName: String): StorageResult<Unit> {
         val target = if (newName.endsWith(".org")) newName else "$newName.org"
         // Block a rename onto an existing (case-insensitively) file, but allow a
         // case-only self-rename (Work.org -> work.org).
-        if (!target.equals(oldName, ignoreCase = true) && pathTaken(target)) return false
-        val ok = store.rename(oldName, target)
-        if (ok) evictParse(oldName)
-        return ok
+        if (!target.equals(oldName, ignoreCase = true) && pathTaken(target)) return StorageError.NameTaken
+        val result = store.rename(oldName, target)
+        if (result.isOk) evictParse(oldName)
+        return result
     }
 
     /**
      * Move a notebook to a different directory, keeping its file name. [newDir]
      * is a vault-relative directory ("" for the root). Returns the new path on
-     * success, or null if the move failed or was a no-op.
+     * success; a move onto its own path is [StorageError.NameTaken].
      */
-    suspend fun moveNotebook(path: String, newDir: String): String? {
+    suspend fun moveNotebook(path: String, newDir: String): StorageResult<String> {
         val leaf = path.substringAfterLast('/')
         val target = vaultPath(newDir, leaf)
-        if (target == path) return null
-        val ok = store.rename(path, target)
-        if (ok) evictParse(path)
-        return if (ok) target else null
+        if (target == path) return StorageError.NameTaken
+        val result = store.rename(path, target)
+        if (result.isOk) evictParse(path)
+        return result.map { target }
     }
 
     /**
@@ -222,74 +233,84 @@ class Vault(
      * (Syncthing file versioning). Any directory left empty by the delete is
      * pruned so stale folders don't linger.
      */
-    suspend fun deleteNotebook(name: String): Boolean {
-        val ok = store.delete(name)
-        if (ok) {
+    suspend fun deleteNotebook(name: String): StorageResult<Unit> {
+        val result = store.delete(name)
+        if (result.isOk) {
             evictParse(name)
             store.pruneEmptyDirs(name.substringBeforeLast('/', ""))
         }
-        return ok
+        return result
     }
 
     /**
      * Rename a folder in place, keeping its parent directory. Every `.org`
      * notebook under [dir] is moved to the matching path under the new
      * directory; missing intermediate directories are created by the FileStore.
-     * Returns the new vault-relative directory path, or null on a no-op (name
-     * unchanged) or if any destination path is already taken.
+     * Returns the new vault-relative directory path. A name unchanged, or any
+     * destination path already taken, is [StorageError.NameTaken]; a folder with
+     * no notebooks is [StorageError.NotFound]. Stops at the first move the
+     * provider refuses and returns its error (earlier moves stay done).
      */
-    suspend fun renameFolder(dir: String, newName: String): String? {
+    suspend fun renameFolder(dir: String, newName: String): StorageResult<String> {
         val trimmed = dir.trim('/')
-        if (trimmed.isEmpty()) return null
+        if (trimmed.isEmpty()) return StorageError.NotFound
         val parent = trimmed.substringBeforeLast('/', "")
         val leaf = newName.trim().trim('/')
-        if (leaf.isEmpty()) return null
+        if (leaf.isEmpty()) return StorageError.NameTaken
         val newDir = vaultPath(parent, leaf)
-        if (newDir == trimmed) return null
+        if (newDir == trimmed) return StorageError.NameTaken
 
         val prefix = "$trimmed/"
         val moves = listOrgFiles()
             .map { it.name }
             .filter { it.startsWith(prefix) }
             .map { it to newDir + "/" + it.removePrefix(prefix) }
-        if (moves.isEmpty()) return null
+        if (moves.isEmpty()) return StorageError.NotFound
         // Reject if the destination folder already exists (any file already sits
         // under it) or a moved file's target path is taken — both compared
         // case-insensitively, since the sync target is often a case-insensitive
         // filesystem.
         val allFiles = store.list().map { it.name }
-        if (allFiles.any { it.startsWith("$newDir/", ignoreCase = true) }) return null
-        if (moves.any { (_, to) -> allFiles.any { it.equals(to, ignoreCase = true) } }) return null
+        if (allFiles.any { it.startsWith("$newDir/", ignoreCase = true) }) return StorageError.NameTaken
+        if (moves.any { (_, to) -> allFiles.any { it.equals(to, ignoreCase = true) } }) return StorageError.NameTaken
 
         var movedAny = false
+        var failure: StorageError? = null
         for ((from, to) in moves) {
-            if (store.rename(from, to)) {
-                evictParse(from)
-                movedAny = true
+            val result = store.rename(from, to)
+            if (result is StorageError) {
+                failure = result
+                break
             }
+            evictParse(from)
+            movedAny = true
         }
         if (movedAny) store.pruneEmptyDirs(trimmed)
-        return if (movedAny) newDir else null
+        return failure ?: StorageResult.Ok(newDir)
     }
 
     /**
      * Permanently delete every `.org` notebook under [dir] (recursively), then
      * prune the emptied directory. See [deleteNotebook] on the lack of an OS
-     * trash. Returns the count of files deleted.
+     * trash. Returns the count of files deleted; stops at the first delete the
+     * provider refuses and returns its error (earlier deletes stay done).
      */
-    suspend fun deleteFolder(dir: String): Int {
+    suspend fun deleteFolder(dir: String): StorageResult<Int> {
         val trimmed = dir.trim('/')
         val prefix = "$trimmed/"
-        val deleted = listOrgFiles()
-            .map { it.name }
-            .filter { it.startsWith(prefix) }
-            .count {
-                val ok = store.delete(it)
-                if (ok) evictParse(it)
-                ok
+        var deleted = 0
+        var failure: StorageError? = null
+        for (name in listOrgFiles().map { it.name }.filter { it.startsWith(prefix) }) {
+            val result = store.delete(name)
+            if (result is StorageError) {
+                failure = result
+                break
             }
+            evictParse(name)
+            deleted++
+        }
         if (deleted > 0) store.pruneEmptyDirs(trimmed)
-        return deleted
+        return failure ?: StorageResult.Ok(deleted)
     }
 
     /**
@@ -301,11 +322,27 @@ class Vault(
      * hits the cache instead of re-parsing the file it just wrote.
      */
     suspend fun save(fileName: String, content: String, parsed: OrgDocument? = null) {
+        val result = trySave(fileName, content, parsed)
+        if (result is StorageError) throw StorageException(result)
+    }
+
+    /**
+     * [save] that reports a failure as a [StorageError] instead of throwing, for
+     * callers that tell the user why the text wasn't saved. Nothing is written
+     * and the cache is untouched on failure.
+     */
+    suspend fun trySave(fileName: String, content: String, parsed: OrgDocument? = null): StorageResult<Unit> {
         // On a case-insensitive store `inbox.org` is an existing `Inbox.org`: write
         // that file under its real name (the line-ending memo and cache key on it).
         var name = store.canonicalName(fileName)
-        if (store.stat(name) == null && !store.create(name)) name = store.canonicalName(fileName)
-        store.write(name, content)
+        if (store.stat(name) == null) {
+            val created = store.create(name)
+            // NameTaken: the file turned up under another spelling meanwhile; write to that one.
+            if (created is StorageError && created != StorageError.NameTaken) return created
+            if (created is StorageError) name = store.canonicalName(fileName)
+        }
+        val written = store.write(name, content)
+        if (written is StorageError) return written
         val entry = if (parsed != null) store.stat(name) else null
         if (entry != null) {
             val key = CacheKey(entry.name, entry.lastModified, entry.size)
@@ -317,6 +354,7 @@ class Vault(
         } else {
             evictParse(name)
         }
+        return StorageResult.Ok(Unit)
     }
 
     /** Drop every cached parse of [fileName] (any revision). */

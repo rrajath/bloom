@@ -1,5 +1,7 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageResult
 import android.app.Application
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -32,10 +34,10 @@ class AttachmentIntentsTest {
     private val store = object : FileStore {
         override suspend fun list(): List<FileEntry> = emptyList()
         override suspend fun read(name: String) = error("unused")
-        override suspend fun write(name: String, content: String) = error("unused")
-        override suspend fun create(name: String) = false
-        override suspend fun rename(oldName: String, newName: String) = false
-        override suspend fun delete(name: String) = false
+        override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> = error("unused")
+        override suspend fun create(name: String): StorageResult<Unit> = StorageError.NameTaken
+        override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> = StorageError.NotFound
+        override suspend fun delete(name: String): StorageResult<Unit> = StorageError.NotFound
         override suspend fun exists(name: String) = false
         override suspend fun contentUri(name: String): Uri? = uri.takeIf { name == "data/3F/X/a.pdf" }
     }

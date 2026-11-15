@@ -2,6 +2,9 @@ package com.rrajath.grove.vault
 
 import android.net.Uri
 import com.rrajath.grove.attach.AttachSkipRoots
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageOp
+import com.rrajath.grove.vault.storage.StorageResult
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -34,8 +37,12 @@ data class TreeListing(
 }
 
 /**
- * Abstraction over the sync directory. The app uses a Storage Access Framework
- * implementation; unit tests use [JvmFileStore].
+ * Abstraction over the sync directory. The app uses [com.rrajath.grove.vault.storage.BackendFileStore]
+ * over a storage provider; unit tests use [JvmFileStore].
+ *
+ * Mutations return a [StorageResult]: [StorageResult.Ok], or the
+ * [StorageError] saying why not (name taken, not found, unsupported by the
+ * provider, provider error...), never a bare `false`.
  *
  * Names are vault-relative paths with `/` separators, e.g. `projects/acme.org`.
  * A file at the root of the vault has a name equal to its bare file name. The
@@ -96,25 +103,29 @@ interface FileStore {
     suspend fun read(name: String): String
 
     /**
-     * Write full content, truncating. Implementations MUST truncate properly
-     * (SAF streams need mode "wt" or shorter content leaves trailing bytes).
+     * Write full content, truncating; returns the file's new revision.
+     * Implementations MUST truncate properly (SAF streams need mode "wt" or
+     * shorter content leaves trailing bytes). When [ifMatch] is set and the
+     * file's current revision (see [com.rrajath.grove.vault.storage.DocEntry.revision])
+     * differs, nothing is written and the result is [StorageError.Conflict].
+     * [StorageError.NotFound] when [name] doesn't exist (see [create]).
      */
-    suspend fun write(name: String, content: String)
+    suspend fun write(name: String, content: String, ifMatch: String? = null): StorageResult<String>
 
     /**
-     * Create an empty file, creating any missing parent directories; returns
-     * false if it already exists.
+     * Create an empty file, creating any missing parent directories;
+     * [StorageError.NameTaken] if it already exists.
      */
-    suspend fun create(name: String): Boolean
+    suspend fun create(name: String): StorageResult<Unit>
 
     /**
      * Rename or move a file. [newName] may be in a different directory, in which
-     * case intermediate directories are created. Returns false if the target
-     * already exists or the source is missing.
+     * case intermediate directories are created. [StorageError.NameTaken] if the
+     * target already exists, [StorageError.NotFound] if the source is missing.
      */
-    suspend fun rename(oldName: String, newName: String): Boolean
+    suspend fun rename(oldName: String, newName: String): StorageResult<Unit>
 
-    suspend fun delete(name: String): Boolean
+    suspend fun delete(name: String): StorageResult<Unit>
 
     suspend fun exists(name: String): Boolean
 
@@ -142,9 +153,9 @@ interface FileStore {
 
     /**
      * Creates an empty file at [name], creating missing parent directories.
-     * False if anything already exists there or the provider refused.
+     * [StorageError.NameTaken] if anything already exists there.
      */
-    suspend fun createBinary(name: String): Boolean = unsupported()
+    suspend fun createBinary(name: String): StorageResult<Unit> = StorageError.Unsupported(StorageOp.Create)
 
     /** Opens the existing file [name] for writing, truncating it (mode "wt"). */
     suspend fun openOutput(name: String): OutputStream = unsupported()
@@ -153,13 +164,15 @@ interface FileStore {
     suspend fun statRaw(name: String): FileEntry? = unsupported()
 
     /**
-     * Renames the file [name] within its directory to [newLeaf]. False if the
-     * source is missing or [newLeaf] is taken.
+     * Renames the file [name] within its directory to [newLeaf].
+     * [StorageError.NotFound] if the source is missing, [StorageError.NameTaken]
+     * if [newLeaf] is taken.
      */
-    suspend fun renameRaw(name: String, newLeaf: String): Boolean = unsupported()
+    suspend fun renameRaw(name: String, newLeaf: String): StorageResult<Unit> =
+        StorageError.Unsupported(StorageOp.Rename)
 
-    /** Deletes the file [name]. False if it wasn't there or couldn't be removed. */
-    suspend fun deleteRaw(name: String): Boolean = unsupported()
+    /** Deletes the file [name]. [StorageError.NotFound] if it wasn't there. */
+    suspend fun deleteRaw(name: String): StorageResult<Unit> = StorageError.Unsupported(StorageOp.Delete)
 
     /** True when [dir] is an existing directory ("" is the vault root). */
     suspend fun dirExists(dir: String): Boolean = unsupported()
@@ -178,18 +191,25 @@ interface FileStore {
      */
     suspend fun isDirEmptyRaw(dir: String): Boolean = listDirRaw(dir).isEmpty() && listSubdirs(dir).isEmpty()
 
-    /** Deletes [dir] and everything in it. Never the root. False if missing or refused. */
-    suspend fun deleteDir(dir: String): Boolean = unsupported()
+    /** Deletes [dir] and everything in it. Never the root. [StorageError.NotFound] if missing. */
+    suspend fun deleteDir(dir: String): StorageResult<Unit> = StorageError.Unsupported(StorageOp.Delete)
 
     /**
      * Moves [src] (keeping its leaf name) into [dstParent], creating
-     * [dstParent] when missing. False when the source is missing or the
-     * destination already exists (merging is [com.rrajath.grove.attach.AttachmentFiles]'
-     * job). Uses a provider move when possible, else copy then delete.
+     * [dstParent] when missing. [StorageError.NotFound] when the source is
+     * missing, [StorageError.NameTaken] when the destination already exists
+     * (merging is [com.rrajath.grove.attach.AttachmentFiles]' job). Uses a
+     * provider move when possible, else copy then delete.
      */
-    suspend fun moveDir(src: String, dstParent: String): Boolean = unsupported()
+    suspend fun moveDir(src: String, dstParent: String): StorageResult<Unit> =
+        StorageError.Unsupported(StorageOp.Move)
 
-    /** A content URI for the file [name] to hand to intents and image loaders; null when there's none. */
+    /**
+     * A content URI for the file [name] to hand to intents and image loaders;
+     * null when there's none. The URI is one another app can read, and may be
+     * slow to produce (a network backend downloads first): suspend, and never
+     * call it on the main thread or in a tight loop.
+     */
     suspend fun contentUri(name: String): Uri? = null
 
     /**

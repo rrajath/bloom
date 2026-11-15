@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.capture
 
+import com.rrajath.grove.vault.storage.isOk
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -473,7 +474,7 @@ class CaptureViewModel(
             writeMutex.withLock {
                 val vault = vaultFlow.value ?: return@withLock
                 if (prev.ownedNewFile) {
-                    if (withContext(dispatchers.default) { vault.deleteNotebook(resolvedPath) }) {
+                    if (withContext(dispatchers.default) { vault.deleteNotebook(resolvedPath) }.isOk) {
                         database.indexDao().removeNotebook(resolvedPath)
                     }
                     sync.requestSync("capture discarded")

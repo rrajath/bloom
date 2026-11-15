@@ -1,5 +1,6 @@
 package com.rrajath.grove.testing
 
+import com.rrajath.grove.vault.storage.isOk
 import com.rrajath.grove.settings.GroveSettings
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -18,8 +19,8 @@ class TestInfraSmokeTest {
     @Test
     fun `FakeFileStore round-trips content and tracks revision`() = runTest {
         val store = FakeFileStore()
-        assertTrue(store.create("a/b/note.org"))
-        assertFalse(store.create("a/b/note.org"))
+        assertTrue(store.create("a/b/note.org").isOk)
+        assertFalse(store.create("a/b/note.org").isOk)
         store.write("a/b/note.org", "* Task")
 
         assertEquals("* Task", store.read("a/b/note.org"))

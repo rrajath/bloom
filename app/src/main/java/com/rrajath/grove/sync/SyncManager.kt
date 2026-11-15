@@ -1,5 +1,6 @@
 package com.rrajath.grove.sync
 
+import com.rrajath.grove.vault.storage.StorageError
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -209,21 +210,11 @@ class SyncManager(
     override suspend fun resolveConflict(baseName: String, resolution: ConflictResolution): Boolean {
         val store = store ?: return false
         val copyName = database.indexDao().conflictFileNameFor(baseName) ?: return false
-        when (resolution) {
-            ConflictResolution.KEEP_CURRENT -> Unit
-            ConflictResolution.KEEP_CONFLICT_COPY ->
-                store.write(baseName, store.read(copyName))
-
-            ConflictResolution.KEEP_BOTH ->
-                store.write(
-                    baseName,
-                    ConflictResolver.keepBoth(
-                        mainText = store.read(baseName),
-                        conflictText = store.read(copyName),
-                    ),
-                )
+        val applied = ConflictResolver.apply(store, baseName, copyName, resolution)
+        if (applied is StorageError) {
+            log("conflict on $baseName not resolved: $applied")
+            return false
         }
-        store.delete(copyName)
         log("conflict on $baseName resolved: ${resolution.name.lowercase()}")
         requestSync("conflict resolved")
         return true

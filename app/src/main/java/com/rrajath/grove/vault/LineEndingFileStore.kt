@@ -1,5 +1,7 @@
 package com.rrajath.grove.vault
 
+import com.rrajath.grove.vault.storage.StorageResult
+import com.rrajath.grove.vault.storage.isOk
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -26,18 +28,18 @@ class LineEndingFileStore(private val delegate: FileStore) : FileStore by delega
         return normalizeLineEndings(raw)
     }
 
-    override suspend fun write(name: String, content: String) {
+    override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> {
         val lf = normalizeLineEndings(content)
-        delegate.write(name, if (name in crlf) lf.replace("\n", "\r\n") else lf)
+        return delegate.write(name, if (name in crlf) lf.replace("\n", "\r\n") else lf, ifMatch)
     }
 
-    override suspend fun rename(oldName: String, newName: String): Boolean {
+    override suspend fun rename(oldName: String, newName: String): StorageResult<Unit> {
         val renamed = delegate.rename(oldName, newName)
-        if (renamed && crlf.remove(oldName)) crlf.add(newName)
+        if (renamed.isOk && crlf.remove(oldName)) crlf.add(newName)
         return renamed
     }
 
-    override suspend fun delete(name: String): Boolean {
+    override suspend fun delete(name: String): StorageResult<Unit> {
         crlf.remove(name)
         return delegate.delete(name)
     }

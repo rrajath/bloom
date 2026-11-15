@@ -197,7 +197,8 @@ class SafBackend(
         withContext(Dispatchers.IO) {
             var created = guarded(StorageOp.Create) {
                 DocumentsContract.createDocument(resolver, docUri(parentId), mime, name)
-            }.orProviderRefused().let { if (it is StorageError) return@withContext it else (it as StorageResult.Ok).value }
+            }.orRefused(StorageOp.Create, parentId, DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE)
+                .let { if (it is StorageError) return@withContext it else (it as StorageResult.Ok).value }
             val actual = displayNameOf(created)
             if (actual != null && actual != name) {
                 guarded(StorageOp.Rename) { DocumentsContract.renameDocument(resolver, created, name) }
@@ -213,14 +214,17 @@ class SafBackend(
 
     override suspend fun delete(docId: String): StorageResult<Unit> = withContext(Dispatchers.IO) {
         when (val r = guarded(StorageOp.Delete) { DocumentsContract.deleteDocument(resolver, docUri(docId)) }) {
+            is StorageError.ProviderError -> refused(StorageOp.Delete, docId, DocumentsContract.Document.FLAG_SUPPORTS_DELETE, r)
             is StorageError -> r
-            is StorageResult.Ok -> if (r.value) StorageResult.Ok(Unit) else StorageError.ProviderError(null)
+            is StorageResult.Ok ->
+                if (r.value) StorageResult.Ok(Unit)
+                else refused(StorageOp.Delete, docId, DocumentsContract.Document.FLAG_SUPPORTS_DELETE, StorageError.ProviderError(null))
         }
     }
 
     override suspend fun rename(docId: String, newName: String): StorageResult<String> = withContext(Dispatchers.IO) {
         guarded(StorageOp.Rename) { DocumentsContract.renameDocument(resolver, docUri(docId), newName) }
-            .orProviderRefused()
+            .orRefused(StorageOp.Rename, docId, DocumentsContract.Document.FLAG_SUPPORTS_RENAME)
             .map { DocumentsContract.getDocumentId(it) }
     }
 
@@ -230,7 +234,8 @@ class SafBackend(
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return@withContext StorageError.Unsupported(StorageOp.Move)
             guarded(StorageOp.Move) {
                 DocumentsContract.moveDocument(resolver, docUri(docId), docUri(fromParent), docUri(toParent))
-            }.orProviderRefused().map { DocumentsContract.getDocumentId(it) }
+            }.orRefused(StorageOp.Move, docId, DocumentsContract.Document.FLAG_SUPPORTS_MOVE)
+                .map { DocumentsContract.getDocumentId(it) }
         }
 
     private fun displayNameOf(uri: Uri): String? =
@@ -265,11 +270,30 @@ class SafBackend(
 
     private fun providerError(e: Exception) = StorageError.ProviderError(e.message ?: e.javaClass.simpleName)
 
-    /** A provider that answered null refused without saying why. */
-    private fun <T : Any> StorageResult<T?>.orProviderRefused(): StorageResult<T> = when (this) {
-        is StorageError -> this
-        is StorageResult.Ok -> value?.let { StorageResult.Ok(it) } ?: StorageError.ProviderError(null)
+    /**
+     * DocumentsContract's helpers swallow a provider's exception and answer null
+     * (or false), so a refusal arrives without a reason. The document's own flags
+     * usually give it: a provider that doesn't advertise [flag] doesn't offer [op].
+     */
+    private fun <T : Any> StorageResult<T?>.orRefused(op: StorageOp, docId: String, flag: Int): StorageResult<T> =
+        when (this) {
+            is StorageError.ProviderError -> refused(op, docId, flag, this)
+            is StorageError -> this
+            is StorageResult.Ok -> value?.let { StorageResult.Ok(it) }
+                ?: refused(op, docId, flag, StorageError.ProviderError(null))
+        }
+
+    /** [StorageError.Unsupported] when [docId] doesn't advertise [flag]; else [fallback]. */
+    private fun refused(op: StorageOp, docId: String, flag: Int, fallback: StorageError): StorageError {
+        val flags = flagsOf(docId)
+        return if (flags != null && flags and flag == 0) StorageError.Unsupported(op) else fallback
     }
+
+    /** [docId]'s `COLUMN_FLAGS`; null when the provider doesn't say. */
+    private fun flagsOf(docId: String): Int? = runCatching {
+        resolver.query(docUri(docId), arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)
+            ?.use { if (it.moveToFirst() && !it.isNull(0)) it.getInt(0) else null }
+    }.getOrNull()
 
     /** A null stream means the document couldn't be opened. */
     private fun <T : Any> StorageResult<T?>.orNotFound(): StorageResult<T> = when (this) {

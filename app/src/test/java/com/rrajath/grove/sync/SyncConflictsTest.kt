@@ -164,4 +164,51 @@ class SyncConflictsTest {
         assertNull("conflict marker should clear once the copy is gone", index.conflicts["journal.org"])
         assertFalse(store.exists(copyName))
     }
+
+    @Test
+    fun `apply keeps the conflict copy when the base write is refused`() = runTest {
+        val copy = "journal.sync-conflict-20250611-143200-DEVICE.org"
+        val store = com.rrajath.grove.testing.FakeFileStore(
+            mapOf("journal.org" to "* Mine\n", copy to "* Theirs\n"),
+        )
+        store.failWith(
+            com.rrajath.grove.vault.storage.StorageOp.Write,
+            com.rrajath.grove.vault.storage.StorageError.Offline,
+        )
+
+        for (resolution in listOf(ConflictResolution.KEEP_CONFLICT_COPY, ConflictResolution.KEEP_BOTH)) {
+            val result = ConflictResolver.apply(store, "journal.org", copy, resolution)
+
+            assertEquals(com.rrajath.grove.vault.storage.StorageError.Offline, result)
+            assertEquals("* Theirs\n", store.read(copy))
+            assertEquals("* Mine\n", store.read("journal.org"))
+        }
+    }
+
+    @Test
+    fun `apply writes the base then deletes the copy`() = runTest {
+        val copy = "journal.sync-conflict-20250611-143200-DEVICE.org"
+        val store = com.rrajath.grove.testing.FakeFileStore(
+            mapOf("journal.org" to "* Mine\n", copy to "* Theirs\n"),
+        )
+
+        val result = ConflictResolver.apply(store, "journal.org", copy, ConflictResolution.KEEP_CONFLICT_COPY)
+
+        assertTrue(result is com.rrajath.grove.vault.storage.StorageResult.Ok)
+        assertEquals("* Theirs\n", store.read("journal.org"))
+        assertFalse(store.exists(copy))
+    }
+
+    @Test
+    fun `apply KEEP_CURRENT only removes the copy`() = runTest {
+        val copy = "journal.sync-conflict-20250611-143200-DEVICE.org"
+        val store = com.rrajath.grove.testing.FakeFileStore(
+            mapOf("journal.org" to "* Mine\n", copy to "* Theirs\n"),
+        )
+
+        ConflictResolver.apply(store, "journal.org", copy, ConflictResolution.KEEP_CURRENT)
+
+        assertEquals("* Mine\n", store.read("journal.org"))
+        assertFalse(store.exists(copy))
+    }
 }
