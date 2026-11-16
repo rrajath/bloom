@@ -1,19 +1,30 @@
 package com.rrajath.grove.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -40,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.org.InlineToken
 import com.rrajath.grove.org.math.MathKind
+import com.rrajath.grove.org.math.MathFragments
 import com.rrajath.grove.org.math.MathLayout
 import com.rrajath.grove.org.math.MathMetrics
 import com.rrajath.grove.org.math.MathOp
@@ -48,6 +60,8 @@ import com.rrajath.grove.org.math.MathVariant
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.PlexSerif
+import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.theme.LocalRenderMath
 import kotlin.math.max
 
 /**
@@ -219,14 +233,16 @@ internal fun DisplayMath(
     style: TextStyle,
     modifier: Modifier = Modifier,
     onDoubleTap: (() -> Unit)? = null,
+    /** Display style (stacked limits, roomy fractions) or, when false, the compact inline style. */
+    display: Boolean = true,
 ) {
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer(cacheSize = 256)
     val color = mathColor(style)
     val fontSize = mathFontSize(style)
-    val layout = remember(source, density, measurer, color, fontSize) {
+    val layout = remember(source, display, density, measurer, color, fontSize) {
         MathTypesetter.layout(
-            source, display = true, sizePx = with(density) { fontSize.toPx() },
+            source, display = display, sizePx = with(density) { fontSize.toPx() },
             metrics = ComposeMathMetrics(measurer, density, color),
         )
     }
@@ -254,5 +270,40 @@ internal fun DisplayMath(
                 canvasHeight = max(layout.height, 1f),
             )
         }
+    }
+}
+
+/**
+ * A live preview of the formula the cursor is in, for the editors: inline (`$x^2$`, `\(…\)`),
+ * display (`$$ … $$`, `\[ … \]`) or a math environment (`\begin{align} … \end{align}`), typeset
+ * as you type. Nothing is drawn while the cursor isn't in a formula, or with Settings → Render
+ * math off. An environment still being written, with no `\end` yet, previews too.
+ *
+ * It takes real layout space at the top of the editor, under the app bar, rather than floating
+ * over the text, so it never covers the line being edited and stays clear of the editor's
+ * bottom-anchored controls. A tall formula scrolls inside it.
+ */
+@Composable
+internal fun MathLivePreview(textState: TextFieldState, modifier: Modifier = Modifier) {
+    if (!LocalRenderMath.current) return
+    val fragment by remember(textState) {
+        derivedStateOf { MathFragments.at(textState.text.toString(), textState.selection.end) }
+    }
+    val shown = fragment ?: return
+    val c = MaterialTheme.grove
+    val style = remember(c) { TextStyle(fontFamily = PlexSerif, fontSize = 20.sp, color = c.ink) }
+    Column(modifier.fillMaxWidth().background(c.surface2).animateContentSize()) {
+        Box(
+            Modifier
+                .heightIn(max = 170.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp, vertical = 6.dp),
+        ) {
+            DisplayMath(
+                source = shown.body, raw = shown.body, style = style,
+                display = shown.kind == MathKind.DISPLAY,
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
     }
 }

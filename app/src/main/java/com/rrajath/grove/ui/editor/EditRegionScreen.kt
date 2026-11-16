@@ -69,6 +69,7 @@ import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.LineEditing
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.settings.FontSizePreference
+import com.rrajath.grove.ui.components.MathLivePreview
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.KeyboardHiddenLinkedReferencesBar
@@ -599,6 +600,7 @@ internal fun WholeFileEditorBody(
         if (state.staleFile) {
             StaleFileBanner(onOverwrite = onOverwriteStale, onReload = onReloadStale)
         }
+        MathLivePreview(textState)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             ContentFontScale(editModeFontSize) {
                 BasicTextField(

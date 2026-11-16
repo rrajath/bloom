@@ -34,6 +34,12 @@ This is implemented with a custom `VisualTransformation` over a `BasicTextField`
 
 Each line in the editor reads in its own direction, taken from its first letter: a Persian, Arabic or Hebrew line lays out right-to-left, an English line left-to-right. A heading follows its title, so `* TODO [#A] خرید` shows its stars and keyword on the right even though they come first in the file. The file itself is never changed.
 
+## Live math preview
+
+With the cursor inside a formula (`$…$`, `\(…\)`, `$$…$$`, `\[…\]`, or a `\begin{align} … \end{align}` environment), a typeset preview of it appears at the top of the editor and updates as you type. An environment you haven't closed yet previews too, so you can watch an `align` take shape row by row. A tall formula scrolls inside the preview, and it goes away when the cursor leaves the formula.
+
+It works in the note, region and capture editors, and follows [Render math](/features/notes-behavior#read-mode-display-toggles): off there means no preview either.
+
 ## Formatting toolbar
 
 A toolbar pinned above the keyboard gives one-tap access to common org markup:

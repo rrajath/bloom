@@ -53,6 +53,101 @@ object MathFragments {
 
     private const val BEGIN = "\\begin{"
 
+    /** Beyond this many characters [at] scans only a window around the cursor instead of the whole text. */
+    private const val WHOLE_TEXT_LIMIT = 300_000
+    private const val WINDOW = 20_000
+
+    /** How far back from the cursor [at] looks for the `\begin{…}` of an environment that isn't closed yet. */
+    private const val OPEN_ENVIRONMENT_REACH = 3_000
+
+    /**
+     * The name of the math environment that [line] opens (`\begin{align*}` -> `align*`), or null when
+     * the line doesn't start with one. Indentation is allowed, text before the `\begin` isn't:
+     * Org only treats an environment as its own element when it starts a line.
+     */
+    fun environmentOpeningLine(line: String): String? {
+        val t = line.trimStart()
+        if (!t.startsWith(BEGIN)) return null
+        val nameEnd = t.indexOf('}', BEGIN.length)
+        if (nameEnd < 0 || nameEnd - BEGIN.length > 16) return null
+        val name = t.substring(BEGIN.length, nameEnd)
+        return name.takeIf { it in ENVIRONMENTS }
+    }
+
+    /**
+     * The index of the line in [lines] where the environment opened on line [start] ends, or null
+     * if [start] doesn't open a math environment or nothing closes it. Like Org, the closing
+     * `\end{…}` has to finish its line; same-name environments nested inside are skipped.
+     */
+    fun environmentEndLine(lines: List<String>, start: Int): Int? {
+        val name = environmentOpeningLine(lines[start]) ?: return null
+        val open = "\\begin{$name}"
+        val close = "\\end{$name}"
+        var depth = 0
+        for (j in start until lines.size) {
+            val line = lines[j]
+            var k = 0
+            while (true) {
+                val o = line.indexOf(open, k)
+                val c = line.indexOf(close, k)
+                if (o < 0 && c < 0) break
+                if (c < 0 || (o in 0 until c)) {
+                    depth++
+                    k = o + open.length
+                } else {
+                    depth--
+                    k = c + close.length
+                    if (depth == 0) return if (line.substring(k).isBlank()) j else null
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * The fragment the cursor at [offset] is in or touching (so right after a just-typed closing
+     * `$` counts), or null. For a live preview while editing.
+     *
+     * An environment that has no `\end{…}` yet still counts while the cursor is inside what has
+     * been written of it (up to the first blank line after its `\begin`), so the preview works
+     * while you type the environment instead of only once you've closed it.
+     *
+     * Large documents are scanned around the cursor only.
+     */
+    fun at(text: String, offset: Int): MathFragment? {
+        if (text.isEmpty() || offset < 0 || offset > text.length) return null
+        var from = 0
+        var to = text.length
+        if (text.length > WHOLE_TEXT_LIMIT) {
+            from = text.lastIndexOf('\n', maxOf(0, offset - WINDOW)) + 1
+            val nextBreak = text.indexOf('\n', minOf(text.length, offset + WINDOW))
+            to = if (nextBreak < 0) text.length else nextBreak
+        }
+        val window = if (from == 0 && to == text.length) text else text.substring(from, to)
+        val local = offset - from
+        val found = find(window).firstOrNull { local in it.range.first..it.range.last + 1 }
+            ?: openEnvironment(window, local)
+            ?: return null
+        return if (from == 0) found else found.copy(range = found.range.first + from..found.range.last + from)
+    }
+
+    /** An environment opened before [offset] and never closed, running to the first blank line after its `\begin`. */
+    private fun openEnvironment(text: String, offset: Int): MathFragment? {
+        val begin = text.lastIndexOf(BEGIN, offset)
+        if (begin < 0 || offset - begin > OPEN_ENVIRONMENT_REACH) return null
+        val nameEnd = text.indexOf('}', begin + BEGIN.length)
+        if (nameEnd < 0 || nameEnd - begin - BEGIN.length > 16) return null
+        val name = text.substring(begin + BEGIN.length, nameEnd)
+        if (name !in ENVIRONMENTS) return null
+        if (text.indexOf("\\end{$name}", begin) >= 0) return null
+        // The unfinished environment runs to the first blank line after its `\begin`; a cursor past
+        // that is in some later paragraph.
+        val blank = text.indexOf("\n\n", begin)
+        val end = if (blank < 0) text.length else blank
+        if (offset > end) return null
+        return MathFragment(begin until end, MathKind.DISPLAY, text.substring(begin, end))
+    }
+
     fun find(text: String): List<MathFragment> {
         if (text.indexOf('$') < 0 && text.indexOf('\\') < 0) return emptyList()
         val out = ArrayList<MathFragment>(2)

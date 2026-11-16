@@ -1522,6 +1522,15 @@ internal fun BodyBlocks(
                         // An RTL item mirrors its row: marker and indent on the right.
                         val renderMath = LocalRenderMath.current
                         val rtl = remember(item.text, renderMath) { orgInlineStartsRtl(item.text, mathDrawn = renderMath) }
+                        // Display math in an item (an `align` under a bullet) gets its own centered line below
+                        // the bullet row, since an inline formula can't wrap or scroll. The item's leading
+                        // prose stays on the bullet row.
+                        val parts = remember(item.text, renderMath) {
+                            if (renderMath) MathSegments.split(item.text) else listOf(MathSegment.Prose(item.text))
+                        }
+                        val leadsWithProse = parts.firstOrNull() is MathSegment.Prose
+                        val headText = if (leadsWithProse) (parts.first() as MathSegment.Prose).text else ""
+                        val tailParts = if (leadsWithProse) parts.drop(1) else parts
                         CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
                         Row(
                             Modifier.padding(vertical = 2.dp).padding(start = (8 + item.indent * 20).dp),
@@ -1605,7 +1614,7 @@ internal fun BodyBlocks(
                             }
                             Spacer(Modifier.width(8.dp))
                             OrgText(
-                                item.text,
+                                headText,
                                 onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
                                 onDoubleTapAt = onEditAt,
                                 style = if (done) listItemStyleDone else listItemStyleActive,
@@ -1613,8 +1622,45 @@ internal fun BodyBlocks(
                                 attachmentChips = true,
                             )
                         }
+                        // Indented to line up under the item's text (20dp marker + 8dp gap past the row's start).
+                        val tailModifier = Modifier.padding(start = (8 + item.indent * 20 + 28).dp)
+                        tailParts.forEach { part ->
+                            when (part) {
+                                is MathSegment.Prose -> OrgText(
+                                    part.text,
+                                    onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
+                                    onDoubleTapAt = onEditAt,
+                                    style = if (done) listItemStyleDone else listItemStyleActive,
+                                    modifier = tailModifier.fillMaxWidth(),
+                                    attachmentChips = true,
+                                )
+
+                                is MathSegment.DisplayMath -> DisplayMath(
+                                    part.source, part.raw,
+                                    if (done) listItemStyleDone else listItemStyleActive,
+                                    modifier = tailModifier,
+                                    onDoubleTap = onEditAt,
+                                )
+                            }
+                        }
                         }
                     }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            is OrgBlock.MathEnvironment -> {
+                val source = remember(block) { block.lines.joinToString("\n") { it.trim() } }
+                if (LocalRenderMath.current) {
+                    DisplayMath(source, source, paragraphStyle, onDoubleTap = onEditAt)
+                } else {
+                    OrgText(
+                        source,
+                        onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
+                        onDoubleTapAt = onEditAt,
+                        style = paragraphStyle,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
             }

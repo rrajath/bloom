@@ -1,5 +1,7 @@
 package com.rrajath.grove.org
 
+import com.rrajath.grove.org.math.MathFragments
+
 /**
  * Block-level structure of a note body, for read-mode rendering.
  *
@@ -40,6 +42,14 @@ sealed class OrgBlock {
         val startLine: Int = 0,
         val keywordRun: Boolean = false,
     ) : OrgBlock()
+
+    /**
+     * A LaTeX math environment (`\begin{align*} … \end{align*}`, `pmatrix`, `cases`, …) that starts
+     * its own line, kept whole whatever its lines look like. Like Org, an environment is one element
+     * even when a line inside starts with `- ` or `|`, or is blank, which would otherwise split it
+     * into list, table and paragraph blocks. [lines] are the raw lines, `\begin` to `\end` inclusive.
+     */
+    data class MathEnvironment(val lines: List<String>, val startLine: Int = 0) : OrgBlock()
 
     /** Org tables render as monospace plain text in v1 (PRD decision #4). */
     data class Table(val lines: List<String>, val startLine: Int = 0) : OrgBlock()
@@ -88,9 +98,11 @@ object BlockParser {
      * starts some other block (table row, keyword, `#+BEGIN`), ends the item
      * instead of continuing it.
      */
+    private fun indentOf(line: String): Int = line.length - line.trimStart().length
+
     private fun isListContinuation(line: String, itemIndent: Int): Boolean {
         if (line.isBlank()) return false
-        val indent = line.length - line.trimStart().length
+        val indent = indentOf(line)
         if (indent <= itemIndent) return false
         val trimmed = line.trimStart()
         if (trimmed.startsWith("|")) return false
@@ -140,10 +152,17 @@ object BlockParser {
 
         while (i < bodyLines.size) {
             val line = bodyLines[i]
+            val mathEnd = if (line.trimStart().startsWith("\\begin{")) MathFragments.environmentEndLine(bodyLines, i) else null
             when {
                 BEGIN.containsMatchIn(line) -> {
                     flushParagraph()
                     parseBlock(i, affiliated = emptyList(), blockStart = i)
+                }
+
+                mathEnd != null -> {
+                    flushParagraph()
+                    blocks.add(OrgBlock.MathEnvironment(bodyLines.subList(i, mathEnd + 1).toList(), i))
+                    i = mathEnd + 1
                 }
 
                 KEYWORD.matches(line) -> {
@@ -210,6 +229,17 @@ object BlockParser {
                             continue
                         }
                         val last = items.lastOrNull()
+                        if (last != null && indentOf(bodyLines[i]) > last.indent) {
+                            // A math environment indented under the item belongs to it whole, with its
+                            // line breaks kept (a `%` comment must not swallow the lines after it).
+                            val envEnd = MathFragments.environmentEndLine(bodyLines, i)
+                            if (envEnd != null) {
+                                val env = bodyLines.subList(i, envEnd + 1).joinToString("\n") { it.trim() }
+                                items[items.size - 1] = last.copy(text = "${last.text} $env")
+                                i = envEnd + 1
+                                continue
+                            }
+                        }
                         if (last != null && isListContinuation(bodyLines[i], last.indent)) {
                             items[items.size - 1] = last.copy(text = "${last.text} ${bodyLines[i].trim()}")
                             i++

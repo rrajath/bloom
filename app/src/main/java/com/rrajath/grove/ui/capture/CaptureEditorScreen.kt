@@ -103,6 +103,7 @@ import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.orgLocale
 import com.rrajath.grove.ui.components.EditorFabMorphMillis
+import com.rrajath.grove.ui.components.MathLivePreview
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.Pill
@@ -696,6 +697,7 @@ fun CaptureEditorScreen(
                             if (targetHeadingMissing) {
                                 TargetHeadingMissingWarning(template.targetFile)
                             }
+                            MathLivePreview(textState)
                             BasicTextField(
                                 state = textState,
                                 inputTransformation = remember(keywords) { orgInputTransformation(keywords) },

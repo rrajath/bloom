@@ -1,6 +1,7 @@
 package com.rrajath.grove.org.math
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -136,5 +137,107 @@ class MathFragmentsTest {
         val f = find("${'$'}a${'$'} and \\(b\\) and ${'$'}${'$'}c${'$'}${'$'}")
         assertEquals(listOf("a", "b", "c"), f.map { it.body })
         assertEquals(listOf(MathKind.INLINE, MathKind.INLINE, MathKind.DISPLAY), f.map { it.kind })
+    }
+
+    // ---- environments by line --------------------------------------------------------
+
+    @Test
+    fun `environment opening line`() {
+        assertEquals("align*", MathFragments.environmentOpeningLine("\\begin{align*}"))
+        assertEquals("align", MathFragments.environmentOpeningLine("   \\begin{align} x &= 1 \\\\"))
+        assertEquals(null, MathFragments.environmentOpeningLine("text \\begin{align}"))
+        assertEquals(null, MathFragments.environmentOpeningLine("\\begin{itemize}"))
+        assertEquals(null, MathFragments.environmentOpeningLine("plain"))
+    }
+
+    @Test
+    fun `environment end line`() {
+        val lines = listOf("\\begin{align}", "a &= b", "", "- c", "\\end{align}", "tail")
+        assertEquals(4, MathFragments.environmentEndLine(lines, 0))
+        assertEquals(null, MathFragments.environmentEndLine(lines, 1))
+        assertEquals(null, MathFragments.environmentEndLine(listOf("\\begin{align}", "x"), 0))
+        assertEquals(0, MathFragments.environmentEndLine(listOf("\\begin{align} x \\\\end{align}"), 0).let { if (it == null) null else 0 })
+    }
+
+    // ---- fragment under the cursor ---------------------------------------------------
+
+    private fun at(text: String, marker: Char = '|'): MathFragment? {
+        val offset = text.indexOf(marker)
+        return MathFragments.at(text.replace(marker.toString(), ""), offset)
+    }
+
+    @Test
+    fun `cursor inside inline math finds it`() {
+        val f = at("let ${'$'}x^|2${'$'} hold")!!
+        assertEquals("x^2", f.body)
+        assertEquals(MathKind.INLINE, f.kind)
+    }
+
+    @Test
+    fun `cursor touching either delimiter still counts`() {
+        assertEquals("x", at("a |${'$'}x${'$'} b")!!.body)
+        assertEquals("x", at("a ${'$'}x${'$'}| b")!!.body)
+    }
+
+    @Test
+    fun `cursor outside any formula finds nothing`() {
+        assertNull(at("a ${'$'}x${'$'} b |c"))
+        assertNull(at("| plain text"))
+        assertNull(at("price ${'$'}5 and |${'$'}10"))
+    }
+
+    @Test
+    fun `cursor in display math and in an environment`() {
+        assertEquals(MathKind.DISPLAY, at("${'$'}${'$'} a |= b ${'$'}${'$'}")!!.kind)
+        val env = "\\begin{align}\na &= |b\n\\end{align}"
+        val f = at(env)!!
+        assertEquals(MathKind.DISPLAY, f.kind)
+        assertEquals("\\begin{align}\na &= b\n\\end{align}", f.body)
+    }
+
+    @Test
+    fun `an environment with blank lines is found`() {
+        val f = at("\\begin{align}\na &= b\n\n|c &= d\n\\end{align}")!!
+        assertTrue(f.body.endsWith("\\end{align}"))
+    }
+
+    @Test
+    fun `an environment that is not closed yet is found while typing`() {
+        val f = at("intro\n\n\\begin{align}\na &= b \\\\\nc &= |")!!
+        assertEquals(MathKind.DISPLAY, f.kind)
+        assertEquals("\\begin{align}\na &= b \\\\\nc &= ", f.body)
+    }
+
+    @Test
+    fun `an unclosed environment stops at the next blank line`() {
+        val f = at("\\begin{align}\na &= |b\n\nnext paragraph")!!
+        assertEquals("\\begin{align}\na &= b", f.body)
+    }
+
+    @Test
+    fun `an unclosed environment is not found after a blank line far from it`() {
+        assertNull(at("\\begin{align}\na\n\nsome other text |here"))
+    }
+
+    @Test
+    fun `an unclosed unknown environment is not math`() {
+        assertNull(at("\\begin{itemize}\n|x"))
+    }
+
+    @Test
+    fun `range is relative to the whole text`() {
+        val text = "0123456789 ${'$'}ab${'$'} end"
+        val f = MathFragments.at(text, 13)!!
+        assertEquals("ab", text.substring(f.range.first + 1, f.range.last))
+    }
+
+    @Test
+    fun `huge text is scanned around the cursor only`() {
+        val filler = "word ".repeat(100_000)
+        val text = filler + "see ${'$'}x^2${'$'} now" + filler
+        val offset = filler.length + 8
+        val f = MathFragments.at(text, offset)!!
+        assertEquals("x^2", f.body)
+        assertEquals("${'$'}x^2${'$'}", text.substring(f.range))
     }
 }

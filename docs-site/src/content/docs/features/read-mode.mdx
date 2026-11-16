@@ -34,7 +34,7 @@ LaTeX in a note is typeset in place, using the same rules Emacs Org uses to find
 
 - `$x^2$` and `\(x^2\)` are inline: the formula sits in the line of text.
 - `$$x^2$$` and `\[x^2\]` stand alone on their own centered line. A wide one scrolls sideways.
-- `\begin{align} … \end{align}` and the other math environments (`equation`, `aligned`, `gather`, `multline`, `split`, `cases`, `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, `array`) also stand alone.
+- `\begin{align} … \end{align}` and the other math environments (`equation`, `aligned`, `gather`, `multline`, `split`, `cases`, `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, `array`) also stand alone. An environment is kept whole however its lines look: a blank line, or a line starting with `-`, `+` or `|`, doesn't split it. One indented under a list item stays with the item and is drawn on its own centered line below the bullet.
 
 A single `$` only opens a formula when the text right after it and right before the closing `$` isn't a space, so "it costs $5 and $10" stays plain text. Write `\$` for a literal dollar sign.
 
