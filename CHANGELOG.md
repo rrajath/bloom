@@ -57,6 +57,11 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+- LaTeX math in Read mode: `$x^2$` and `\(x^2\)` are typeset inline with the text, while `$$x^2$$`, `\[x^2\]` and `\begin{align}`-style environments (matrices, `cases`, `gather`, …) get their own centered line. Turn it off in Settings › Notes → Render math (thanks @nimaaskarian)
+- Math environments (`align`, `align*`, `equation`, `gather`, `cases`, matrices, …) are kept whole however their lines look, as in Org: a blank line, or a line starting with `-`, `+`, `|` or `2)`, no longer splits one into a list, table or separate paragraphs. One under a list item stays with the item and renders on its own line below it
+- Live math preview in the editors (note, region and capture): with the cursor inside a formula, `$…$`, `\(…\)`, `$$…$$`, `\[…\]` or an environment, a typeset preview appears at the top of the editor and updates as you type, including an environment you haven't closed yet (thanks @nimaaskarian)
+
 ## [1.15.0] - 2026-11-14
 
 ### Added

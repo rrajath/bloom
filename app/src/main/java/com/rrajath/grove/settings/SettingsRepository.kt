@@ -178,6 +178,8 @@ data class GroveSettings(
     val showPreface: Boolean = true,
     /** Read mode: show collapsible sections for `:PROPERTIES:` drawers. */
     val showPropertyDrawers: Boolean = true,
+    /** Read mode: typeset LaTeX fragments (`$x^2$`, `\[ … \]`, `\begin{align}`) instead of showing their source. */
+    val renderMath: Boolean = true,
     /** Notebook list label: raw file name, or the `#+TITLE:` cached in the index. */
     val notebookDisplayNameMode: NotebookDisplayNameMode = NotebookDisplayNameMode.FILENAME,
     /** Notebook list: show the per-file icon tile at the start of each row. */
@@ -401,6 +403,7 @@ class SettingsRepository(
         val pinnedFolders = stringPreferencesKey("pinned_folders")
         val showPreface = booleanPreferencesKey("show_preface")
         val showPropertyDrawers = booleanPreferencesKey("show_property_drawers")
+        val renderMath = booleanPreferencesKey("render_math")
         val notebookDisplayNameMode = stringPreferencesKey("notebook_display_name_mode")
         val showNotebookFileIcons = booleanPreferencesKey("show_notebook_file_icons")
         val flattenNotebookFolders = booleanPreferencesKey("flatten_notebook_folders")
@@ -512,6 +515,7 @@ class SettingsRepository(
             pinnedItems = readPinnedItems(prefs),
             showPreface = prefs[Keys.showPreface] ?: true,
             showPropertyDrawers = prefs[Keys.showPropertyDrawers] ?: true,
+            renderMath = prefs[Keys.renderMath] ?: true,
             notebookDisplayNameMode = NotebookDisplayNameMode.fromStorage(prefs[Keys.notebookDisplayNameMode]),
             showNotebookFileIcons = prefs[Keys.showNotebookFileIcons] ?: true,
             flattenNotebookFolders = prefs[Keys.flattenNotebookFolders] ?: false,
@@ -664,6 +668,7 @@ class SettingsRepository(
             writePinnedItems(p, s.pinnedItems)
             p[Keys.showPreface] = s.showPreface
             p[Keys.showPropertyDrawers] = s.showPropertyDrawers
+            p[Keys.renderMath] = s.renderMath
             p[Keys.notebookDisplayNameMode] = s.notebookDisplayNameMode.storageKey
             p[Keys.showNotebookFileIcons] = s.showNotebookFileIcons
             p[Keys.flattenNotebookFolders] = s.flattenNotebookFolders
@@ -919,6 +924,10 @@ class SettingsRepository(
 
     suspend fun setShowPropertyDrawers(enabled: Boolean) {
         editSettings { it[Keys.showPropertyDrawers] = enabled }
+    }
+
+    suspend fun setRenderMath(enabled: Boolean) {
+        editSettings { it[Keys.renderMath] = enabled }
     }
 
     suspend fun setNotebookDisplayNameMode(mode: NotebookDisplayNameMode) {

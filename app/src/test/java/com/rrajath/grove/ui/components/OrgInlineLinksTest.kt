@@ -3,6 +3,8 @@ package com.rrajath.grove.ui.components
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.rrajath.grove.org.InlineTokenizer
+import com.rrajath.grove.org.InlineType
 
 /**
  * [orgInlineLinks] must report link ranges in the *rendered* string (labels
@@ -81,5 +83,37 @@ class OrgInlineLinksTest {
             "How to Tie a Knot",
             orgInlinePlainText("How to [[https://example.com/knots][Tie]] a Knot"),
         )
+    }
+
+    @Test
+    fun `a formula before a link keeps the link range aligned with the rendered text`() {
+        // A formula's rendered text is its LaTeX source (the placeholder's alternate text),
+        // so everything after it stays at the same offset whether it is typeset or not.
+        val text = "so ${'$'}x^2${'$'} then [[https://example.com][docs]]"
+        val rendered = "so ${'$'}x^2${'$'} then docs"
+        val link = orgInlineLinks(text).single()
+        assertEquals("docs", rendered.substring(link.range.first, link.range.last + 1))
+    }
+
+    @Test
+    fun `placeholder index counts links and formulas drawn inline, in text order`() {
+        val text = "[[a][one]] ${'$'}x${'$'} [[b][two]]"
+        val drawn = InlineTokenizer.tokenize(text)
+            .filter { it.type == InlineType.LINK || it.type == InlineType.MATH }
+            .associate { it.range to "id-${'$'}{it.range.first}" }
+        assertEquals(listOf(0, 2), orgInlineLinks(text, drawn).map { it.placeholder })
+    }
+
+    @Test
+    fun `a formula that is not drawn takes no placeholder index`() {
+        val text = "[[a][one]] ${'$'}x${'$'} [[b][two]]"
+        val links = InlineTokenizer.tokenize(text).filter { it.type == InlineType.LINK }
+        val drawn = links.associate { it.range to "id-${'$'}{it.range.first}" }
+        assertEquals(listOf(0, 1), orgInlineLinks(text, drawn).map { it.placeholder })
+    }
+
+    @Test
+    fun `links not drawn inline have no placeholder`() {
+        assertEquals(listOf(-1, -1), orgInlineLinks("[[a][one]] ${'$'}x${'$'} [[b][two]]").map { it.placeholder })
     }
 }

@@ -94,7 +94,11 @@ import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.containsIdOf
 import com.rrajath.grove.data.matches
 import com.rrajath.grove.org.BlockParser
+import com.rrajath.grove.org.InlineDirection
+import com.rrajath.grove.org.InlineTokenizer
 import com.rrajath.grove.org.INTRO_LINE_INDEX
+import com.rrajath.grove.org.MathSegment
+import com.rrajath.grove.org.MathSegments
 import com.rrajath.grove.org.OrgBlock
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
@@ -108,6 +112,7 @@ import com.rrajath.grove.ui.vault.RepeatAdvance
 import com.rrajath.grove.ui.components.CollapsibleBlockSection
 import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.components.CollapsibleLogSection
+import com.rrajath.grove.ui.components.DisplayMath
 import com.rrajath.grove.ui.components.FavoriteStar
 import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.attach.ParagraphSegment
@@ -132,10 +137,12 @@ import com.rrajath.grove.ui.components.EditorMenuFab
 import com.rrajath.grove.ui.components.linkPressHandler
 import com.rrajath.grove.ui.components.orgInlineLinks
 import com.rrajath.grove.ui.components.orgInlineStartsRtl
+import com.rrajath.grove.ui.components.rememberInlineMath
 import com.rrajath.grove.ui.components.ScrollJumpButtons
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDotBadge
 import com.rrajath.grove.ui.theme.ContentFontScale
+import com.rrajath.grove.ui.theme.LocalRenderMath
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.PlexSerif
@@ -803,7 +810,8 @@ private fun NoteContent(
                 SelectionContainer {
                     Column {
                         // An RTL title mirrors the tags, keyword and title rows, like a child heading.
-                        val titleRtl = remember(headline.title) { orgInlineStartsRtl(headline.title) }
+                        val renderMath = LocalRenderMath.current
+                        val titleRtl = remember(headline.title, renderMath) { orgInlineStartsRtl(headline.title, mathDrawn = renderMath) }
                         CompositionLocalProvider(LocalLayoutDirection provides if (titleRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
                         // Tag chips, wrapping between pills when they outgrow the row (#91).
                         if (tags.isNotEmpty()) {
@@ -1017,7 +1025,8 @@ internal fun ReadHeadingRow(
     val c = MaterialTheme.grove
     val body = remember(doc, child) { doc.bodyOf(child) }
     val foldable = remember(doc, child) { doc.hasDescendants(child) }
-    val titleRtl = remember(child.title) { orgInlineStartsRtl(child.title) }
+    val renderMath = LocalRenderMath.current
+    val titleRtl = remember(child.title, renderMath) { orgInlineStartsRtl(child.title, mathDrawn = renderMath) }
     Column {
         Spacer(Modifier.height(20.dp))
         SelectionContainer {
@@ -1185,6 +1194,39 @@ internal fun visibleReadRows(subtree: List<OrgHeadline>, collapsed: Set<Int>): L
     return result
 }
 
+/**
+ * A paragraph's text: display math (`$$ … $$`, `\[ … \]`, `\begin{align}`) on its own centered
+ * line, everything else (inline math included) as running [OrgText]. Without math, or with
+ * Settings → Render math off, this is just the one [OrgText].
+ */
+@Composable
+private fun ParagraphText(
+    text: String,
+    onOpenLink: (String) -> Unit,
+    onLinkLongPress: (String, Offset, LayoutCoordinates) -> Unit,
+    onDoubleTapAt: (() -> Unit)?,
+    style: TextStyle,
+) {
+    val renderMath = LocalRenderMath.current
+    val parts = remember(text, renderMath) {
+        if (renderMath) MathSegments.split(text) else listOf(MathSegment.Prose(text))
+    }
+    parts.forEach { part ->
+        when (part) {
+            is MathSegment.Prose -> OrgText(
+                part.text,
+                onOpenLink = onOpenLink, onLinkLongPress = onLinkLongPress,
+                onDoubleTapAt = onDoubleTapAt,
+                style = style,
+                modifier = Modifier.fillMaxWidth(),
+                attachmentChips = true,
+            )
+
+            is MathSegment.DisplayMath -> DisplayMath(part.source, part.raw, style, onDoubleTap = onDoubleTapAt)
+        }
+    }
+}
+
 /** Text that renders org inline markup and hands link taps/long-presses to [onOpenLink]/[onLinkLongPress]. */
 @Composable
 internal fun OrgText(
@@ -1205,29 +1247,22 @@ internal fun OrgText(
     val render = if (attachmentChips) LocalAttachmentRender.current else null
     val chips = remember(text, render != null) { if (render != null) chipLinksIn(text) else emptyList() }
     val chipRun = if (render != null && chips.isNotEmpty()) rememberChipRun(chips, render) else null
-    val annotated = remember(text, c, onOpenLink, chips) {
-        annotateOrgInline(text, c, onOpenLink, inlineIds = chips.associate { it.range to it.id })
+    // LaTeX fragments are typeset in place when Settings → Render math is on. Only text that
+    // can hold one (a `$` or a `\`) is tokenized here.
+    val renderMath = LocalRenderMath.current
+    val mathTokens = remember(text, renderMath) {
+        if (renderMath && (text.indexOf('$') >= 0 || text.indexOf('\\') >= 0)) InlineTokenizer.tokenize(text) else emptyList()
     }
-    val links = remember(text, chips) {
-        val plain = orgInlineLinks(text)
-        if (chips.isEmpty()) {
-            plain
-        } else {
-            // orgInlineLinks and chipLinksIn walk the same tokens in order, so the
-            // nth chip is the nth link whose target it shares; placeholders are
-            // numbered in text order.
-            val chipTargets = ArrayDeque(chips.map { it.rawTarget })
-            var placeholder = 0
-            plain.map { link ->
-                if (chipTargets.firstOrNull() == link.target) {
-                    chipTargets.removeFirst()
-                    link.copy(placeholder = placeholder++)
-                } else {
-                    link
-                }
-            }
-        }
+    val math = rememberInlineMath(mathTokens, style, enabled = mathTokens.isNotEmpty())
+    // Chips and formulas are both inline content: tokens drawn as placeholders instead of text.
+    val inlineIds = remember(chips, math) { chips.associate { it.range to it.id } + math.ids }
+    val inlineContent = remember(chipRun, math) { (chipRun?.inlineContent ?: emptyMap()) + math.content }
+    val annotated = remember(text, c, onOpenLink, inlineIds) {
+        annotateOrgInline(text, c, onOpenLink, inlineIds = inlineIds)
     }
+    // Compose numbers inline placeholders in text order, links and formulas alike; the link
+    // hit-testing indexes `placeholderRects` with that number.
+    val links = remember(text, inlineIds) { orgInlineLinks(text, inlineIds) }
     // A missing chip's tap toasts instead of opening.
     val onTapLink: (String) -> Unit = remember(onOpenLink, chips, chipRun?.missing, render) {
         { target ->
@@ -1242,8 +1277,21 @@ internal fun OrgText(
     // Compose's unspecified direction is the layout direction (LTR), not the
     // content's; Content picks each line's direction from its first strong
     // character, so a Persian line reads right-to-left and aligns right.
-    val directedStyle = remember(style) {
-        if (style.textDirection == TextDirection.Unspecified) style.copy(textDirection = TextDirection.Content) else style
+    // A typeset formula keeps its LaTeX source in the string, whose letters Content would read
+    // as left-to-right; so a line with formulas is decided from the text around them.
+    val directedStyle = remember(style, math, mathTokens) {
+        if (style.textDirection != TextDirection.Unspecified) {
+            style
+        } else {
+            val uniform = if (math.ids.isEmpty()) null else InlineDirection.uniformRtl(mathTokens) { it.range in math.ids }
+            style.copy(
+                textDirection = when (uniform) {
+                    true -> TextDirection.Rtl
+                    false -> TextDirection.Ltr
+                    null -> TextDirection.Content
+                },
+            )
+        }
     }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     var textCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -1258,7 +1306,7 @@ internal fun OrgText(
         style = directedStyle,
         maxLines = maxLines,
         overflow = overflow,
-        inlineContent = chipRun?.inlineContent ?: emptyMap(),
+        inlineContent = inlineContent,
         onTextLayout = { layout = it },
         modifier = modifier
             // Only the long-press menu reads textCoords, and only when there's a link to act
@@ -1449,26 +1497,22 @@ internal fun BodyBlocks(
                     // paragraphs upstream in BlockParser. Full width so each line can
                     // align to its own direction: text direction is picked per line
                     // from its first strong character, so an RTL line sits on the right.
-                    OrgText(
+                    ParagraphText(
                         block.lines.joinToString("\n") { it.trim() },
                         onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
                         onDoubleTapAt = onEditAt,
                         style = paragraphStyle,
-                        modifier = Modifier.fillMaxWidth(),
-                        attachmentChips = true,
                     )
                     Spacer(Modifier.height(12.dp))
                 } else {
                     segments.forEach { seg ->
                         when (seg) {
                             is ParagraphSegment.Text -> {
-                                OrgText(
+                                ParagraphText(
                                     seg.lines.joinToString("\n"),
                                     onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
                                     onDoubleTapAt = onEditAt,
                                     style = paragraphStyle,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    attachmentChips = true,
                                 )
                                 Spacer(Modifier.height(12.dp))
                             }
@@ -1491,7 +1535,17 @@ internal fun BodyBlocks(
                     block.items.forEachIndexed { i, item ->
                         val done = item.checkbox == 'X' || item.checkbox == 'x'
                         // An RTL item mirrors its row: marker and indent on the right.
-                        val rtl = remember(item.text) { orgInlineStartsRtl(item.text) }
+                        val renderMath = LocalRenderMath.current
+                        val rtl = remember(item.text, renderMath) { orgInlineStartsRtl(item.text, mathDrawn = renderMath) }
+                        // Display math in an item (an `align` under a bullet) gets its own centered line below
+                        // the bullet row, since an inline formula can't wrap or scroll. The item's leading
+                        // prose stays on the bullet row.
+                        val parts = remember(item.text, renderMath) {
+                            if (renderMath) MathSegments.split(item.text) else listOf(MathSegment.Prose(item.text))
+                        }
+                        val leadsWithProse = parts.firstOrNull() is MathSegment.Prose
+                        val headText = if (leadsWithProse) (parts.first() as MathSegment.Prose).text else ""
+                        val tailParts = if (leadsWithProse) parts.drop(1) else parts
                         CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
                         Row(
                             Modifier.padding(vertical = 2.dp).padding(start = (8 + item.indent * 20).dp),
@@ -1575,7 +1629,7 @@ internal fun BodyBlocks(
                             }
                             Spacer(Modifier.width(8.dp))
                             OrgText(
-                                item.text,
+                                headText,
                                 onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
                                 onDoubleTapAt = onEditAt,
                                 style = if (done) listItemStyleDone else listItemStyleActive,
@@ -1583,8 +1637,45 @@ internal fun BodyBlocks(
                                 attachmentChips = true,
                             )
                         }
+                        // Indented to line up under the item's text (20dp marker + 8dp gap past the row's start).
+                        val tailModifier = Modifier.padding(start = (8 + item.indent * 20 + 28).dp)
+                        tailParts.forEach { part ->
+                            when (part) {
+                                is MathSegment.Prose -> OrgText(
+                                    part.text,
+                                    onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
+                                    onDoubleTapAt = onEditAt,
+                                    style = if (done) listItemStyleDone else listItemStyleActive,
+                                    modifier = tailModifier.fillMaxWidth(),
+                                    attachmentChips = true,
+                                )
+
+                                is MathSegment.DisplayMath -> DisplayMath(
+                                    part.source, part.raw,
+                                    if (done) listItemStyleDone else listItemStyleActive,
+                                    modifier = tailModifier,
+                                    onDoubleTap = onEditAt,
+                                )
+                            }
+                        }
                         }
                     }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            is OrgBlock.MathEnvironment -> {
+                val source = remember(block) { block.lines.joinToString("\n") { it.trim() } }
+                if (LocalRenderMath.current) {
+                    DisplayMath(source, source, paragraphStyle, onDoubleTap = onEditAt)
+                } else {
+                    OrgText(
+                        source,
+                        onOpenLink = openTarget, onLinkLongPress = onLinkLongPress,
+                        onDoubleTapAt = onEditAt,
+                        style = paragraphStyle,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
             }

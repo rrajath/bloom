@@ -44,6 +44,7 @@ class SettingsSerializationTest {
         ),
         showPreface = false,
         showPropertyDrawers = false,
+        renderMath = false,
         showNotebookFileIcons = false,
         flattenNotebookFolders = true,
         notebookSortKey = NotebookSortKey.LAST_MODIFIED,
@@ -119,6 +120,7 @@ class SettingsSerializationTest {
         assertEquals(sample.pinnedFolders, restored.pinnedFolders)
         assertEquals(sample.showPreface, restored.showPreface)
         assertEquals(sample.showPropertyDrawers, restored.showPropertyDrawers)
+        assertEquals(sample.renderMath, restored.renderMath)
         assertEquals(sample.showNotebookFileIcons, restored.showNotebookFileIcons)
         assertEquals(sample.flattenNotebookFolders, restored.flattenNotebookFolders)
         assertEquals(sample.notebookSortKey, restored.notebookSortKey)

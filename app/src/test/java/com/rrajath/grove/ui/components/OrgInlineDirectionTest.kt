@@ -52,4 +52,23 @@ class OrgInlineDirectionTest {
         assertFalse(orgInlineStartsRtl(""))
         assertFalse(orgInlineStartsRtl("123 - 456"))
     }
+
+    @Test
+    fun `a typeset formula's source does not count toward direction`() {
+        val line = "${'$'}x_t${'$'} این یک پاراگراف است"
+        assertTrue(orgInlineStartsRtl(line, mathDrawn = true))
+        // Shown as source text instead, its letters are ordinary left-to-right text.
+        assertFalse(orgInlineStartsRtl(line, mathDrawn = false))
+    }
+
+    @Test
+    fun `mathDrawn changes nothing for text without formulas`() {
+        assertTrue(orgInlineStartsRtl("این یک پاراگراف است", mathDrawn = true))
+        assertFalse(orgInlineStartsRtl("Buy milk", mathDrawn = true))
+    }
+
+    @Test
+    fun `a price is not a formula`() {
+        assertFalse(orgInlineStartsRtl("costs ${'$'}5 and ${'$'}10 این", mathDrawn = true))
+    }
 }

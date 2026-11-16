@@ -83,6 +83,7 @@ import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.EditorMenuFab
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.GroveUndoSnackbar
+import com.rrajath.grove.ui.components.MathLivePreview
 import com.rrajath.grove.ui.components.InsertTimestampScreen
 import com.rrajath.grove.ui.components.ScrollJumpButtons
 import com.rrajath.grove.ui.components.rememberImeVisible
@@ -484,6 +485,8 @@ fun EditNoteScreen(
                     onReload = { viewModel.dismissStale(); viewModel.load(noteRef) },
                 )
             }
+            // Typeset preview of the formula under the cursor, when there is one.
+            MathLivePreview(textState)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 // The field owns its own vertical scrolling (rather than being
                 // wrapped in Modifier.verticalScroll): that is what lets Compose

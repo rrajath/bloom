@@ -400,6 +400,9 @@ class AppViewModel(
     fun setShowPropertyDrawers(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setShowPropertyDrawers(enabled) }
 
+    fun setRenderMath(enabled: Boolean) =
+        viewModelScope.launch { settingsRepository.setRenderMath(enabled) }
+
     fun setNotebookDisplayNameMode(mode: NotebookDisplayNameMode) =
         viewModelScope.launch { settingsRepository.setNotebookDisplayNameMode(mode) }
 

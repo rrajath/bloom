@@ -12,6 +12,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.org.InlineDirection
 import com.rrajath.grove.org.InlineTokenizer
 import com.rrajath.grove.org.InlineType
 import com.rrajath.grove.ui.theme.GroveColors
@@ -22,15 +23,19 @@ import com.rrajath.grove.ui.theme.PlexMono
  * Links display their description, not the raw `[[target][desc]]` syntax. When
  * [onLink] is given they are tappable; when null they're only styled (for rows
  * that are themselves clickable, like the outline).
+ *
+ * LaTeX fragments show their source as plain text, unless their range is in
+ * [inlineIds]: then the typeset formula replaces the source in place.
  */
 fun annotateOrgInline(
     text: String,
     c: GroveColors,
     onLink: ((String) -> Unit)? = null,
     /**
-     * Link tokens (by source range) drawn as inline content instead of text: the
+     * Link and math tokens (by source range) drawn as inline content instead of text: the
      * value is the `inlineContent` id. The token's display text is kept as the
-     * alternate text, so every offset (links, selection) stays the same.
+     * alternate text (a formula's is its LaTeX source), so every offset (links,
+     * selection) stays the same.
      */
     inlineIds: Map<IntRange, String> = emptyMap(),
 ): AnnotatedString = buildAnnotatedString {
@@ -48,6 +53,12 @@ fun annotateOrgInline(
             InlineType.TIMESTAMP -> withStyle(
                 SpanStyle(fontFamily = PlexMono, fontSize = 13.5.sp, color = c.synTs)
             ) { append(token.text) }
+
+            InlineType.MATH -> if (token.range in inlineIds) {
+                appendInlineContent(inlineIds.getValue(token.range), token.text)
+            } else {
+                append(token.text)
+            }
 
             InlineType.LINK -> if (token.range in inlineIds) {
                 appendInlineContent(inlineIds.getValue(token.range), token.text)
@@ -85,6 +96,15 @@ fun orgInlinePlainText(text: String): String =
  */
 fun orgInlineStartsRtl(text: String): Boolean = textStartsRtl(orgInlinePlainText(text))
 
+/**
+ * [orgInlineStartsRtl] for text whose LaTeX fragments are drawn as typeset formulas
+ * ([mathDrawn]): their source (strong left-to-right letters like `x` in `$x$`) is ignored, so
+ * a Persian line that starts with a formula still reads right-to-left. With [mathDrawn] false
+ * the source is shown as text and counts like any other text.
+ */
+fun orgInlineStartsRtl(text: String, mathDrawn: Boolean): Boolean =
+    if (mathDrawn) InlineDirection.startsRtl(InlineTokenizer.tokenize(text)) else orgInlineStartsRtl(text)
+
 /** [orgInlineStartsRtl] for text that is already rendered (no org markup left in it). */
 fun textStartsRtl(text: CharSequence): Boolean {
     for (ch in text) {
@@ -105,16 +125,29 @@ data class InlineLink(
     val placeholder: Int = -1,
 )
 
-/** Every link's rendered character range in [text] once tokenized (labels shown, not raw syntax). */
-fun orgInlineLinks(text: String): List<InlineLink> {
+/**
+ * Every link's rendered character range in [text] once tokenized (labels shown, not raw syntax).
+ *
+ * [inlineIds] are the tokens (by source range, as for [annotateOrgInline]) drawn as inline
+ * content. Compose numbers those placeholders in text order, links and formulas alike, so a
+ * link drawn as a chip gets that running index in [InlineLink.placeholder]; a formula before
+ * it moves its index along.
+ */
+fun orgInlineLinks(text: String, inlineIds: Map<IntRange, String> = emptyMap()): List<InlineLink> {
     var offset = 0
+    var placeholders = 0
     val links = mutableListOf<InlineLink>()
     for (token in InlineTokenizer.tokenize(text)) {
         val start = offset
         offset += token.text.length
+        val drawnInline = token.range in inlineIds
         if (token.type == InlineType.LINK) {
-            links += InlineLink(start until offset, token.target ?: token.text)
+            links += InlineLink(
+                start until offset, token.target ?: token.text,
+                placeholder = if (drawnInline) placeholders else -1,
+            )
         }
+        if (drawnInline) placeholders++
     }
     return links
 }
