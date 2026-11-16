@@ -1,5 +1,6 @@
 package com.rrajath.grove.vault
 
+import com.rrajath.grove.attach.AttachSkipRoots
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
@@ -15,14 +16,17 @@ import java.io.OutputStream
 class JvmFileStore(
     private val root: File,
     private val ignore: IgnorePatterns = IgnorePatterns(""),
-    private val skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
+    skipAttachShards: Boolean = SKIP_ATTACH_SHARDS,
+    /** Where shards are skipped (from the attach config); a config change builds a new store. */
+    attachRoots: AttachSkipRoots = AttachSkipRoots.DataOnly,
 ) : FileStore {
+    private val skipRoots = attachRoots.takeIf { skipAttachShards }
 
     override suspend fun list(): List<FileEntry> =
         root.walkTopDown()
             .onEnter {
                 it == root || (
-                    !isSkippedVaultDir(it.name, relativeParent(it), skipAttachShards) &&
+                    !isSkippedVaultDir(it.name, relativeParent(it), skipRoots) &&
                         !ignore.isDirIgnored(it.name, it.relativeTo(root).invariantSeparatorsPath)
                     )
             }

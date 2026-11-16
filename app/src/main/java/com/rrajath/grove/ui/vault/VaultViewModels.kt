@@ -14,10 +14,12 @@ import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentBase
 import com.rrajath.grove.attach.AttachmentFiles
 import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.DirPin
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.attach.AttachmentLifecycle
 import com.rrajath.grove.attach.FileRewrite
-import com.rrajath.grove.attach.dataDirLabel
+import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.attachDirLabel
 import com.rrajath.grove.attach.notebookMoveMessage
 import com.rrajath.grove.attach.orgIdsIn
 import com.rrajath.grove.attach.AttachmentIntents
@@ -224,6 +226,8 @@ class NotebooksViewModel(
     private val dispatchers: AppDispatchers,
     /** Attach-dir lifecycle; null skips attach-dir bookkeeping. */
     private val attachments: () -> AttachmentLifecycle? = { null },
+    /** Favorites to re-key when a notebook or folder is renamed/moved; null skips that bookkeeping. */
+    private val favoritesRepository: FavoritesRepository? = null,
 ) : ViewModel() {
 
     // One-shot create/rename outcomes for the name dialogs (see NotebookEditEvent).
@@ -533,11 +537,12 @@ class NotebooksViewModel(
                         }
                         notebookMoveMessage(leaf, newDir.trim('/'), result)
                     } else {
-                        "Moved $leaf. Attachments stayed in ${dataDirLabel(path)}"
+                        "Moved $leaf. Attachments stayed in ${attachDirLabel(path, lifecycle.config)}"
                     }
                     _editEvents.emit(NotebookEditEvent.Message(message))
                 }
                 settingsRepository.moveNotebookStyle(path, newPath)
+                favoritesRepository?.rebaseFile(path, newPath)
                 sync.requestSync("notebook moved")
             }
         }
@@ -580,6 +585,7 @@ class NotebooksViewModel(
             if (vault.renameNotebook(oldName, newName)) {
                 database.indexDao().removeNotebook(oldName)
                 settingsRepository.moveNotebookStyle(oldName, target)
+                favoritesRepository?.rebaseFile(oldName, target)
                 _editEvents.emit(NotebookEditEvent.Succeeded)
             } else {
                 _editEvents.emit(
@@ -612,7 +618,7 @@ class NotebooksViewModel(
                             "Deleted $leaf and its attachments"
                         }
                     } else {
-                        "Deleted $leaf. Attachments kept in ${dataDirLabel(name)}"
+                        "Deleted $leaf. Attachments kept in ${attachDirLabel(name, lifecycle.config)}"
                     }
                     _editEvents.emit(NotebookEditEvent.Message(message))
                 }
@@ -689,6 +695,7 @@ class NotebooksViewModel(
                 }
                 affected.forEach { database.indexDao().removeNotebook(it) }
                 settingsRepository.renameFolderStyle(dir, renamedTo)
+                favoritesRepository?.rebaseFolder(trimmed, renamedTo)
                 _editEvents.emit(NotebookEditEvent.Succeeded)
                 sync.requestSync("folder renamed")
             } else {
@@ -718,6 +725,9 @@ class NotebooksViewModel(
         }
     }
 
+    /** The attach config the move and delete sheets name folders with; null when attach-dir bookkeeping is off. */
+    fun attachConfig(): AttachConfig? = attachments()?.config
+
     /** Vault-relative paths of the notebooks currently indexed under [dir]. */
     private fun affectedPaths(dir: String): List<String> =
         (state.value as? NotebooksUiState.Loaded)?.notebooks
@@ -730,6 +740,7 @@ class NotebooksViewModel(
             NotebooksViewModel(
                 it.vault, it.database, it.settingsRepository, it.syncManager, it.dispatchers,
                 attachments = { it.attachmentLifecycle() },
+                favoritesRepository = it.favoritesRepository,
             )
         }
     }
@@ -1117,7 +1128,7 @@ class DocumentViewModel(
         val store = vaultFlow.value?.fileStore() ?: return false
         val preferLines = scopeNote?.let { ref -> doc?.headlineFor(ref)?.let { it.lineIndex until doc.subtreeEndLine(it) } }
         val path = withContext(dispatchers.io) {
-            AttachmentLookup(AttachmentFiles(store)).find(attachment, rawTarget, currentFile, doc, preferLines)
+            AttachmentLookup(AttachmentFiles(store), app.attachConfigSource.current()).find(attachment, rawTarget, currentFile, doc, preferLines)
         } ?: return false
         when (AttachmentIntents.open(app, store, path)) {
             AttachmentIntents.Result.Launched -> Unit
@@ -2306,8 +2317,12 @@ class DocumentViewModel(
             if (destFile == loaded.fileName) {
                 val targetLine = targetLine?.let { line(it) ?: return@mutate showToast("Couldn't find the destination heading") }
                 val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
+                // Each root keeps an inherited :DIR: its attachments use, if the new place would resolve another.
+                val pins = roots.map { DirPin.of(loaded.document, loaded.fileName, it) }
                 val newDoc = withContext(dispatchers.default) {
-                    OrgMutations.refileEachWithinFile(loaded.document, lines, targetLine)
+                    OrgMutations.refileEachWithinFile(loaded.document, lines, targetLine) { i, st, into, t ->
+                        pins[i]?.apply(st, into, loaded.fileName, t) ?: st
+                    }
                 }
                 if (newDoc == null) {
                     showToast("Can't refile into its own subtree")
@@ -2324,9 +2339,11 @@ class DocumentViewModel(
                     return@mutate
                 }
                 val target = targetLine?.let { destDoc.headlineAtLine(it) }
+                val pins = roots.map { DirPin.of(loaded.document, loaded.fileName, it) }
                 val result = withContext(dispatchers.default) {
                     val lifted = OrgMutations.liftSubtrees(loaded.document, lines)
-                    OrgMutations.insertEach(destDoc, targetLine, lifted.subtrees)?.let { lifted.doc to it }
+                    val subtrees = lifted.subtrees.mapIndexed { i, st -> pins[i]?.apply(st, destDoc, destFile, target) ?: st }
+                    OrgMutations.insertEach(destDoc, targetLine, subtrees)?.let { lifted.doc to it }
                 }
                 if (result == null) {
                     showToast("Couldn't find the destination heading")
@@ -2395,8 +2412,10 @@ class DocumentViewModel(
                 val targetLine = targetLine?.let { line(it) ?: return@mutate showToast("Couldn't find the destination heading") }
                 val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
                 val result = withContext(dispatchers.default) {
-                    OrgMutations.refileWithinFile(loaded.document, source, targetLine)
-                        ?.let { (text, _) -> text to OrgParser.parse(text, loaded.document.keywords) }
+                    val pin = DirPin.of(loaded.document, loaded.fileName, source)
+                    OrgMutations.refileWithinFile(loaded.document, source, targetLine) { st, into, t ->
+                        pin?.apply(st, into, loaded.fileName, t) ?: st
+                    }?.let { (text, _) -> text to OrgParser.parse(text, loaded.document.keywords) }
                 }
                 if (result == null) {
                     showToast("Can't refile into its own subtree")
@@ -2416,7 +2435,10 @@ class DocumentViewModel(
                 }
                 val target = targetLine?.let { destDoc.headlineAtLine(it) }
                 val (newSourceText, newDestText, newSourceDoc) = withContext(dispatchers.default) {
-                    val subtree = OrgMutations.subtreeText(loaded.document, source)
+                    // Keep an inherited :DIR: its attachments use, if the new place would resolve another.
+                    val subtree = OrgMutations.subtreeText(loaded.document, source).let { st ->
+                        DirPin.of(loaded.document, loaded.fileName, source)?.apply(st, destDoc, destFile, target) ?: st
+                    }
                     val srcText = OrgMutations.deleteSubtree(loaded.document, source)
                     val (dstText, _) = OrgMutations.refileInsert(destDoc, target, subtree)
                     Triple(srcText, dstText, OrgParser.parse(srcText, loaded.document.keywords))

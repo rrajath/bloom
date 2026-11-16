@@ -77,6 +77,7 @@ import coil3.decode.BitmapFactoryDecoder
 import coil3.request.ImageRequest
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
+import com.rrajath.grove.attach.AttachConfig
 import com.rrajath.grove.attach.AttachmentFiles
 import com.rrajath.grove.attach.AttachmentLink
 import com.rrajath.grove.attach.AttachmentLookup
@@ -117,6 +118,8 @@ class AttachmentRenderContext(
     private val docSource: () -> OrgDocument?,
     val store: FileStore,
     val cache: AttachmentStatusCache,
+    /** Resolves `attachment:` links' folders; a change makes a new context. */
+    val config: AttachConfig,
     val widthMode: AttachImageWidth,
     val fixedWidthPx: Int,
     private val preferLinesSource: () -> IntRange?,
@@ -131,6 +134,7 @@ class AttachmentRenderContext(
         doc: OrgDocument?,
         store: FileStore,
         cache: AttachmentStatusCache,
+        config: AttachConfig,
         widthMode: AttachImageWidth,
         fixedWidthPx: Int,
         preferLines: IntRange?,
@@ -139,7 +143,7 @@ class AttachmentRenderContext(
         toast: (String) -> Unit,
         io: CoroutineDispatcher,
     ) : this(
-        orgFile, { doc }, store, cache, widthMode, fixedWidthPx,
+        orgFile, { doc }, store, cache, config, widthMode, fixedWidthPx,
         { preferLines }, { openTarget }, { openImage }, { toast }, io,
     )
 
@@ -156,7 +160,7 @@ class AttachmentRenderContext(
 
     val toast: (String) -> Unit get() = toastSource()
 
-    private val resolver = AttachmentResolver(AttachmentLookup(AttachmentFiles(store)), cache)
+    private val resolver = AttachmentResolver(AttachmentLookup(AttachmentFiles(store), config), cache)
 
     suspend fun status(link: LocalAttachment, rawTarget: String, docLine: Int?): AttachmentStatus =
         withContext(io) { resolver.status(link, rawTarget, orgFile, doc, docLine, preferLines) }
@@ -246,9 +250,11 @@ fun ProvideAttachmentRendering(
     if (app == null) return content()
     val store by app.fileStore.collectAsState()
     val settings by app.settingsRepository.settings.collectAsState(initial = null)
+    val loadedConfig by app.attachConfigSource.config.collectAsState()
     val s = store
     val prefs = settings
-    if (s == null || prefs == null) return content()
+    val attachConfig = loadedConfig
+    if (s == null || prefs == null || attachConfig == null) return content()
     val cache = app.attachmentStatusCache
     // Read at use time, not remember keys: see AttachmentRenderContext.
     val docState = rememberUpdatedState(doc)
@@ -256,12 +262,13 @@ fun ProvideAttachmentRendering(
     val openTargetState = rememberUpdatedState(openTarget)
     val openImageState = rememberUpdatedState(openImage)
     val toastState = rememberUpdatedState(toast)
-    val ctx = remember(orgFile, s, cache, prefs.attachImageWidth, prefs.attachImageWidthPx) {
+    val ctx = remember(orgFile, s, cache, attachConfig, prefs.attachImageWidth, prefs.attachImageWidthPx) {
         AttachmentRenderContext(
             orgFile = orgFile,
             docSource = { docState.value },
             store = s,
             cache = cache,
+            config = attachConfig,
             widthMode = prefs.attachImageWidth,
             fixedWidthPx = prefs.attachImageWidthPx,
             preferLinesSource = { preferLinesState.value },

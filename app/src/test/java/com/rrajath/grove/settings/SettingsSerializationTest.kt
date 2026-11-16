@@ -23,6 +23,7 @@ class SettingsSerializationTest {
         addIdToNewNotes = true,
         addCreatedToNewNotes = false,
         newNoteCursor = NewNoteCursor.HEADING,
+        capitalizeHeadings = false,
         // Nested vault paths are valid keys now the vault is a tree.
         notebookModes = mapOf("work.org" to "edit", "projects/clients/acme.org" to "read"),
         notebookColors = mapOf("work.org" to "green", "projects/clients/acme.org" to "amber"),
@@ -104,6 +105,7 @@ class SettingsSerializationTest {
         assertEquals(sample.addIdToNewNotes, restored.addIdToNewNotes)
         assertEquals(sample.addCreatedToNewNotes, restored.addCreatedToNewNotes)
         assertEquals(sample.newNoteCursor, restored.newNoteCursor)
+        assertEquals(sample.capitalizeHeadings, restored.capitalizeHeadings)
         assertEquals(sample.notebookModes, restored.notebookModes)
         assertEquals(sample.notebookColors, restored.notebookColors)
         assertEquals(sample.folderColors, restored.folderColors)
@@ -195,6 +197,59 @@ class SettingsSerializationTest {
         assertEquals(AttachPhotoSize.ORIGINAL, restored.attachPhotoSize)
         assertEquals(AttachImageWidth.FIT, restored.attachImageWidth)
         assertEquals(AttachImageWidth.DEFAULT_PX, restored.attachImageWidthPx)
+        assertEquals("data/", restored.attachFolder)
+    }
+
+    @Test
+    fun `the attachment folder survives an export then import`() {
+        val json = SettingsSerialization.export(GroveSettings(attachFolder = "media/files/"))
+        assertTrue(json.contains("\"version\": 14"))
+        val restored = SettingsSerialization.import(json, GroveSettings())
+        assertEquals("media/files/", restored.attachFolder)
+    }
+
+    @Test
+    fun `an invalid attachment folder imports as data`() {
+        for (bad in listOf("../attach", "/attach", "~/attach", "")) {
+            val json = SettingsSerialization.export(GroveSettings(attachFolder = "x/"))
+                .replace("\"attachFolder\": \"x/\"", "\"attachFolder\": \"$bad\"")
+            assertTrue(bad, json.contains("\"attachFolder\": \"$bad\""))
+            val restored = SettingsSerialization.import(json, GroveSettings(attachFolder = "attach/"))
+            assertEquals(bad, "data/", restored.attachFolder)
+        }
+    }
+
+    @Test
+    fun `a v12 export without the folder imports as data`() {
+        val v12 = SettingsSerialization.export(GroveSettings(attachPhotoSize = AttachPhotoSize.SMALL))
+            .replace("\"version\": 14", "\"version\": 12")
+            .lines().filterNot { it.contains("\"attachFolder\"") || it.contains("\"attachAutoTag\"") }.joinToString("\n")
+            .replace(Regex(",(\\s*})"), "$1")
+        val restored = SettingsSerialization.import(v12, GroveSettings(attachFolder = "attach/"))
+        assertEquals(AttachPhotoSize.SMALL, restored.attachPhotoSize)
+        assertEquals("data/", restored.attachFolder)
+    }
+
+    @Test
+    fun `the attachment tag survives an export then import, empty included`() {
+        for (tag in listOf("receipt", "")) {
+            val restored = SettingsSerialization.import(
+                SettingsSerialization.export(GroveSettings(attachAutoTag = tag)), GroveSettings(),
+            )
+            assertEquals(tag, restored.attachAutoTag)
+        }
+    }
+
+    @Test
+    fun `a v13 export without the tag, or an invalid tag, imports as ATTACH`() {
+        val v13 = SettingsSerialization.export(GroveSettings(attachAutoTag = "receipt"))
+            .replace("\"version\": 14", "\"version\": 13")
+            .lines().filterNot { it.contains("\"attachAutoTag\"") }.joinToString("\n")
+            .replace(Regex(",(\\s*})"), "$1")
+        assertEquals("ATTACH", SettingsSerialization.import(v13, GroveSettings(attachAutoTag = "x")).attachAutoTag)
+        val bad = SettingsSerialization.export(GroveSettings(attachAutoTag = "receipt"))
+            .replace("\"attachAutoTag\": \"receipt\"", "\"attachAutoTag\": \"a b\"")
+        assertEquals("ATTACH", SettingsSerialization.import(bad, GroveSettings()).attachAutoTag)
     }
 
     @Test

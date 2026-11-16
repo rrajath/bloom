@@ -37,11 +37,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -53,9 +55,11 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
+import com.rrajath.grove.org.OrgTags
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.ui.components.PlanningDatesScreen
+import com.rrajath.grove.ui.components.orgInlinePlainText
 import com.rrajath.grove.ui.screens.NoteDialog
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
@@ -103,8 +107,16 @@ fun MetadataSheet(
     onSetPlanningDatesBulk: (
         (OrgTimestamp?, OrgTimestamp?, List<OrgTimestamp>, Set<PlanningKind>) -> Unit
     )? = null,
+    /**
+     * Header naming what the sheet edits, in place of [headline]'s title: e.g.
+     * "3 headings" for a multi-select, or the intro's not-yet-created heading.
+     */
+    targetLabel: String? = null,
 ) {
     val c = MaterialTheme.grove
+    val header = targetLabel
+        ?: headline?.let { h -> orgInlinePlainText(h.title).trim().ifEmpty { "Untitled heading" } }
+    val stars = if (targetLabel == null) headline?.let { "*".repeat(it.level.coerceAtLeast(1)) } else null
     var planningOpen by remember { mutableStateOf(false) }
     var noteDialogOpen by remember { mutableStateOf(false) }
 
@@ -130,6 +142,33 @@ fun MetadataSheet(
             // never assigns it, so the target isn't needed there.
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
                 Box(Modifier.clearAndSetSemantics {}.focusable())
+            }
+            // Names the heading every chip below acts on, so it's clear which one
+            // the sheet edits (the cursor's heading in Edit mode, a row in Outline).
+            // A single heading leads with its org stars (as the attach sheet does);
+            // a multi-select or intro label has no one level, so it shows none.
+            if (header != null) {
+                Row(
+                    Modifier.padding(top = 2.dp, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (stars != null) {
+                        Text(
+                            stars,
+                            fontFamily = PlexMono, fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp, color = c.synStar,
+                            modifier = Modifier.alignByBaseline(),
+                        )
+                    }
+                    Text(
+                        header,
+                        fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp, lineHeight = 21.sp, color = c.ink,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.alignByBaseline(),
+                    )
+                }
+                HorizontalDivider(color = c.line)
             }
             SheetLabel("State")
             // FlowRow, not Row: vaults can define arbitrarily many TODO keywords,
@@ -179,7 +218,8 @@ fun MetadataSheet(
 
             fun pickTag(tag: String) {
                 val cleaned = tag.trim()
-                if (cleaned.isNotEmpty()) onSetTags((selectedTags + cleaned).distinct())
+                if (OrgTags.error(cleaned) != null) return
+                onSetTags((selectedTags + cleaned).distinct())
                 tagQuery = ""
             }
 
@@ -200,6 +240,8 @@ fun MetadataSheet(
                     allTags.filter { it !in selectedTags && it.contains(tagQuery, ignoreCase = true) }.take(8)
                 }
                 val exactMatch = allTags.any { it.equals(tagQuery, ignoreCase = true) }
+                // A new tag must survive being written to the headline (OrgTags); say why when it can't.
+                val createError = if (tagQuery.isNotBlank() && !exactMatch) OrgTags.error(tagQuery) else null
                 val showCreate = tagQuery.isNotBlank() && !exactMatch
                 val hasSuggestions = showCreate || filtered.isNotEmpty()
 
@@ -234,15 +276,26 @@ fun MetadataSheet(
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                         ) {
                             if (showCreate) {
-                                Text(
-                                    "Create tag “$tagQuery”",
-                                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.accent,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { pickTag(tagQuery) }
-                                        .padding(horizontal = 8.dp, vertical = 9.dp),
-                                )
+                                if (createError != null) {
+                                    Text(
+                                        createError,
+                                        fontFamily = PlexSans, fontSize = 13.sp, color = c.red,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp, vertical = 9.dp)
+                                            .testTag("tag_create_error"),
+                                    )
+                                } else {
+                                    Text(
+                                        "Create tag “$tagQuery”",
+                                        fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.accent,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { pickTag(tagQuery) }
+                                            .padding(horizontal = 8.dp, vertical = 9.dp),
+                                    )
+                                }
                                 if (filtered.isNotEmpty()) {
                                     Spacer(Modifier.height(4.dp))
                                     HorizontalDivider(color = c.line)

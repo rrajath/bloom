@@ -1,5 +1,6 @@
 package com.rrajath.grove.vault
 
+import com.rrajath.grove.attach.DirPin
 import com.rrajath.grove.org.ArchiveLocation
 import com.rrajath.grove.org.ArchiveProperties
 import com.rrajath.grove.org.ArchiveTarget
@@ -128,7 +129,9 @@ object AutoArchive {
      * destination file/heading path. Shared by [apply] and the manual per-note "Archive" quick
      * action. Returns null when the destination file doesn't exist and [createFileIfMissing] is
      * false. With [archivedAt] (an archive, not a plain refile), the moved heading gets Emacs's
-     * `ARCHIVE_*` context properties stamped into its `:PROPERTIES:` drawer.
+     * `ARCHIVE_*` context properties stamped into its `:PROPERTIES:` drawer. A heading whose
+     * attachments live in an inherited `:DIR:` gets that `:DIR:` pinned ([DirPin]) when the
+     * destination would resolve it elsewhere.
      */
     suspend fun refileSubtree(
         vault: Vault,
@@ -140,6 +143,7 @@ object AutoArchive {
         archivedAt: LocalDateTime? = null,
     ): RefileWrite? {
         val label = label(target)
+        val pin = DirPin.of(sourceDoc, sourceFile, source)
         val subtree = OrgMutations.subtreeText(sourceDoc, source).let { text ->
             if (archivedAt == null) text else stamp(vault, sourceDoc, sourceFile, source, text, archivedAt)
         }
@@ -147,7 +151,8 @@ object AutoArchive {
         if (target.fileName == sourceFile) {
             val afterDelete = OrgParser.parse(OrgMutations.deleteSubtree(sourceDoc, source), sourceDoc.keywords)
             val (docAfterPath, destHeadline) = ArchiveLocation.findOrCreateHeadingPath(afterDelete, target.headingPath)
-            val (finalText, insertAt) = OrgMutations.refileInsert(docAfterPath, destHeadline, subtree)
+            val pinned = pin?.apply(subtree, docAfterPath, sourceFile, destHeadline) ?: subtree
+            val (finalText, insertAt) = OrgMutations.refileInsert(docAfterPath, destHeadline, pinned)
             return RefileWrite(sourceFile, finalText, sourceFile, finalText, sourceDoc.text, insertAt, label)
         }
 
@@ -160,7 +165,8 @@ object AutoArchive {
         val destTextBefore = destDoc.text
         val srcText = OrgMutations.deleteSubtree(sourceDoc, source)
         val (docAfterPath, destHeadline) = ArchiveLocation.findOrCreateHeadingPath(destDoc, target.headingPath)
-        val (dstText, insertAt) = OrgMutations.refileInsert(docAfterPath, destHeadline, subtree)
+        val pinned = pin?.apply(subtree, docAfterPath, target.fileName, destHeadline) ?: subtree
+        val (dstText, insertAt) = OrgMutations.refileInsert(docAfterPath, destHeadline, pinned)
         return RefileWrite(sourceFile, srcText, target.fileName, dstText, destTextBefore, insertAt, label)
     }
 
@@ -228,7 +234,7 @@ object AutoArchive {
      * [OrgMutations.selectedRoots]. A source whose destination file can't be
      * opened (or, without [createFileIfMissing], doesn't exist) stays where it
      * is. With [archivedAt], each moved heading gets Emacs's `ARCHIVE_*`
-     * properties. Nothing is saved; a same-file destination is part of
+     * properties. Each keeps an inherited `:DIR:` as [refileSubtree] does. Nothing is saved; a same-file destination is part of
      * [BulkRefile.sourceText].
      */
     suspend fun refileEach(
@@ -240,7 +246,7 @@ object AutoArchive {
         archivedAt: LocalDateTime? = null,
     ): BulkRefile {
         var cur = doc
-        val pending = mutableListOf<Pair<ArchiveTarget, String>>()
+        val pending = mutableListOf<Triple<ArchiveTarget, String, DirPin?>>()
         // Other destination files: text before, document with the inserts so far.
         val dests = linkedMapOf<String, Pair<String, OrgDocument>>()
         // Descending: removing a subtree only renumbers the lines after it.
@@ -256,15 +262,15 @@ object AutoArchive {
             val subtree = OrgMutations.subtreeText(cur, h).let { text ->
                 if (archivedAt == null) text else stamp(vault, cur, fileName, h, text, archivedAt)
             }
-            pending += target to subtree
+            pending += Triple(target, subtree, DirPin.of(cur, fileName, h))
             cur = OrgParser.parse(OrgMutations.deleteSubtree(cur, h), doc.keywords)
         }
-        for ((target, subtree) in pending.asReversed()) {
+        for ((target, subtree, pin) in pending.asReversed()) {
             if (target.fileName == fileName) {
-                cur = insertAtPath(cur, target.headingPath, subtree)
+                cur = insertAtPath(cur, fileName, target.headingPath, subtree, pin)
             } else {
                 val (before, destDoc) = dests.getValue(target.fileName)
-                dests[target.fileName] = before to insertAtPath(destDoc, target.headingPath, subtree)
+                dests[target.fileName] = before to insertAtPath(destDoc, target.fileName, target.headingPath, subtree, pin)
             }
         }
         return BulkRefile(
@@ -292,10 +298,11 @@ object AutoArchive {
         ArchiveProperties.of(sourceDoc, source, sourceFile, vault.absolutePath(sourceFile), archivedAt),
     )
 
-    /** [subtree] as the last child of [path] in [doc], creating any missing heading on the way. */
-    private fun insertAtPath(doc: OrgDocument, path: List<String>, subtree: String): OrgDocument {
+    /** [subtree] as the last child of [path] in [doc] ([file]), creating any missing heading on the way. */
+    private fun insertAtPath(doc: OrgDocument, file: String, path: List<String>, subtree: String, pin: DirPin?): OrgDocument {
         val (docAfterPath, destHeadline) = ArchiveLocation.findOrCreateHeadingPath(doc, path)
-        val (text, _) = OrgMutations.refileInsert(docAfterPath, destHeadline, subtree)
+        val pinned = pin?.apply(subtree, docAfterPath, file, destHeadline) ?: subtree
+        val (text, _) = OrgMutations.refileInsert(docAfterPath, destHeadline, pinned)
         return OrgParser.parse(text, doc.keywords)
     }
 

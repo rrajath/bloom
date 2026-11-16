@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.vault
 
+import com.rrajath.grove.attach.AttachConfig
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.attach.AttachmentLifecycle
@@ -72,7 +73,7 @@ class NotebooksViewModelAttachmentsTest {
     private suspend fun TestScope.vm(): NotebooksViewModel {
         TestVaultSeeder.index(db, store)
         advanceUntilIdle()
-        val lifecycle = AttachmentLifecycle(store, holders)
+        val lifecycle = AttachmentLifecycle(store, holders, AttachConfig.Default)
         return NotebooksViewModel(
             vaultFlow = MutableStateFlow(Vault(store, parseDispatcher = mainDispatcherRule.dispatcher)),
             database = db,

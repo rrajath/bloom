@@ -148,6 +148,11 @@ data class GroveSettings(
      * or Save in the leave-with-unsaved-changes dialog.
      */
     val autoSaveNotes: Boolean = true,
+    /**
+     * Whether the editors uppercase the first letter typed into an org heading
+     * (including right after a TODO keyword). Off leaves capitalization to the keyboard.
+     */
+    val capitalizeHeadings: Boolean = true,
     /** Per-notebook last-used note mode overrides: "file.org" → "read"/"edit". */
     val notebookModes: Map<String, String> = emptyMap(),
     /** Per-notebook monogram color overrides: "file.org" → palette key ("green"…). */
@@ -298,6 +303,10 @@ data class GroveSettings(
     val attachImageWidth: AttachImageWidth = AttachImageWidth.FIT,
     /** Settings § Attachments: image width in px when [attachImageWidth] is FIXED. */
     val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
+    /** Settings § Attachments: the attachment folder, always valid with one trailing `/` ([AttachFolder]). */
+    val attachFolder: String = AttachFolder.DEFAULT,
+    /** Settings § Attachments: tag added to headings files are attached to, no colons; empty for none ([AttachAutoTag]). */
+    val attachAutoTag: String = AttachAutoTag.DEFAULT,
 ) {
     /** Pinned notebook file names in pin order — derived view of [pinnedItems]. */
     val pinnedNotebooks: List<String>
@@ -367,6 +376,7 @@ class SettingsRepository(
         val addCreatedToNewNotes = booleanPreferencesKey("add_created_to_new_notes")
         val newNoteCursor = stringPreferencesKey("new_note_cursor")
         val autoSaveNotes = booleanPreferencesKey("auto_save_notes")
+        val capitalizeHeadings = booleanPreferencesKey("capitalize_headings")
         val notebookModes = stringPreferencesKey("notebook_modes")
 
         /**
@@ -439,6 +449,8 @@ class SettingsRepository(
         val attachPhotoSize = stringPreferencesKey("attach_photo_size")
         val attachImageWidth = stringPreferencesKey("attach_image_width")
         val attachImageWidthPx = intPreferencesKey("attach_image_width_px")
+        val attachFolder = stringPreferencesKey("attach_folder")
+        val attachAutoTag = stringPreferencesKey("attach_auto_tag")
     }
 
     /**
@@ -490,6 +502,7 @@ class SettingsRepository(
             addCreatedToNewNotes = prefs[Keys.addCreatedToNewNotes] ?: true,
             newNoteCursor = NewNoteCursor.fromStorage(prefs[Keys.newNoteCursor]),
             autoSaveNotes = prefs[Keys.autoSaveNotes] ?: true,
+            capitalizeHeadings = prefs[Keys.capitalizeHeadings] ?: true,
             notebookModes = decodeModes(prefs[Keys.notebookModes]),
             notebookColors = decodeModes(prefs[Keys.notebookColors]),
             folderColors = decodeModes(prefs[Keys.folderColors]),
@@ -556,6 +569,8 @@ class SettingsRepository(
             attachPhotoSize = AttachPhotoSize.fromStorage(prefs[Keys.attachPhotoSize]),
             attachImageWidth = AttachImageWidth.fromStorage(prefs[Keys.attachImageWidth]),
             attachImageWidthPx = AttachImageWidth.clampPx(prefs[Keys.attachImageWidthPx] ?: AttachImageWidth.DEFAULT_PX),
+            attachFolder = AttachFolder.sanitize(prefs[Keys.attachFolder]),
+            attachAutoTag = AttachAutoTag.sanitize(prefs[Keys.attachAutoTag]),
         )
     }.shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
@@ -639,6 +654,7 @@ class SettingsRepository(
             p[Keys.addCreatedToNewNotes] = s.addCreatedToNewNotes
             p[Keys.newNoteCursor] = s.newNoteCursor.storageKey
             p[Keys.autoSaveNotes] = s.autoSaveNotes
+            p[Keys.capitalizeHeadings] = s.capitalizeHeadings
             p[Keys.notebookModes] = encodeModes(s.notebookModes)
             p[Keys.notebookColors] = encodeModes(s.notebookColors)
             p[Keys.folderColors] = encodeModes(s.folderColors)
@@ -697,6 +713,8 @@ class SettingsRepository(
             p[Keys.attachPhotoSize] = s.attachPhotoSize.storageKey
             p[Keys.attachImageWidth] = s.attachImageWidth.storageKey
             p[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(s.attachImageWidthPx)
+            p[Keys.attachFolder] = AttachFolder.sanitize(s.attachFolder)
+            p[Keys.attachAutoTag] = AttachAutoTag.sanitize(s.attachAutoTag)
         }
     }
 
@@ -752,6 +770,10 @@ class SettingsRepository(
 
     suspend fun setAutoSaveNotes(enabled: Boolean) {
         editSettings { it[Keys.autoSaveNotes] = enabled }
+    }
+
+    suspend fun setCapitalizeHeadings(enabled: Boolean) {
+        editSettings { it[Keys.capitalizeHeadings] = enabled }
     }
 
     /**
@@ -1051,6 +1073,18 @@ class SettingsRepository(
 
     suspend fun setAttachImageWidthPx(px: Int) {
         context.settingsDataStore.edit { it[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(px) }
+    }
+
+    /** Stores [folder] normalized; an invalid value is ignored (the dialog validates first). */
+    suspend fun setAttachFolder(folder: String) {
+        val normalized = AttachFolder.normalize(folder) ?: return
+        context.settingsDataStore.edit { it[Keys.attachFolder] = normalized }
+    }
+
+    /** Stores [tag] trimmed (empty for no tag); an invalid value is ignored (the dialog validates first). */
+    suspend fun setAttachAutoTag(tag: String) {
+        val normalized = AttachAutoTag.normalize(tag) ?: return
+        context.settingsDataStore.edit { it[Keys.attachAutoTag] = normalized }
     }
 
     suspend fun setRoamFeaturesEnabled(enabled: Boolean) {

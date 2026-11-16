@@ -2,12 +2,19 @@ package com.rrajath.grove.ui.editor
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.attach.AttachDirChange
+import com.rrajath.grove.attach.AttachDirMoves
+import com.rrajath.grove.attach.AttachMoveOutcome
+import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.fileOwner
+import com.rrajath.grove.attach.ownerOf
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.DefaultTemplates
 import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplateKind
 import com.rrajath.grove.capture.TemplatesRepository
 import com.rrajath.grove.data.GroveDatabase
+import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.testing.FakeFileStore
@@ -27,6 +34,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -59,7 +68,7 @@ class EditorViewModelIntegrationTest {
     private val templatesRepository =
         TemplatesRepository(ApplicationProvider.getApplicationContext<Application>())
 
-    private fun editor() = EditorViewModel(
+    private fun editor(attachDirMoves: AttachDirMoves = AttachDirMoves.None) = EditorViewModel(
         vaultFlow = vaultFlow,
         sync = sync,
         database = db,
@@ -67,7 +76,22 @@ class EditorViewModelIntegrationTest {
         keywords = keywords,
         dispatchers = mainDispatcherRule.appDispatchers,
         templatesRepository = templatesRepository,
+        attachDirMoves = attachDirMoves,
     )
+
+    /** Records what the editor asks of [AttachDirMoves]; reports one broken change per detect when [changes]. */
+    private class RecordingDirMoves(var changes: Boolean = true) : AttachDirMoves {
+        val detected = mutableListOf<Pair<List<AttachOwner>, String>>()
+        val applied = mutableListOf<List<AttachDirChange>>()
+        override suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument): List<AttachDirChange> {
+            detected += baseline to after.text
+            return if (changes) listOf(AttachDirChange.Broken(after.fileOwner(), orgFile, "dir")) else emptyList()
+        }
+        override suspend fun apply(changes: List<AttachDirChange>): AttachMoveOutcome {
+            applied += changes
+            return AttachMoveOutcome()
+        }
+    }
 
     /** Line index of the first headline whose title starts with [prefix], in [file]. */
     private fun headlineLine(file: String, prefix: String): Int =
@@ -185,6 +209,213 @@ class EditorViewModelIntegrationTest {
         assertFalse(s.loading)
         assertEquals(EditRegion.INTRO, s.region)
         assertEquals("Intro prose that lives before any heading.", s.buffer)
+    }
+
+    @Test
+    fun `addFileId writes a file ID and the Intro still saves without going stale`() = runTest {
+        store.write("trip.org", "#+TITLE: Trip\nPlans.\n* Day 1\n")
+        val vm = editor()
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.INTRO)
+        advanceUntilIdle()
+
+        assertTrue(vm.addFileId("trip.org", "trip-id"))
+        vm.onBufferChange("Plans.\n[[attachment:map.pdf]]")
+        vm.save()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.staleFile)
+        val saved = store.read("trip.org")
+        assertEquals("trip-id", OrgParser.parse(saved).fileId)
+        assertTrue(saved, saved.contains("Plans.\n[[attachment:map.pdf]]\n* Day 1"))
+    }
+
+    @Test
+    fun `attachFileContext places a heading editor's buffer in its file`() = runTest {
+        val text = "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Lunch\nsoba\n* Other\n"
+        store.write("trip.org", text)
+        val vm = editor()
+        vm.load(NoteRef("trip.org", headlineLineIn(text, "Lunch")))
+        advanceUntilIdle()
+
+        val ctx = vm.attachFileContext()!!
+        assertEquals(text, ctx.fileText)
+        assertEquals(4 until 6, ctx.span)
+        val owner = com.rrajath.grove.attach.BufferInFile.of(vm.state.value.buffer, ctx).ownerAtLine(0)
+        assertEquals("trip", owner.dirProperty)
+    }
+
+    @Test
+    fun `attachFileContext is null for a region editor`() = runTest {
+        store.write("trip.org", "#+TITLE: Trip\nPlans.\n* Day 1\n")
+        val vm = editor()
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.INTRO)
+        advanceUntilIdle()
+        assertEquals(null, vm.attachFileContext())
+    }
+
+    @Test
+    fun `addFileId leaves a file with a DIR alone`() = runTest {
+        val original = ":PROPERTIES:\n:DIR: files\n:END:\nPlans.\n"
+        store.write("trip.org", original)
+        val vm = editor()
+        assertTrue(vm.addFileId("trip.org", "trip-id"))
+        assertEquals(original, store.read("trip.org"))
+    }
+
+    @Test
+    fun `explicit save shows the attach dir notice and OK applies it before continuing`() = runTest {
+        store.write("trip.org", "* Day 1\n:PROPERTIES:\n:ID: AA11\n:END:\n")
+        val moves = RecordingDirMoves()
+        val vm = editor(moves)
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+
+        vm.onBufferChange("* Day 1\n:PROPERTIES:\n:ID: AA11\n:DIR: photos\n:END:\n")
+        var left = false
+        vm.save(onSaved = { left = true })
+        advanceUntilIdle()
+
+        // The baseline is the file as loaded; the notice holds back onSaved.
+        assertEquals(listOf("AA11"), moves.detected.single().first.mapNotNull { it.id })
+        assertNotNull(vm.attachDirNotice.value)
+        assertFalse(left)
+        vm.acknowledgeAttachDirNotice()
+        // The move runs first; the notice stays (busy) until it's done.
+        assertTrue(vm.attachDirNotice.value!!.busy)
+        advanceUntilIdle()
+        assertTrue(left)
+        assertEquals(1, moves.applied.size)
+        assertNull(vm.attachDirNotice.value)
+    }
+
+    @Test
+    fun `idle auto-save never checks attach dirs, leaving without changes still does`() = runTest {
+        store.write("trip.org", "* Day 1\n")
+        val moves = RecordingDirMoves(changes = false)
+        val vm = editor(moves)
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+
+        vm.onBufferChange("* Day 1\n:PROPERTIES:\n:DIR: pho\n:END:\n")
+        vm.save(explicit = false)
+        advanceUntilIdle()
+        assertTrue(moves.detected.isEmpty())
+
+        // Leaving (nothing dirty now) checks what the auto-save wrote.
+        var left = false
+        vm.save(onSaved = { left = true })
+        advanceUntilIdle()
+        assertEquals(1, moves.detected.size)
+        assertTrue(left)
+    }
+
+    @Test
+    fun `discard undoes what an idle auto-save wrote since the last save`() = runTest {
+        val original = "* Day 1\n:PROPERTIES:\n:DIR: photos\n:END:\n[[attachment:a.jpg]]\n"
+        store.write("trip.org", original)
+        val vm = editor()
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+
+        vm.onBufferChange(original.replace("photos", "kyoto"))
+        vm.save(explicit = false)
+        advanceUntilIdle()
+        assertTrue(store.read("trip.org").contains(":DIR: kyoto"))
+
+        vm.onBufferChange(original.replace("photos", "kyoto") + "more\n")
+        var left = false
+        vm.discardChanges { left = true }
+        advanceUntilIdle()
+        assertTrue(left)
+        assertEquals(original, store.read("trip.org"))
+        assertFalse(vm.state.value.dirty)
+    }
+
+    @Test
+    fun `discard after an explicit save keeps that save`() = runTest {
+        store.write("trip.org", "* Day 1\n")
+        val vm = editor()
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+        vm.onBufferChange("* Day 1\nsaved\n")
+        vm.save()
+        advanceUntilIdle()
+        vm.onBufferChange("* Day 1\nsaved\nauto\n")
+        vm.save(explicit = false)
+        advanceUntilIdle()
+
+        vm.discardChanges {}
+        advanceUntilIdle()
+        assertEquals("* Day 1\nsaved\n", store.read("trip.org"))
+    }
+
+    @Test
+    fun `a renamed clash rewrites the link on disk and in the open buffer`() = runTest {
+        val text = "* Day 1\n:PROPERTIES:\n:ID: AA11\n:END:\n[[attachment:a.jpg]]\n"
+        store.write("trip.org", text)
+        val withDir = text.replace(":ID: AA11\n", ":ID: AA11\n:DIR: photos\n")
+        val moves = object : AttachDirMoves {
+            override suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument) =
+                listOf(
+                    AttachDirChange.Move(
+                        after.ownerOf(after.headlines.single()), orgFile, "data/AA/11", "photos",
+                        AttachDirChange.Kind.DIR_ADDED, copy = false,
+                    ),
+                )
+            override suspend fun apply(changes: List<AttachDirChange>) =
+                AttachMoveOutcome(renames = listOf(changes.single() as AttachDirChange.Move to mapOf("a.jpg" to "a-1.jpg")))
+        }
+        val vm = editor(moves)
+        vm.loadRegion("trip.org", noteId = null, region = EditRegion.WHOLE_FILE)
+        advanceUntilIdle()
+        vm.onBufferChange(withDir)
+        vm.save()
+        advanceUntilIdle()
+        vm.acknowledgeAttachDirNotice()
+        advanceUntilIdle()
+
+        val fixed = withDir.replace("a.jpg", "a-1.jpg")
+        assertEquals(fixed, store.read("trip.org"))
+        assertEquals(fixed, vm.state.value.buffer)
+        assertFalse(vm.state.value.dirty)
+        assertNull(vm.attachDirNotice.value)
+    }
+
+    @Test
+    fun `a new ID for a child lands on disk and in a subtree editor, and the next save keeps it`() = runTest {
+        val trip = "* Trip\n:PROPERTIES:\n:ID: AA11\n:DIR: photos\n:END:\n** Day\n[[attachment:b.jpg]]\n"
+        store.write("trip.org", "* Before\n$trip* After\n")
+        val moves = object : AttachDirMoves {
+            override suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument) =
+                listOf(
+                    AttachDirChange.Move(
+                        after.ownerOf(after.headlines.single { it.title == "Day" }), orgFile, "photos", "data/CC/33",
+                        AttachDirChange.Kind.DIR_REMOVED, copy = false, wholeDir = false,
+                        linkedNames = listOf("b.jpg"), newId = "CC33",
+                    ),
+                )
+            override suspend fun apply(changes: List<AttachDirChange>) =
+                AttachMoveOutcome(newIds = changes.map { it as AttachDirChange.Move })
+        }
+        val vm = editor(moves)
+        vm.load(NoteRef("trip.org", 1))
+        advanceUntilIdle()
+        vm.onBufferChange(vm.state.value.buffer.replace(":DIR: photos\n", ""))
+        vm.save()
+        advanceUntilIdle()
+        vm.acknowledgeAttachDirNotice()
+        advanceUntilIdle()
+
+        val expected = "* Trip\n:PROPERTIES:\n:ID: AA11\n:END:\n** Day\n:PROPERTIES:\n:ID: CC33\n:END:\n[[attachment:b.jpg]]\n"
+        assertEquals("* Before\n$expected* After\n", store.read("trip.org"))
+        assertEquals(expected.trimEnd('\n'), vm.state.value.buffer)
+        assertEquals(1 until 10, vm.state.value.ownedSpan)
+
+        // Editing again replaces exactly the grown span: no duplicate, no lost ID.
+        vm.onBufferChange(vm.state.value.buffer + "\nmore")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("* Before\n${expected}more\n* After\n", store.read("trip.org"))
     }
 
     @Test
@@ -333,6 +564,58 @@ class EditorViewModelIntegrationTest {
         assertTrue("an untouched sibling", text.contains("Ship v2 release"))
         assertEquals(1, sync.reindexCalls.size)
         assertEquals("projects.org", sync.reindexCalls.single().fileName)
+    }
+
+    @Test
+    fun `a heading typed at the top level and deleted after an intermediate save leaves the file`() = runTest {
+        store.write("test.org", "* A\nbody\n* Z\n")
+        val vm = editor()
+        vm.load(NoteRef("test.org", 0))
+        advanceUntilIdle()
+
+        // Grows past the original subtree: after this save `* B` is A's sibling on disk.
+        vm.onBufferChange("* A\nbody\n** A.1\n* B")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("* A\nbody\n** A.1\n* B\n* Z\n", store.read("test.org"))
+
+        vm.onBufferChange("* A\nbody")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("* A\nbody\n* Z\n", store.read("test.org"))
+    }
+
+    @Test
+    fun `replacing the first heading line between saves does not duplicate the buffer`() = runTest {
+        store.write("test.org", "* A\nbody\n* Z\n")
+        val vm = editor()
+        vm.load(NoteRef("test.org", 0))
+        advanceUntilIdle()
+
+        vm.onBufferChange("just prose")
+        vm.save()
+        advanceUntilIdle()
+        vm.onBufferChange("* A2\nbody")
+        vm.save()
+        advanceUntilIdle()
+
+        assertEquals("* A2\nbody\n* Z\n", store.read("test.org"))
+    }
+
+    @Test
+    fun `deleteSubtree after an intermediate save removes every line the editor wrote`() = runTest {
+        store.write("test.org", "* A\n* Z\n")
+        val vm = editor()
+        vm.load(NoteRef("test.org", 0))
+        advanceUntilIdle()
+
+        vm.onBufferChange("* \n* B")
+        vm.save()
+        advanceUntilIdle()
+        vm.deleteSubtree()
+        advanceUntilIdle()
+
+        assertEquals("* Z\n", store.read("test.org"))
     }
 
     @Test

@@ -261,6 +261,57 @@ enum class AttachImageWidth(val storageKey: String, val label: String) {
     }
 }
 
+/**
+ * Settings § Attachments: the attachment folder (`org-attach-id-dir`), always
+ * relative to each note's folder. One or more plain folder names (`attach/`,
+ * `.attach/`, `media/files/`); no vault-rooted or climbing paths.
+ */
+object AttachFolder {
+    const val DEFAULT = "data/"
+
+    /** Why [raw] can't be used, or null when it can. */
+    fun error(raw: String): String? {
+        val v = raw.trim()
+        val segments = v.split('/').filter { it.isNotEmpty() }
+        return when {
+            v.isEmpty() -> "Enter a folder."
+            v.startsWith("/") -> "Use a folder inside each note's folder; remove the leading /."
+            '~' in v -> "~ isn't supported."
+            '\\' in v -> "Use / between folders."
+            segments.isEmpty() -> "Enter a folder."
+            segments.any { it.trim() == ".." } -> "Use a folder inside each note's folder; .. isn't supported."
+            segments.any { it.trim() == "." } -> "Use folder names, not \".\"."
+            segments.any { it != it.trim() } -> "Folder names can't start or end with a space."
+            else -> null
+        }
+    }
+
+    /** [raw] trimmed, repeated `/` collapsed, one trailing `/`; null when [error] rejects it. */
+    fun normalize(raw: String): String? =
+        if (error(raw) != null) null
+        else raw.trim().split('/').filter { it.isNotEmpty() }.joinToString("/") + "/"
+
+    /** A stored or imported value, falling back to [DEFAULT] when missing or invalid. */
+    fun sanitize(raw: String?): String = raw?.let(::normalize) ?: DEFAULT
+}
+
+/**
+ * Settings § Attachments: the tag a heading gets when files are attached to it
+ * (`org-attach-auto-tag`), stored without colons. Empty means no tag.
+ */
+object AttachAutoTag {
+    const val DEFAULT = "ATTACH"
+
+    /** Why [raw] can't be used, or null when it can: blank (no tag) or a valid heading tag. */
+    fun error(raw: String): String? = if (raw.isBlank()) null else com.rrajath.grove.org.OrgTags.error(raw)
+
+    /** [raw] trimmed (empty for no tag); null when [error] rejects it. */
+    fun normalize(raw: String): String? = if (error(raw) != null) null else raw.trim()
+
+    /** A stored or imported value: missing or invalid falls back to [DEFAULT]; empty stays empty. */
+    fun sanitize(raw: String?): String = raw?.let(::normalize) ?: DEFAULT
+}
+
 /** Agenda row swipe gesture (either direction), Settings § Agenda. */
 enum class AgendaSwipeAction(val storageKey: String, val label: String) {
     SET_SCHEDULED("set_scheduled", "Schedule Task"),

@@ -301,18 +301,21 @@ class Vault(
      * hits the cache instead of re-parsing the file it just wrote.
      */
     suspend fun save(fileName: String, content: String, parsed: OrgDocument? = null) {
-        if (store.stat(fileName) == null) store.create(fileName)
-        store.write(fileName, content)
-        val entry = if (parsed != null) store.stat(fileName) else null
+        // On a case-insensitive store `inbox.org` is an existing `Inbox.org`: write
+        // that file under its real name (the line-ending memo and cache key on it).
+        var name = store.canonicalName(fileName)
+        if (store.stat(name) == null && !store.create(name)) name = store.canonicalName(fileName)
+        store.write(name, content)
+        val entry = if (parsed != null) store.stat(name) else null
         if (entry != null) {
             val key = CacheKey(entry.name, entry.lastModified, entry.size)
             cacheMutex.withLock {
-                cache.keys.removeAll { it.name == fileName }
+                cache.keys.removeAll { it.name == name }
                 if (cache.size > 64) cache.remove(cache.keys.first())
                 cache[key] = parsed!!
             }
         } else {
-            evictParse(fileName)
+            evictParse(name)
         }
     }
 

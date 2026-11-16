@@ -1,6 +1,11 @@
 package com.rrajath.grove.ui.screens
 
 import androidx.activity.ComponentActivity
+import com.rrajath.grove.testing.OrgFixtures
+import com.rrajath.grove.org.OrgParser
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -50,6 +55,10 @@ class OutlineScreenTest {
         notebookId: String = "projects.org",
         onOpenNote: (NoteRef) -> Unit = {},
         onCreateNote: (NoteRef) -> Unit = {},
+        narrowLineIndex: Int? = null,
+        onNarrow: (Int) -> Unit = {},
+        onViewFile: (String) -> Unit = {},
+        wholeFileLineLimit: Int = com.rrajath.grove.ui.vault.WHOLE_FILE_LINE_LIMIT,
     ) {
         composeRule.setGroveContent {
             OutlineScreen(
@@ -57,6 +66,10 @@ class OutlineScreenTest {
                 onBack = {},
                 onOpenNote = onOpenNote,
                 onCreateNote = onCreateNote,
+                narrowLineIndex = narrowLineIndex,
+                onNarrow = onNarrow,
+                onViewFile = onViewFile,
+                wholeFileLineLimit = wholeFileLineLimit,
                 viewModel = vm,
             )
         }
@@ -145,5 +158,73 @@ class OutlineScreenTest {
 
         composeRule.waitUntil(timeoutMillis = 3_000) { created != null }
         assertEquals("projects.org", created?.fileName)
+    }
+
+    @Test
+    fun swipeNarrowNarrowsToThatHeading() {
+        var narrowedTo: Int? = null
+        content(onNarrow = { narrowedTo = it })
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Backlog", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Backlog", substring = true).performTouchInput { swipeLeft() }
+        composeRule.onNodeWithText("Narrow").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 3_000) { narrowedTo != null }
+        val backlog = OrgParser.parse(OrgFixtures.PROJECTS).headlines.first { it.title.startsWith("Backlog") }
+        assertEquals(backlog.lineIndex, narrowedTo)
+    }
+
+    @Test
+    fun narrowedRootRowHasNoNarrowAction() {
+        val backlog = OrgParser.parse(OrgFixtures.PROJECTS).headlines.first { it.title.startsWith("Backlog") }
+        content(narrowLineIndex = backlog.lineIndex)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Backlog", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodesWithText("Backlog", substring = true)[0].performTouchInput { swipeLeft() }
+        composeRule.onNodeWithText("Above").assertIsDisplayed()
+        composeRule.onNodeWithText("Narrow").assertDoesNotExist()
+    }
+
+    private fun doubleTapBelowLastRow() {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("outline_toggle").fetchSemanticsNodes().isNotEmpty()
+        }
+        // projects.org opens collapsed, so the list's bottom edge is blank space.
+        composeRule.onNodeWithTag("outline_list").performTouchInput {
+            doubleClick(androidx.compose.ui.geometry.Offset(centerX, bottom - 20f))
+        }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun doubleTapBelowLastRowOpensFileView() {
+        var opened: String? = null
+        content(onViewFile = { opened = it })
+        doubleTapBelowLastRow()
+        assertEquals("projects.org", opened)
+    }
+
+    @Test
+    fun doubleTapBelowLastRowOnTooLargeFileToastsInstead() {
+        var opened: String? = null
+        content(onViewFile = { opened = it }, wholeFileLineLimit = 1)
+        doubleTapBelowLastRow()
+        assertEquals(null, opened)
+        composeRule.onNodeWithText("Too large to open whole", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun doubleTapOnARowDoesNotOpenFileView() {
+        var opened: String? = null
+        content(onViewFile = { opened = it })
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Ship v2 release", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Ship v2 release", substring = true).performTouchInput { doubleClick() }
+        composeRule.waitForIdle()
+        assertEquals(null, opened)
     }
 }

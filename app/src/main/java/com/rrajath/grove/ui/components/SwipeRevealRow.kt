@@ -66,9 +66,9 @@ data class SwipeAction(
     val onClick: () -> Unit,
 )
 
-// Design-spec swipe physics: 4×46dp panels, 66dp open threshold, rubber band
-// past the panel width, 340ms settle with the prototype's cubic-bezier ease.
-private val PanelWidth = 184.dp
+// Design-spec swipe physics: 46dp cells (a panel is as wide as its cells: 4 or 5),
+// 66dp open threshold, rubber band past the panel width, 340ms settle with the
+// prototype's cubic-bezier ease.
 private val CellWidth = 46.dp
 private val OpenThreshold = 66.dp
 private const val RubberBandFactor = 0.18f
@@ -98,7 +98,9 @@ fun SwipeRevealRow(
 ) {
     val c = MaterialTheme.grove
     val density = LocalDensity.current
-    val panelPx = with(density) { PanelWidth.toPx() }
+    // Each side opens exactly as wide as its own cells.
+    val leftPanelPx = with(density) { (CellWidth * leftActions.size).toPx() }
+    val rightPanelPx = with(density) { (CellWidth * rightActions.size).toPx() }
     val thresholdPx = with(density) { OpenThreshold.toPx() }
     val offset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -111,8 +113,8 @@ fun SwipeRevealRow(
     val showRightPanel by remember { derivedStateOf { offset.value < 0f } }
 
     fun rubberBand(x: Float): Float = when {
-        x > panelPx -> panelPx + (x - panelPx) * RubberBandFactor
-        x < -panelPx -> -panelPx + (x + panelPx) * RubberBandFactor
+        x > leftPanelPx -> leftPanelPx + (x - leftPanelPx) * RubberBandFactor
+        x < -rightPanelPx -> -rightPanelPx + (x + rightPanelPx) * RubberBandFactor
         else -> x
     }
 
@@ -126,8 +128,8 @@ fun SwipeRevealRow(
 
     fun settle() = animateTo(
         when {
-            offset.value >= thresholdPx -> panelPx
-            offset.value <= -thresholdPx -> -panelPx
+            offset.value >= thresholdPx -> leftPanelPx
+            offset.value <= -thresholdPx -> -rightPanelPx
             else -> 0f
         }
     )
@@ -447,7 +449,7 @@ private fun ActionMark(action: SwipeAction, iconSize: Dp, glyphSize: TextUnit) {
 /** Tall enough for the largest mark either panel draws (18dp icon / 17sp glyph). */
 private val MarkSlotHeight = 22.dp
 
-/** The 46dp action cells (four for [SwipeRevealRow], two for a dual [SwipeCommitRow] side), anchored to one edge behind the card. */
+/** The 46dp action cells (four or five per [SwipeRevealRow] side, two for a dual [SwipeCommitRow] side), anchored to one edge behind the card. */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.ActionPanel(
     actions: List<SwipeAction>,

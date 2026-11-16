@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.rrajath.grove.R
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -48,7 +49,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.attach.AttachmentInventory
-import com.rrajath.grove.attach.dataDirLabel
+import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.attachDirLabel
 import com.rrajath.grove.attach.folderLabel
 import com.rrajath.grove.attach.inventoryDetail
 import com.rrajath.grove.attach.moveSubline
@@ -68,6 +70,8 @@ fun NotebookMoveAttachmentsSheet(
     fileName: String,
     newDir: String,
     inventory: AttachmentInventory,
+    /** Names the attach folders in the choice cards. */
+    config: AttachConfig,
     onMove: (moveAttachments: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -76,6 +80,7 @@ fun NotebookMoveAttachmentsSheet(
     val sourceDir = fileName.substringBeforeLast('/', "")
     val target = newDir.trim('/').let { if (it.isEmpty()) leaf else "$it/$leaf" }
     var moveAttachments by rememberSaveable { mutableStateOf(true) }
+    val folder = folderSpan()
     LifecycleSheet(onDismiss, Modifier.testTag("attach_move_sheet")) {
         Text(
             "This notebook has attachments. Move them too?",
@@ -91,13 +96,17 @@ fun NotebookMoveAttachmentsSheet(
             ChoiceCard(
                 selected = moveAttachments,
                 title = "Move attachments",
-                body = moveAttachmentsBody(dataDirLabel(target), folderLabel(sourceDir), inventory.sharedFolders),
+                body = moveAttachmentsBody(attachDirLabel(target, config), folderLabel(sourceDir), inventory.sharedFolders, folder),
                 modifier = Modifier.testTag("attach_move_choice_move"),
             ) { moveAttachments = true }
             ChoiceCard(
                 selected = !moveAttachments,
                 title = "Move notebook only",
-                body = "Attachments stay in ${dataDirLabel(fileName)}. Links in $leaf will show as missing.",
+                body = buildAnnotatedString {
+                    append("Attachments stay in ")
+                    withStyle(folder) { append(attachDirLabel(fileName, config)) }
+                    append(". Links in $leaf will show as missing.")
+                },
                 modifier = Modifier.testTag("attach_move_choice_only"),
             ) { moveAttachments = false }
         }
@@ -126,12 +135,17 @@ fun NotebookMoveAttachmentsSheet(
 }
 
 /** `Folders move into Archive/data/ and merge with what's there. 2 folders shared with notes in Notes/ are copied instead.` */
-internal fun moveAttachmentsBody(destData: String, sourceFolder: String, shared: Int): String {
-    val base = "Folders move into $destData and merge with what's there."
-    if (shared == 0) return base
-    val verb = if (shared == 1) "is" else "are"
-    return "$base ${pluralCount(shared, "folder")} shared with notes in $sourceFolder $verb copied instead."
-}
+internal fun moveAttachmentsBody(destData: String, sourceFolder: String, shared: Int, folder: SpanStyle): AnnotatedString =
+    buildAnnotatedString {
+        append("Folders move into ")
+        withStyle(folder) { append(destData) }
+        append(" and merge with what's there.")
+        if (shared == 0) return@buildAnnotatedString
+        val verb = if (shared == 1) "is" else "are"
+        append(" ${pluralCount(shared, "folder")} shared with notes in ")
+        withStyle(folder) { append(sourceFolder) }
+        append(" $verb copied instead.")
+    }
 
 /**
  * 1n: deleting a notebook that owns attachment folders. "Also delete
@@ -263,7 +277,7 @@ private fun LifecycleSheet(onDismiss: () -> Unit, modifier: Modifier, content: @
 private fun ChoiceCard(
     selected: Boolean,
     title: String,
-    body: String,
+    body: AnnotatedString,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -303,7 +317,7 @@ private fun ChoiceCard(
 
 /** 1n checkbox row: 22dp box (6dp radius, 2dp border); checked is a `red` fill with the Material check icon. */
 @Composable
-private fun DeleteAttachmentsCheckbox(checked: Boolean, detail: String, onChange: (Boolean) -> Unit) {
+internal fun DeleteAttachmentsCheckbox(checked: Boolean, detail: String, onChange: (Boolean) -> Unit) {
     val c = MaterialTheme.grove
     val shape = RoundedCornerShape(6.dp)
     Row(

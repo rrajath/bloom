@@ -178,6 +178,8 @@ fun ReadNoteScreen(
      * outline to that heading's subtree).
      */
     onOpenBreadcrumb: (Int?) -> Unit = {},
+    /** The breadcrumb's leading Notebooks segment: back to the Notebooks home. Null hides it. */
+    onOpenNotebooks: (() -> Unit)? = null,
     /**
      * A tapped org link resolved to a whole file (`[[file:other.org]]`): open
      * that file's outline. Heading/`id:` links go through [onOpenNote] instead.
@@ -323,7 +325,7 @@ fun ReadNoteScreen(
                     (state as? DocumentUiState.Loaded)?.document?.let { doc ->
                         if (noteRef.isIntro) {
                             // No heading segment: the intro sits above every heading.
-                            ReadModeBreadcrumb(noteRef.fileName, emptyList(), onOpenBreadcrumb)
+                            ReadModeBreadcrumb(noteRef.fileName, emptyList(), onOpenBreadcrumb, onOpenNotebooks = onOpenNotebooks)
                         } else doc.headlineFor(noteRef)?.let { h ->
                             val path = remember(doc, h) {
                                 val chain = mutableListOf(h)
@@ -334,7 +336,7 @@ fun ReadNoteScreen(
                                 }
                                 chain.toList()
                             }
-                            ReadModeBreadcrumb(noteRef.fileName, path, onOpenBreadcrumb)
+                            ReadModeBreadcrumb(noteRef.fileName, path, onOpenBreadcrumb, onOpenNotebooks = onOpenNotebooks)
                         }
                     }
                 },
@@ -543,6 +545,7 @@ fun ReadNoteScreen(
                 showFavorite = true,
                 isFavorite = favorites.any { it.lineIndex == INTRO_LINE_INDEX },
                 onToggleFavorite = { viewModel.toggleIntroFavorite() },
+                targetLabel = "New heading above intro",
                 onDismiss = { metadataOpen = false },
             )
         } else if (headline != null && doc != null) {
@@ -584,9 +587,11 @@ fun ReadNoteScreen(
 }
 
 /**
- * Path to the current heading, e.g. "shopping.org › Errands › Groceries".
- * Every segment is tappable: the file segment opens the full outline, each
- * heading segment narrows the outline to that heading's subtree. The file
+ * Path to the current heading, e.g. "shopping.org › Errands › Groceries",
+ * led by a "Notebooks" segment when [onOpenNotebooks] is set.
+ * Every segment is tappable: Notebooks returns to the Notebooks home, the file
+ * segment opens the full outline, each heading segment narrows the outline to
+ * that heading's subtree. The file
  * segment is folder-compacted (see [compactFileLabel]) and the whole trail
  * scrolls horizontally on one line instead of wrapping, so a long roam path
  * never crowds the top bar.
@@ -597,12 +602,22 @@ internal fun ReadModeBreadcrumb(
     path: List<OrgHeadline>,
     onOpenBreadcrumb: (Int?) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenNotebooks: (() -> Unit)? = null,
 ) {
     val c = MaterialTheme.grove
     Row(
         modifier = modifier.horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (onOpenNotebooks != null) {
+            Text(
+                "Notebooks",
+                fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink3,
+                maxLines = 1,
+                modifier = Modifier.clickable(onClick = onOpenNotebooks).testTag("breadcrumb_notebooks"),
+            )
+            Text(" › ", fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink3, maxLines = 1)
+        }
         Text(
             compactFileLabel(fileName),
             fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink3,

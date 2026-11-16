@@ -1,0 +1,6 @@
+:PROPERTIES:
+:ATTACH_DIR: legacy
+:END:
+
+* A
+# point

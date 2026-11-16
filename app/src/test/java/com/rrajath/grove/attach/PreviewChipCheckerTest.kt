@@ -54,7 +54,19 @@ class PreviewChipCheckerTest {
         loadDoc: suspend (String) -> OrgDocument? = { null },
         dispatcher: kotlinx.coroutines.CoroutineDispatcher,
         parallelism: Int = 4,
-    ) = PreviewChipChecker({ store }, cache, loadDoc, dispatcher, parallelism)
+    ) = PreviewChipChecker({ store }, { config }, cache, loadDoc, dispatcher, parallelism)
+
+    private var config = AttachConfig.Default
+
+    @Test
+    fun `a config change rebuilds the resolver under the new folder`() = runTest {
+        put("attach/ab/cdef/a.jpg")
+        val c = checker(dispatcher = StandardTestDispatcher(testScheduler))
+        assertEquals(AttachmentStatus.Missing, c.status(link, raw, "n.org", doc, ownerLine = 0))
+        config = AttachConfig(idDir = "attach/")
+        cache.clear() // as the app does on a config change
+        assertTrue(c.status(link, raw, "n.org", doc, ownerLine = 0) is AttachmentStatus.Present)
+    }
 
     @Test
     fun `the heading line picks the owner, so each heading's copy of a link is checked on its own`() = runTest {

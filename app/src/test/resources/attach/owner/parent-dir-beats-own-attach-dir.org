@@ -1,0 +1,9 @@
+* A
+:PROPERTIES:
+:DIR: a
+:END:
+** B
+:PROPERTIES:
+:ATTACH_DIR: legacy
+:END:
+# point

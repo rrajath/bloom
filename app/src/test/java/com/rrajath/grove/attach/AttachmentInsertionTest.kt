@@ -15,52 +15,52 @@ class AttachmentInsertionTest {
     private fun insert(marked: String, newId: String?, vararg names: String): Pair<String, String> {
         val cursor = marked.indexOf('|')
         val text = marked.removeRange(cursor, cursor + 1)
-        val r = insertAttachmentLinks(text, cursor, ownerAt(text, cursor), newId, names.toList())
+        val r = insertAttachmentLinks(text, cursor, ownerAt(text, cursor), newId, names.toList(), "ATTACH")
         return r.text to (r.text.substring(0, r.cursor) + "|" + r.text.substring(r.cursor))
     }
 
     @Test fun `link at end of a line goes on its own line below`() {
         val (_, withCursor) = insert("* H\n:PROPERTIES:\n:ID: X\n:END:\nsee this|\nmore\n", null, "a.jpg")
-        assertEquals("* H\n:PROPERTIES:\n:ID: X\n:END:\nsee this\n[[attachment:a.jpg]]|\nmore\n", withCursor)
+        assertEquals("* H  :ATTACH:\n:PROPERTIES:\n:ID: X\n:END:\nsee this\n[[attachment:a.jpg]]|\nmore\n", withCursor)
     }
 
     @Test fun `mid-line insertion splits the line`() {
         val (_, withCursor) = insert("* H\n:PROPERTIES:\n:ID: X\n:END:\nbefore |after\n", null, "a.pdf")
-        assertEquals("* H\n:PROPERTIES:\n:ID: X\n:END:\nbefore \n[[attachment:a.pdf]]|\nafter\n", withCursor)
+        assertEquals("* H  :ATTACH:\n:PROPERTIES:\n:ID: X\n:END:\nbefore \n[[attachment:a.pdf]]|\nafter\n", withCursor)
     }
 
     @Test fun `cursor on an empty line uses that line`() {
         val (_, withCursor) = insert("* H\n:PROPERTIES:\n:ID: X\n:END:\none\n|\ntwo", null, "a.pdf")
-        assertEquals("* H\n:PROPERTIES:\n:ID: X\n:END:\none\n[[attachment:a.pdf]]|\ntwo", withCursor)
+        assertEquals("* H  :ATTACH:\n:PROPERTIES:\n:ID: X\n:END:\none\n[[attachment:a.pdf]]|\ntwo", withCursor)
     }
 
     @Test fun `end of file without trailing newline`() {
         val (_, withCursor) = insert("* H\n:PROPERTIES:\n:ID: X\n:END:\nbody|", null, "a.pdf")
-        assertEquals("* H\n:PROPERTIES:\n:ID: X\n:END:\nbody\n[[attachment:a.pdf]]|", withCursor)
+        assertEquals("* H  :ATTACH:\n:PROPERTIES:\n:ID: X\n:END:\nbody\n[[attachment:a.pdf]]|", withCursor)
     }
 
     @Test fun `multiple names get one link per line`() {
         val (_, withCursor) = insert("* H\n:PROPERTIES:\n:ID: X\n:END:\n|\n", null, "a.jpg", "b.jpg", "c.jpg")
         assertEquals(
-            "* H\n:PROPERTIES:\n:ID: X\n:END:\n[[attachment:a.jpg]]\n[[attachment:b.jpg]]\n[[attachment:c.jpg]]|\n",
+            "* H  :ATTACH:\n:PROPERTIES:\n:ID: X\n:END:\n[[attachment:a.jpg]]\n[[attachment:b.jpg]]\n[[attachment:c.jpg]]|\n",
             withCursor,
         )
     }
 
     @Test fun `heading without drawer gets one created and the links shift below it`() {
         val (_, withCursor) = insert("* Trip\nnotes|\n* Next\n", id, "a.jpg")
-        assertEquals("* Trip\n:PROPERTIES:\n:ID: $id\n:END:\nnotes\n[[attachment:a.jpg]]|\n* Next\n", withCursor)
+        assertEquals("* Trip  :ATTACH:\n:PROPERTIES:\n:ID: $id\n:END:\nnotes\n[[attachment:a.jpg]]|\n* Next\n", withCursor)
     }
 
     @Test fun `heading with existing drawer gets the id added before end`() {
         val (_, withCursor) = insert("* Trip\n:PROPERTIES:\n:CREATED: x\n:END:\nnotes|\n", id, "a.jpg")
-        assertEquals("* Trip\n:PROPERTIES:\n:CREATED: x\n:ID: $id\n:END:\nnotes\n[[attachment:a.jpg]]|\n", withCursor)
+        assertEquals("* Trip  :ATTACH:\n:PROPERTIES:\n:CREATED: x\n:ID: $id\n:END:\nnotes\n[[attachment:a.jpg]]|\n", withCursor)
     }
 
     @Test fun `id goes after the planning line`() {
         val (text, _) = insert("* TODO Trip\nSCHEDULED: <2026-11-03 Tue>\nbody|\n", id, "a.jpg")
         assertEquals(
-            "* TODO Trip\nSCHEDULED: <2026-11-03 Tue>\n:PROPERTIES:\n:ID: $id\n:END:\nbody\n[[attachment:a.jpg]]\n",
+            "* TODO Trip  :ATTACH:\nSCHEDULED: <2026-11-03 Tue>\n:PROPERTIES:\n:ID: $id\n:END:\nbody\n[[attachment:a.jpg]]\n",
             text,
         )
         val h = OrgParser.parse(text).headlines.single()
@@ -71,14 +71,14 @@ class AttachmentInsertionTest {
     @Test fun `cursor on the headline moves the link into the body`() {
         val (_, withCursor) = insert("* Tr|ip\nSCHEDULED: <2026-11-03 Tue>\n:PROPERTIES:\n:ID: X\n:END:\nbody\n", null, "a.jpg")
         assertEquals(
-            "* Trip\nSCHEDULED: <2026-11-03 Tue>\n:PROPERTIES:\n:ID: X\n:END:\n[[attachment:a.jpg]]|\nbody\n",
+            "* Trip  :ATTACH:\nSCHEDULED: <2026-11-03 Tue>\n:PROPERTIES:\n:ID: X\n:END:\n[[attachment:a.jpg]]|\nbody\n",
             withCursor,
         )
     }
 
     @Test fun `heading that is the last line with no body`() {
         val (_, withCursor) = insert("* Tr|ip", id, "a.jpg")
-        assertEquals("* Trip\n:PROPERTIES:\n:ID: $id\n:END:\n[[attachment:a.jpg]]|", withCursor)
+        assertEquals("* Trip  :ATTACH:\n:PROPERTIES:\n:ID: $id\n:END:\n[[attachment:a.jpg]]|", withCursor)
     }
 
     @Test fun `file owner without id gets a drawer on line 0 above the title`() {
@@ -106,17 +106,33 @@ class AttachmentInsertionTest {
 
     @Test fun `id drawer lines are reported for the flash`() {
         val text = "#+TITLE: T\nbody"
-        val r = insertAttachmentLinks(text, text.length, ownerAt(text, text.length), id, listOf("a.jpg"))
+        val r = insertAttachmentLinks(text, text.length, ownerAt(text, text.length), id, listOf("a.jpg"), "ATTACH")
         assertEquals(0..2, r.idDrawerLines)
-        val noId = insertAttachmentLinks(r.text, r.text.length, ownerAt(r.text, r.text.length), null, listOf("b.jpg"))
+        val noId = insertAttachmentLinks(r.text, r.text.length, ownerAt(r.text, r.text.length), null, listOf("b.jpg"), "ATTACH")
         assertNull(noId.idDrawerLines)
         val h = "* H\nbody"
-        val rh = insertAttachmentLinks(h, h.length, ownerAt(h, h.length), id, listOf("a.jpg"))
+        val rh = insertAttachmentLinks(h, h.length, ownerAt(h, h.length), id, listOf("a.jpg"), "ATTACH")
         assertEquals(1..3, rh.idDrawerLines)
     }
 
     @Test fun `owner in a later heading only touches that heading`() {
         val (text, _) = insert("* A\nbody a\n* B\nbody b|\n", id, "x.pdf")
-        assertEquals("* A\nbody a\n* B\n:PROPERTIES:\n:ID: $id\n:END:\nbody b\n[[attachment:x.pdf]]\n", text)
+        assertEquals("* A\nbody a\n* B  :ATTACH:\n:PROPERTIES:\n:ID: $id\n:END:\nbody b\n[[attachment:x.pdf]]\n", text)
+    }
+
+    @Test fun `heading keeps its tags and gets ATTACH only once`() {
+        val (once, _) = insert("* TODO [#A] Trip  :travel:\n:PROPERTIES:\n:ID: X\n:END:\nbody|\n", null, "a.jpg")
+        assertEquals("* TODO [#A] Trip  :travel:ATTACH:\n:PROPERTIES:\n:ID: X\n:END:\nbody\n[[attachment:a.jpg]]\n", once)
+        val twice = insertAttachmentLinks(once, once.length, ownerAt(once, once.length), null, listOf("b.jpg"), "ATTACH").text
+        assertEquals("* TODO [#A] Trip  :travel:ATTACH:", twice.lineSequence().first())
+    }
+
+    @Test fun `the configured tag is used, and a blank one adds no tag`() {
+        val text = "* Trip\nbody"
+        val owner = ownerAt(text, text.length)
+        val custom = insertAttachmentLinks(text, text.length, owner, null, listOf("a.pdf"), "receipt").text
+        assertEquals("* Trip  :receipt:\nbody\n[[attachment:a.pdf]]", custom)
+        val none = insertAttachmentLinks(text, text.length, owner, null, listOf("a.pdf"), "").text
+        assertEquals("* Trip\nbody\n[[attachment:a.pdf]]", none)
     }
 }

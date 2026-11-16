@@ -13,9 +13,10 @@ import com.rrajath.grove.org.TextEdit
 /**
  * Org-aware typing behaviour shared by the note editor and quick capture:
  * continues lists on Enter, capitalizes the first letter typed into a heading
- * (including right after a TODO keyword, e.g. `"* TODO "`), and collapses a
- * doubled URL scheme after a link's scheme was pre-inserted and a full URL then
- * pasted over the cursor.
+ * (including right after a TODO keyword, e.g. `"* TODO "`) when
+ * [capitalizeHeadings] is on (Settings § Notes), and collapses a doubled URL
+ * scheme after a link's scheme was pre-inserted and a full URL then pasted over
+ * the cursor.
  *
  * An [InputTransformation] runs only for genuine user input (soft/hard
  * keyboard, paste, accessibility). Programmatic [TextFieldState.edit] writes
@@ -23,14 +24,21 @@ import com.rrajath.grove.org.TextEdit
  * rewrite) can never re-trigger list continuation on text that already has it.
  */
 @OptIn(ExperimentalFoundationApi::class)
-fun orgInputTransformation(keywords: OrgKeywords = OrgKeywords.DEFAULT) = InputTransformation {
+fun orgInputTransformation(
+    keywords: OrgKeywords = OrgKeywords.DEFAULT,
+    capitalizeHeadings: Boolean = true,
+) = InputTransformation {
     val old = originalText.toString()
     val typed = toString()
     val cursor = selection.start
 
     val afterList = if (insertedSoloNewlineAt(cursor)) LineEditing.continueListOnEnter(typed, cursor) else null
     val base = afterList ?: TextEdit(typed, cursor)
-    val capitalized = LineEditing.capitalizeHeadingOnType(old, base.text, base.cursor, keywords) ?: base
+    val capitalized = if (capitalizeHeadings) {
+        LineEditing.capitalizeHeadingOnType(old, base.text, base.cursor, keywords) ?: base
+    } else {
+        base
+    }
     val result = collapseDoubledScheme(capitalized.text, capitalized.cursor) ?: capitalized
 
     if (result.text != typed || result.cursor != cursor) {

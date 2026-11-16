@@ -20,7 +20,7 @@ class AttachmentStatusCacheTest {
 
     private val cache = AttachmentStatusCache()
     private val resolver by lazy {
-        AttachmentResolver(AttachmentLookup(AttachmentFiles(JvmFileStore(tmp.root, skipAttachShards = true))), cache)
+        AttachmentResolver(AttachmentLookup(AttachmentFiles(JvmFileStore(tmp.root, skipAttachShards = true)), AttachConfig.Default), cache)
     }
 
     private fun put(path: String) = File(tmp.root, path).apply { parentFile?.mkdirs() }.writeText("x")

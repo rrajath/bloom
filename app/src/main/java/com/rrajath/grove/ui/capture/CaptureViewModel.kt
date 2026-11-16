@@ -5,6 +5,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
+import com.rrajath.grove.attach.AttachFileContext
+import com.rrajath.grove.attach.AttachMoveOutcome
+import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.applyMoveOutcomeText
+import com.rrajath.grove.attach.fileOwner
+import com.rrajath.grove.attach.ownerOf
+import com.rrajath.grove.attach.relocateOwner
+import com.rrajath.grove.attach.withAttachTag
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureInserter
@@ -22,7 +30,9 @@ import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.settings.SettingsSource
 import com.rrajath.grove.sync.SyncTrigger
+import com.rrajath.grove.ui.editor.AddedHeadingMarks
 import com.rrajath.grove.ui.editor.AutoLinkSuggestion
+import com.rrajath.grove.ui.editor.DiskHeadingMarks
 import com.rrajath.grove.ui.editor.autoLinkIndex
 import com.rrajath.grove.ui.vault.NotebookItem
 import com.rrajath.grove.ui.vault.allFolderDirs
@@ -143,6 +153,13 @@ class CaptureViewModel(
     // final Save replaces it in place instead of inserting a duplicate copy.
     private var draftInsertion: CaptureInserter.Insertion? = null
 
+    /**
+     * Set once an explicit Save wrote the capture. Later autosaves are dropped:
+     * the screen can stay open after Save (the attach-folder notice), and an
+     * autosave then would find no tracked draft and insert a second copy.
+     */
+    private var committed = false
+
     // Draft writes are read-modify-write over the whole target file and are
     // triggered from two places (the 5s idle autosave and the Save button), so
     // they must not interleave: the loser would re-insert against a stale
@@ -161,9 +178,13 @@ class CaptureViewModel(
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
             try {
-                val (fileName, newText) = writeMutex.withLock { upsertEntry(template, entryText, context, bodyOnly) }
+                val (fileName, newText) = writeMutex.withLock {
+                    upsertEntry(template, entryText, context, bodyOnly).also {
+                        draftInsertion = null
+                        committed = true
+                    }
+                }
                 sync.requestReindex(fileName, newText, "capture saved")
-                draftInsertion = null
                 _saveState.value = SaveState.Saved(fileName)
             } catch (e: Exception) {
                 _saveState.value = SaveState.Failed(e.message ?: "Capture failed")
@@ -180,7 +201,7 @@ class CaptureViewModel(
         if (entryText.isBlank()) return
         viewModelScope.launch {
             try {
-                writeMutex.withLock { upsertEntry(template, entryText, context, bodyOnly) }
+                writeMutex.withLock { if (!committed) upsertEntry(template, entryText, context, bodyOnly) }
             } catch (_: Exception) {
                 // Best-effort: a failed autosave just waits for the next tick
                 // or the explicit Save tap, which surfaces errors to the user.
@@ -202,6 +223,134 @@ class CaptureViewModel(
                 sync.requestReindex(template.targetFile, newText, "capture discarded")
             }
         }
+    }
+
+    /**
+     * Capture discard with "Also delete attachments": takes back the file-level
+     * `:ID:` [addFileId] wrote into [path], dropping the drawer too when that
+     * leaves it empty. Left alone when the file's ID is no longer [id].
+     */
+    fun removeAddedFileId(path: String, id: String) {
+        viewModelScope.launch {
+            writeMutex.withLock {
+                val vault = vaultFlow.value ?: return@withLock
+                val newText = withContext(dispatchers.default) {
+                    val text = vault.open(path)?.text ?: return@withContext null
+                    withoutFileId(text, id)?.also { vault.save(path, it) }
+                } ?: return@withLock
+                sync.requestReindex(path, newText, "capture discarded")
+            }
+        }
+    }
+
+    /**
+     * Gives [path] a file-level `:ID:` for an attach that fell back to the
+     * capture's target file (no heading in the snippet). Runs under the draft
+     * lock and shifts the autosaved draft's line offsets by the lines the drawer
+     * added, so the next autosave still replaces the draft in place. True when
+     * the file has an ID afterwards; false when it doesn't exist.
+     */
+    suspend fun addFileId(path: String, id: String): Boolean = writeMutex.withLock {
+        val vault = vaultFlow.value ?: return@withLock false
+        val saved = withContext(dispatchers.default) {
+            val text = vault.open(path)?.text ?: return@withContext null
+            val doc = OrgParser.parse(text)
+            if (doc.fileOwner().id != null) return@withContext text to text
+            val newText = OrgMutations.upsertFileProperty(doc, "ID", id)
+            vault.save(path, newText)
+            text to newText
+        } ?: return@withLock false
+        val (old, new) = saved
+        if (old != new) {
+            val shift = shiftForEdit(old, new)
+            draftInsertion = draftInsertion?.let(shift)
+            roamDraft = roamDraft?.let { d ->
+                if (d.path == path && d.insertion != null) d.copy(insertion = shift(d.insertion)) else d
+            }
+            sync.requestReindex(path, new, "attach file id")
+        }
+        true
+    }
+
+    /**
+     * For attach: the template's target file with [entryText] inserted where
+     * [save] would put it (replacing this session's autosaved draft), so owners
+     * resolve against the whole file. Null when the file can't be read or the
+     * target heading isn't there.
+     */
+    suspend fun attachFileContext(
+        template: CaptureTemplate,
+        entryText: String,
+        context: CaptureContext,
+        bodyOnly: Boolean,
+    ): AttachFileContext? = writeMutex.withLock {
+        val vault = vaultFlow.value ?: return@withLock null
+        withContext(dispatchers.default) {
+            val currentText = vault.open(template.targetFile)?.text ?: ""
+            val baseText = draftInsertion?.let { CaptureInserter.removeInsertion(currentText, it) } ?: currentText
+            val insertion = runCatching {
+                CaptureInserter.insert(baseText, template.location, entryText, LocalDate.from(context.now), bodyOnly = bodyOnly)
+            }.getOrNull() ?: return@withContext null
+            val start = insertion.insertedAtLine
+            AttachFileContext(insertion.newText, start until start + maxOf(1, insertion.entryLineCount), placed = true)
+        }
+    }
+
+    /**
+     * For a body-only capture's attach, whose text goes into a heading that isn't
+     * in the field: gives that heading [owner] (re-found in [path] by `:ID:`, then
+     * title path) the `:ID:` [id] when it has none, and the attachment [tag] when
+     * non-blank and missing. Shifts the autosaved draft like [addFileId]. Returns
+     * what it wrote; null when the heading or file is gone.
+     */
+    suspend fun markAttachHeading(path: String, owner: AttachOwner.Heading, id: String?, tag: String): DiskHeadingMarks? =
+        writeMutex.withLock {
+            val vault = vaultFlow.value ?: return@withLock null
+            val saved = withContext(dispatchers.default) {
+                val text = vault.open(path)?.text ?: return@withContext null
+                val doc = OrgParser.parse(text)
+                val found = relocateOwner(doc, owner) as? AttachOwner.Heading ?: return@withContext null
+                val h = doc.headlines.first { it.lineIndex == found.lineIndex }
+                val addId = id.takeIf { found.id == null }
+                val withId = addId?.let { OrgMutations.upsertProperty(doc, h, "ID", it) } ?: text
+                val withTag = withAttachTag(withId, found.lineIndex, tag)
+                val newText = withTag ?: withId
+                if (newText != text) vault.save(path, newText)
+                Triple(text, newText, DiskHeadingMarks(addId, tag.trim().takeIf { withTag != null }))
+            } ?: return@withLock null
+            val (old, new, marks) = saved
+            if (old != new) {
+                draftInsertion = draftInsertion?.let(shiftForEdit(old, new))
+                sync.requestReindex(path, new, "attach heading marks")
+            }
+            marks
+        }
+
+    /** Capture discard with "Also delete attachments": takes back what [markAttachHeading] wrote. */
+    fun removeAddedHeadingMarks(path: String, added: AddedHeadingMarks) {
+        viewModelScope.launch {
+            writeMutex.withLock {
+                val vault = vaultFlow.value ?: return@withLock
+                val newText = withContext(dispatchers.default) {
+                    val text = vault.open(path)?.text ?: return@withContext null
+                    withoutHeadingMarks(text, added)?.also { vault.save(path, it) }
+                } ?: return@withLock
+                sync.requestReindex(path, newText, "capture discarded")
+            }
+        }
+    }
+
+    /**
+     * After a dir move: points renamed attachments' links at their new names in
+     * the saved [path] and writes any new heading `:ID:` (see [AttachMoveOutcome]).
+     */
+    suspend fun renameLinksAfterMove(path: String, outcome: AttachMoveOutcome) = writeMutex.withLock {
+        val vault = vaultFlow.value ?: return@withLock
+        val doc = withContext(dispatchers.default) { vault.open(path) } ?: return@withLock
+        val newText = applyMoveOutcomeText(doc, outcome).text
+        if (newText == doc.text) return@withLock
+        vault.save(path, newText)
+        sync.requestReindex(path, newText, "attachment renamed")
     }
 
     private suspend fun upsertEntry(
@@ -283,9 +432,13 @@ class CaptureViewModel(
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
             try {
-                val (fileName, newText) = writeMutex.withLock { upsertRoamEntry(resolvedPath, fullDraftText, context) }
+                val (fileName, newText) = writeMutex.withLock {
+                    upsertRoamEntry(resolvedPath, fullDraftText, context).also {
+                        roamDraft = null
+                        committed = true
+                    }
+                }
                 sync.requestReindex(fileName, newText, "capture saved")
-                roamDraft = null
                 _saveState.value = SaveState.Saved(fileName)
             } catch (e: Exception) {
                 _saveState.value = SaveState.Failed(e.message ?: "Capture failed")
@@ -298,7 +451,7 @@ class CaptureViewModel(
         if (fullDraftText.isBlank()) return
         viewModelScope.launch {
             try {
-                writeMutex.withLock { upsertRoamEntry(resolvedPath, fullDraftText, context) }
+                writeMutex.withLock { if (!committed) upsertRoamEntry(resolvedPath, fullDraftText, context) }
             } catch (_: Exception) {
                 // Best-effort, same rationale as autosave().
             }
@@ -398,16 +551,18 @@ class CaptureViewModel(
     }
 
     /**
-     * The raw headline line (stars, keyword, title, tags) of the heading an
-     * "under heading" [template] targets, or null when the file or heading
-     * doesn't exist. Shown read-only above a body-only capture's field.
+     * Where an "under heading" capture, or a date tree that grows inside a
+     * heading, lands: [outline] is the target heading path (ancestors first,
+     * the target heading last); [entryLevel] is the depth the captured entry's
+     * heading gets, so the editor can show the stars it will be saved with.
      */
+    data class TargetInfo(val outline: List<String>, val entryLevel: Int)
+
     /**
-     * The target heading path (ancestors first, the target heading last) of an
-     * "under heading" template, or of a date tree that grows inside a heading;
-     * null when the file or heading doesn't exist, or the target has no heading.
+     * The [TargetInfo] of [template]; null when the file or heading doesn't
+     * exist, or the target has no heading.
      */
-    suspend fun loadTargetOutline(template: CaptureTemplate): List<String>? {
+    suspend fun loadTargetInfo(template: CaptureTemplate): TargetInfo? {
         val location = template.location
         if (location !is TargetLocation.UnderHeading &&
             !(location is TargetLocation.Datetree && location.hasHeading)
@@ -420,7 +575,12 @@ class CaptureViewModel(
                 is TargetLocation.Datetree -> CaptureInserter.findTarget(doc, location)
                 else -> null
             }
-            target?.let { CaptureInserter.outlinePath(doc, it) }
+            target ?: return@withContext null
+            val entryLevel = when (location) {
+                is TargetLocation.Datetree -> target.level + CaptureInserter.datetreeDepth(location.treeType) + 1
+                else -> target.level + 1
+            }
+            TargetInfo(CaptureInserter.outlinePath(doc, target), entryLevel)
         }
     }
 
@@ -503,4 +663,61 @@ class TemplatesViewModel(
             }
         }
     }
+}
+
+/**
+ * For an edit that only inserted lines (a new `:ID:` line or drawer): moves an
+ * insertion at or below the first changed line down by the lines added.
+ */
+internal fun shiftForEdit(old: String, new: String): (CaptureInserter.Insertion) -> CaptureInserter.Insertion {
+    val a = old.split("\n")
+    val b = new.split("\n")
+    val firstChanged = a.indices.firstOrNull { it >= b.size || a[it] != b[it] } ?: a.size
+    val delta = b.size - a.size
+    return { ins -> if (ins.insertedAtLine >= firstChanged) ins.copy(insertedAtLine = ins.insertedAtLine + delta) else ins }
+}
+
+/**
+ * [text] without its file-level `:ID: [id]` line, and without the whole drawer
+ * when no other property is left in it. Null when the file-level drawer
+ * doesn't hold that ID.
+ */
+internal fun withoutFileId(text: String, id: String): String? {
+    val doc = OrgParser.parse(text)
+    return withoutIdIn(doc, OrgMutations.fileDrawerRange(doc) ?: return null, id)
+}
+
+/** [text] without the heading `:ID: [id]` (and its drawer when that empties it); null when no heading has it. */
+internal fun withoutHeadingId(text: String, id: String): String? {
+    val doc = OrgParser.parse(text)
+    val h = doc.headlines.firstOrNull { doc.ownerOf(it).id == id } ?: return null
+    return withoutIdIn(doc, OrgMutations.headingDrawerRange(doc, h, ":PROPERTIES:") ?: return null, id)
+}
+
+/**
+ * [text] without the [added] marks: the heading's attachment tag and its `:ID:`
+ * (with the drawer when that empties it). The heading is found by that `:ID:`,
+ * else by [AddedHeadingMarks.owner]. Null when nothing was left to take back.
+ */
+internal fun withoutHeadingMarks(text: String, added: AddedHeadingMarks): String? {
+    val doc = OrgParser.parse(text)
+    val id = added.marks.id
+    val line = id?.let { i -> doc.headlines.firstOrNull { doc.ownerOf(it).id == i }?.lineIndex }
+        ?: (relocateOwner(doc, added.owner) as? AttachOwner.Heading)?.lineIndex
+        ?: return null
+    val h = doc.headlines.first { it.lineIndex == line }
+    val tag = added.marks.tag
+    val untagged = if (tag != null && tag in h.tags) OrgMutations.setTags(doc, h, h.tags - tag) else text
+    val out = id?.let { withoutHeadingId(untagged, it) } ?: untagged
+    return out.takeIf { it != text }
+}
+
+private fun withoutIdIn(doc: OrgDocument, range: IntRange, id: String): String? {
+    val lines = doc.lines
+    val idLine = (range.first + 1 until range.last).firstOrNull {
+        lines[it].trim().let { l -> l.startsWith(":ID:", ignoreCase = true) && l.substring(4).trim() == id }
+    } ?: return null
+    val othersLeft = (range.first + 1 until range.last).any { it != idLine && lines[it].isNotBlank() }
+    val drop = if (othersLeft) idLine..idLine else range
+    return lines.filterIndexed { i, _ -> i !in drop }.joinToString("\n")
 }

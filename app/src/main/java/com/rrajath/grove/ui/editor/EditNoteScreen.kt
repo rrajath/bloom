@@ -76,6 +76,7 @@ import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.NewNoteCursor
+import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
 import com.rrajath.grove.ui.components.EditorFabCompactWidth
 import com.rrajath.grove.ui.components.EditorFabMorphMillis
 import com.rrajath.grove.ui.components.ReadEditToggle
@@ -123,6 +124,8 @@ fun EditNoteScreen(
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
     /** Settings § Notes: caret placement for a freshly created note (only used when [isNewNote]). */
     newNoteCursor: NewNoteCursor = NewNoteCursor.BODY,
+    /** Settings § Notes: uppercase the first letter typed into a heading. */
+    capitalizeHeadings: Boolean = true,
     /** Settings § Roam Features (experimental) suggestions
      *  ([com.rrajath.grove.settings.GroveSettings.roamSuggestionsActive]): gates the Roam
      *  providers (file/heading link chips, roam-node chips) only. The suggestion strip slot
@@ -253,7 +256,8 @@ fun EditNoteScreen(
             // first rather than silently dropping whatever was typed.
             isNewNote && viewModel.isCurrentHeadingBlank() -> confirmDiscardBlankHeading = true
             state.dirty -> confirmLeave = true
-            else -> onBack()
+            // Nothing unsaved, but an auto-save may have written a :DIR: edit: check first.
+            else -> viewModel.save(onSaved = onBack)
         }
     }
     androidx.activity.compose.BackHandler { leave() }
@@ -386,7 +390,10 @@ fun EditNoteScreen(
         }
     }
     // Attachments: paperclip, sheet, copies.
-    val attach = rememberAttachController(textState, state.fileName, fieldLoaded)
+    val attach = rememberAttachController(
+        textState, state.fileName, fieldLoaded, onOwnerAttached = viewModel::noteAttachedOwner,
+        fileContext = viewModel::attachFileContext,
+    )
     val keyboard = LocalSoftwareKeyboardController.current
     val blockTrigger by rememberBlockTrigger(textState)
     val highlight = remember(c, state.keywords) {
@@ -489,7 +496,9 @@ fun EditNoteScreen(
                 ContentFontScale(editModeFontSize) {
                     BasicTextField(
                         state = textState,
-                        inputTransformation = remember(state.keywords) { orgInputTransformation(state.keywords) },
+                        inputTransformation = remember(state.keywords, capitalizeHeadings) {
+                            orgInputTransformation(state.keywords, capitalizeHeadings)
+                        },
                         outputTransformation = highlight,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         lineLimits = TextFieldLineLimits.MultiLine(),
@@ -806,11 +815,20 @@ fun EditNoteScreen(
             },
             onDiscard = {
                 confirmLeave = false
-                onBack()
+                if (isNewNote && !viewModel.explicitlySaved) {
+                    // Never saved: discarding a new note means it was never made.
+                    viewModel.deleteSubtree(onDeleted = onBack)
+                } else {
+                    // Also undoes what an idle auto-save wrote since the last Save.
+                    viewModel.discardChanges(onBack)
+                }
             },
             onDismiss = { confirmLeave = false },
         )
     }
+
+    val attachDirNotice by viewModel.attachDirNotice.collectAsStateWithLifecycle()
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, busy = it.busy, onOk = viewModel::acknowledgeAttachDirNotice) }
 
     if (confirmDiscardBlankHeading) {
         DiscardBlankHeadingDialog(

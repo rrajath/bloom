@@ -65,7 +65,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -83,7 +82,6 @@ import com.rrajath.grove.attach.CopyProgress
 import com.rrajath.grove.attach.attachmentExtension
 import com.rrajath.grove.attach.badgeFor
 import com.rrajath.grove.attach.categoryOf
-import com.rrajath.grove.attach.formatAttachmentSize
 import com.rrajath.grove.attach.formatCopyBytes
 import com.rrajath.grove.ui.attach.attachmentMemoryCacheKey
 import com.rrajath.grove.ui.components.GroveProgressSnackbar
@@ -248,7 +246,7 @@ internal fun AttachSheetContent(
             .testTag("attach_sheet"),
     ) {
         FlowRow(
-            Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, bottom = if (model.folderFrom == null) 14.dp else 2.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
@@ -261,6 +259,15 @@ internal fun AttachSheetContent(
                 model.title,
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = c.ink,
                 modifier = Modifier.testTag("attach_owner_title"),
+            )
+        }
+        model.folderFrom?.let { line ->
+            Text(
+                line,
+                fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
+                modifier = Modifier
+                    .padding(start = 22.dp, end = 22.dp, bottom = 14.dp)
+                    .testTag("attach_folder_from"),
             )
         }
         Row(
@@ -413,18 +420,11 @@ private fun AttachmentRow(
             if (category == AttachmentCategory.IMAGE) ImageThumbnail(file, thumbnailUri)
         }
         Column(Modifier.weight(1f)) {
-            Text(
-                name,
-                fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            val size = formatAttachmentSize(file.size)
-            Text(
-                // i18n: separator glyph, not translated
-                if (source.isEmpty()) size else "$size · $source",
-                fontFamily = PlexMono, fontSize = 11.sp, color = c.ink3,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            // Long names and sources wrap rather than truncate: the path is what tells rows apart.
+            Text(name, fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink)
+            if (source.isNotEmpty()) {
+                Text(source, fontFamily = PlexMono, fontSize = 11.sp, color = c.ink3)
+            }
         }
         RowIconButton(
             R.drawable.ic_attach_insert_link, 17.dp, c.accent, c.surface3, c.accent,

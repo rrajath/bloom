@@ -70,6 +70,7 @@ import com.rrajath.grove.org.LineEditing
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.ui.components.MathLivePreview
+import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.KeyboardHiddenLinkedReferencesBar
@@ -96,10 +97,11 @@ fun EditPrefaceScreen(
     fileName: String,
     onBack: () -> Unit,
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
+    capitalizeHeadings: Boolean = true,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.PREFACE, noteId = null, onBack = onBack,
-    editModeFontSize = editModeFontSize, viewModel = viewModel,
+    editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings, viewModel = viewModel,
 )
 
 /**
@@ -113,10 +115,11 @@ fun EditIntroScreen(
     fileName: String,
     onBack: () -> Unit,
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
+    capitalizeHeadings: Boolean = true,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.INTRO, noteId = null, onBack = onBack,
-    editModeFontSize = editModeFontSize, viewModel = viewModel,
+    editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings, viewModel = viewModel,
 )
 
 /** One-word label for [region], used in this screen's title bar, save toast and leave dialog. */
@@ -171,6 +174,8 @@ fun EditRegionScreen(
     blockLine: Int = -1,
     /** Settings § Notes: font-size lever for the editor field. App chrome is unaffected. */
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
+    /** Settings § Notes: uppercase the first letter typed into a heading. */
+    capitalizeHeadings: Boolean = true,
     /**
      * When set, the top bar carries the [ReadEditToggle] (Edit selected), and both it
      * and Back call this. Neither saves: the FILE route hoists [viewModel] so its
@@ -231,11 +236,20 @@ fun EditRegionScreen(
     // False until the region has been loaded into the text field: the field's
     // pre-load contents are not the user's edits and must not be reported.
     var fieldLoaded by remember { mutableStateOf(false) }
-    // Attachments, for the whole-file editor.
-    val attach = if (region == EditRegion.WHOLE_FILE) {
-        rememberAttachController(textState, fileName, fieldLoaded)
-    } else {
-        null
+    // Attachments, for the whole-file editor and the Intro (which attaches to the
+    // file's own :DIR: / :ID:, read from disk since the Intro buffer leaves out
+    // the file's property drawer).
+    val attach = when (region) {
+        EditRegion.WHOLE_FILE -> rememberAttachController(
+            textState, fileName, fieldLoaded, onOwnerAttached = viewModel::noteAttachedOwner,
+        )
+        EditRegion.INTRO -> rememberAttachController(
+            textState, fileName, fieldLoaded,
+            addDiskFileId = viewModel::addFileId,
+            introOfFile = true,
+            onOwnerAttached = viewModel::noteAttachedOwner,
+        )
+        else -> null
     }
     // Text last written into the field programmatically (initial load only, here).
     // The snapshotFlow below echoes every write straight back; that echo must not
@@ -257,7 +271,8 @@ fun EditRegionScreen(
             // showing the unsaved buffer; only leaving that view asks to save.
             onSwitchToRead != null -> onSwitchToRead()
             state.dirty -> confirmLeave = true
-            else -> onBack()
+            // Nothing unsaved, but an auto-save may have written a :DIR: edit: check first.
+            else -> viewModel.save(onSaved = onBack)
         }
     }
     fun openNote(target: NoteRef) {
@@ -430,6 +445,7 @@ fun EditRegionScreen(
                 onOverwriteStale = { viewModel.save(force = true) },
                 onReloadStale = { viewModel.dismissStale(); viewModel.loadRegion(fileName, noteId, region, blockLine) },
                 editModeFontSize = editModeFontSize,
+                capitalizeHeadings = capitalizeHeadings,
                 showBacklinks = showBacklinks,
                 isRoamFile = isRoamFile,
                 linkedCount = linkedReferences.linkedCount,
@@ -477,14 +493,20 @@ fun EditRegionScreen(
                 androidx.compose.material3.TextButton(onClick = {
                     confirmLeave = false
                     val target = pendingOpenNote.also { pendingOpenNote = null }
-                    // Drop the buffer: a hoisted view model (whole-file editor) would
-                    // otherwise bring the discarded text back on return.
-                    viewModel.reset()
-                    if (target != null) onOpenNote(target) else onBack()
+                    // Undo what an idle auto-save wrote since the last Save, then drop the
+                    // buffer: a hoisted view model (whole-file editor) would otherwise
+                    // bring the discarded text back on return.
+                    viewModel.discardChanges {
+                        viewModel.reset()
+                        if (target != null) onOpenNote(target) else onBack()
+                    }
                 }) { Text("Discard", color = c.red) }
             },
         )
     }
+
+    val attachDirNotice by viewModel.attachDirNotice.collectAsStateWithLifecycle()
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, busy = it.busy, onOk = viewModel::acknowledgeAttachDirNotice) }
 
     if (linkedRefsOpen) {
         LinkedReferencesSheet(
@@ -521,6 +543,7 @@ internal fun WholeFileEditorBody(
     onOverwriteStale: () -> Unit,
     onReloadStale: () -> Unit,
     editModeFontSize: FontSizePreference,
+    capitalizeHeadings: Boolean,
     showBacklinks: Boolean,
     isRoamFile: Boolean,
     linkedCount: Int,
@@ -558,6 +581,11 @@ internal fun WholeFileEditorBody(
     bottomMarginLines: Int = 0,
     /** Experimental attachments: paperclip + sheet for this field, or null (no paperclip). */
     attach: AttachController? = null,
+    /**
+     * Keyboard down, how far the attach progress snackbar sits above the bottom
+     * edge: clears anything the host floats there (Dailies' date pills).
+     */
+    attachBottomInset: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val c = MaterialTheme.grove
     val context = LocalContext.current
@@ -605,7 +633,9 @@ internal fun WholeFileEditorBody(
             ContentFontScale(editModeFontSize) {
                 BasicTextField(
                     state = textState,
-                    inputTransformation = remember(state.keywords) { orgInputTransformation(state.keywords) },
+                    inputTransformation = remember(state.keywords, capitalizeHeadings) {
+                        orgInputTransformation(state.keywords, capitalizeHeadings)
+                    },
                     outputTransformation = highlight,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     lineLimits = TextFieldLineLimits.MultiLine(),
@@ -641,7 +671,7 @@ internal fun WholeFileEditorBody(
             // keyboard hides, and the paperclip hides the keyboard, so the sheet would
             // vanish, the field would re-show the keyboard, and the sheet would loop.
             // The slot sits below this Box, so nothing covers its bottom edge.
-            attach?.let { AttachOverlays(it, bottomInset = 0.dp) }
+            attach?.let { AttachOverlays(it, bottomInset = if (imeVisible) 0.dp else attachBottomInset) }
         }
         // Suggestions only while typing: with the keyboard down they'd just cover the text.
         // Docked in their own slot between the text and the toolbar (not overlaid on the

@@ -75,6 +75,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
@@ -94,6 +95,10 @@ import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplateKind
 import com.rrajath.grove.capture.formatLink
 import com.rrajath.grove.capture.templateSlug
+import com.rrajath.grove.attach.AttachDirChange
+import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.fileOwner
+import com.rrajath.grove.attach.withAttachedOwner
 import com.rrajath.grove.org.LineEditing
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
@@ -121,7 +126,13 @@ import com.rrajath.grove.ui.editor.KeepCursorClearOfBottom
 import com.rrajath.grove.ui.editor.MetadataSheet
 import com.rrajath.grove.ui.editor.RoamNodeSuggestionStrip
 import com.rrajath.grove.ui.editor.SuggestionSlot
+import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
+import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
+import androidx.activity.compose.BackHandler
+import com.rrajath.grove.ui.attach.DeleteAttachmentsCheckbox
 import com.rrajath.grove.ui.editor.SuggestionSlotHeight
+import com.rrajath.grove.ui.editor.rememberAttachController
+import com.rrajath.grove.ui.editor.AttachOverlays
 import com.rrajath.grove.ui.editor.WordAtCursor
 import com.rrajath.grove.ui.editor.scrollAwareTopInset
 import com.rrajath.grove.ui.editor.filterAutoLinkSuggestions
@@ -185,6 +196,8 @@ fun CaptureEditorScreen(
     onSaved: (savedRoamFilePath: String?) -> Unit,
     /** Settings § Notes: font-size lever for the editor field. App chrome is unaffected. */
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
+    /** Settings § Notes: uppercase the first letter typed into a heading. */
+    capitalizeHeadings: Boolean = true,
     /**
      * Settings § Roam Features (experimental) suggestions
      * ([com.rrajath.grove.settings.GroveSettings.roamSuggestionsActive]): gates the Roam
@@ -193,6 +206,8 @@ fun CaptureEditorScreen(
      * every capture kind while the keyboard is up.
      */
     roamSuggestionsEnabled: Boolean = false,
+    /** Opens an inline image from the Read preview in the full-screen viewer. */
+    onOpenImage: ((path: String, name: String) -> Unit)? = null,
     viewModel: CaptureViewModel = viewModel(factory = CaptureViewModel.Factory),
 ) {
     val c = MaterialTheme.grove
@@ -211,11 +226,13 @@ fun CaptureEditorScreen(
             as com.rrajath.grove.GroveApplication
     val keywords by app.keywords.collectAsStateWithLifecycle()
 
+    // An explicit save finished; the attach-dir check below runs before onSaved.
+    var savedEvent by remember { mutableStateOf<CaptureSavedEvent?>(null) }
     LaunchedEffect(saveState) {
         val saved = saveState as? SaveState.Saved
         if (saved != null) {
             viewModel.resetSaveState()
-            onSaved(saved.filePath.takeIf { template?.kind == TemplateKind.ROAM_NODE })
+            savedEvent = CaptureSavedEvent(saved.filePath.takeIf { template?.kind == TemplateKind.ROAM_NODE })
         }
     }
 
@@ -318,14 +335,19 @@ fun CaptureEditorScreen(
     // saving (the save would fail).
     var targetOutline by remember(template) { mutableStateOf<List<String>?>(null) }
     var targetHeadingMissing by remember(template) { mutableStateOf(false) }
+    // The depth the entry's heading lands at, once the target heading is
+    // found: the draft is re-leveled to it (see below) so its stars match
+    // the file, as a top/bottom-of-file or plain date tree draft's already do.
+    var targetEntryLevel by remember(template) { mutableStateOf<Int?>(null) }
     LaunchedEffect(template) {
         val location = template.location
         val hasHeading = location is TargetLocation.UnderHeading ||
             (location is TargetLocation.Datetree && location.hasHeading)
         if (template.kind != TemplateKind.PLAIN || !hasHeading) return@LaunchedEffect
-        val outline = viewModel.loadTargetOutline(template)
-        targetOutline = outline
-        targetHeadingMissing = outline == null
+        val info = viewModel.loadTargetInfo(template)
+        targetOutline = info?.outline
+        targetHeadingMissing = info == null
+        targetEntryLevel = info?.entryLevel
     }
 
     /** [text]'s preamble (`#+KEY:` lines) head vs. everything after it --
@@ -367,8 +389,12 @@ fun CaptureEditorScreen(
     // the target bar says it's an existing file), so the field starts
     // out holding just the body half of the fresh expansion, cursor re-based
     // into it.
-    val initialText = remember(expanded, roamAppendState) {
-        (roamAppendState as? RoamAppendState.ExistingFile)?.let { roamBodySplit(expanded.text).second } ?: expanded.text
+    // A var so re-leveling the untouched draft to the target's depth (below)
+    // moves the baseline with it and doesn't count as an edit.
+    var initialText by remember(expanded, roamAppendState) {
+        mutableStateOf(
+            (roamAppendState as? RoamAppendState.ExistingFile)?.let { roamBodySplit(expanded.text).second } ?: expanded.text
+        )
     }
     val textState = remember(expanded, roamAppendState) {
         val appendState = roamAppendState
@@ -390,6 +416,92 @@ fun CaptureEditorScreen(
     // close over the original Checking-era instance -- silently orphaning
     // every keystroke into the field the user actually sees and edits.
     val draftText by remember(textState) { derivedStateOf { textState.text.toString() } }
+    // Attachments. The buffer is a snippet bound for the target file, so the attach
+    // dir and file links resolve against that file. A heading at the cursor owns the
+    // files as in the note editor; with none, attach falls back to the target file on
+    // disk. A new Roam node is the exception: its buffer is the whole new file, so its
+    // own file-level :ID: owns them. The path is fixed when the field is created (the
+    // Roam filename follows the title as it's typed); only its folder matters for the
+    // :ID: dir, and links into a new Roam node are [[attachment:…]], not relative.
+    val roamNewFile = template.kind == TemplateKind.ROAM_NODE && roamAppendState is RoamAppendState.New
+    val attachTarget = remember(textState) {
+        when (val appendState = roamAppendState) {
+            is RoamAppendState.ExistingFile -> appendState.path
+            RoamAppendState.Checking, RoamAppendState.New -> if (template.kind == TemplateKind.ROAM_NODE) {
+                resolvedRoamPathFor(expanded.text)
+                    ?: if (template.roamDirectory.isBlank()) "capture.org" else "${template.roamDirectory}/capture.org"
+            } else {
+                template.targetFile
+            }
+        }
+    }
+    // Owners this capture attached files to, so a :DIR: added, removed or changed
+    // before Save moves those files (see AttachDirChange). The no-heading fallback's
+    // owner is the target file on disk, which the snippet can't edit, so it's left out.
+    var attachBaseline by remember(textState) { mutableStateOf(emptyList<AttachOwner>()) }
+    val attach = rememberAttachController(
+        textState, attachTarget, bufferReady = true,
+        addDiskFileId = if (roamNewFile) null else viewModel::addFileId,
+        // Resolve against the target file with the entry where Save puts it, so a
+        // target heading's or the file's :DIR: is inherited. Roam nodes keep the
+        // file as owner (an append isn't meant for the file's last heading).
+        fileContext = if (template.kind == TemplateKind.ROAM_NODE) {
+            null
+        } else {
+            { viewModel.attachFileContext(template, textState.text.toString(), context, bodyOnly) }
+        },
+        markDiskHeading = if (template.kind == TemplateKind.ROAM_NODE) null else viewModel::markAttachHeading,
+        // The new node's :ID: is added on save (RoamFileId.withFileId), not shown in
+        // the field, so attach must use that same ID rather than mint another one.
+        pendingFileId = if (roamNewFile) context.id else null,
+        onOwnerAttached = { owner ->
+            if (owner !is AttachOwner.File || roamNewFile) attachBaseline = withAttachedOwner(attachBaseline, owner)
+        },
+    )
+    var attachDirNotice by remember { mutableStateOf<Pair<List<AttachDirChange>, CaptureSavedEvent>?>(null) }
+    var attachDirMoving by remember { mutableStateOf(false) }
+    val attachDirScope = rememberCoroutineScope()
+    /** The `:DIR:` moves the draft's text implies for owners this capture attached files to. */
+    suspend fun pendingAttachDirChanges(): List<AttachDirChange> {
+        if (attachBaseline.isEmpty()) return emptyList()
+        return runCatching {
+            var doc = OrgParser.parse(draftText)
+            // A new Roam node gets its file :ID: on save, not in the field.
+            val file = doc.fileOwner()
+            if (roamNewFile && file.id == null && file.dirProperty == null) {
+                doc = OrgParser.parse(OrgMutations.upsertFileProperty(doc, "ID", context.id))
+            }
+            app.attachDirMoves.detect(attachTarget, attachBaseline, doc)
+        }.getOrDefault(emptyList())
+    }
+    LaunchedEffect(savedEvent) {
+        val event = savedEvent ?: return@LaunchedEffect
+        val changes = pendingAttachDirChanges()
+        if (changes.isEmpty()) {
+            savedEvent = null
+            onSaved(event.roamFilePath)
+        } else {
+            attachDirNotice = changes to event
+        }
+    }
+    attachDirNotice?.let { (changes, event) ->
+        AttachDirNoticeDialog(changes, busy = attachDirMoving) {
+            if (attachDirMoving) return@AttachDirNoticeDialog
+            attachDirMoving = true
+            attachDirScope.launch {
+                val outcome = app.attachDirMoves.apply(changes)
+                // A clash renamed a file (point the links at the new name), or a heading needs its new :ID:.
+                if (outcome.editsText) {
+                    viewModel.renameLinksAfterMove(event.roamFilePath ?: attachTarget, outcome)
+                }
+                attachDirNotice = null
+                attachDirMoving = false
+                savedEvent = null
+                onSaved(event.roamFilePath)
+            }
+        }
+    }
+    val keyboard = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(roamAppendState) {
         if (roamAppendState !is RoamAppendState.Checking) focusRequester.requestFocus()
@@ -400,6 +512,8 @@ fun CaptureEditorScreen(
     KeepCursorClearOfBottom(textState, scrollState, { textLayout }, EditorBottomMarginLines)
 
     var showDiscardDialog by remember { mutableStateOf(false) }
+    // The discard dialog's "Also delete attachments" box; starts checked, as in the notebook delete sheet.
+    var deleteAttachmentsOnDiscard by remember { mutableStateOf(true) }
     var showEmptyHeadingAlert by remember { mutableStateOf(false) }
     var showEmptyTitleAlert by remember { mutableStateOf(false) }
     var metadataOpen by remember { mutableStateOf(false) }
@@ -483,6 +597,27 @@ fun CaptureEditorScreen(
     // Text as of the last auto-save, so dirty can be computed by comparison.
     var lastAutoSavedText by remember(expanded, roamAppendState) { mutableStateOf(initialText) }
     val dirty = draftText != lastAutoSavedText
+
+    // Under a heading, the entry's depth is only known once the file loads:
+    // re-level the draft then, so it shows (and the user types sub-headings
+    // relative to) the stars it will be saved with. Saving re-levels the same
+    // way, so this is display only. Body-only drafts have no heading to move.
+    LaunchedEffect(targetEntryLevel, textState) {
+        val level = targetEntryLevel ?: return@LaunchedEffect
+        if (bodyOnly) return@LaunchedEffect
+        val before = textState.text.toString()
+        val untouched = before == initialText
+        textState.applyEdit { tfv ->
+            val out = CaptureInserter.relevelDraft(ExpandedTemplate(tfv.text, tfv.selection.start), level)
+            if (out.text == tfv.text) null
+            else TextFieldValue(out.text, TextRange(out.cursorOffset.coerceIn(0, out.text.length)))
+        }
+        val after = textState.text.toString()
+        if (untouched && after != before) {
+            initialText = after
+            if (lastAutoSavedText == before) lastAutoSavedText = after
+        }
+    }
     val toastContext = LocalContext.current
 
     /**
@@ -527,14 +662,26 @@ fun CaptureEditorScreen(
     }
 
     fun tryClose() {
-        if (draftText != initialText) showDiscardDialog = true else onClose()
+        if (draftText != initialText || attach.hasSessionAttachments) showDiscardDialog = true else onClose()
     }
 
-    fun discard() {
+    /**
+     * [deleteAttachments]: also delete the files attached during this capture
+     * (stopping a copy still running) and what the no-heading fallback added
+     * on disk: the :ID: in the target file, or the :ID: and attachment tag in
+     * the heading a body-only capture's text goes into. Queued after the draft removal (the
+     * view model's draft lock is first come, first served).
+     */
+    fun discard(deleteAttachments: Boolean) {
         if (template.kind == TemplateKind.ROAM_NODE) {
             resolvedRoamPath()?.let { viewModel.discardRoamDraft(it) }
         } else {
             viewModel.discardDraft(template)
+        }
+        if (deleteAttachments) {
+            attach.addedDiskFileId?.let { viewModel.removeAddedFileId(attachTarget, it) }
+            attach.addedDiskHeading?.let { viewModel.removeAddedHeadingMarks(attachTarget, it) }
+            attach.discardSessionAttachments()
         }
         onClose()
     }
@@ -546,7 +693,8 @@ fun CaptureEditorScreen(
     // a heading-less entry the user hasn't confirmed.
     LaunchedEffect(draftText) {
         delay(5_000)
-        if (dirty) saveNow()
+        // Not once Save went through (the attach-folder notice can keep the screen up).
+        if (dirty && savedEvent == null) saveNow()
     }
 
     fun trySave() {
@@ -566,6 +714,35 @@ fun CaptureEditorScreen(
             viewModel.save(template, draftText, context)
         }
     }
+
+    /**
+     * System back keeps the capture, unlike the close button: an untouched draft
+     * just closes (dropping any autosave of it); one with text the idle autosave
+     * hasn't written yet, or a `:DIR:` edit whose files haven't moved, goes
+     * through Save (blank-heading alert, attach-folder notice, then onSaved);
+     * an already autosaved one closes as is. Only a copy still running asks
+     * first: its links aren't in the draft yet.
+     */
+    var leaving by remember { mutableStateOf(false) }
+    fun leaveOnBack() {
+        if (leaving || savedEvent != null || saveState is SaveState.Saving) return
+        when {
+            attach.isCopying -> showDiscardDialog = true
+            draftText == initialText ->
+                if (attach.hasSessionAttachments) showDiscardDialog = true else discard(deleteAttachments = false)
+            // Not `dirty`: that val is from the last composition and can lag the buffer.
+            draftText != lastAutoSavedText -> trySave()
+            else -> {
+                leaving = true
+                coroutineScope.launch {
+                    val moves = pendingAttachDirChanges()
+                    leaving = false
+                    if (moves.isEmpty()) onClose() else trySave()
+                }
+            }
+        }
+    }
+    BackHandler { leaveOnBack() }
 
     Scaffold(
         containerColor = c.bg,
@@ -665,16 +842,30 @@ fun CaptureEditorScreen(
                 (imeVisible || roamNodeSuggestionActive)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (readMode) {
+                  // Inline images and attachment chips, resolved against the target file.
+                  // A new Roam node's :ID: only lands on save, so the preview sees it added.
+                  val previewDoc = remember(draftDoc, roamNewFile) {
+                      if (roamNewFile) OrgParser.parse(RoamFileId.withFileId(draftText, context.id), keywords) else draftDoc
+                  }
+                  val previewHeadline = previewDoc.headlines.firstOrNull()
+                  ProvideAttachmentRendering(
+                    orgFile = attachTarget,
+                    doc = previewDoc,
+                    preferLines = null,
+                    openTarget = {},
+                    toast = attach::showToast,
+                    openImage = onOpenImage,
+                  ) {
                     if (bodyOnly) {
                         DraftIntroPreview(
-                            doc = draftDoc,
+                            doc = previewDoc,
                             showTitle = false,
                             modifier = Modifier.fillMaxSize().padding(bottom = 80.dp),
                         )
-                    } else if (draftHeadline != null) {
+                    } else if (previewHeadline != null) {
                         DraftPreview(
-                            doc = draftDoc,
-                            headline = draftHeadline,
+                            doc = previewDoc,
+                            headline = previewHeadline,
                             modifier = Modifier.fillMaxSize().padding(bottom = 80.dp),
                         )
                     } else {
@@ -682,10 +873,11 @@ fun CaptureEditorScreen(
                         // body, no leading "* " yet), so
                         // there's no OrgHeadline for DraftPreview to key off of.
                         DraftIntroPreview(
-                            doc = draftDoc,
+                            doc = previewDoc,
                             modifier = Modifier.fillMaxSize().padding(bottom = 80.dp),
                         )
                     }
+                  }
                 } else if (roamAppendState !is RoamAppendState.Checking) {
                     ContentFontScale(editModeFontSize) {
                         // The field owns its own vertical scrolling (rather than
@@ -700,7 +892,9 @@ fun CaptureEditorScreen(
                             MathLivePreview(textState)
                             BasicTextField(
                                 state = textState,
-                                inputTransformation = remember(keywords) { orgInputTransformation(keywords) },
+                                inputTransformation = remember(keywords, capitalizeHeadings) {
+                                    orgInputTransformation(keywords, capitalizeHeadings)
+                                },
                                 outputTransformation = remember(c, keywords) {
                                     OrgSyntaxHighlight(c, keywords, trailingBlankLines = EditorBottomMarginLines)
                                 },
@@ -834,6 +1028,9 @@ fun CaptureEditorScreen(
                             .onSizeChanged { if (slotShown) saveWidth = with(density) { it.width.toDp() } },
                     )
                 }
+                // Keyboard down, the progress snackbar clears the floating 54dp Save FAB
+                // (16dp off the bottom); keyboard up, it floats above the suggestion strip.
+                AttachOverlays(attach, bottomInset = if (slotShown) SuggestionSlotHeight else 70.dp)
             }
             if (!readMode && imeVisible) EditorToolbar(
                 onWrap = { marker -> textState.applyEdit { wrapSelection(it, marker) } },
@@ -849,6 +1046,14 @@ fun CaptureEditorScreen(
                     textState.applyEdit {
                         LineEditing.changeListIndent(it.text, it.selection.start, delta)
                             ?.let { edit -> TextFieldValue(edit.text, TextRange(edit.cursor)) }
+                    }
+                },
+                // Not while a Roam capture is still checking whether its file exists:
+                // the field is about to be replaced.
+                onAttach = if (roamAppendState is RoamAppendState.Checking) null else {
+                    {
+                        keyboard?.hide()
+                        attach.open()
                     }
                 },
             )
@@ -867,10 +1072,24 @@ fun CaptureEditorScreen(
                 )
             },
             text = {
-                Text(
-                    "Your changes will be lost.",
-                    fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
-                )
+                Column {
+                    Text(
+                        "Your changes will be lost.",
+                        fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
+                    )
+                    if (attach.hasSessionAttachments) {
+                        DeleteAttachmentsCheckbox(
+                            checked = deleteAttachmentsOnDiscard,
+                            detail = captureAttachmentsDetail(
+                                attach.addedFiles.size,
+                                addedTo = attach.addedDiskFileId?.let { attachTarget.substringAfterLast('/') }
+                                    ?: attach.addedDiskHeading?.title,
+                                idAdded = attach.addedDiskFileId != null || attach.addedDiskHeading?.marks?.id != null,
+                                tagAdded = attach.addedDiskHeading?.marks?.tag,
+                            ),
+                        ) { deleteAttachmentsOnDiscard = it }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -881,7 +1100,10 @@ fun CaptureEditorScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardDialog = false; discard() }) {
+                TextButton(onClick = {
+                    showDiscardDialog = false
+                    discard(deleteAttachments = attach.hasSessionAttachments && deleteAttachmentsOnDiscard)
+                }) {
                     Text("Discard", color = c.red)
                 }
             },
@@ -1026,14 +1248,17 @@ private fun DraftPreview(doc: OrgDocument, headline: OrgHeadline, modifier: Modi
         val body = doc.bodyOf(headline)
         if (body.any { it.isNotBlank() }) {
             Spacer(Modifier.height(16.dp))
-            body.forEach { line ->
-                if (line.isBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                } else {
-                    Text(
-                        annotateOrgInline(line, c),
-                        fontFamily = PlexSans, fontSize = 14.sp, color = c.ink, lineHeight = 1.5.em,
-                        modifier = Modifier.padding(vertical = 2.dp),
+            // The Read-mode block renderer, as in DraftIntroPreview, so attachment
+            // images show inline and lists/tables render structured.
+            SelectionContainer {
+                Column {
+                    BodyBlocks(
+                        bodyLines = body,
+                        lineOffset = headline.bodyStart,
+                        onToggleCheckbox = { _, _ -> },
+                        openTarget = {},
+                        onLinkLongPress = { _, _, _ -> },
+                        onEditAt = {},
                     )
                 }
             }
@@ -1385,4 +1610,23 @@ private fun CaptureSaveButton(
             fontSize = (15f - 1.5f * t).sp, color = c.accentInk,
         )
     }
+}
+
+/**
+ * The discard dialog's checkbox detail: `2 files added in this capture`, plus
+ * `, and the :ID: added to inbox.org` when the no-heading fallback gave the
+ * target file one.
+ */
+/** A finished explicit save, waiting on the attach-dir check before the screen closes. */
+private class CaptureSavedEvent(val roamFilePath: String?)
+
+/** The discard checkbox's detail: the files, plus the `:ID:` and/or attachment tag added to [addedTo] on disk. */
+internal fun captureAttachmentsDetail(fileCount: Int, addedTo: String?, idAdded: Boolean, tagAdded: String?): String {
+    val files = when (fileCount) {
+        0 -> "The file still copying"
+        1 -> "1 file added in this capture"
+        else -> "$fileCount files added in this capture"
+    }
+    val marks = listOfNotNull(":ID:".takeIf { idAdded }, tagAdded?.let { ":$it: tag" }).joinToString(" and ")
+    return if (addedTo == null || marks.isEmpty()) files else "$files, and the $marks added to $addedTo"
 }

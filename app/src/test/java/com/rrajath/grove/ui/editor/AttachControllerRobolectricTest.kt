@@ -9,6 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.text.TextRange
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachScope
@@ -32,6 +34,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import com.rrajath.grove.org.OrgMutations
+import com.rrajath.grove.attach.fileOwner
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -59,6 +63,7 @@ class AttachControllerRobolectricTest {
 
     private val vaultDir by lazy { tmp.newFolder("vault") }
     private val store by lazy { JvmFileStore(vaultDir, skipAttachShards = true) }
+    private var attachConfig = AttachConfig.Default
     private val manager by lazy {
         AttachmentCopyManager(
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
@@ -91,7 +96,9 @@ class AttachControllerRobolectricTest {
         lateinit var controller: AttachController
         composeRule.setContent {
             GroveTheme {
-                controller = rememberAttachController(textState, "travel.org", bufferReady = true, manager) { store }
+                controller = rememberAttachController(
+                    textState, "travel.org", bufferReady = true, manager, attachConfig = { attachConfig },
+                ) { store }
             }
         }
         composeRule.runOnIdle {
@@ -111,13 +118,206 @@ class AttachControllerRobolectricTest {
     }
 
     @Test
+    fun `a pick goes into the configured attach dir`() {
+        attachConfig = AttachConfig(idDir = "attach/")
+        val text = "* Lunch\nTiny soba place.\n"
+        val textState = TextFieldState(text, TextRange(text.length))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/travel.org", bufferReady = true, manager, attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        composeRule.runOnIdle {
+            controller.open()
+            controller.pending = PendingAttach("Files", isFile = false, id = null, titlePath = listOf("Lunch"), lineIndex = 0, cursor = textState.selection.start)
+            controller.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("[[attachment:receipt.pdf]]") }
+
+        val id = OrgParser.parse(textState.text.toString()).headlines.single().properties["ID"]!!
+        assertTrue(File(vaultDir, "notes/attach/${id.take(2)}/${id.drop(2)}/receipt.pdf").isFile)
+        assertFalse(File(vaultDir, "notes/data").exists())
+    }
+
+    @Test
+    fun `a pick under a parent DIR goes into the parent's folder without a new ID`() {
+        val text = "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Lunch\n:PROPERTIES:\n:ID: AB12345\n:END:\nsoba\n"
+        val textState = TextFieldState(text, TextRange(text.length))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/travel.org", bufferReady = true, manager, attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        composeRule.runOnIdle {
+            controller.open()
+            controller.pending = PendingAttach("Files", false, "AB12345", listOf("Trip", "Lunch"), 4, textState.selection.start)
+            controller.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("[[attachment:receipt.pdf]]") }
+
+        assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
+        assertFalse(File(vaultDir, "notes/data").exists())
+        assertTrue(textState.text.toString(), textState.text.contains("soba\n[[attachment:receipt.pdf]]"))
+        assertEquals(1, Regex(":ID:").findAll(textState.text).count())
+    }
+
+    /**
+     * The single-heading editor on [heading] of [fileText] (notes/travel.org):
+     * opens the sheet at the end of the subtree buffer, picks a file, and returns
+     * the sheet's owner, the final buffer, and the owners reported as attached.
+     */
+    /** The sheet's "Folder from" line as [attachFromSubtreeEditor] last opened it. */
+    private var lastFolderFrom: String? = null
+
+    private fun attachFromSubtreeEditor(fileText: String, heading: String): Triple<AttachOwner, String, List<AttachOwner>> {
+        val fileDoc = OrgParser.parse(fileText)
+        val h = fileDoc.headlines.first { it.title == heading }
+        val buffer = OrgMutations.subtreeText(fileDoc, h)
+        val context = AttachFileContext(fileText, h.lineIndex until fileDoc.subtreeEndLine(h))
+        val textState = TextFieldState(buffer, TextRange(buffer.trimEnd('\n').length))
+        val attached = mutableListOf<AttachOwner>()
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/travel.org", bufferReady = true, manager,
+                    onOwnerAttached = { attached += it }, fileContext = { context }, attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        composeRule.runOnIdle { controller.open() }
+        settleUntil { controller.sheet?.dir != null }
+        val owner = controller.sheet!!.owner as AttachOwner.Heading
+        lastFolderFrom = controller.sheet!!.folderFrom
+        composeRule.runOnIdle {
+            controller.pending = PendingAttach("Files", false, owner.id, owner.titlePath, owner.lineIndex, textState.selection.start)
+            controller.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("[[attachment:receipt.pdf]]") }
+        return Triple(owner, textState.text.toString(), attached)
+    }
+
+    @Test
+    fun `a single-heading editor attaches into its parent's DIR`() {
+        File(vaultDir, "notes/trip").mkdirs()
+        val (owner, buffer, attached) = attachFromSubtreeEditor(
+            "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Lunch\n:PROPERTIES:\n:ID: AB12345\n:END:\nsoba\n", "Lunch",
+        )
+        assertEquals("trip", owner.dirProperty)
+        assertEquals(listOf("Lunch"), (owner as AttachOwner.Heading).titlePath)
+        assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
+        assertFalse(File(vaultDir, "notes/data").exists())
+        assertTrue(buffer, buffer.contains("soba\n[[attachment:receipt.pdf]]"))
+        assertTrue("inherited dir isn't recorded as the heading's own", attached.isEmpty())
+    }
+
+    @Test
+    fun `a single-heading editor attaches into its grandparent's DIR without adding an ID`() {
+        File(vaultDir, "notes/trip").mkdirs()
+        val (_, buffer, _) = attachFromSubtreeEditor(
+            "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Kyoto\n*** Lunch\nsoba\n", "Lunch",
+        )
+        assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
+        assertFalse(buffer, buffer.contains(":ID:"))
+    }
+
+    @Test
+    fun `a single-heading editor attaches into the file drawer's DIR`() {
+        File(vaultDir, "notes/files").mkdirs()
+        val (owner, buffer, _) = attachFromSubtreeEditor(
+            ":PROPERTIES:\n:DIR: files\n:END:\n#+TITLE: Travel\n\n* Trip\n** Lunch\nsoba\n", "Lunch",
+        )
+        assertEquals(AttachOwner.File(null, "files"), (owner as AttachOwner.Heading).dirFrom)
+        assertEquals("Folder from file settings", lastFolderFrom)
+        assertTrue(File(vaultDir, "notes/files/receipt.pdf").isFile)
+        assertFalse(buffer, buffer.contains(":ID:"))
+    }
+
+    /**
+     * Quick capture with body-only text bound for `* Trip` in notes/travel.org
+     * ([fileText] on disk): opens the sheet, picks a file and returns the
+     * controller, the field and each on-disk heading write asked for (owner, new ID, tag).
+     */
+    private fun attachFromBodyOnlyCapture(fileText: String): Triple<AttachController, TextFieldState, List<Triple<AttachOwner.Heading, String?, String>>> {
+        File(vaultDir, "notes").mkdirs()
+        File(vaultDir, "notes/travel.org").writeText(fileText)
+        val textState = TextFieldState("A note.", TextRange(7))
+        val headingIds = mutableListOf<Triple<AttachOwner.Heading, String?, String>>()
+        val fileDoc = OrgParser.parse(fileText)
+        val trip = fileDoc.headlines.first { it.title == "Trip" }
+        val placedText = (fileDoc.lines.take(trip.bodyStart) + "A note." + fileDoc.lines.drop(trip.bodyStart)).joinToString("\n")
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/travel.org", bufferReady = true, manager,
+                    addDiskFileId = { _, _ -> error("file owner not expected") },
+                    fileContext = { AttachFileContext(placedText, trip.bodyStart..trip.bodyStart, placed = true) },
+                    markDiskHeading = { _, owner, id, tag -> headingIds += Triple(owner, id, tag); DiskHeadingMarks(id, tag) },
+                    attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        composeRule.runOnIdle { controller.open() }
+        settleUntil { controller.sheet != null }
+        val owner = controller.sheet!!.owner as AttachOwner.Heading
+        composeRule.runOnIdle {
+            controller.pending = PendingAttach("Files", false, owner.id, owner.titlePath, owner.lineIndex, 7, onDisk = true)
+            controller.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("receipt.pdf") }
+        return Triple(controller, textState, headingIds)
+    }
+
+    @Test
+    fun `body-only capture text attaches to its target heading with a new ID on disk`() {
+        val (c, textState, headingIds) = attachFromBodyOnlyCapture("* Trip\nPlans.\n* Other\n")
+        val (heading, id, tag) = headingIds.single()
+        assertEquals(listOf("Trip"), heading.titlePath)
+        assertEquals("ATTACH", tag)
+        id!!
+        assertTrue(File(vaultDir, "notes/data/${id.take(2)}/${id.drop(2)}/receipt.pdf").isFile)
+        assertEquals("A note.\n[[attachment:receipt.pdf]]", textState.text.toString())
+        assertEquals(DiskHeadingMarks(id, "ATTACH"), c.addedDiskHeading?.marks)
+        assertEquals(null, c.addedDiskFileId)
+    }
+
+    @Test
+    fun `body-only capture text under a DIR heading goes to that folder without an ID`() {
+        File(vaultDir, "notes/trip").mkdirs()
+        val (c, textState, headingIds) = attachFromBodyOnlyCapture("* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\nPlans.\n")
+        assertEquals(null, headingIds.single().second)
+        assertTrue(File(vaultDir, "notes/trip/receipt.pdf").isFile)
+        assertEquals("A note.\n[[attachment:receipt.pdf]]", textState.text.toString())
+        assertEquals(DiskHeadingMarks(null, "ATTACH"), c.addedDiskHeading?.marks)
+    }
+
+    @Test
+    fun `the sheet names the ancestor an inherited folder comes from`() {
+        File(vaultDir, "notes/trip").mkdirs()
+        val (owner, _, _) = attachFromSubtreeEditor(
+            "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\n** Kyoto\n*** Lunch\nsoba\n", "Lunch",
+        )
+        assertEquals("trip", owner.dirProperty)
+        assertEquals("Folder from * Trip", lastFolderFrom)
+    }
+
+    @Test
     fun `a result that arrives before the buffer is loaded waits for it`() {
         val textState = TextFieldState("* Lunch\n:PROPERTIES:\n:ID: AB12345\n:END:\nbody\n", TextRange(0))
         var ready by mutableStateOf(false)
         lateinit var controller: AttachController
         composeRule.setContent {
             GroveTheme {
-                controller = rememberAttachController(textState, "travel.org", bufferReady = ready, manager) { store }
+                controller = rememberAttachController(
+                    textState, "travel.org", bufferReady = ready, manager, attachConfig = { attachConfig },
+                ) { store }
             }
         }
         composeRule.runOnIdle {
@@ -162,6 +362,7 @@ class AttachControllerRobolectricTest {
             GroveTheme {
                 controller = rememberAttachController(
                     textState, "x.org", bufferReady = true, manager, indexedOwners = indexedOwners,
+                    attachConfig = { attachConfig },
                 ) { fileStore }
             }
         }
@@ -365,20 +566,24 @@ class AttachControllerRobolectricTest {
     }
 
     @Test
-    fun `canDelete only in this heading, and for a file owner only file-level rows in this file`() {
+    fun `canDelete only the owner's own files, in every scope`() {
         val file = FileEntry("data/AA/0001/a.jpg", 0, 1)
         val heading = AttachOwner.Heading(0, listOf("A"), "AA0001", null)
         fun row(dir: String) = ScopedAttachment(file, dir, "x.org", "A", "")
         val m = AttachSheetModel(heading, "*", "A", "data/AA/0001", scopesFor(heading), AttachScope.HEADING, emptyList(), 10)
-        assertTrue(m.canDelete(row("data/AA/0001")))
-        assertFalse(m.copy(scope = AttachScope.FILE).canDelete(row("data/AA/0001")))
-        assertFalse(m.copy(scope = AttachScope.VAULT).canDelete(row("data/AA/0001")))
+        for (scope in AttachScope.entries) {
+            assertTrue("own file, $scope", m.copy(scope = scope).canDelete(row("data/AA/0001")))
+            assertFalse("other owner's file, $scope", m.copy(scope = scope).canDelete(row("data/BB/0002")))
+        }
 
         val fileOwner = AttachOwner.File("FF0003", null)
         val f = AttachSheetModel(fileOwner, "#+", "x.org", "data/FF/0003", scopesFor(fileOwner), AttachScope.FILE, emptyList(), 10)
         assertTrue(f.canDelete(row("data/FF/0003")))
         assertFalse(f.canDelete(row("data/AA/0001")))
-        assertFalse(f.copy(scope = AttachScope.VAULT).canDelete(row("data/FF/0003")))
+        assertTrue(f.copy(scope = AttachScope.VAULT).canDelete(row("data/FF/0003")))
+
+        // No attach dir yet: nothing is the owner's own.
+        assertFalse(m.copy(dir = null, scope = AttachScope.VAULT).canDelete(row("data/AA/0001")))
     }
 
     @Test
@@ -387,7 +592,9 @@ class AttachControllerRobolectricTest {
         lateinit var controller: AttachController
         composeRule.setContent {
             GroveTheme {
-                controller = rememberAttachController(textState, "travel.org", bufferReady = true, manager) { store }
+                controller = rememberAttachController(
+                    textState, "travel.org", bufferReady = true, manager, attachConfig = { attachConfig },
+                ) { store }
             }
         }
         composeRule.runOnIdle {
@@ -397,5 +604,159 @@ class AttachControllerRobolectricTest {
         composeRule.waitForIdle()
         assertEquals("* Lunch\n", textState.text.toString())
         assertFalse(File(vaultDir, "data").exists())
+    }
+
+    /** Quick capture: a snippet bound for `inbox/capture.org`, which [addFileId] gives an ID on disk. */
+    private fun captureController(text: String, cursor: Int): Pair<AttachController, TextFieldState> {
+        val textState = TextFieldState(text, TextRange(cursor))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "inbox/capture.org", bufferReady = true, manager,
+                    addDiskFileId = { file, id ->
+                        store.write(file, OrgMutations.upsertFileProperty(OrgParser.parse(store.read(file)), "ID", id))
+                        true
+                    },
+                    attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        return controller to textState
+    }
+
+    /** Intro editor: the buffer is `notes/trip.org`'s Intro, without its property drawer. */
+    private fun introController(text: String, cursor: Int): Pair<AttachController, TextFieldState> {
+        val textState = TextFieldState(text, TextRange(cursor))
+        lateinit var controller: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                controller = rememberAttachController(
+                    textState, "notes/trip.org", bufferReady = true, manager,
+                    addDiskFileId = { file, id ->
+                        store.write(file, OrgMutations.upsertFileProperty(OrgParser.parse(store.read(file)), "ID", id))
+                        true
+                    },
+                    introOfFile = true,
+                    attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        return controller to textState
+    }
+
+    private fun attachToIntro(c: AttachController, textState: TextFieldState, cursor: Int) {
+        composeRule.runOnIdle {
+            c.pending = PendingAttach("Files", isFile = true, id = null, titlePath = emptyList(), lineIndex = -1, cursor = cursor, onDisk = true)
+            c.onPickerResult(listOf(picked("map.pdf")))
+        }
+        settleUntil { textState.text.contains("map.pdf]]") }
+    }
+
+    @Test
+    fun `intro without ID or DIR adds a file ID on disk and links with attachment links`() {
+        File(vaultDir, "notes").mkdirs()
+        val target = File(vaultDir, "notes/trip.org").apply { writeText("#+title: Trip\nPlans.\n* Day 1\n") }
+        val (c, textState) = introController("Plans.", cursor = 6)
+        c.openAndLoad()
+        assertTrue(c.sheet!!.onDisk)
+        assertTrue(c.sheet!!.owner is AttachOwner.File)
+        assertNull(c.toast)
+
+        attachToIntro(c, textState, 6)
+        val id = OrgParser.parse(target.readText()).fileOwner().id!!
+        assertTrue("copied", File(vaultDir, "notes/data/${id.take(2)}/${id.drop(2)}/map.pdf").isFile)
+        assertEquals("Plans.\n[[attachment:map.pdf]]", textState.text.toString())
+    }
+
+    @Test
+    fun `intro attach uses the file's DIR over its ID`() {
+        File(vaultDir, "notes").mkdirs()
+        val original = ":PROPERTIES:\n:ID: abc-123\n:DIR: trip-files\n:END:\nPlans.\n"
+        val target = File(vaultDir, "notes/trip.org").apply { writeText(original) }
+        val (c, textState) = introController("Plans.", cursor = 6)
+        c.openAndLoad()
+        assertEquals("trip-files", c.sheet!!.owner.dirProperty)
+
+        attachToIntro(c, textState, 6)
+        assertTrue("copied", File(vaultDir, "notes/trip-files/map.pdf").isFile)
+        assertEquals(original, target.readText())
+        assertEquals("Plans.\n[[attachment:map.pdf]]", textState.text.toString())
+    }
+
+    @Test
+    fun `capture with a heading at the cursor attaches to that heading in the snippet`() {
+        File(vaultDir, "inbox").mkdirs()
+        File(vaultDir, "inbox/capture.org").writeText("#+title: Inbox\n")
+        val (c, _) = captureController("* TODO Call Sam\nnotes\n", cursor = 18)
+        c.openAndLoad()
+        assertFalse(c.sheet!!.onDisk)
+        assertEquals("Call Sam", (c.sheet!!.owner as AttachOwner.Heading).title)
+    }
+
+    @Test
+    fun `capture without a heading falls back to the target file and links with file links`() {
+        File(vaultDir, "inbox").mkdirs()
+        val target = File(vaultDir, "inbox/capture.org").apply { writeText("#+title: Inbox\n") }
+        val (c, textState) = captureController("just a thought", cursor = 14)
+        c.openAndLoad()
+        assertTrue(c.sheet!!.onDisk)
+        assertTrue(c.sheet!!.owner is AttachOwner.File)
+        assertEquals("capture.org", c.sheet!!.title)
+
+        composeRule.runOnIdle {
+            c.pending = PendingAttach("Files", isFile = true, id = null, titlePath = emptyList(), lineIndex = -1, cursor = 14, onDisk = true)
+            c.onPickerResult(listOf(picked("receipt.pdf")))
+        }
+        settleUntil { textState.text.contains("receipt.pdf]]") }
+
+        val id = OrgParser.parse(target.readText()).fileOwner().id!!
+        val rel = "data/${id.take(2)}/${id.drop(2)}/receipt.pdf"
+        assertTrue("copied", File(vaultDir, "inbox/$rel").isFile)
+        assertEquals("just a thought\n[[file:$rel]]", textState.text.toString())
+        assertEquals("Attached to capture.org", c.toast?.message)
+
+        // Discard with "Also delete attachments": the session's files go.
+        assertEquals(listOf("inbox/$rel"), c.addedFiles)
+        assertEquals(id, c.addedDiskFileId)
+        composeRule.runOnIdle { c.discardSessionAttachments() }
+        settleUntil { !File(vaultDir, "inbox/$rel").exists() }
+        assertFalse(File(vaultDir, "inbox/data").exists())
+        assertTrue(c.addedFiles.isEmpty())
+    }
+
+    @Test
+    fun `capture without a heading and no target file opens no sheet`() {
+        val (c, _) = captureController("just a thought", cursor = 14)
+        composeRule.runOnIdle { c.open() }
+        repeat(5) { shadowOf(Looper.getMainLooper()).idle(); composeRule.waitForIdle(); Thread.sleep(20) }
+        assertNull(c.sheet)
+    }
+
+    @Test
+    fun `new Roam node capture attaches under the ID the saved file will get, not a fresh one`() {
+        val text = "#+title: Kyoto\nTrip notes"
+        val textState = TextFieldState(text, TextRange(text.length))
+        lateinit var c: AttachController
+        composeRule.setContent {
+            GroveTheme {
+                c = rememberAttachController(
+                    textState, "roam/kyoto.org", bufferReady = true, manager, pendingFileId = "AB12CD34",
+                    attachConfig = { attachConfig },
+                ) { store }
+            }
+        }
+        c.openAndLoad()
+        assertEquals("AB12CD34", c.sheet!!.owner.id)
+
+        composeRule.runOnIdle {
+            c.pending = PendingAttach("Files", isFile = true, id = null, titlePath = emptyList(), lineIndex = -1, cursor = text.length)
+            c.onPickerResult(listOf(picked("map.pdf")))
+        }
+        settleUntil { textState.text.contains("[[attachment:map.pdf]]") }
+
+        assertTrue(File(vaultDir, "roam/data/AB/12CD34/map.pdf").isFile)
+        // No second :ID: in the buffer: the capture adds AB12CD34 itself on save.
+        assertEquals("#+title: Kyoto\nTrip notes\n[[attachment:map.pdf]]", textState.text.toString())
     }
 }

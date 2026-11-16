@@ -1,0 +1,17 @@
+# Attachment flows: fresh app state and a freshly seeded attachment vault.
+# Runs from each flow's onFlowStart. Launches with the `attachments` seed set:
+# debug/DebugTestAttachments wipes the test vault and writes the notes plus
+# their attachment folders. Lands on the Notebooks screen.
+appId: com.rrajath.grove.debug
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+    arguments:
+      grove_test_direct_vault: true
+      grove_test_seed_set: "attachments"
+- extendedWaitUntil:
+    visible:
+      text: "inherit.org"
+    timeout: 15000

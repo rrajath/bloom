@@ -1,0 +1,7 @@
+* A
+:PROPERTIES:
+:DIR: a
+:END:
+** B
+*** C
+# point

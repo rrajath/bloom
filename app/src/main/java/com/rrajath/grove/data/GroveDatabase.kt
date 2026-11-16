@@ -49,6 +49,12 @@ data class NotebookEntity(
      */
     val orgId: String? = null,
     /**
+     * The file-level `:DIR:` (or legacy `:ATTACH_DIR:`) from the leading
+     * property drawer, if any: an attach dir owner for the attach sheet's Vault
+     * scope. Null for a stub row and for files without one.
+     */
+    val dirProperty: String? = null,
+    /**
      * False for a lightweight stub row inserted at discovery time (file listed
      * but not yet parsed): note count / title are placeholders until the
      * background parse pass fills them in and flips this to true. Lets the
@@ -110,6 +116,11 @@ data class NoteEntity(
     val isDone: Boolean,
     /** Mirror of the notebook's lastModified for recency ranking. */
     val lastModified: Long,
+    /**
+     * The heading's own `:DIR:` (or legacy `:ATTACH_DIR:`), if any: lets the
+     * attach sheet's Vault scope list `:DIR:` owners in other files.
+     */
+    val dirProperty: String? = null,
 )
 
 /**
@@ -221,8 +232,17 @@ data class NotebookSyncState(
 /** A file holding an `:ID:` (see [IndexDao.filesHoldingOrgIds]). */
 data class FileOrgId(val fileName: String, val orgId: String)
 
-/** An indexed `:ID:` holder (see [IndexDao.attachOwners]); [title] is null for a file-level drawer. */
-data class IndexedAttachOwner(val fileName: String, val title: String?, val orgId: String)
+/**
+ * An indexed attach dir owner: a heading or file-level drawer with an `:ID:`, a
+ * `:DIR:`, or both (see [IndexDao.attachOwners]). [title] is null for a
+ * file-level drawer.
+ */
+data class IndexedAttachOwner(
+    val fileName: String,
+    val title: String?,
+    val orgId: String?,
+    val dirProperty: String? = null,
+)
 
 /** Primary key of a `notes` row: what an FTS lookup hands back. */
 data class NoteKey(val fileName: String, val lineIndex: Int)
@@ -366,13 +386,15 @@ abstract class IndexDao {
     abstract suspend fun filesHoldingOrgIds(ids: List<String>): List<FileOrgId>
 
     /**
-     * Every heading and file-level drawer with an `:ID:`, vault-wide: the owners the
-     * attach sheet's Vault scope lists (attachments, experimental). Headings carry
-     * their title; file-level owners have a null title.
+     * Every heading and file-level drawer with an `:ID:` or a `:DIR:`, vault-wide:
+     * the owners the attach sheet's Vault scope lists (attachments, experimental).
+     * Headings carry their title; file-level owners have a null title.
      */
     @Query(
-        "SELECT fileName, title, orgId FROM notes WHERE orgId IS NOT NULL AND lineIndex >= 0 " +
-            "UNION SELECT fileName, NULL AS title, orgId FROM notebooks WHERE orgId IS NOT NULL"
+        "SELECT fileName, title, orgId, dirProperty FROM notes " +
+            "WHERE (orgId IS NOT NULL OR dirProperty IS NOT NULL) AND lineIndex >= 0 " +
+            "UNION SELECT fileName, NULL AS title, orgId, dirProperty FROM notebooks " +
+            "WHERE orgId IS NOT NULL OR dirProperty IS NOT NULL"
     )
     abstract suspend fun attachOwners(): List<IndexedAttachOwner>
 
@@ -645,6 +667,11 @@ interface ReminderDao {
         NotebookEntity::class, NoteEntity::class, FtsMapEntity::class,
         SyncLogEntity::class, ReminderEntity::class,
     ],
+    // v19: added NoteEntity.dirProperty / NotebookEntity.dirProperty (a heading's
+    // or file's `:DIR:`, so the attach sheet's Vault scope lists `:DIR:` owners in
+    // other files and resolves them by `:DIR:` before `:ID:`). Destructive
+    // migration drops the rebuildable index; the next sync repopulates it from
+    // the .org files, no file data touched.
     // v18: added ReminderEntity.repeatStamp (a repeating reminder fires on each
     // occurrence, not only the stored date). Destructive migration drops the
     // rebuildable reminders table; the next reconcile repopulates it from disk.
@@ -696,7 +723,7 @@ interface ReminderDao {
     // v5: added NotebookEntity.isIndexed (stub vs fully-parsed notebook rows);
     // v4: added NotebookEntity.title (cached #+TITLE: preamble value). Destructive
     // migration drops the index so the next sync rebuilds it from the .org files.
-    version = 18,
+    version = 19,
     exportSchema = false,
 )
 abstract class GroveDatabase : RoomDatabase() {

@@ -46,6 +46,29 @@ class FavoritesRepository(private val context: Context) {
         context.favoritesDataStore.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(updated) }
     }
 
+    /** Keeps favorites in [oldPath] pointing at the file after it is renamed or moved to [newPath]. */
+    suspend fun rebaseFile(oldPath: String, newPath: String) = rewrite { it.rebasedFile(oldPath, newPath) }
+
+    /** Keeps favorites in files under [oldDir] pointing at them after the folder is renamed to [newDir]. */
+    suspend fun rebaseFolder(oldDir: String, newDir: String) = rewrite { it.rebasedFolder(oldDir, newDir) }
+
+    /** Re-points favorites whose file vanished at wherever their heading id now lives (see [relocatedMissing]). */
+    suspend fun relocateMissing(existingFiles: Set<String>, locate: suspend (String) -> NoteKey?) {
+        val current = favorites.first()
+        // Cheap pre-check outside the transaction: most index emissions have nothing to heal.
+        if (current.relocatedMissing(existingFiles, locate) === current) return
+        rewrite { it.relocatedMissing(existingFiles, locate) }
+    }
+
+    /** Read-modify-write inside one DataStore transaction; skips the write when [transform] changes nothing. */
+    private suspend fun rewrite(transform: suspend (List<FavoriteNote>) -> List<FavoriteNote>) {
+        context.favoritesDataStore.edit { prefs ->
+            val current = prefs[FAVORITES_KEY]?.let { FavoriteNoteSerializer.decode(it) } ?: emptyList()
+            val updated = transform(current)
+            if (updated !== current) prefs[FAVORITES_KEY] = FavoriteNoteSerializer.encode(updated)
+        }
+    }
+
     /** Swaps the favorite matching (fileName, lineIndex[, customId]) with its neighbor [delta] slots away (-1 up, +1 down); no-op past either end. */
     suspend fun moveFavorite(fileName: String, lineIndex: Int, delta: Int, customId: String? = null) {
         val current = favorites.first().toMutableList()

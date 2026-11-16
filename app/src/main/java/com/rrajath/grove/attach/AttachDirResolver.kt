@@ -23,7 +23,7 @@ fun interface DirExists {
  */
 class AttachDirResolver(
     private val dirs: DirExists,
-    private val config: AttachConfig = AttachConfig.Default,
+    private val config: AttachConfig,
 ) {
 
     /** One candidate: the dir under `idDir` and, when it differs, the `data/` fallback. */
@@ -31,10 +31,8 @@ class AttachDirResolver(
 
     private fun candidateList(orgFile: String, owner: AttachOwner): List<Candidate> {
         val orgDir = orgFile.substringBeforeLast('/', "")
-        if (config.honorDirProperty) {
-            owner.dirProperty?.let { dir ->
-                return listOfNotNull(resolveRelative(orgDir, dir.trim())?.let { Candidate(it, null) })
-            }
+        owner.dirProperty?.let { dir ->
+            return listOfNotNull(resolveRelative(orgDir, dir.trim())?.let { Candidate(it, null) })
         }
         val id = owner.id?.trim()?.takeIf { it.isNotEmpty() } ?: return emptyList()
         val base = if (config.idDir.startsWith("/")) config.idDir else joinPath(orgDir, config.idDir)

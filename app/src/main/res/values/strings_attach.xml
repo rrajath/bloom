@@ -3,6 +3,10 @@
     <!-- Attach sheet (ui/editor/AttachSheet.kt): label above the scope switch. The switch's
          options follow it; keep the colon if your language uses one there. -->
     <string name="attach_scope_label">Show attachments in:</string>
+    <!-- Attach sheet: second header line when the heading's attachment folder comes from a parent heading's :DIR:. %1$s = that heading's org stars and title, e.g. "* Trip". -->
+    <string name="attach_folder_from">Folder from %1$s</string>
+    <!-- Attach sheet: second header line when the attachment folder comes from the :DIR: in the file's own property drawer at the top of the file. -->
+    <string name="attach_folder_from_file">Folder from file settings</string>
     <!-- Scope switch option: attachments of the heading being edited. Short, it shares one row with two other options. -->
     <string name="attach_scope_heading">This heading</string>
     <!-- Scope switch option: attachments of every heading in the open .org file. Short. -->
@@ -26,4 +30,22 @@
     <string name="attach_action_insert_link">Insert link</string>
     <string name="attach_action_open_with">Open with</string>
     <string name="attach_action_delete">Delete file</string>
+    <!-- Quick capture: toast when the capture has no heading at the cursor, so files attach to the target .org file instead. %1$s = target file name. -->
+    <string name="attach_capture_file_fallback">No heading in this capture. Attaching to %1$s</string>
+    <!-- Quick capture: toast when the target .org file doesn't exist yet, so there's nothing to attach to. %1$s = target file name. -->
+    <string name="attach_capture_no_target">%1$s doesn\'t exist yet. Add a heading to attach files</string>
+    <!-- Quick capture: toast when files were attached but the target file couldn't be given its ID. %1$s = target file name. -->
+    <string name="attach_capture_id_failed">Attached, but couldn\'t add an ID to %1$s</string>
+    <!-- Notice after saving a note whose :DIR: property was added while it already had attachments under its :ID: folder. %1$s = the new folder (the :DIR: value). Keep :DIR: as it is. -->
+    <string name="attach_dir_added">:DIR: property detected. Attachment(s) will be moved to %1$s</string>
+    <!-- Notice after saving a note whose :DIR: property was removed: its attachments move back to the :ID: folder. %1$s = that folder. Keep :DIR: as it is. -->
+    <string name="attach_dir_removed">:DIR: property removed. Attachment(s) will be moved to %1$s</string>
+    <!-- Notice after saving a note whose :DIR: property changed to a different folder. %1$s = the new folder. Keep :DIR: as it is. -->
+    <string name="attach_dir_changed">:DIR: property changed. Attachment(s) will be moved to %1$s</string>
+    <!-- Notice after saving a note: a heading inherited a :DIR: property that was removed and has no :ID:, so it gets a new :ID: and its attachments move to that ID's folder. %1$s = that folder. Keep :ID: and :DIR: as they are. -->
+    <string name="attach_dir_new_id">Inherited :DIR: property removed. An :ID: will be added and attachment(s) moved to %1$s</string>
+    <!-- Notice after saving a note that has attachments but no :ID: or :DIR: property left, so its attachment links point nowhere. Keep :ID: and :DIR: as they are. -->
+    <string name="attach_dir_broken">Image link broken. Couldn\'t find :ID: or :DIR: property</string>
+    <!-- Title of the attachment-folder notice dialog. -->
+    <string name="attach_dir_notice_title">Attachments</string>
 </resources>

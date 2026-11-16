@@ -62,6 +62,47 @@ re-uploads the APKs to the existing release instead of failing.
 - Math environments (`align`, `align*`, `equation`, `gather`, `cases`, matrices, …) are kept whole however their lines look, as in Org: a blank line, or a line starting with `-`, `+`, `|` or `2)`, no longer splits one into a list, table or separate paragraphs. One under a list item stays with the item and renders on its own line below it
 - Live math preview in the editors (note, region and capture): with the cursor inside a formula, `$…$`, `\(…\)`, `$$…$$`, `\[…\]` or an environment, a typeset preview appears at the top of the editor and updates as you type, including an environment you haven't closed yet (thanks @nimaaskarian)
 
+## [1.15.0] - 2026-11-14
+
+### Added
+- Settings › Notes › Auto-capitalize headings (on by default); turn it off to let your keyboard decide capitalization.
+- The attach paperclip is now in the capture editor; captures without a heading attach to the target heading or file.
+- Settings › Attachments › Attachment folder sets where attachments go, matching Emacs's `org-attach-id-dir`.
+- Discarding a capture can also delete the files attached during it.
+- A Narrow button in the Outline swipe panel narrows the outline to that heading; Back widens again.
+- Read mode's breadcrumb now starts with Notebooks, which jumps straight back to the Notebooks screen.
+- The metadata sheet now names the heading it edits at the top, led by its org stars.
+- The Intro editor now has the attach paperclip; files attach to the file using its `:DIR:` or `:ID:`.
+- Adding, changing or removing `:DIR:` on save moves existing attachments, after a popup; losing both `:ID:` and `:DIR:` warns.
+- Target file fields have a clear button that empties the field and reopens the notebook list.
+- Settings › Attachments › Attachment tag sets the tag attached headings get (default `ATTACH`); leave empty for none.
+- Double-tap the empty space below the Outline's last heading to open the whole file view.
+- Tips & Tricks gained an Outline section explaining the double-tap to view the whole file.
+
+### Changed
+- Headings now use a parent's or the file's `:DIR:` for attachments, and `:DIR:` wins over `:ID:`, as in org-attach.
+- Refiling or archiving a heading whose attachments use an inherited `:DIR:` now writes that `:DIR:` onto it, keeping links working.
+- Editing a heading's `:DIR:` now also moves attachments of child headings that inherit it, adding an `:ID:` when needed.
+- Discard when leaving an editor now also undoes changes auto-save already wrote since you opened it or last saved.
+- Attach sheet rows drop the file size and wrap long names and sources instead of cutting them off.
+- The template editor's "Insert at" options are more compact, taking less vertical space.
+- Attachment move popups show folder names in accent-colored monospace, so they stand apart from heading names.
+- Attaching files to a heading now tags it `:ATTACH:`, as Emacs's org-attach does.
+- The metadata sheet won't create tags with spaces, colons or other characters org can't read, and says why.
+- Hints and errors under name fields in dialogs now line up with the field's edge instead of its text.
+
+### Fixed
+- The attach sheet's Vault scope now lists files in other notebooks' `:DIR:` folders.
+- Picking a notebook from a Target file suggestion list now puts the cursor at the end of the name.
+- Pressing back in the capture editor now saves and closes, asking only while an attachment is still copying.
+- Capturing into `inbox.org` when `Inbox.org` exists now writes to `Inbox.org` instead of creating `inbox (2).org` copies.
+- Paths whose folder differs only in case (`projects/` vs `Projects/`) now use the existing folder instead of creating `projects (1)`.
+- Favorites keep working after their file is renamed or moved, in Bloom or outside it.
+- Quickly double-tapping Back no longer leaves a blank white screen; taps during a screen transition are ignored.
+- Headings deleted in the editor after an auto-save no longer linger in the file or get duplicated.
+- The attach sheet's This file and Vault views now offer Delete on the current heading's own files.
+- Captures under a heading show their real heading depth, and sub-headings you type stay nested under the captured entry.
+
 ## [1.14.0] - 2026-11-08
 
 ### Added

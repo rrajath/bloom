@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
  */
 class PreviewChipChecker(
     private val store: () -> FileStore?,
+    private val config: () -> AttachConfig,
     private val cache: AttachmentStatusCache,
     /** The parsed doc for an org file, when a caller (search) has none of its own. */
     private val loadDoc: suspend (orgFile: String) -> OrgDocument?,
@@ -29,13 +30,18 @@ class PreviewChipChecker(
 ) {
     private val permits = Semaphore(parallelism)
 
-    /** The resolver for the current store, rebuilt only when the vault changes. */
+    private class Built(val store: FileStore, val config: AttachConfig, val resolver: AttachmentResolver)
+
+    /** The resolver for the current store and config, rebuilt only when either changes. */
     @Volatile
-    private var resolver: Pair<FileStore, AttachmentResolver>? = null
+    private var built: Built? = null
 
     private fun resolverFor(store: FileStore): AttachmentResolver {
-        resolver?.let { (s, r) -> if (s === store) return r }
-        return AttachmentResolver(AttachmentLookup(AttachmentFiles(store)), cache).also { resolver = store to it }
+        val config = config()
+        built?.let { if (it.store === store && it.config == config) return it.resolver }
+        val resolver = AttachmentResolver(AttachmentLookup(AttachmentFiles(store), config), cache)
+        built = Built(store, config, resolver)
+        return resolver
     }
 
     /**

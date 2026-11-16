@@ -13,7 +13,7 @@ import com.rrajath.grove.org.OrgDocument
  */
 class AttachmentScopeScanner(
     private val files: AttachmentFiles,
-    private val resolver: AttachDirResolver = AttachDirResolver(files),
+    private val resolver: AttachDirResolver,
 ) {
 
     private data class Owner(val orgFile: String, val owner: AttachOwner, val title: String?, val source: String)
@@ -32,7 +32,12 @@ class AttachmentScopeScanner(
     ): List<ScopedAttachment> {
         val current = bufferOwners(currentOrgFile, currentDoc) { title -> vaultSource(currentOrgFile, title) }
         val others = indexed.filter { it.fileName != currentOrgFile }.map {
-            val owner = if (it.title == null) AttachOwner.File(it.orgId, null) else AttachOwner.Heading(-1, listOf(it.title), it.orgId, null)
+            // Carry `:DIR:` too, so the resolver applies the same `:DIR:`-before-`:ID:` precedence as the buffer.
+            val owner = if (it.title == null) {
+                AttachOwner.File(it.orgId, it.dirProperty)
+            } else {
+                AttachOwner.Heading(-1, listOf(it.title), it.orgId, it.dirProperty)
+            }
             Owner(it.fileName, owner, it.title, vaultSource(it.fileName, it.title))
         }
         return scan(current + others)

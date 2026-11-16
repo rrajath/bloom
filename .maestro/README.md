@@ -18,6 +18,7 @@ flows verified against a Pixel_9a AVD (API 35, AOSP keyboard) on 2026-09-07.
 | `flows/10-add-note-to-heading.yaml` | Log a free-text LOGBOOK note against a heading from the outline's right-swipe panel and from the metadata sheet |
 | `flows/11-add-note-position.yaml` | Create a new note above, below, and as a child of an existing note via the outline's left-swipe panel |
 | `flows/12-pin-unpin-notebook.yaml` | Pin/unpin a notebook from its long-press context menu on the Notebooks screen |
+| `flows/attachments/01-dir-inheritance.yaml` | A child heading's image resolves through its parent's `:DIR:`, the attach sheet names the parent as the folder's source, and changing the parent's `:DIR:` moves the child's file too. Seeded by `grove_test_seed_set: attachments` (`debug/DebugTestAttachments`, which generates the image); `grove_test_cleanup` wipes the vault afterwards |
 | `scripts/ignore-list-settings.sh` | Settings § Notebooks' "Ignore list" row: the `.orgzlyignore` one-shot import (no file / empty file / imported with dedup) plus adding a pattern by hand and confirming it takes effect — see below |
 
 Journey 01 (onboarding + the SAF system folder picker) is **deferred** — see the

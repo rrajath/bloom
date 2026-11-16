@@ -93,6 +93,8 @@ fun ReadFileScreen(
     onOpenNote: (NoteRef) -> Unit,
     /** Tapping the file name in the top bar, and `[[file:]]` links to other files. */
     onOpenOutline: (fileName: String) -> Unit,
+    /** The breadcrumb's leading Notebooks segment: back to the Notebooks home. Null hides it. */
+    onOpenNotebooks: (() -> Unit)? = null,
     onOpenDrawer: (kind: String, ref: NoteRef) -> Unit = { _, _ -> },
     onOpenBlock: (fileName: String, line: Int) -> Unit = { _, _ -> },
     onOpenPreface: (fileName: String) -> Unit = {},
@@ -209,6 +211,7 @@ fun ReadFileScreen(
                         path = emptyList(),
                         onOpenBreadcrumb = { onOpenOutline(fileName) },
                         modifier = Modifier.testTag("read_file_label"),
+                        onOpenNotebooks = onOpenNotebooks,
                     )
                 },
             )

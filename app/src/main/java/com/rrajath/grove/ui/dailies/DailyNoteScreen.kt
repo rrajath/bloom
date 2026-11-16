@@ -56,7 +56,11 @@ import com.rrajath.grove.ui.components.LinkedReferencesSheet
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.ui.components.InsertTimestampScreen
 import com.rrajath.grove.ui.components.rememberImeVisible
+import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
+import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
+import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.editor.EditRegion
+import com.rrajath.grove.ui.editor.rememberAttachController
 import com.rrajath.grove.ui.editor.LinkIdChoice
 import com.rrajath.grove.ui.editor.LinkIdChoiceDialog
 import com.rrajath.grove.ui.editor.LinkPick
@@ -103,6 +107,9 @@ fun DailyNoteScreen(
     showPropertyDrawers: Boolean,
     readModeFontSize: FontSizePreference,
     editModeFontSize: FontSizePreference,
+    capitalizeHeadings: Boolean,
+    /** Opens an inline image in the full-screen viewer. */
+    onOpenImage: ((path: String, name: String) -> Unit)? = null,
     dailiesViewModel: DailiesViewModel = viewModel(factory = DailiesViewModel.Factory),
     documentViewModel: DocumentViewModel = viewModel(factory = DocumentViewModel.Factory),
     editorViewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
@@ -144,7 +151,8 @@ fun DailyNoteScreen(
             pendingAction = action
             confirmLeave = true
         } else {
-            action()
+            // Nothing unsaved, but an auto-save may have written a :DIR: edit: check first.
+            editorViewModel.save(onSaved = action)
         }
     }
     fun leave() = runGuarded(onBack)
@@ -431,6 +439,15 @@ fun DailyNoteScreen(
                         }
                         is DocumentUiState.Loaded -> {
                             ContentFontScale(readModeFontSize) {
+                              // Inline images and attachment chips, as on ReadFileScreen.
+                              ProvideAttachmentRendering(
+                                orgFile = n.fileName,
+                                doc = s.document,
+                                preferLines = null,
+                                openTarget = { target -> documentViewModel.openOrgLink(target, n.fileName, onOpenNote, onOpenOutline) },
+                                toast = documentViewModel::showToast,
+                                openImage = onOpenImage,
+                              ) {
                                 FileContent(
                                     doc = s.document,
                                     fileName = n.fileName,
@@ -457,6 +474,7 @@ fun DailyNoteScreen(
                                             detectTapGestures(onDoubleTap = { startEditing(n) })
                                         },
                                 )
+                              }
                             }
                         }
                         else -> {}
@@ -548,6 +566,11 @@ fun DailyNoteScreen(
                         }
                     }
 
+                    // Attachments: paperclip + sheet, as in the whole-file editor.
+                    val attach = rememberAttachController(
+                        textState, n.fileName, fieldLoaded, onOwnerAttached = editorViewModel::noteAttachedOwner,
+                    )
+
                     WholeFileEditorBody(
                         state = editState,
                         textState = textState,
@@ -565,6 +588,7 @@ fun DailyNoteScreen(
                             editorViewModel.loadRegion(n.fileName, null, EditRegion.WHOLE_FILE)
                         },
                         editModeFontSize = editModeFontSize,
+                        capitalizeHeadings = capitalizeHeadings,
                         showBacklinks = false, // this screen's own bottom bar owns Backlinks (Task 17)
                         isRoamFile = false,
                         linkedCount = 0,
@@ -588,6 +612,9 @@ fun DailyNoteScreen(
                         createOrLinkRoamNode = editorViewModel::createOrLinkRoamNode,
                         onSuggestionSlotShownChange = { editorStripShown = it },
                         bottomMarginLines = EditorBottomMarginLines,
+                        attach = attach,
+                        // The date pills float 16dp off the bottom and stand about 36dp tall.
+                        attachBottomInset = 52.dp,
                     )
 
                     // Toolbar long-press pickers, as in EditNoteScreen: the file/heading
@@ -649,6 +676,12 @@ fun DailyNoteScreen(
             // Hidden while typing: with the keyboard up the bottom of this Box is the
             // formatting toolbar's row, and the pills would only crowd it.
             if (!contentImeVisible && !editorStripShown) nav?.let { DateNavPills(it, ::navigateDate) }
+            // Read mode's toasts (missing attachments, unresolvable links), above the
+            // date pills (16dp off the bottom, about 36dp tall).
+            if (mode == "read") {
+                val readToast by documentViewModel.toast.collectAsStateWithLifecycle()
+                GroveToast(readToast, Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 62.dp))
+            }
         }
     }
 
@@ -695,11 +728,15 @@ fun DailyNoteScreen(
                 androidx.compose.material3.TextButton(onClick = {
                     confirmLeave = false
                     val action = pendingAction.also { pendingAction = null }
-                    action?.invoke()
+                    // Also undoes what an idle auto-save wrote since the last Save.
+                    editorViewModel.discardChanges { action?.invoke() }
                 }) { Text("Discard", color = c.red) }
             },
         )
     }
+
+    val attachDirNotice by editorViewModel.attachDirNotice.collectAsStateWithLifecycle()
+    attachDirNotice?.let { AttachDirNoticeDialog(it.changes, busy = it.busy, onOk = editorViewModel::acknowledgeAttachDirNotice) }
 
     if (linkedRefsOpen) {
         val title = (docState as? DocumentUiState.Loaded)?.document

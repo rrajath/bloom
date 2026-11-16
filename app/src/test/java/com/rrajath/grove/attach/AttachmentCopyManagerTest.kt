@@ -43,6 +43,7 @@ class AttachmentCopyManagerTest {
         orgFile = "travel.org",
         owner = AttachOwner.Heading(2, listOf("Kyoto", "Lunch"), "8B41D2F0", null),
         newId = null,
+        autoTag = "ATTACH",
         dir = "data/8B/41D2F0",
         kind = kind,
         sources = names.map { AttachSource(uri, it, 4) },
@@ -132,11 +133,11 @@ class AttachmentCopyManagerTest {
         """.trimIndent()
         // The editor buffer was the Lunch subtree, so the title path is just ["Lunch"].
         val owner = AttachOwner.Heading(0, listOf("Lunch"), null, null)
-        val edit = appendAttachmentLinksToFile(text, owner, "NEWID", listOf("a.jpg", "b.pdf"))!!
+        val edit = appendAttachmentLinksToFile(text, owner, "NEWID", listOf("a.jpg", "b.pdf"), "ATTACH")!!
         assertEquals(
             """
             * Kyoto
-            ** Lunch
+            ** Lunch  :ATTACH:
             :PROPERTIES:
             :ID: NEWID
             :END:
@@ -155,14 +156,14 @@ class AttachmentCopyManagerTest {
     fun `file fallback finds the owner by ID and doesn't add a second one`() {
         val text = "* A\n:PROPERTIES:\n:ID: X1\n:END:\nbody\n* B\n"
         val owner = AttachOwner.Heading(9, listOf("renamed"), "X1", null)
-        val edit = appendAttachmentLinksToFile(text, owner, "IGNORED", listOf("a.jpg"))!!
-        assertEquals("* A\n:PROPERTIES:\n:ID: X1\n:END:\nbody\n[[attachment:a.jpg]]\n* B\n", edit.text)
+        val edit = appendAttachmentLinksToFile(text, owner, "IGNORED", listOf("a.jpg"), "ATTACH")!!
+        assertEquals("* A  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nbody\n[[attachment:a.jpg]]\n* B\n", edit.text)
     }
 
     @Test
     fun `file fallback returns null when the heading is gone`() {
         val owner = AttachOwner.Heading(0, listOf("Gone"), null, null)
-        assertNull(appendAttachmentLinksToFile("* Other\n", owner, "N", listOf("a.jpg")))
+        assertNull(appendAttachmentLinksToFile("* Other\n", owner, "N", listOf("a.jpg"), "ATTACH"))
     }
 
     @Test
@@ -170,8 +171,8 @@ class AttachmentCopyManagerTest {
         val text = "* Lunch\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\nmore\n** Child\n"
         val owner = AttachOwner.Heading(0, listOf("Lunch"), "X1", null)
         val cursor = text.indexOf("soba") + 4
-        val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"))!!
-        assertEquals("* Lunch\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\nmore\n** Child\n", edit.text)
+        val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"), "ATTACH")!!
+        assertEquals("* Lunch  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\nmore\n** Child\n", edit.text)
     }
 
     @Test
@@ -179,17 +180,57 @@ class AttachmentCopyManagerTest {
         val text = "* Lunch\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n** Child\nkid text\n"
         val owner = AttachOwner.Heading(0, listOf("Lunch"), "X1", null)
         val cursor = text.indexOf("kid text")
-        val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"))!!
-        assertEquals("* Lunch\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\n** Child\nkid text\n", edit.text)
+        val edit = insertAttachmentLinksInBuffer(text, cursor, owner, null, listOf("a.jpg"), "ATTACH")!!
+        assertEquals("* Lunch  :ATTACH:\n:PROPERTIES:\n:ID: X1\n:END:\nsoba\n[[attachment:a.jpg]]\n** Child\nkid text\n", edit.text)
         assertEquals(edit.text.indexOf("[[attachment:a.jpg]]") + "[[attachment:a.jpg]]".length, edit.cursor)
     }
 
     @Test
     fun `buffer insert adds the new ID to a file owner above the title`() {
         val text = "#+TITLE: Travel\nBookings.\n* Kyoto\n"
-        val edit = insertAttachmentLinksInBuffer(text, text.indexOf("Bookings.") + 9, AttachOwner.File(null, null), "F1", listOf("a.pdf"))!!
+        val edit = insertAttachmentLinksInBuffer(text, text.indexOf("Bookings.") + 9, AttachOwner.File(null, null), "F1", listOf("a.pdf"), "ATTACH")!!
         assertTrue(edit.text, edit.text.startsWith(":PROPERTIES:\n:ID:"))
         assertTrue(edit.text, edit.text.contains("Bookings.\n[[attachment:a.pdf]]\n* Kyoto"))
         assertEquals(0..2, edit.idDrawerLines)
     }
+
+    @Test
+    fun `the newest editor for a file gets the result and closing it hands back to the one below`() = testScope.runTest {
+        val editor = mutableListOf<AttachDone>()
+        val capture = mutableListOf<AttachDone>()
+        manager.register("travel.org") { editor += it }
+        val handle = manager.register("travel.org") { capture += it }
+        manager.start(request("a.pdf"))
+        advanceUntilIdle()
+        assertEquals(1, capture.size)
+        assertTrue(editor.isEmpty())
+
+        handle.close()
+        manager.start(request("b.pdf"))
+        advanceUntilIdle()
+        assertEquals(1, editor.size)
+        assertTrue(fallbacks.isEmpty())
+    }
+
+    @Test
+    fun `discard deletes the files and prunes the folders they leave empty`() = testScope.runTest {
+        val f = java.io.File(tmp.root, "data/8B/41D2F0/a.pdf").apply { parentFile!!.mkdirs(); writeText("x") }
+        manager.discard(listOf("data/8B/41D2F0/a.pdf"), "")
+        advanceUntilIdle()
+        assertFalse(f.exists())
+        assertFalse(java.io.File(tmp.root, "data/8B").exists())
+    }
+
+    @Test
+    fun `cancelFor only stops a copy for that file`() = testScope.runTest {
+        manager.start(request("a.pdf"))
+        assertTrue(manager.isBusyFor("travel.org"))
+        manager.cancelFor("other.org")
+        assertTrue(manager.isBusy)
+        manager.cancelFor("travel.org")
+        advanceUntilIdle()
+        assertFalse(manager.isBusy)
+        assertFalse(java.io.File(tmp.root, "data/8B/41D2F0/a.pdf").exists())
+    }
 }
+

@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.attach
 
+import com.rrajath.grove.attach.AttachConfig
 import com.rrajath.grove.attach.AttachmentLink
 import com.rrajath.grove.attach.AttachmentStatus
 import com.rrajath.grove.attach.AttachmentStatusCache
@@ -34,6 +35,7 @@ class AttachmentRenderContextTest {
             docSource = { doc },
             store = JvmFileStore(tmp.root, skipAttachShards = true),
             cache = AttachmentStatusCache(),
+            config = AttachConfig.Default,
             widthMode = AttachImageWidth.FIT,
             fixedWidthPx = AttachImageWidth.DEFAULT_PX,
             preferLinesSource = { null },

@@ -1,0 +1,104 @@
+package com.rrajath.grove.ui.attach
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
+import com.rrajath.grove.attach.AttachDirChange
+import com.rrajath.grove.attach.AttachOwner
+import com.rrajath.grove.attach.shownInNotice
+import com.rrajath.grove.attach.shownTarget
+import com.rrajath.grove.ui.theme.PlexMono
+import com.rrajath.grove.ui.theme.PlexSans
+import com.rrajath.grove.ui.theme.grove
+
+/**
+ * After an explicit save: which attach dirs a `:DIR:` edit moved (or orphaned).
+ * OK is the only choice; dismissing counts as OK, so the files always follow.
+ * [busy]: OK was tapped and the move is running; the dialog stays until it's done.
+ */
+@Composable
+fun AttachDirNoticeDialog(changes: List<AttachDirChange>, busy: Boolean = false, onOk: () -> Unit) {
+    val c = MaterialTheme.grove
+    // A descendant's files that follow an ancestor's to the same folder are part of its entry.
+    val shown = changes.shownInNotice()
+    AlertDialog(
+        onDismissRequest = { if (!busy) onOk() },
+        containerColor = c.surface,
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.testTag("attach_dir_notice"),
+        title = {
+            Text(
+                stringResource(R.string.attach_dir_notice_title),
+                fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = c.ink,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                shown.forEach { change ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        // Which heading (or file) it's about, when there's more than one.
+                        // Headings in PlexSans, a file owner's name in PlexMono like other file names.
+                        if (shown.size > 1) {
+                            Text(
+                                ownerLabel(change),
+                                fontFamily = if (change.owner is AttachOwner.File) PlexMono else PlexSans,
+                                fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink,
+                            )
+                        }
+                        Text(
+                            message(change),
+                            fontFamily = PlexSans, fontSize = 14.sp, lineHeight = 1.5.em, color = c.ink2,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            // While the files move, OK reads "Moving…" and does nothing.
+            TextButton(onClick = onOk, enabled = !busy, modifier = Modifier.testTag("attach_dir_notice_ok")) {
+                Text(
+                    if (busy) "Moving…" else "OK",
+                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                    color = if (busy) c.ink3 else c.accent,
+                )
+            }
+        },
+    )
+}
+
+private fun ownerLabel(change: AttachDirChange): String = when (val o = change.owner) {
+    is AttachOwner.Heading -> o.title
+    is AttachOwner.File -> change.orgFile.substringAfterLast('/')
+}
+
+/** The notice line; the destination folder is set in [folderSpan]. */
+@Composable
+private fun message(change: AttachDirChange): AnnotatedString = when (change) {
+    is AttachDirChange.Broken -> AnnotatedString(stringResource(R.string.attach_dir_broken))
+    is AttachDirChange.Move -> withStyledArg(
+        // No format args: the raw template keeps its %1$s for withStyledArg to fill.
+        stringResource(
+            if (change.newId != null) R.string.attach_dir_new_id else when (change.kind) {
+                AttachDirChange.Kind.DIR_ADDED -> R.string.attach_dir_added
+                AttachDirChange.Kind.DIR_REMOVED -> R.string.attach_dir_removed
+                AttachDirChange.Kind.DIR_CHANGED -> R.string.attach_dir_changed
+            },
+        ),
+        change.shownTarget(),
+        folderSpan(),
+    )
+}

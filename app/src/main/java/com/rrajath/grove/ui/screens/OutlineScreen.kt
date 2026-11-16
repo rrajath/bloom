@@ -73,7 +73,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -174,6 +180,8 @@ fun OutlineScreen(
     revealLineIndex: Int? = null,
     /** Return to the full, unnarrowed outline. */
     onWiden: () -> Unit = {},
+    /** Swipe panel's Narrow: open this notebook's outline narrowed to the heading at the given line. */
+    onNarrow: (lineIndex: Int) -> Unit = {},
     /** Top-bar ⌕: opens Search with the notebook filter already pinned to this file. */
     onSearchInNotebook: () -> Unit = {},
     /** Adds a favorite; [customId] is resolved (via [DocumentViewModel.ensureStableId]) before this is called. */
@@ -502,8 +510,7 @@ fun OutlineScreen(
                                             }
                                             if (!fitsWhole && lineCount != null) {
                                                 Text(
-                                                    "Too large to open whole (${pluralCount(lineCount, "line")}). " +
-                                                        "Open a heading instead.",
+                                                    pluralStringResource(R.plurals.outline_whole_file_too_large, lineCount, lineCount),
                                                     fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink3,
                                                 )
                                             }
@@ -600,6 +607,9 @@ fun OutlineScreen(
 
             is DocumentUiState.Loaded -> {
                 val doc = s.document
+                // Read by the long-lived double-tap gesture below, which must see the latest file.
+                val currentLineCount by rememberUpdatedState(doc.lines.size)
+                val resources = LocalContext.current.resources
                 // Every mutation produces a new document; snap any open panel shut.
                 LaunchedEffect(doc) { openRowLine = null }
                 val visible = remember(scopedHeadlines, collapsed) { visibleHeadlines(scopedHeadlines, collapsed) }
@@ -688,7 +698,23 @@ fun OutlineScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 10.dp)
-                            .testTag("outline_list"),
+                            .testTag("outline_list")
+                            // Double-tap the blank space under the last row: open the whole
+                            // file, like the overflow menu's "View file"; over the line limit,
+                            // toast the same hint the disabled menu item shows instead.
+                            .pointerInput(notebookId, wholeFileLineLimit) {
+                                detectTapGestures(onDoubleTap = { pos ->
+                                    if (!listState.layoutInfo.isBelowLastItem(pos.y)) return@detectTapGestures
+                                    val lineCount = currentLineCount
+                                    if (fitsWholeFileView(lineCount, wholeFileLineLimit)) {
+                                        onViewFile(notebookId)
+                                    } else {
+                                        viewModel.showToast(
+                                            resources.getQuantityString(R.plurals.outline_whole_file_too_large, lineCount, lineCount),
+                                        )
+                                    }
+                                })
+                            },
                         // Bottom inset so the last row scrolls clear of the FAB
                         // (54.dp) instead of sitting underneath it.
                         contentPadding = PaddingValues(bottom = 86.dp),
@@ -770,9 +796,14 @@ fun OutlineScreen(
                                     ),
                                 )
                             }
-                            // Left-swipe panel: insert above / below / sub-note / refile.
-                            val rightActions = remember(h.lineIndex, c) {
-                                listOf(
+                            // Left-swipe panel: narrow / insert above / below / sub-note / refile.
+                            // Narrow is left out on the narrowed root, where it would reopen this view.
+                            val isNarrowRoot = h.lineIndex == narrowTarget?.lineIndex
+                            val rightActions = remember(h.lineIndex, c, isNarrowRoot) {
+                                listOfNotNull(
+                                    if (isNarrowRoot) null else SwipeAction("→ ←", "Narrow", c.violet, c.violetSoft) {
+                                        onNarrow(h.lineIndex)
+                                    },
                                     SwipeAction("↑+", "Above", c.amber, c.amberSoft) {
                                         viewModel.insertSiblingAbove(h) { line ->
                                             onCreateNote(NoteRef(notebookId, line))
@@ -959,6 +990,7 @@ fun OutlineScreen(
                                 },
                                 stateMixed = summary.stateMixed,
                                 priorityMixed = summary.priorityMixed,
+                                targetLabel = "${selected.size} headings",
                                 onDismiss = { metadataOpen = false },
                             )
                         }
@@ -1185,6 +1217,18 @@ private fun CommandButton(icon: ImageVector, contentDescription: String, tint: C
 }
 
 /** [headlines] is either the whole document or, when narrowed, just a target heading + its subtree. */
+/**
+ * True when [y] (pointer y in the list's own coordinates) lands in the blank space under the
+ * list's last item: the last item is laid out and [y] is past its bottom edge.
+ */
+internal fun LazyListLayoutInfo.isBelowLastItem(y: Float): Boolean {
+    val last = visibleItemsInfo.lastOrNull() ?: return false
+    if (last.index != totalItemsCount - 1) return false
+    // Item offsets are measured from the content start, which sits beforeContentPadding
+    // below the viewport top (viewportStartOffset is its negation).
+    return y + viewportStartOffset > last.offset + last.size
+}
+
 private fun visibleHeadlines(headlines: List<OrgHeadline>, collapsed: Set<Int>): List<OrgHeadline> {
     val result = mutableListOf<OrgHeadline>()
     var hideDeeperThan: Int? = null

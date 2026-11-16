@@ -565,19 +565,26 @@ object OrgMutations {
      * or the file's final newline) are kept verbatim unless [newText] ends in
      * more of them, so an edit never swallows the gap before the next heading.
      */
-    fun replaceSubtree(doc: OrgDocument, h: OrgHeadline, newText: String): String {
+    fun replaceSubtree(doc: OrgDocument, h: OrgHeadline, newText: String): String =
+        replaceSpan(doc, h.lineIndex, doc.subtreeEndLine(h), newText).first
+
+    /**
+     * Replace lines [start, end) with [newText], keeping the span's trailing blank
+     * lines the same way [replaceSubtree] does. Returns the new file text and how
+     * many lines the replacement occupies, so the editor can replace exactly those
+     * lines on its next save (its buffer may no longer be a single subtree).
+     */
+    fun replaceSpan(doc: OrgDocument, start: Int, end: Int, newText: String): Pair<String, Int> {
         val lines = doc.lines.toMutableList()
-        val end = doc.subtreeEndLine(h)
-        val oldLines = lines.subList(h.lineIndex, end).toList()
-        val oldTrailing = oldLines.takeLastWhile { it.isBlank() }
+        val oldTrailing = lines.subList(start, end).takeLastWhile { it.isBlank() }.toList()
         val newLines = newText.split("\n")
         val newTrailing = newLines.takeLastWhile { it.isBlank() }
-        // A subtree is never all blank (its first line is the headline), but guard anyway.
         val content = newLines.dropLast(newTrailing.size).ifEmpty { listOf("") }
         val trailing = if (newTrailing.size > oldTrailing.size) newTrailing else oldTrailing
-        repeat(end - h.lineIndex) { lines.removeAt(h.lineIndex) }
-        lines.addAll(h.lineIndex, content + trailing)
-        return lines.joinToString("\n")
+        val written = content + trailing
+        repeat(end - start) { lines.removeAt(start) }
+        lines.addAll(start, written)
+        return lines.joinToString("\n") to written.size
     }
 
     /**
@@ -730,8 +737,15 @@ object OrgMutations {
      * pipeline: the target's line is re-resolved after the delete so stale
      * indexes can't corrupt the file. Returns null when [targetLine] falls
      * inside [source]'s own subtree or no longer resolves to a headline.
+     * [prepare] may adjust the subtree text for the document it goes into and
+     * the heading it goes under (e.g. pin an inherited `:DIR:`).
      */
-    fun refileWithinFile(doc: OrgDocument, source: OrgHeadline, targetLine: Int?): Pair<String, Int>? {
+    fun refileWithinFile(
+        doc: OrgDocument,
+        source: OrgHeadline,
+        targetLine: Int?,
+        prepare: (subtree: String, into: OrgDocument, target: OrgHeadline?) -> String = { s, _, _ -> s },
+    ): Pair<String, Int>? {
         val sourceEnd = doc.subtreeEndLine(source)
         if (targetLine != null && targetLine in source.lineIndex until sourceEnd) return null
         val subtree = subtreeText(doc, source)
@@ -740,7 +754,7 @@ object OrgMutations {
             val adjusted = if (line > source.lineIndex) line - (sourceEnd - source.lineIndex) else line
             redoc.headlines.firstOrNull { it.lineIndex == adjusted } ?: return null
         }
-        return refileInsert(redoc, target, subtree)
+        return refileInsert(redoc, target, prepare(subtree, redoc, target))
     }
 
     /**
@@ -794,11 +808,19 @@ object OrgMutations {
      * [refileWithinFile] for the headings at [lines] at once: their subtrees end
      * up under the heading at [targetLine] (or the top level) in their original
      * order. Null when [targetLine] lies inside one of the subtrees being moved.
+     * [prepare] may adjust each subtree (by its index in [selectedRoots]) for
+     * the document it goes into and the heading it goes under.
      */
-    fun refileEachWithinFile(doc: OrgDocument, lines: Set<Int>, targetLine: Int?): OrgDocument? {
+    fun refileEachWithinFile(
+        doc: OrgDocument,
+        lines: Set<Int>,
+        targetLine: Int?,
+        prepare: (index: Int, subtree: String, into: OrgDocument, target: OrgHeadline?) -> String = { _, s, _, _ -> s },
+    ): OrgDocument? {
         val lifted = liftSubtrees(doc, lines)
         val target = targetLine?.let { lifted.remap(it) ?: return null }
-        return insertEach(lifted.doc, target, lifted.subtrees)
+        val targetHeading = target?.let { t -> lifted.doc.headlines.firstOrNull { it.lineIndex == t } }
+        return insertEach(lifted.doc, target, lifted.subtrees.mapIndexed { i, st -> prepare(i, st, lifted.doc, targetHeading) })
     }
 
     /**

@@ -50,6 +50,9 @@ object NewAnchors {
     /** The "Auto-save notes" toggle inside Settings § Notes. */
     const val SETTINGS_NOTES_AUTO_SAVE = "settings.notes.autoSave"
 
+    /** The "Auto-capitalize headings" toggle inside Settings § Notes. */
+    const val SETTINGS_NOTES_CAPITALIZE_HEADINGS = "settings.notes.capitalizeHeadings"
+
     /** The Settings hub row leading to the Capture Templates page. */
     const val SETTINGS_CAPTURE_TEMPLATES = "settings.captureTemplates"
 
@@ -114,6 +117,9 @@ object NewAnchors {
 
     /** The Attachments settings page itself (photo size, default image width). */
     const val SETTINGS_ATTACHMENTS_PAGE = "settings.attachments.page"
+
+    /** The "Attachment tag" row inside Settings § Attachments. */
+    const val SETTINGS_ATTACHMENTS_AUTO_TAG = "settings.attachments.autoTag"
 
     /** The editor toolbar's paperclip button. */
     const val EDITOR_ATTACH = "editor.attach"
@@ -480,5 +486,52 @@ val NEW_FEATURES: List<NewFeature> = listOf(
         since = 11400,
         anchors = setOf(NewAnchors.EDITOR_ATTACH, NewAnchors.EDITOR_ATTACH_SHEET),
         destination = NewAnchors.EDITOR_ATTACH_SHEET,
+    ),
+    NewFeature(
+        // Double-tapping the blank space under the Outline's last row opens the
+        // whole-file view. Points at the Tips & Tricks entry that explains it.
+        // `since` is the versionCode of the release that ships it: bump it to
+        // match `gradle.properties` versionName when cutting the release.
+        id = "outline-double-tap-view-file",
+        since = 11500,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_TIPS,
+            NewAnchors.tipsGroup("outline"),
+            NewAnchors.tipsItem("outline", "outline-view-file"),
+        ),
+        destination = NewAnchors.tipsItem("outline", "outline-view-file"),
+    ),
+    NewFeature(
+        // Settings § Notes gained an "Auto-capitalize headings" switch (on by
+        // default): off leaves a heading's first letter to the keyboard.
+        // `since` is the versionCode of the release that ships it: bump it to
+        // match `gradle.properties` versionName when cutting the release.
+        id = "notes-capitalize-headings",
+        since = 11500,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_NOTES,
+            NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS,
+        ),
+        destination = NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS,
+    ),
+    NewFeature(
+        // Settings § Attachments gained an "Attachment tag" row: the tag
+        // (org-attach-auto-tag, ATTACH by default) a heading gets when files are
+        // attached to it; empty adds none. `since` is the versionCode of the
+        // release that ships it: bump it to match `gradle.properties` versionName
+        // when cutting the release.
+        id = "attachments-auto-tag",
+        since = 11500,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_ATTACHMENTS,
+            NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG,
+        ),
+        destination = NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG,
     ),
 )

@@ -67,6 +67,7 @@ data class SettingsExport(
     val addCreatedToNewNotes: Boolean = true,
     val newNoteCursor: String = NewNoteCursor.BODY.storageKey,
     val autoSaveNotes: Boolean = true,
+    val capitalizeHeadings: Boolean = true,
     val notebookModes: Map<String, String> = emptyMap(),
     val notebookColors: Map<String, String> = emptyMap(),
     val folderColors: Map<String, String> = emptyMap(),
@@ -132,6 +133,8 @@ data class SettingsExport(
     val attachPhotoSize: String = AttachPhotoSize.ORIGINAL.storageKey,
     val attachImageWidth: String = AttachImageWidth.FIT.storageKey,
     val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
+    val attachFolder: String = AttachFolder.DEFAULT,
+    val attachAutoTag: String = AttachAutoTag.DEFAULT,
 ) {
     private fun themeSelection(): ThemeSelection =
         ThemeSelection.fromStorage(themeMode, lightTheme, darkTheme)
@@ -155,6 +158,7 @@ data class SettingsExport(
         addCreatedToNewNotes = addCreatedToNewNotes,
         newNoteCursor = NewNoteCursor.fromStorage(newNoteCursor),
         autoSaveNotes = autoSaveNotes,
+        capitalizeHeadings = capitalizeHeadings,
         notebookModes = notebookModes,
         notebookColors = notebookColors,
         folderColors = folderColors,
@@ -216,6 +220,8 @@ data class SettingsExport(
         attachPhotoSize = AttachPhotoSize.fromStorage(attachPhotoSize),
         attachImageWidth = AttachImageWidth.fromStorage(attachImageWidth),
         attachImageWidthPx = AttachImageWidth.clampPx(attachImageWidthPx),
+        attachFolder = AttachFolder.sanitize(attachFolder),
+        attachAutoTag = AttachAutoTag.sanitize(attachAutoTag),
     )
 
     companion object {
@@ -247,7 +253,12 @@ data class SettingsExport(
         // attachImageWidthPx). Additive: older exports omit them and import at
         // their defaults (Original, Fit column, 320 px). Unknown enum values fall
         // back to the default and the px value is clamped to 120..1200.
-        const val CURRENT_VERSION = 12
+        // v13: added the attachment folder (attachFolder). Additive: older
+        // exports omit it and import as data/; an invalid value also imports as data/.
+        // v14: added the attachment tag (attachAutoTag). Additive: older exports
+        // omit it and import as ATTACH; an invalid value also imports as ATTACH,
+        // and an empty one stays empty (no tag).
+        const val CURRENT_VERSION = 14
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,
@@ -268,6 +279,7 @@ data class SettingsExport(
             addCreatedToNewNotes = s.addCreatedToNewNotes,
             newNoteCursor = s.newNoteCursor.storageKey,
             autoSaveNotes = s.autoSaveNotes,
+            capitalizeHeadings = s.capitalizeHeadings,
             notebookModes = s.notebookModes,
             notebookColors = s.notebookColors,
             folderColors = s.folderColors,
@@ -326,6 +338,8 @@ data class SettingsExport(
             attachPhotoSize = s.attachPhotoSize.storageKey,
             attachImageWidth = s.attachImageWidth.storageKey,
             attachImageWidthPx = s.attachImageWidthPx,
+            attachFolder = s.attachFolder,
+            attachAutoTag = s.attachAutoTag,
         )
     }
 }

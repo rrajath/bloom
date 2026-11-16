@@ -1,0 +1,117 @@
+# :DIR: inheritance end to end. A child heading's link to a file in its
+# parent's :DIR: folder shows inline; its attach sheet names the parent as the
+# folder's source; changing the parent's :DIR: moves the child's file too, so
+# the image still shows afterwards.
+appId: com.rrajath.grove.debug
+tags:
+  - e2e
+  - attachments
+onFlowStart:
+  - runFlow: ../../subflows/attachments/seed.yaml
+onFlowComplete:
+  - runFlow: ../../subflows/attachments/cleanup.yaml
+---
+# 1. The child resolves its image through the parent's :DIR: album.
+- tapOn:
+    text: "inherit.org"
+- extendedWaitUntil:
+    visible:
+      id: "outline_list"
+    timeout: 10000
+- tapOn:
+    id: "outline_toggle"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      text: "Kite day"
+    timeout: 10000
+- tapOn:
+    text: "Kite day"
+- extendedWaitUntil:
+    visible:
+      id: "read_note_screen"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "attachment_image"
+    timeout: 10000
+- assertVisible:
+    text: "kite.jpg"
+
+# 2. The single-heading editor sees the parent's :DIR: (whole-file resolution).
+- runFlow: ../../subflows/attachments/open-attach-sheet.yaml
+- assertVisible:
+    id: "attach_folder_from"
+    text: "Folder from .*Album"
+- back
+- extendedWaitUntil:
+    notVisible:
+      id: "attach_sheet"
+    timeout: 5000
+- runFlow: ../../subflows/attachments/back-to-notebooks.yaml
+
+# 3. Change the parent's :DIR: from album to kites; the notice moves the child's file.
+- runFlow:
+    file: ../../subflows/attachments/open-note.yaml
+    env:
+      NOTEBOOK: "inherit.org"
+      HEADING: "Album"
+- tapOn:
+    text: "Edit"
+- extendedWaitUntil:
+    visible:
+      id: "edit_note_field"
+    timeout: 10000
+- runFlow: ../../subflows/attachments/clear-note.yaml
+- inputText: "* Album"
+- pressKey: Enter
+- inputText: ":PROPERTIES:"
+- pressKey: Enter
+- inputText: ":DIR: kites"
+- pressKey: Enter
+- inputText: ":END:"
+- pressKey: Enter
+- inputText: "Parent folder."
+- pressKey: Enter
+- inputText: "** Kite day"
+- pressKey: Enter
+- inputText: "[[attachment:kite.jpg]]"
+- hideKeyboard
+- tapOn:
+    id: "edit_note_save"
+- extendedWaitUntil:
+    visible:
+      id: "attach_dir_notice"
+    timeout: 10000
+- assertVisible:
+    text: ":DIR: property changed. Attachment\\(s\\) will be moved to kites"
+- tapOn:
+    id: "attach_dir_notice_ok"
+- extendedWaitUntil:
+    notVisible:
+      id: "attach_dir_notice"
+    timeout: 15000
+- runFlow: ../../subflows/attachments/back-to-notebooks.yaml
+
+# 4. The child's image followed: it still shows, now from kites/.
+- tapOn:
+    text: "inherit.org"
+- extendedWaitUntil:
+    visible:
+      id: "outline_list"
+    timeout: 10000
+- tapOn:
+    id: "outline_toggle"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      text: "Kite day"
+    timeout: 10000
+- tapOn:
+    text: "Kite day"
+- extendedWaitUntil:
+    visible:
+      id: "attachment_image"
+    timeout: 10000
+- assertVisible:
+    text: "kite.jpg"

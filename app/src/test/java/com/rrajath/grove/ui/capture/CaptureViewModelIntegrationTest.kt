@@ -14,6 +14,8 @@ import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.support.MainDispatcherRule
+import com.rrajath.grove.ui.editor.AddedHeadingMarks
+import com.rrajath.grove.ui.editor.DiskHeadingMarks
 import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -190,7 +192,7 @@ class CaptureViewModelIntegrationTest {
     }
 
     @Test
-    fun `loadTargetOutline returns the target heading path, or null when missing`() = runTest {
+    fun `loadTargetInfo returns the target heading path and entry level, or null when missing`() = runTest {
         val vm = capture()
         val found = quickNote.copy(
             targetFile = "inbox.org",
@@ -198,8 +200,8 @@ class CaptureViewModelIntegrationTest {
         )
         val missing = found.copy(location = TargetLocation.UnderHeading(id = "NOPE"))
 
-        assertEquals(listOf("Captured"), vm.loadTargetOutline(found))
-        assertNull(vm.loadTargetOutline(missing))
+        assertEquals(CaptureViewModel.TargetInfo(listOf("Captured"), 2), vm.loadTargetInfo(found))
+        assertNull(vm.loadTargetInfo(missing))
     }
 
     @Test
@@ -236,6 +238,118 @@ class CaptureViewModelIntegrationTest {
         val saved = store.read("inbox.org")
         assertTrue(saved.contains("Final entry"))
         assertFalse(saved.contains("Draft two"))
+    }
+
+    @Test
+    fun `addFileId gives the target an ID and the next save still replaces the draft`() = runTest {
+        val vm = capture()
+
+        vm.autosave(quickNote, "* Draft one", context)
+        advanceUntilIdle()
+        assertTrue(vm.addFileId("inbox.org", "F1LE1D"))
+        vm.save(quickNote, "* Final entry", context)
+        advanceUntilIdle()
+
+        val saved = store.read("inbox.org")
+        assertTrue(saved, saved.startsWith(":PROPERTIES:\n:ID: F1LE1D\n:END:\n"))
+        assertTrue(saved.contains("Final entry"))
+        assertFalse("the draft must have been replaced in place", saved.contains("Draft one"))
+    }
+
+    @Test
+    fun `an autosave after the explicit save never adds a second copy`() = runTest {
+        // Regression: the attach-folder notice keeps the screen up after Save, and
+        // the idle autosave fired then, re-inserting the entry with no draft to replace.
+        val vm = capture()
+        vm.autosave(quickNote, "* Entry", context)
+        advanceUntilIdle()
+        vm.save(quickNote, "* Entry\n:PROPERTIES:\n:DIR: photos\n:END:", context)
+        advanceUntilIdle()
+        vm.autosave(quickNote, "* Entry\n:PROPERTIES:\n:DIR: photos\n:END:", context)
+        advanceUntilIdle()
+
+        val saved = store.read("inbox.org")
+        assertEquals(1, Regex("""(?m)^\*+ Entry$""").findAll(saved).count())
+    }
+
+    private val underTrip = quickNote.copy(
+        targetFile = "travel.org",
+        location = TargetLocation.UnderHeading(path = listOf("Trip")),
+    )
+    private val tripFile = "* Trip\n:PROPERTIES:\n:DIR: trip\n:END:\nPlans.\n* Other\n"
+
+    @Test
+    fun `attachFileContext places the entry where save puts it, replacing the autosaved draft`() = runTest {
+        store.write("travel.org", tripFile)
+        val vm = capture()
+        vm.autosave(underTrip, "* Draft", context)
+        advanceUntilIdle()
+
+        val ctx = vm.attachFileContext(underTrip, "* Lunch\nSoba.", context, bodyOnly = false)!!
+        assertTrue(ctx.placed)
+        assertFalse(ctx.fileText, ctx.fileText.contains("Draft"))
+        val placed = com.rrajath.grove.attach.BufferInFile.of("* Lunch\nSoba.", ctx)
+        assertEquals("trip", placed.ownerAtLine(1).dirProperty)
+    }
+
+    @Test
+    fun `attachFileContext for body-only text resolves to the target heading`() = runTest {
+        store.write("travel.org", tripFile)
+        val ctx = capture().attachFileContext(underTrip, "A note.", context, bodyOnly = true)!!
+        val around = com.rrajath.grove.attach.BufferInFile.of("A note.", ctx).ownerAround(0)
+            as com.rrajath.grove.attach.AttachOwner.Heading
+        assertEquals(listOf("Trip"), around.titlePath)
+        assertEquals("trip", around.dirProperty)
+    }
+
+    @Test
+    fun `attachFileContext is null when the target heading is missing`() = runTest {
+        store.write("travel.org", "* Other\n")
+        assertEquals(null, capture().attachFileContext(underTrip, "A note.", context, bodyOnly = true))
+    }
+
+    @Test
+    fun `markAttachHeading gives the target heading an ID and tag, keeps the draft in place, and discard takes them back`() = runTest {
+        store.write("travel.org", "* Trip\nPlans.\n* Other\n")
+        val vm = capture()
+        vm.autosave(underTrip, "Draft note.", context, bodyOnly = true)
+        advanceUntilIdle()
+        val trip = com.rrajath.grove.attach.AttachOwner.Heading(0, listOf("Trip"), null, null)
+
+        val marks = vm.markAttachHeading("travel.org", trip, "H1D", "receipt")
+        assertEquals(DiskHeadingMarks("H1D", "receipt"), marks)
+        vm.save(underTrip, "Final note.", context, bodyOnly = true)
+        advanceUntilIdle()
+        val saved = store.read("travel.org")
+        assertTrue(saved, saved.startsWith("* Trip  :receipt:\n:PROPERTIES:\n:ID: H1D\n:END:\n"))
+        assertTrue(saved, saved.contains("Final note."))
+        assertFalse("the draft must have been replaced in place", saved.contains("Draft note."))
+
+        vm.removeAddedHeadingMarks("travel.org", AddedHeadingMarks(trip, marks!!))
+        advanceUntilIdle()
+        assertEquals("* Trip\nPlans.\nFinal note.\n* Other\n", store.read("travel.org"))
+    }
+
+    @Test
+    fun `markAttachHeading with a blank tag only adds the ID, and an already tagged heading isn't tagged again`() = runTest {
+        store.write("travel.org", "* Trip  :ATTACH:\nPlans.\n")
+        val vm = capture()
+        val trip = com.rrajath.grove.attach.AttachOwner.Heading(0, listOf("Trip"), null, null)
+        assertEquals(DiskHeadingMarks("H1D", null), vm.markAttachHeading("travel.org", trip, "H1D", "ATTACH"))
+        assertEquals(DiskHeadingMarks(null, null), vm.markAttachHeading("travel.org", trip, null, ""))
+        assertEquals("* Trip  :ATTACH:\n:PROPERTIES:\n:ID: H1D\n:END:\nPlans.\n", store.read("travel.org"))
+    }
+
+    @Test
+    fun `withoutHeadingId keeps other properties`() {
+        val text = "* A\n:PROPERTIES:\n:ID: X\n:DIR: a\n:END:\nbody"
+        assertEquals("* A\n:PROPERTIES:\n:DIR: a\n:END:\nbody", withoutHeadingId(text, "X"))
+        assertEquals(null, withoutHeadingId(text, "Y"))
+    }
+
+    @Test
+    fun `addFileId on a missing file is refused`() = runTest {
+        assertFalse(capture().addFileId("nope.org", "F1LE1D"))
     }
 
     @Test

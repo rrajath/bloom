@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.attach
 
+import com.rrajath.grove.attach.AttachConfig
 import android.graphics.Bitmap
 import androidx.exifinterface.media.ExifInterface
 import com.rrajath.grove.attach.AttachmentStatusCache
@@ -33,6 +34,7 @@ class AttachmentBoundsRobolectricTest {
             orgFile = "n.org", doc = null,
             store = JvmFileStore(tmp.root, skipAttachShards = true),
             cache = AttachmentStatusCache(),
+            config = AttachConfig.Default,
             widthMode = AttachImageWidth.FIT, fixedWidthPx = AttachImageWidth.DEFAULT_PX,
             preferLines = null, openTarget = {}, toast = {}, io = Dispatchers.IO,
         )

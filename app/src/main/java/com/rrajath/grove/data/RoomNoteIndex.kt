@@ -1,5 +1,7 @@
 package com.rrajath.grove.data
 
+import com.rrajath.grove.attach.attachDirProperty
+import com.rrajath.grove.attach.fileAttachDirProperty
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
@@ -74,6 +76,7 @@ class RoomNoteIndex(
                 body = doc.bodyOf(h).joinToString("\n"),
                 isDone = h.keyword != null && doc.keywords.isDone(h.keyword),
                 lastModified = lastModified,
+                dirProperty = h.attachDirProperty(),
             )
         } + introNote(doc, fileName, lastModified)
         dao.replaceNotebook(
@@ -88,6 +91,7 @@ class RoomNoteIndex(
                 conflictFileName = conflictFileName,
                 title = doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }?.second,
                 orgId = doc.filePropertyDrawer.firstOrNull { it.first.equals(":ID:", ignoreCase = true) }?.second,
+                dirProperty = doc.fileAttachDirProperty(),
             ),
             notes,
         )

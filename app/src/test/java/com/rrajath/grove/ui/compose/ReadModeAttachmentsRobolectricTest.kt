@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.compose
 
+import com.rrajath.grove.attach.AttachConfig
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -55,6 +56,7 @@ class ReadModeAttachmentsRobolectricTest {
             doc = null,
             store = JvmFileStore(tmp.root, skipAttachShards = true),
             cache = AttachmentStatusCache(),
+            config = AttachConfig.Default,
             widthMode = AttachImageWidth.FIT,
             fixedWidthPx = AttachImageWidth.DEFAULT_PX,
             preferLines = null,

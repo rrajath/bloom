@@ -22,6 +22,8 @@ data class AttachRequest(
     val owner: AttachOwner,
     /** A freshly generated `:ID:` to write into the owner, or null when it already has an ID or `:DIR:`. */
     val newId: String?,
+    /** Settings § Attachments' tag for a heading owner (blank for none); a file owner never gets one. */
+    val autoTag: String,
     /** Vault-relative attach dir the files go into. */
     val dir: String,
     val kind: AttachKind,
@@ -30,6 +32,12 @@ data class AttachRequest(
     val ownerLabel: String,
     /** True when the owner seen after the picker isn't the one the sheet was opened for. */
     val ownerChanged: Boolean = false,
+    /**
+     * Capture's file-level fallback: the owner is [orgFile]'s own file owner on
+     * disk, not anything in the editor buffer, so a live editor links the files
+     * with relative `[[file:…]]` links and writes [newId] to the file on disk.
+     */
+    val onDisk: Boolean = false,
 )
 
 /** A finished attach, handed to the editor (or the file fallback) to write the links. */
@@ -75,16 +83,29 @@ class AttachmentCopyManager(
     private val _progress = MutableStateFlow<CopyProgress?>(null)
     val progress: StateFlow<CopyProgress?> = _progress
 
-    private val sinks = mutableMapOf<String, AttachSink>()
+    /**
+     * Listening editors per org file, newest last. Capture can sit on top of an
+     * editor for its own target file; the newest one gets the result, and
+     * closing it hands delivery back to the one below.
+     */
+    private val sinks = mutableMapOf<String, MutableList<AttachSink>>()
     private var job: Job? = null
     private var jobId = 0L
+    /** [AttachRequest.orgFile] of the running copy, for [cancelFor]. */
+    private var jobOrgFile: String? = null
 
     val isBusy: Boolean get() = job?.isActive == true
 
     /** Registers [sink] for [orgFile]; close the handle when the editor goes away. */
     fun register(orgFile: String, sink: AttachSink): AutoCloseable {
-        synchronized(sinks) { sinks[orgFile] = sink }
-        return AutoCloseable { synchronized(sinks) { if (sinks[orgFile] === sink) sinks.remove(orgFile) } }
+        synchronized(sinks) { sinks.getOrPut(orgFile) { mutableListOf() }.add(sink) }
+        return AutoCloseable {
+            synchronized(sinks) {
+                val list = sinks[orgFile] ?: return@synchronized
+                list.removeAll { it === sink }
+                if (list.isEmpty()) sinks.remove(orgFile)
+            }
+        }
     }
 
     /** Starts [request]. False when another copy is still running or there's no vault. */
@@ -95,6 +116,7 @@ class AttachmentCopyManager(
         val startedAt = clock()
         val importer = AttachmentImporter(fs, opener, photoProcessor)
         val pruneStop = request.orgFile.substringBeforeLast('/', "")
+        jobOrgFile = request.orgFile
         job = scope.launch {
             try {
                 val processPhotos = request.kind != AttachKind.Files
@@ -121,8 +143,35 @@ class AttachmentCopyManager(
         _progress.value = null
     }
 
+    /** Whether a copy for [orgFile] is still running. */
+    fun isBusyFor(orgFile: String): Boolean = isBusy && jobOrgFile == orgFile
+
+    /** [cancel], but only when the running copy is for [orgFile]. */
+    fun cancelFor(orgFile: String) {
+        if (isBusyFor(orgFile)) cancel()
+    }
+
+    /**
+     * Deletes [paths] (vault-relative files an editor copied in) and prunes the
+     * folders they leave empty, up to [pruneStop]. Runs on the app scope, so it
+     * finishes after the editor that asked for it has closed (capture's discard).
+     */
+    fun discard(paths: List<String>, pruneStop: String) {
+        if (paths.isEmpty()) return
+        val fs = store() ?: return
+        scope.launch {
+            withContext(io) {
+                val files = AttachmentFiles(fs)
+                paths.forEach { runCatching { files.delete(it) } }
+                paths.map { it.substringBeforeLast('/', "") }.toSet().forEach { dir ->
+                    runCatching { files.pruneEmpty(dir, pruneStop) }
+                }
+            }
+        }
+    }
+
     private suspend fun deliver(done: AttachDone) {
-        val sink = synchronized(sinks) { sinks[done.request.orgFile] }
+        val sink = synchronized(sinks) { sinks[done.request.orgFile]?.lastOrNull() }
         if (sink != null) {
             sink.deliver(done)
             return
@@ -164,21 +213,29 @@ fun ownerToastLabel(owner: AttachOwner): String = when (owner) {
  * Writes the links for a finished attach into the whole-file [text] when the
  * editor that started it is gone: re-finds the owner (by `:ID:`, then by title
  * path, matched as a suffix since the editor buffer may have been a subtree),
- * adds the new `:ID:` if it still lacks one, and appends the links at the end of
- * the owner's own body. Null when a heading owner can't be found.
+ * adds the new `:ID:` if it still lacks one and a heading owner's [autoTag], and
+ * appends the links at the end of the owner's own body. Null when a heading
+ * owner can't be found.
  */
-fun appendAttachmentLinksToFile(text: String, owner: AttachOwner, newId: String?, names: List<String>): AttachInsertResult? {
+fun appendAttachmentLinksToFile(
+    text: String,
+    owner: AttachOwner,
+    newId: String?,
+    names: List<String>,
+    autoTag: String,
+): AttachInsertResult? {
     val doc = OrgParser.parse(text)
     val found = locateOwner(doc, owner) ?: return null
     val offset = bodyEndOffset(doc, found)
     val id = if (found.id == null && found.dirProperty == null) newId else null
-    return insertAttachmentLinks(text, offset, found, id, names)
+    return insertAttachmentLinks(text, offset, found, id, names, autoTag)
 }
 
 /**
  * Inserts links for [names] into the live editor [text]: re-finds [owner] (by
  * `:ID:`, then title path), adds [newId] when it still has neither `:ID:` nor
- * `:DIR:`, and puts the links at [cursor] when the cursor sits in the owner's
+ * `:DIR:`, tags a heading owner [autoTag] (blank for none, as when linking a file
+ * it already has), and puts the links at [cursor] when the cursor sits in the owner's
  * own section, else at the end of the owner's body (the files live in that
  * owner's dir, so the links must too). Null when the owner is gone.
  */
@@ -188,6 +245,7 @@ fun insertAttachmentLinksInBuffer(
     owner: AttachOwner,
     newId: String?,
     names: List<String>,
+    autoTag: String,
 ): AttachInsertResult? {
     val doc = OrgParser.parse(text)
     val found = locateOwner(doc, owner) ?: return null
@@ -199,7 +257,7 @@ fun insertAttachmentLinksInBuffer(
         bodyEndOffset(doc, found)
     }
     val id = if (found.id == null && found.dirProperty == null) newId else null
-    return insertAttachmentLinks(text, at, found, id, names)
+    return insertAttachmentLinks(text, at, found, id, names, autoTag)
 }
 
 /** Lines `[start, end)` holding the owner's headline/metadata and own body, children excluded. */
