@@ -8,6 +8,7 @@ import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.vault.JvmFileStore
 import com.rrajath.grove.vault.TreeListing
+import com.rrajath.grove.vault.UnverifiedReadException
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -234,6 +235,30 @@ class SyncEngineTest {
             result.conflicts,
         )
         assertEquals(listOf("projects/clients/acme.org"), result.pulled)
+    }
+
+    @Test
+    fun `a file whose download can't be verified is skipped and pulled next time`() = runTest {
+        tmp.newFile("a.org").writeText("* A")
+        tmp.newFile("b.org").writeText("* B")
+        val inner = JvmFileStore(tmp.root)
+        var failA = true
+        val store = object : FileStore by inner {
+            override suspend fun read(name: String): String {
+                if (name == "a.org" && failA) throw UnverifiedReadException(name)
+                return inner.read(name)
+            }
+        }
+        val e = SyncEngine(store, index) { now }
+
+        val first = e.sync()!!
+        assertEquals(listOf("b.org"), first.pulled)
+        assertEquals(listOf("a.org"), first.unread)
+        assertNull(index.texts["a.org"])
+
+        failA = false
+        assertEquals(listOf("a.org"), e.sync()!!.pulled)
+        assertEquals("* A", index.texts["a.org"])
     }
 
     @Test

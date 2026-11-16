@@ -288,3 +288,11 @@ internal fun isAttachShard(name: String): Boolean =
 
 /** [FileStore.capabilities] for stores that allow everything. */
 private val ALL_CAPABILITIES: StateFlow<VaultCapabilities> = MutableStateFlow(VaultCapabilities.UNKNOWN).asStateFlow()
+
+/**
+ * A read of [name] that couldn't be confirmed complete: the provider ended the
+ * stream without an error, but the bytes received don't match the size a fresh
+ * listing states. Callers must not treat any part of it as the file's content.
+ */
+class UnverifiedReadException(val name: String) :
+    java.io.IOException("Couldn't download $name. Check the connection and try again.")

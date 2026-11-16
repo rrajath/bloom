@@ -110,6 +110,16 @@ class FakeDocumentsProvider : ContentProvider() {
      */
     val dropFromNextListing: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /**
+     * Seafile 4.0.15's failed download: a read of these paths (relative) ends
+     * after [cutReadBytes] bytes with a normal end of stream, as many times as
+     * the count says.
+     */
+    val cutReads: MutableMap<String, Int> = ConcurrentHashMap()
+
+    /** How many bytes a [cutReads] read delivers before it ends. */
+    @Volatile var cutReadBytes = 0
+
     /** Children queries started; with [childrenQueryDelayMs], overlapping ones show up as a count above one. */
     val childrenQueries = AtomicInteger()
 
@@ -255,6 +265,13 @@ class FakeDocumentsProvider : ContentProvider() {
             if (f.parentFile?.isDirectory == true) f.createNewFile()
         }
         if (!f.isFile) throw FileNotFoundException(uri.toString())
+        val rel = f.relativeTo(root).invariantSeparatorsPath
+        if ('w' !in mode && (cutReads[rel] ?: 0) > 0) {
+            cutReads.computeIfPresent(rel) { _, n -> n - 1 }
+            val cut = File.createTempFile("cut", ".part").apply { deleteOnExit() }
+            cut.writeBytes(f.readBytes().take(cutReadBytes).toByteArray())
+            return ParcelFileDescriptor.open(cut, ParcelFileDescriptor.MODE_READ_ONLY)
+        }
         return ParcelFileDescriptor.open(f, ParcelFileDescriptor.parseMode(mode))
     }
 

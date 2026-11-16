@@ -6,6 +6,7 @@ import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.vault.SKIP_ATTACH_SHARDS
 import com.rrajath.grove.vault.TreeListing
+import com.rrajath.grove.vault.UnverifiedReadException
 import com.rrajath.grove.vault.isSkippedVaultDir
 import android.net.Uri
 import kotlinx.coroutines.CoroutineScope
@@ -399,9 +400,33 @@ class BackendFileStore(
 
     override suspend fun read(name: String): String = withContext(Dispatchers.IO) {
         val docId = documentId(name) ?: error("File not found in vault: $name")
-        val stream = backend.openRead(docId).getOrNull() ?: error("Cannot open $name")
-        stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        if (!backend.profile.readMayEndEarly) {
+            val stream = backend.openRead(docId).getOrNull() ?: error("Cannot open $name")
+            return@withContext stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }
+        verifiedRead(name, docId).toString(Charsets.UTF_8)
     }
+
+    /**
+     * [name]'s bytes, accepted only when their count matches the size the
+     * provider states for it ([ProviderProfile.readMayEndEarly]). On a mismatch
+     * the folder is listed again, which refreshes a stated size that lags (as
+     * Seafile's does after a save), and the file is read once more. Anything
+     * still unconfirmed, including a read that can't be opened, is an
+     * [UnverifiedReadException]: never partial or empty content.
+     */
+    private suspend fun verifiedRead(name: String, docId: String): ByteArray {
+        repeat(2) { attempt ->
+            if (attempt > 0) refreshListing(name)
+            val bytes = backend.openRead(docId).getOrNull()?.use { it.readBytes() }
+            if (bytes != null && statedSize(docId) == bytes.size.toLong()) return bytes
+        }
+        throw UnverifiedReadException(name)
+    }
+
+    /** The size the provider states for [docId] now; null when it can't say. */
+    private suspend fun statedSize(docId: String): Long? =
+        backend.stat(docId).getOrNull()?.takeIf { !it.isDir && it.sizeKnown }?.size
 
     override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> =
         withContext(Dispatchers.IO) {

@@ -333,6 +333,7 @@ class SafBackend(
             size = cursor.getLong(3),
             isDir = isDir,
             capabilities = StorageCapabilities.fromFlags(flags, isDir),
+            sizeKnown = !cursor.isNull(3),
         )
     }
 

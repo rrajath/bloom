@@ -1,6 +1,7 @@
 package com.rrajath.grove.sync
 
 import com.rrajath.grove.sync.conflicts.ConflictSchemes
+import com.rrajath.grove.vault.UnverifiedReadException
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
 import kotlinx.coroutines.async
@@ -43,6 +44,8 @@ data class SyncResult(
     val completedAt: Long,
     /** Folders the provider couldn't finish listing; their notebooks were left as indexed. */
     val incompleteDirs: Set<String> = emptySet(),
+    /** Notebooks whose download couldn't be verified; left as indexed, retried next sync. */
+    val unread: List<String> = emptyList(),
 )
 
 /**
@@ -170,16 +173,27 @@ class SyncEngine(
             // the caller is already on (Dispatchers.Default in production via
             // SyncManager's appScope), which is also what keeps this safe under
             // a single-threaded TestDispatcher in tests.
+            val unread = java.util.Collections.synchronizedList(mutableListOf<String>())
             coroutineScope {
                 val semaphore = Semaphore(PARSE_CONCURRENCY)
                 val completed = AtomicInteger(0)
                 changed.map { entry ->
                     async {
                         semaphore.withPermit {
+                            // A download that couldn't be verified indexes nothing: the
+                            // row keeps its old revision (or stays a stub), so the next
+                            // sync tries again.
+                            val text = try {
+                                store.read(entry.name)
+                            } catch (e: UnverifiedReadException) {
+                                unread += entry.name
+                                log("skipped ${entry.name}: ${e.message}")
+                                return@withPermit
+                            }
                             index.indexNotebook(
                                 fileName = entry.name,
                                 revision = current.getValue(entry.name),
-                                text = store.read(entry.name),
+                                text = text,
                                 lastModified = entry.lastModified,
                                 conflictFileName = conflictFor(entry.name),
                             )
@@ -205,11 +219,12 @@ class SyncEngine(
             if (!tree.isComplete) log("incomplete listing under: ${tree.incompleteDirs.sorted()}")
 
             val result = SyncResult(
-                pulled = changed.map { it.name },
+                pulled = changed.map { it.name } - unread.toSet(),
                 removed = removed,
                 conflicts = conflicts,
                 completedAt = clock(),
                 incompleteDirs = tree.incompleteDirs,
+                unread = unread.sorted(),
             )
             _state.value = SyncState.Done(result)
             result

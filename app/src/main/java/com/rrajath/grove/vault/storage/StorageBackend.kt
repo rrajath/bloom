@@ -22,6 +22,8 @@ data class DocEntry(
     val revision: String? = if (isDir) null else "$lastModified:$size",
     /** What the provider lets other apps do to this document ([StorageCapabilities.ALL] when it doesn't say). */
     val capabilities: StorageCapabilities = StorageCapabilities.ALL,
+    /** False when the provider didn't report a size, so [size] is a placeholder 0. */
+    val sizeKnown: Boolean = true,
 )
 
 /**

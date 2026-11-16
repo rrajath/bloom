@@ -49,6 +49,12 @@ data class ProviderProfile(
      * while one is running, and one that loses known names is confirmed.
      */
     val listingNotAtomic: Boolean = false,
+    /**
+     * A failed download ends the read stream normally instead of with an error,
+     * so a short read looks like a short file. Reads are accepted only when
+     * their byte count matches the size a listing states.
+     */
+    val readMayEndEarly: Boolean = false,
 )
 
 /** The known providers, looked up by a vault tree URI's authority. */
@@ -80,6 +86,8 @@ object ProviderProfiles {
         statFromListingCache = true,
         // Seadroid 4.0.15's getDirentsSingleFromServer: deleteAllByParentPath, then insertAll, no transaction.
         listingNotAtomic = true,
+        // readDocumentAsync streams the download into a socket pair and just closes it on failure.
+        readMayEndEarly = true,
     )
 
     /**
