@@ -161,6 +161,11 @@ data class GroveSettings(
      * (including right after a TODO keyword). Off leaves capitalization to the keyboard.
      */
     val capitalizeHeadings: Boolean = true,
+    /**
+     * Whether the editors tint the logical line holding the caret, so a line that
+     * soft-wraps reads as one line. Off by default.
+     */
+    val highlightCurrentLine: Boolean = false,
     /** Per-notebook last-used note mode overrides: "file.org" → "read"/"edit". */
     val notebookModes: Map<String, String> = emptyMap(),
     /** Per-notebook monogram color overrides: "file.org" → palette key ("green"…). */
@@ -389,6 +394,7 @@ class SettingsRepository(
         val newNoteCursor = stringPreferencesKey("new_note_cursor")
         val autoSaveNotes = booleanPreferencesKey("auto_save_notes")
         val capitalizeHeadings = booleanPreferencesKey("capitalize_headings")
+        val highlightCurrentLine = booleanPreferencesKey("highlight_current_line")
         val notebookModes = stringPreferencesKey("notebook_modes")
 
         /**
@@ -518,6 +524,7 @@ class SettingsRepository(
             newNoteCursor = NewNoteCursor.fromStorage(prefs[Keys.newNoteCursor]),
             autoSaveNotes = prefs[Keys.autoSaveNotes] ?: true,
             capitalizeHeadings = prefs[Keys.capitalizeHeadings] ?: true,
+            highlightCurrentLine = prefs[Keys.highlightCurrentLine] ?: false,
             notebookModes = decodeModes(prefs[Keys.notebookModes]),
             notebookColors = decodeModes(prefs[Keys.notebookColors]),
             folderColors = decodeModes(prefs[Keys.folderColors]),
@@ -671,6 +678,7 @@ class SettingsRepository(
             p[Keys.newNoteCursor] = s.newNoteCursor.storageKey
             p[Keys.autoSaveNotes] = s.autoSaveNotes
             p[Keys.capitalizeHeadings] = s.capitalizeHeadings
+            p[Keys.highlightCurrentLine] = s.highlightCurrentLine
             p[Keys.notebookModes] = encodeModes(s.notebookModes)
             p[Keys.notebookColors] = encodeModes(s.notebookColors)
             p[Keys.folderColors] = encodeModes(s.folderColors)
@@ -791,6 +799,10 @@ class SettingsRepository(
 
     suspend fun setCapitalizeHeadings(enabled: Boolean) {
         editSettings { it[Keys.capitalizeHeadings] = enabled }
+    }
+
+    suspend fun setHighlightCurrentLine(enabled: Boolean) {
+        editSettings { it[Keys.highlightCurrentLine] = enabled }
     }
 
     /**

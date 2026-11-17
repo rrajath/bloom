@@ -114,6 +114,7 @@ import com.rrajath.grove.ui.components.Pill
 import com.rrajath.grove.ui.components.annotateOrgInline
 import com.rrajath.grove.ui.components.rememberImeVisible
 import com.rrajath.grove.ui.screens.BodyBlocks
+import com.rrajath.grove.ui.editor.currentLineHighlight
 import com.rrajath.grove.ui.editor.AutoLinkSuggestionStrip
 import com.rrajath.grove.ui.editor.AutoSaveTimestamp
 import com.rrajath.grove.ui.editor.BlockTemplateSuggestionStrip
@@ -197,6 +198,8 @@ fun CaptureEditorScreen(
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
     /** Settings § Notes: uppercase the first letter typed into a heading. */
     capitalizeHeadings: Boolean = true,
+    /** Settings § Notes: tint the logical line holding the caret. */
+    highlightCurrentLine: Boolean = false,
     /**
      * Settings § Roam Features (experimental) suggestions
      * ([com.rrajath.grove.settings.GroveSettings.roamSuggestionsActive]): gates the Roam
@@ -918,6 +921,7 @@ fun CaptureEditorScreen(
                                         start = 20.dp, end = 20.dp,
                                         bottom = if (slotShown) SuggestionSlotHeight else 80.dp,
                                     )
+                                    .currentLineHighlight(highlightCurrentLine, textState, scrollState, { textLayout }, bleed = 20.dp)
                                     .testTag("capture_body_field")
                                     .focusRequester(focusRequester),
                             )

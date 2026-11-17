@@ -61,6 +61,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Bloom now warns when your vault folder comes from a cloud app like Seafile, which isn't fully supported yet.
 - Settings › Sharing › Add shared items at puts shares at the top or bottom of the target.
 - File and heading pickers for sharing, archive and quick add gained a New file… row.
+- Settings › Notes › Highlight current line shades the line you're editing, wraps included, in every editor.
 
 ### Changed
 - Settings › Sharing's target is now a file-or-heading picker with search; your existing file is kept.

@@ -506,6 +506,7 @@ private fun GroveNavigation(
                     onBack = { navController.popBackStack() },
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
+                    highlightCurrentLine = settings.highlightCurrentLine,
                 )
             }
             screen(Routes.DRAWER) { entry ->
@@ -523,6 +524,7 @@ private fun GroveNavigation(
                     onBack = { navController.popBackStack() },
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
+                    highlightCurrentLine = settings.highlightCurrentLine,
                 )
             }
             screen(Routes.BLOCK) { entry ->
@@ -534,6 +536,7 @@ private fun GroveNavigation(
                     onBack = { navController.popBackStack() },
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
+                    highlightCurrentLine = settings.highlightCurrentLine,
                 )
             }
             screen(Routes.FILE) { entry ->
@@ -590,6 +593,7 @@ private fun GroveNavigation(
                         onSwitchToRead = { mode = "read" },
                         editModeFontSize = settings.editModeFontSize,
                         capitalizeHeadings = settings.capitalizeHeadings,
+                        highlightCurrentLine = settings.highlightCurrentLine,
                         showBacklinks = settings.roamFeaturesEnabled && settings.roamShowBacklinks,
                         roamSuggestionsEnabled = settings.roamSuggestionsActive,
                         onOpenNote = { target -> navController.navigate(Routes.note(target.encode())) },
@@ -652,6 +656,7 @@ private fun GroveNavigation(
                     readModeFontSize = settings.readModeFontSize,
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
+                    highlightCurrentLine = settings.highlightCurrentLine,
                     onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                 )
             }
@@ -786,6 +791,7 @@ private fun GroveNavigation(
                             onBack = { mode = "read" },
                             editModeFontSize = settings.editModeFontSize,
                             capitalizeHeadings = settings.capitalizeHeadings,
+                            highlightCurrentLine = settings.highlightCurrentLine,
                         )
                     } else if (mode == "edit") {
                         EditNoteScreen(
@@ -795,6 +801,7 @@ private fun GroveNavigation(
                             editModeFontSize = settings.editModeFontSize,
                             newNoteCursor = settings.newNoteCursor,
                             capitalizeHeadings = settings.capitalizeHeadings,
+                            highlightCurrentLine = settings.highlightCurrentLine,
                             roamSuggestionsEnabled = settings.roamSuggestionsActive,
                             onBack = leaveNote,
                             onSwitchToRead = { editTargetLine = null; mode = "read" },
@@ -932,6 +939,7 @@ private fun GroveNavigation(
                     },
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
+                    highlightCurrentLine = settings.highlightCurrentLine,
                     roamSuggestionsEnabled = settings.roamSuggestionsActive,
                     onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                 )
@@ -1056,6 +1064,7 @@ private fun GroveNavigation(
                     onSetNewNoteCursor = viewModel::setNewNoteCursor,
                     onSetAutoSaveNotes = viewModel::setAutoSaveNotes,
                     onSetCapitalizeHeadings = viewModel::setCapitalizeHeadings,
+                    onSetHighlightCurrentLine = viewModel::setHighlightCurrentLine,
                     onSetAutoArchiveDoneItems = viewModel::setAutoArchiveDoneItems,
                     onOpenArchiveLocationPicker = viewModel::startArchiveLocationPick,
                 )

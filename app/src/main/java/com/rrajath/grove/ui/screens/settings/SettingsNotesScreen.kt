@@ -53,6 +53,7 @@ fun SettingsNotesScreen(
     onSetNewNoteCursor: (NewNoteCursor) -> Unit,
     onSetAutoSaveNotes: (Boolean) -> Unit,
     onSetCapitalizeHeadings: (Boolean) -> Unit,
+    onSetHighlightCurrentLine: (Boolean) -> Unit,
     onSetAutoArchiveDoneItems: (Boolean) -> Unit,
     onOpenArchiveLocationPicker: () -> Unit,
 ) {
@@ -78,6 +79,7 @@ fun SettingsNotesScreen(
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_NEW_NOTE_CURSOR)
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS)
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_AUTO_SAVE)
+        MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE)
 
         SectionLabel("TASKS")
         SettingsGroup {
@@ -224,6 +226,15 @@ fun SettingsNotesScreen(
                 checked = settings.capitalizeHeadings,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS) },
                 onToggle = onSetCapitalizeHeadings,
+            )
+            RowDivider()
+            ToggleRow(
+                label = "Highlight current line",
+                description = "Shades the whole line you're typing on, including where it wraps, so you can tell " +
+                        "a long wrapped line from separate lines",
+                checked = settings.highlightCurrentLine,
+                labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE) },
+                onToggle = onSetHighlightCurrentLine,
             )
         }
         Spacer(Modifier.height(20.dp))

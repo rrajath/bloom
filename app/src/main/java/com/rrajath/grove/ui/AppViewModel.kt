@@ -200,6 +200,9 @@ class AppViewModel(
     fun setCapitalizeHeadings(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setCapitalizeHeadings(enabled) }
 
+    fun setHighlightCurrentLine(enabled: Boolean) =
+        viewModelScope.launch { settingsRepository.setHighlightCurrentLine(enabled) }
+
     fun setShowNotebookFileIcons(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setShowNotebookFileIcons(enabled) }
 

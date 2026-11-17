@@ -97,10 +97,13 @@ fun EditPrefaceScreen(
     onBack: () -> Unit,
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
     capitalizeHeadings: Boolean = true,
+    /** Settings § Notes: tint the logical line holding the caret. */
+    highlightCurrentLine: Boolean = false,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.PREFACE, noteId = null, onBack = onBack,
-    editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings, viewModel = viewModel,
+    editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings,
+    highlightCurrentLine = highlightCurrentLine, viewModel = viewModel,
 )
 
 /**
@@ -115,10 +118,13 @@ fun EditIntroScreen(
     onBack: () -> Unit,
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
     capitalizeHeadings: Boolean = true,
+    /** Settings § Notes: tint the logical line holding the caret. */
+    highlightCurrentLine: Boolean = false,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.INTRO, noteId = null, onBack = onBack,
-    editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings, viewModel = viewModel,
+    editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings,
+    highlightCurrentLine = highlightCurrentLine, viewModel = viewModel,
 )
 
 /** One-word label for [region], used in this screen's title bar, save toast and leave dialog. */
@@ -175,6 +181,8 @@ fun EditRegionScreen(
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
     /** Settings § Notes: uppercase the first letter typed into a heading. */
     capitalizeHeadings: Boolean = true,
+    /** Settings § Notes: tint the logical line holding the caret. */
+    highlightCurrentLine: Boolean = false,
     /**
      * When set, the top bar carries the [ReadEditToggle] (Edit selected), and both it
      * and Back call this. Neither saves: the FILE route hoists [viewModel] so its
@@ -445,6 +453,7 @@ fun EditRegionScreen(
                 onReloadStale = { viewModel.dismissStale(); viewModel.loadRegion(fileName, noteId, region, blockLine) },
                 editModeFontSize = editModeFontSize,
                 capitalizeHeadings = capitalizeHeadings,
+                highlightCurrentLine = highlightCurrentLine,
                 showBacklinks = showBacklinks,
                 isRoamFile = isRoamFile,
                 linkedCount = linkedReferences.linkedCount,
@@ -543,6 +552,7 @@ internal fun WholeFileEditorBody(
     onReloadStale: () -> Unit,
     editModeFontSize: FontSizePreference,
     capitalizeHeadings: Boolean,
+    highlightCurrentLine: Boolean,
     showBacklinks: Boolean,
     isRoamFile: Boolean,
     linkedCount: Int,
@@ -655,6 +665,7 @@ internal fun WholeFileEditorBody(
                             start = 18.dp, end = 18.dp,
                             bottom = if (suggestionSlotShown) 0.dp else bottomClearance,
                         )
+                        .currentLineHighlight(highlightCurrentLine, textState, scrollState, { textLayout }, bleed = 18.dp)
                         .focusRequester(focusRequester),
                 )
             }

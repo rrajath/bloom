@@ -53,6 +53,9 @@ object NewAnchors {
     /** The "Auto-capitalize headings" toggle inside Settings § Notes. */
     const val SETTINGS_NOTES_CAPITALIZE_HEADINGS = "settings.notes.capitalizeHeadings"
 
+    /** The "Highlight current line" toggle inside Settings § Notes. */
+    const val SETTINGS_NOTES_HIGHLIGHT_LINE = "settings.notes.highlightLine"
+
     /** The Settings hub row leading to the Capture Templates page. */
     const val SETTINGS_CAPTURE_TEMPLATES = "settings.captureTemplates"
 
@@ -551,5 +554,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_SHARING_PLACEMENT,
         ),
         destination = NewAnchors.SETTINGS_SHARING_PLACEMENT,
+    ),
+    NewFeature(
+        // Settings § Notes gained a "Highlight current line" switch (off by
+        // default): every editor shades the logical line holding the caret.
+        // `since` is the versionCode of the release that ships it: bump it to
+        // match `gradle.properties` versionName when cutting the release.
+        id = "notes-highlight-current-line",
+        since = 11600,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_NOTES,
+            NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE,
+        ),
+        destination = NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE,
     ),
 )
