@@ -300,6 +300,7 @@ fun NotebooksScreen(
                     NoVaultState(onChooseFolder = { folderPicker.launch(null) })
 
                 is NotebooksUiState.Loaded -> {
+                    com.rrajath.grove.ui.vault.ProviderWarningBanner()
                     ReminderPermissionBanner(pendingCount = s.remindersPendingPermission)
 
                     // Read once as primitives instead of inside the row closures below: `s` is

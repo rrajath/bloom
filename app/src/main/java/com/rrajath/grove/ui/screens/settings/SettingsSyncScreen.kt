@@ -50,7 +50,14 @@ fun SettingsSyncScreen(
 
     SettingsPageScaffold(title = "Sync", onBack = onBack) {
         SettingsGroup {
-            SettingsRow(label = "Folder", onClick = { folderPicker.launch(null) }) {
+            val vaultUri = settings.vaultTreeUri
+            SettingsRow(
+                label = "Folder",
+                descriptionContent = if (com.rrajath.grove.vault.VaultProvider.isNonLocal(vaultUri) && vaultUri != null) {
+                    { com.rrajath.grove.ui.vault.ProviderWarningNote(vaultUri) }
+                } else null,
+                onClick = { folderPicker.launch(null) },
+            ) {
                 Text(
                     settings.vaultTreeUri?.let { uriDisplayName(it) } ?: "tap to choose",
                     fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,

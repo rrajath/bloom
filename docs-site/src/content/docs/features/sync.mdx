@@ -19,6 +19,18 @@ Your `.org` files are the single source of truth, always. Bloom points at one fo
 
 Bloom does not implement its own cloud sync. The recommended approach is **Syncthing** paired with **Local Directory** mode: Syncthing keeps the folder in sync across your devices peer-to-peer (no account limits, no vendor lock-in), and Bloom just watches whatever ends up in that folder.
 
+## Folders from cloud apps
+
+The Android folder picker also lists folders that other apps serve, such as Seafile or Nextcloud. Bloom isn't fully compatible with these yet. These apps download and upload files in the background, and Bloom can't always tell when a file is still loading, when an upload failed, or when a file changed on another device. You may see:
+
+- Notebooks disappearing from the list
+- Edits made while offline getting lost
+- Changes made on other devices being overwritten
+
+When you pick such a folder, or already use one, Bloom asks once whether to choose another folder or use it anyway. Settings › Sync shows a note under the folder, and the Notebooks screen shows a banner until you dismiss it.
+
+If you use a cloud app's folder anyway, keep version history turned on in that app so you can get back earlier versions of a file. For the most reliable setup, keep the vault in a folder on the device's own storage and sync it with Syncthing.
+
 ## What Bloom's sync engine actually does
 
 Given a folder, Bloom:

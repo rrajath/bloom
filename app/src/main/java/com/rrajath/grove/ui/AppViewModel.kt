@@ -331,6 +331,10 @@ class AppViewModel(
     fun setVaultTreeUri(uri: String) =
         viewModelScope.launch { settingsRepository.setVaultTreeUri(uri) }
 
+    /** "Use anyway" on the non-local folder warning: don't ask again for [uri]. */
+    fun ackProviderWarning(uri: String) =
+        viewModelScope.launch { settingsRepository.ackProviderWarning(uri) }
+
     fun setSyncMode(mode: SyncMode) =
         viewModelScope.launch { settingsRepository.setSyncMode(mode) }
 

@@ -4,6 +4,18 @@
     <string name="ledger_widget_description">Agenda ledger: overdue and upcoming tasks grouped by day</string>
     <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
     <string name="exact_alarm_prompt_body">Android can delay %1$s\'s reminders by up to an hour unless %1$s is allowed to set alarms. On the next screen, turn on Alarms &amp; reminders for %1$s.</string>
+    <!-- Warning for a vault folder that isn't on local storage (ui/vault/ProviderWarning.kt).
+         In the body, %1$s is the app name (R.string.app_name) and %2$s the provider app's
+         label (or provider_warning_fallback_name); the note and banner take only the label. -->
+    <string name="provider_warning_title">This folder isn\'t on your device</string>
+    <string name="provider_warning_body">%1$s works best with a folder on your device, kept in sync by an app like Syncthing. This folder comes from %2$s, which %1$s doesn\'t fully support yet. You may see:\n\n• Notebooks disappearing from the list\n• Edits made while offline getting lost\n• Changes made on other devices being overwritten\n\nIf you use it anyway, keep version history turned on in %2$s so you can get back earlier versions.</string>
+    <string name="provider_warning_choose_another">Choose another folder</string>
+    <string name="provider_warning_use_anyway">Use anyway</string>
+    <string name="provider_warning_settings_note">%1$s isn\'t fully supported yet. Edits can be lost.</string>
+    <string name="provider_warning_banner">Your vault is on %1$s, which isn\'t fully supported. Edits can be lost.</string>
+    <string name="provider_warning_learn_more">Learn more</string>
+    <string name="provider_warning_dismiss">Dismiss</string>
+    <string name="provider_warning_fallback_name">this storage provider</string>
     <!-- Shared live search in the insert-link and refile pickers (ui/components/PickerSearch.kt). -->
     <string name="picker_search_placeholder">Search files and headings</string>
     <string name="picker_search_results_header">FILES &amp; HEADINGS</string>

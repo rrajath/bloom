@@ -1256,4 +1256,36 @@ private fun GroveNavigation(
             onNotNow = viewModel::onExactAlarmPromptNotNow,
         )
     }
+
+    // One-time warning for a vault folder served by another app (Seafile, Nextcloud...),
+    // once per folder; queued behind What's New and the exact-alarm prompt. Hidden while
+    // the picker it opens is up, and back again if the user cancels it.
+    var pickingVaultFolder by remember { mutableStateOf(false) }
+    val providerPickerContext = androidx.compose.ui.platform.LocalContext.current
+    val providerFolderPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        pickingVaultFolder = false
+        if (uri != null) {
+            providerPickerContext.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+            viewModel.setVaultTreeUri(uri.toString())
+        }
+    }
+    val warnUri = settings.vaultTreeUri
+    if (warnUri != null && !pickingVaultFolder && whatsNew.isEmpty() && !exactAlarmPrompt &&
+        com.rrajath.grove.vault.VaultProvider.shouldShowWarningDialog(settings)
+    ) {
+        com.rrajath.grove.ui.vault.ProviderWarningDialog(
+            treeUri = warnUri,
+            onChooseAnother = {
+                pickingVaultFolder = true
+                providerFolderPicker.launch(null)
+            },
+            onUseAnyway = { viewModel.ackProviderWarning(warnUri) },
+        )
+    }
 }

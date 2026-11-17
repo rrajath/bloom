@@ -57,6 +57,9 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+- Bloom now warns when your vault folder comes from a cloud app like Seafile, which isn't fully supported yet.
+
 ## [1.15.0] - 2026-11-14
 
 ### Added

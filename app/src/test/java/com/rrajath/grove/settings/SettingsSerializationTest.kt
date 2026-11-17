@@ -303,6 +303,18 @@ class SettingsSerializationTest {
     }
 
     @Test
+    fun `provider warning answers are device-local, never exported or overwritten on import`() {
+        val uri = "content://com.seafile.seadroid2.documents/tree/x"
+        val source = sample.copy(providerWarningAckedUri = uri, providerBannerDismissedUri = uri)
+        val json = SettingsSerialization.export(source)
+        assertTrue("device-local flags must not be exported", !json.contains("providerWarning") && !json.contains("providerBanner"))
+
+        val restored = SettingsSerialization.import(json, GroveSettings())
+        assertEquals(null, restored.providerWarningAckedUri)
+        assertEquals(null, restored.providerBannerDismissedUri)
+    }
+
+    @Test
     fun `exact-alarm device flags are never exported or overwritten on import`() {
         val source = sample.copy(exactAlarmAccessLastKnown = true, exactAlarmPromptHandled = true)
         val json = SettingsSerialization.export(source)

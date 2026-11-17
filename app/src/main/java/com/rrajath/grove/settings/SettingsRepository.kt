@@ -104,6 +104,13 @@ data class GroveSettings(
      * it never shows again after that. Device-specific, like [onboardingDone]: not exported.
      */
     val exactAlarmPromptHandled: Boolean = false,
+    /**
+     * The vault URI whose "this folder isn't on your device" warning was answered with
+     * Use anyway. A different non-local folder warns again. Device-specific: not exported.
+     */
+    val providerWarningAckedUri: String? = null,
+    /** The vault URI whose Notebooks provider banner was dismissed. Device-specific: not exported. */
+    val providerBannerDismissedUri: String? = null,
     /** Persisted SAF tree URI of the sync folder; null until the user picks one. */
     val vaultTreeUri: String? = null,
     val syncMode: SyncMode = SyncMode.ON_OPEN_CLOSE,
@@ -361,6 +368,8 @@ class SettingsRepository(
         val seenNewFeatures = stringPreferencesKey("seen_new_features")
         val exactAlarmAccessLastKnown = booleanPreferencesKey("exact_alarm_access_last_known")
         val exactAlarmPromptHandled = booleanPreferencesKey("exact_alarm_prompt_handled")
+        val providerWarningAckedUri = stringPreferencesKey("provider_warning_acked_uri")
+        val providerBannerDismissedUri = stringPreferencesKey("provider_banner_dismissed_uri")
         val vaultTreeUri = stringPreferencesKey("vault_tree_uri")
         val syncMode = stringPreferencesKey("sync_mode")
         val periodicSyncMinutes = intPreferencesKey("periodic_sync_minutes")
@@ -486,6 +495,8 @@ class SettingsRepository(
             seenNewFeatures = decodeStringSet(prefs[Keys.seenNewFeatures]),
             exactAlarmAccessLastKnown = prefs[Keys.exactAlarmAccessLastKnown],
             exactAlarmPromptHandled = prefs[Keys.exactAlarmPromptHandled] ?: false,
+            providerWarningAckedUri = prefs[Keys.providerWarningAckedUri],
+            providerBannerDismissedUri = prefs[Keys.providerBannerDismissedUri],
             vaultTreeUri = prefs[Keys.vaultTreeUri],
             syncMode = SyncMode.fromStorage(prefs[Keys.syncMode]),
             periodicSyncMinutes = prefs[Keys.periodicSyncMinutes] ?: 30,
@@ -839,6 +850,14 @@ class SettingsRepository(
 
     suspend fun setVaultTreeUri(uri: String) {
         editSettings { it[Keys.vaultTreeUri] = uri }
+    }
+
+    suspend fun ackProviderWarning(uri: String) {
+        editSettings { it[Keys.providerWarningAckedUri] = uri }
+    }
+
+    suspend fun dismissProviderBanner(uri: String) {
+        editSettings { it[Keys.providerBannerDismissedUri] = uri }
     }
 
     suspend fun setSyncMode(mode: SyncMode) {
