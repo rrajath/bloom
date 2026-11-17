@@ -329,4 +329,14 @@ class QueryParserTest {
         assertFalse(Period("overdue", CompareOp.LE).isOverdue)
         assertFalse(Period("today").isOverdue)
     }
+
+    @Test
+    fun `id prefix parses to an Id condition`() {
+        assertEquals(Condition.Id("a1b2"), QueryParser.parse("id.a1b2").groups[0][0].condition)
+        assertTrue(Condition.Id("NONE").isNone)
+        assertFalse(Condition.Id("abc").isNone)
+        val negated = QueryParser.parse(".id.none").groups[0][0]
+        assertEquals(Condition.Id("none"), negated.condition)
+        assertTrue(negated.negated)
+    }
 }

@@ -23,6 +23,8 @@ fun NoteEntity.toNoteMeta() = NoteMeta(
     createdAt = createdAt,
     lastModified = lastModified,
     searchText = title + "\n" + body,
+    orgId = orgId,
+    customId = customId,
 )
 
 /**
@@ -46,4 +48,6 @@ fun PlannedNoteRow.toNoteMeta() = NoteMeta(
     createdAt = createdAt,
     lastModified = lastModified,
     searchText = title,
+    orgId = orgId,
+    customId = customId,
 )

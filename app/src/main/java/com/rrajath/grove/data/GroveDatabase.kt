@@ -315,6 +315,8 @@ data class PlannedNoteRow(
     val createdAt: String?,
     val isDone: Boolean,
     val lastModified: Long,
+    val orgId: String? = null,
+    val customId: String? = null,
 )
 
 /**
@@ -442,7 +444,8 @@ abstract class IndexDao {
      */
     @Query(
         "SELECT fileName, lineIndex, title, keyword, priority, tags, inheritedTags, " +
-            "scheduled, deadline, closed, activeTimestamps, createdAt, isDone, lastModified " +
+            "scheduled, deadline, closed, activeTimestamps, createdAt, isDone, lastModified, " +
+            "orgId, customId " +
             "FROM notes WHERE scheduled IS NOT NULL OR deadline IS NOT NULL " +
             "OR activeTimestamps IS NOT NULL"
     )

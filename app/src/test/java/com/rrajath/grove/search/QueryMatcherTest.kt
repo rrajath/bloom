@@ -682,4 +682,19 @@ class QueryMatcherTest {
         val monthly = note("Monthly", active = "<2025-05-20 Tue +1m>")
         assertEquals(listOf("Weekly"), run("ad.3", weekly, monthly))
     }
+
+    @Test
+    fun `id matches ID or CUSTOM_ID by case-insensitive prefix`() {
+        val byId = note("ById").copy(orgId = "A1B2-C3D4")
+        val byCustom = note("ByCustom").copy(customId = "meeting-notes")
+        val both = note("Both").copy(orgId = "zzz", customId = "a1-other")
+        val neither = note("Neither")
+        assertEquals(listOf("ById", "Both"), run("id.a1", byId, byCustom, both, neither))
+        assertEquals(listOf("ByCustom"), run("id.MEET", byId, byCustom, both, neither))
+        // Prefix, not substring.
+        assertEquals(emptyList<String>(), run("id.notes", byId, byCustom, both, neither))
+        assertEquals(listOf("Neither"), run("id.none", byId, byCustom, both, neither))
+        assertEquals(listOf("ById", "ByCustom", "Both"), run(".id.none", byId, byCustom, both, neither))
+        assertEquals(listOf("Neither"), run(".id.a1 .id.meet .id.zzz", byId, byCustom, both, neither))
+    }
 }

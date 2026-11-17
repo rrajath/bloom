@@ -185,6 +185,15 @@ object NoteCandidateQuery {
         is Condition.Active -> dateCondition("activeTimestamps", condition.period)
         is Condition.Closed -> dateCondition("closed", condition.period)
         is Condition.Created -> dateCondition("createdAt", condition.period)
+
+        // SQLite's LIKE folds ASCII case only, matching the matcher's
+        // case-insensitive prefix test exactly for ASCII prefixes.
+        is Condition.Id ->
+            if (condition.isNone) "(orgId IS NULL AND customId IS NULL)" to emptyList()
+            else condition.prefix.ifAscii {
+                val like = likePrefix(it)
+                "(orgId LIKE ? ESCAPE '\\' OR customId LIKE ? ESCAPE '\\')" to listOf(like, like)
+            }
     }
 
     private fun dateCondition(column: String, period: Period): Pair<String, List<String>> =
@@ -249,8 +258,10 @@ object NoteCandidateQuery {
     private inline fun <T> String.ifAscii(build: (String) -> T): T? =
         if (all { it.code < 128 }) build(this) else null
 
-    private fun likeContains(value: String): String =
-        "%" + value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    private fun likeContains(value: String): String = "%" + likePrefix(value)
+
+    private fun likePrefix(value: String): String =
+        value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
     private fun placeholders(n: Int): String = List(n) { "?" }.joinToString(", ")
 }

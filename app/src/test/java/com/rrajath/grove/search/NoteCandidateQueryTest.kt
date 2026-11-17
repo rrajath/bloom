@@ -339,4 +339,23 @@ class NoteCandidateQueryTest {
         val placeholders = sql.sql.count { it == '?' }
         assertEquals(placeholders, sql.args.size)
     }
+
+    @Test
+    fun `id pushes down a prefix LIKE on both id columns`() {
+        val sql = build("id.a1_b")
+        assertTrue(sql.sql.contains("(orgId LIKE ? ESCAPE '\\' OR customId LIKE ? ESCAPE '\\')"))
+        assertEquals(listOf("a1\\_b%", "a1\\_b%"), sql.args)
+    }
+
+    @Test
+    fun `id none requires both id columns to be null`() {
+        val sql = build("id.none")
+        assertTrue(sql.sql.contains("(orgId IS NULL AND customId IS NULL)"))
+        assertTrue(sql.args.isEmpty())
+    }
+
+    @Test
+    fun `a non-ASCII id prefix is left to the matcher`() {
+        assertTrue(build("id.café").isFullScan)
+    }
 }

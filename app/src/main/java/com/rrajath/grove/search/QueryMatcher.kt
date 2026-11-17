@@ -25,6 +25,9 @@ data class NoteMeta(
     val lastModified: Long,
     /** Heading + body text for plain-term matching (own [tags] match too). */
     val searchText: String,
+    /** The heading's own `:ID:` and `:CUSTOM_ID:`, for `id.` searches. */
+    val orgId: String? = null,
+    val customId: String? = null,
 ) {
     // Parsed once per instance; matching, sorting, and the agenda view would
     // otherwise re-run the timestamp regex per comparison / per agenda day.
@@ -187,6 +190,10 @@ object QueryMatcher {
             is Condition.Active -> anyActiveMatches(note, c.period, today, now)
             is Condition.Closed -> matchesDate(note.closedTs, c.period, today, now, CompareOp.EQ)
             is Condition.Created -> matchesDate(note.createdTs, c.period, today, now, CompareOp.LE)
+
+            is Condition.Id ->
+                if (c.isNone) note.orgId == null && note.customId == null
+                else listOfNotNull(note.orgId, note.customId).any { it.startsWith(c.prefix, ignoreCase = true) }
         }
         return result != term.negated
     }

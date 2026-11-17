@@ -97,6 +97,12 @@ sealed class Condition {
 
     data class Closed(val period: Period) : Condition()
     data class Created(val period: Period) : Condition()
+
+    /** `id.X`: the heading's `:ID:` or `:CUSTOM_ID:` starts with X, ignoring
+     *  case; `id.none` (see [isNone]) matches a heading with neither. */
+    data class Id(val prefix: String) : Condition() {
+        val isNone: Boolean get() = prefix.equals("none", ignoreCase = true)
+    }
 }
 
 /** `eq`/`ne`/`lt`/`le`/`gt`/`ge` in `s.le.today`, `c.eq.yesterday`, etc. */
@@ -466,6 +472,7 @@ object QueryParser {
                     "a", "e" -> return Condition.Active(Period.parse(value))
                     "c" -> return Condition.Closed(Period.parse(value))
                     "cr" -> return Condition.Created(Period.parse(value))
+                    "id" -> return Condition.Id(value)
                 }
             }
         }

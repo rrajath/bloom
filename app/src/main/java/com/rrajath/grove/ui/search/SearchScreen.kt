@@ -118,6 +118,7 @@ import java.time.LocalDate
 
 private val OPERATOR_CHIPS = listOf(
     "t.TAG", "i.STATE", "s.PERIOD", "d.PERIOD", "a.PERIOD", "c.PERIOD", "cr.PERIOD", "b.NOTEBOOK", "p.PRIORITY",
+    "id.ID",
 )
 
 /** Quick-start card labels (see [BlankState]), included in the star button's
@@ -501,6 +502,7 @@ private val OPERATOR_LEGEND = listOf(
     "i.STATE" to "TODO keyword (i.none = no keyword)",
     "it.TYPE" to "keyword type: it.todo, it.done, it.none",
     "b.NOTEBOOK" to "restrict to one notebook",
+    "id.PREFIX" to "ID or CUSTOM_ID starts with PREFIX (id.none = neither)",
     "p. / ps." to "priority (p. counts the default priority) / set on the heading",
     "s./d./cr.DAY" to "on or before DAY: today, tom, 3d, -1w, 1y… (s.today includes overdue)",
     "c./e.DAY" to "closed / event on DAY (a. = e.)",
