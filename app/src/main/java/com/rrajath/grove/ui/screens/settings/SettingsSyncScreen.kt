@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.screens.settings
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -51,17 +53,24 @@ fun SettingsSyncScreen(
     SettingsPageScaffold(title = "Sync", onBack = onBack) {
         SettingsGroup {
             val vaultUri = settings.vaultTreeUri
-            SettingsRow(
-                label = "Folder",
-                descriptionContent = if (com.rrajath.grove.vault.VaultProvider.isNonLocal(vaultUri) && vaultUri != null) {
-                    { com.rrajath.grove.ui.vault.ProviderWarningNote(vaultUri) }
-                } else null,
-                onClick = { folderPicker.launch(null) },
-            ) {
+            SettingsRow(label = "Folder", onClick = { folderPicker.launch(null) }) {
                 Text(
                     settings.vaultTreeUri?.let { uriDisplayName(it) } ?: "tap to choose",
                     fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,
                 )
+            }
+            // Full-width under the row, not in its label column (which the folder id
+            // squeezes). Pulled 8dp up into the row's 14dp bottom padding, so it sits
+            // 6dp under "Folder" and keeps a 14dp gap before the divider.
+            if (vaultUri != null && com.rrajath.grove.vault.VaultProvider.isNonLocal(vaultUri)) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 15.dp, end = 15.dp, bottom = 6.dp)
+                        .offset(y = (-8).dp),
+                ) {
+                    com.rrajath.grove.ui.vault.ProviderWarningNote(vaultUri)
+                }
             }
             RowDivider()
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
