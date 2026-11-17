@@ -163,9 +163,9 @@ data class GroveSettings(
     val capitalizeHeadings: Boolean = true,
     /**
      * Whether the editors tint the logical line holding the caret, so a line that
-     * soft-wraps reads as one line. Off by default.
+     * soft-wraps reads as one line. On by default.
      */
-    val highlightCurrentLine: Boolean = false,
+    val highlightCurrentLine: Boolean = true,
     /** Per-notebook last-used note mode overrides: "file.org" → "read"/"edit". */
     val notebookModes: Map<String, String> = emptyMap(),
     /** Per-notebook monogram color overrides: "file.org" → palette key ("green"…). */
@@ -524,7 +524,7 @@ class SettingsRepository(
             newNoteCursor = NewNoteCursor.fromStorage(prefs[Keys.newNoteCursor]),
             autoSaveNotes = prefs[Keys.autoSaveNotes] ?: true,
             capitalizeHeadings = prefs[Keys.capitalizeHeadings] ?: true,
-            highlightCurrentLine = prefs[Keys.highlightCurrentLine] ?: false,
+            highlightCurrentLine = prefs[Keys.highlightCurrentLine] ?: true,
             notebookModes = decodeModes(prefs[Keys.notebookModes]),
             notebookColors = decodeModes(prefs[Keys.notebookColors]),
             folderColors = decodeModes(prefs[Keys.folderColors]),

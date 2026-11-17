@@ -69,7 +69,7 @@ data class SettingsExport(
     val newNoteCursor: String = NewNoteCursor.BODY.storageKey,
     val autoSaveNotes: Boolean = true,
     val capitalizeHeadings: Boolean = true,
-    val highlightCurrentLine: Boolean = false,
+    val highlightCurrentLine: Boolean = true,
     val notebookModes: Map<String, String> = emptyMap(),
     val notebookColors: Map<String, String> = emptyMap(),
     val folderColors: Map<String, String> = emptyMap(),
@@ -267,7 +267,7 @@ data class SettingsExport(
         // shareInsertPlacement). Additive: older exports omit them and import as
         // the file's top level and bottom, the behavior before they existed.
         // v16: added highlightCurrentLine. Additive: older exports omit it and
-        // import as off, the default.
+        // import as on, the default.
         const val CURRENT_VERSION = 16
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(

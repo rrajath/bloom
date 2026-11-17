@@ -556,7 +556,7 @@ val NEW_FEATURES: List<NewFeature> = listOf(
         destination = NewAnchors.SETTINGS_SHARING_PLACEMENT,
     ),
     NewFeature(
-        // Settings § Notes gained a "Highlight current line" switch (off by
+        // Settings § Notes gained a "Highlight current line" switch (on by
         // default): every editor shades the logical line holding the caret.
         // `since` is the versionCode of the release that ships it: bump it to
         // match `gradle.properties` versionName when cutting the release.

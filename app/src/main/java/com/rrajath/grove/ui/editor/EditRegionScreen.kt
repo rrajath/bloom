@@ -98,7 +98,7 @@ fun EditPrefaceScreen(
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
     capitalizeHeadings: Boolean = true,
     /** Settings § Notes: tint the logical line holding the caret. */
-    highlightCurrentLine: Boolean = false,
+    highlightCurrentLine: Boolean = true,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.PREFACE, noteId = null, onBack = onBack,
@@ -119,7 +119,7 @@ fun EditIntroScreen(
     editModeFontSize: FontSizePreference = FontSizePreference.MEDIUM,
     capitalizeHeadings: Boolean = true,
     /** Settings § Notes: tint the logical line holding the caret. */
-    highlightCurrentLine: Boolean = false,
+    highlightCurrentLine: Boolean = true,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.INTRO, noteId = null, onBack = onBack,
@@ -182,7 +182,7 @@ fun EditRegionScreen(
     /** Settings § Notes: uppercase the first letter typed into a heading. */
     capitalizeHeadings: Boolean = true,
     /** Settings § Notes: tint the logical line holding the caret. */
-    highlightCurrentLine: Boolean = false,
+    highlightCurrentLine: Boolean = true,
     /**
      * When set, the top bar carries the [ReadEditToggle] (Edit selected), and both it
      * and Back call this. Neither saves: the FILE route hoists [viewModel] so its

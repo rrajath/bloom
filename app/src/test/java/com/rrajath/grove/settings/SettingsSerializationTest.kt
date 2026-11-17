@@ -25,7 +25,7 @@ class SettingsSerializationTest {
         addCreatedToNewNotes = false,
         newNoteCursor = NewNoteCursor.HEADING,
         capitalizeHeadings = false,
-        highlightCurrentLine = true,
+        highlightCurrentLine = false,
         // Nested vault paths are valid keys now the vault is a tree.
         notebookModes = mapOf("work.org" to "edit", "projects/clients/acme.org" to "read"),
         notebookColors = mapOf("work.org" to "green", "projects/clients/acme.org" to "amber"),

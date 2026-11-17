@@ -199,7 +199,7 @@ fun CaptureEditorScreen(
     /** Settings § Notes: uppercase the first letter typed into a heading. */
     capitalizeHeadings: Boolean = true,
     /** Settings § Notes: tint the logical line holding the caret. */
-    highlightCurrentLine: Boolean = false,
+    highlightCurrentLine: Boolean = true,
     /**
      * Settings § Roam Features (experimental) suggestions
      * ([com.rrajath.grove.settings.GroveSettings.roamSuggestionsActive]): gates the Roam
