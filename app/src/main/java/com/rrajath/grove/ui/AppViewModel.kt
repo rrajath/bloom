@@ -49,6 +49,7 @@ import com.rrajath.grove.whatsnew.ChangelogParser
 import com.rrajath.grove.whatsnew.ChangelogVersion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -105,11 +106,17 @@ class AppViewModel(
         // In-app renames/moves re-key favorites directly (NotebooksViewModel). This catches the
         // rest: a file renamed or moved outside the app (Emacs, then Syncthing) only shows up as
         // an index change, so whenever the indexed file set changes, re-point any favorite whose
-        // file is gone at wherever its heading's stable id now lives.
+        // file is gone at wherever its heading's stable id now lives. Also re-run when the
+        // favorites themselves change: a backup import can bring favorites whose paths
+        // come from another device's vault. Terminates: relocateMissing writes only when it
+        // heals something, and a second pass over healed favorites changes nothing.
         viewModelScope.launch {
-            database.indexDao().notebooksFlow()
-                .map { list -> list.mapTo(HashSet()) { it.fileName } }
-                .distinctUntilChanged()
+            combine(
+                database.indexDao().notebooksFlow()
+                    .map { list -> list.mapTo(HashSet()) { it.fileName } }
+                    .distinctUntilChanged(),
+                favoritesRepository.favorites.distinctUntilChanged(),
+            ) { files, _ -> files }
                 .collect { files ->
                     if (files.isEmpty()) return@collect
                     val dao = database.indexDao()

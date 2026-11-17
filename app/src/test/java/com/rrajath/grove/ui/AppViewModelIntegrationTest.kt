@@ -5,6 +5,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.capture.SharedPayload
 import com.rrajath.grove.data.FavoritesRepository
+import com.rrajath.grove.data.FavoriteNote
+import com.rrajath.grove.data.NoteEntity
+import com.rrajath.grove.data.NotebookEntity
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.search.SearchRepository
 import com.rrajath.grove.settings.GroveSettings
@@ -204,5 +207,31 @@ class AppViewModelIntegrationTest {
         vm.removeFavorite("projects.org", lineIndex = 2, customId = null)
         settleUntil { vm.favorites.value.none { it.title == "Ship v2 release" } }
         assertTrue(vm.favorites.value.none { it.title == "Ship v2 release" })
+    }
+
+    @Test
+    fun `favorites replaced by an import are re-pointed by heading id`() = runTest {
+        val dao = db.indexDao()
+        dao.insertNotebook(NotebookEntity("new/home.org", "r1", 1, 0L, null))
+        dao.insertNotes(
+            listOf(
+                NoteEntity(
+                    fileName = "new/home.org", lineIndex = 7, level = 1, title = "Plan",
+                    keyword = null, priority = null, tags = "", inheritedTags = "",
+                    scheduled = null, deadline = null, closed = null, activeTimestamps = null,
+                    orgId = "fav-id", customId = null, createdAt = null, body = "",
+                    isDone = false, lastModified = 0L,
+                ),
+            ),
+        )
+        val vm = appVm()
+        keepHot(vm.favorites)
+        advanceUntilIdle()
+
+        // What confirmImport does for a favorites section: the file set is unchanged, only
+        // the favorites flow emits, and its path comes from another device's vault.
+        favoritesRepository.replaceAll(listOf(FavoriteNote("old/home.org", 3, "Plan", "fav-id")))
+        settleUntil { vm.favorites.value.singleOrNull()?.fileName == "new/home.org" }
+        assertEquals(7, vm.favorites.value.single().lineIndex)
     }
 }
