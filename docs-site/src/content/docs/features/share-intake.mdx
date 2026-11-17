@@ -12,7 +12,7 @@ Bloom registers as a target in the Android share sheet, so you can capture a lin
 <ThemeShot
   light={settingsSharingLight}
   dark={settingsSharingDark}
-  alt="Sharing settings with a Shared content target dropdown set to inbox.org and the Fetch link titles toggle on"
+  alt="Sharing settings with the Shared content target set to inbox, the Fetch link titles toggle on, and Add shared items at set to Bottom"
   widths={[340, 680]}
   sizes="340px"
 />
@@ -26,9 +26,22 @@ Sharing to Bloom opens the [Capture picker](/features/capture) with the shared c
 
 Pick a template as normal; whichever placeholders it uses pull in the shared content automatically.
 
-## Default target file
+## Shared content target
 
-Settings → Sharing lets you set a **default target file** for shared content, so shares can land somewhere predictable even before you've built out a dedicated share-specific template.
+Settings → Sharing → **Shared content target** sets where shared content lands, so shares end up somewhere predictable even before you've built out a dedicated share-specific template.
+
+Tap the row to open the same file and heading picker as the archive location. Pick a file, or drill into it and pick a heading. The search box at the top finds any file or heading in your vault. **New file…** at the top of the file list creates a notebook and selects it. The row shows the target as a breadcrumb, for example `inbox › Projects › Reading`.
+
+If the file doesn't exist yet, Bloom creates it on the first share. If the heading was renamed or deleted, the share goes to the file itself and the confirmation says so, so nothing you share is lost.
+
+## Add shared items at
+
+Settings → Sharing → **Add shared items at** chooses **Top** or **Bottom** (the default):
+
+- **File target**: the share becomes a new top-level heading at the top of the file (just above its first heading, below any `#+TITLE`-style lines) or at the end of it.
+- **Heading target**: the share becomes the first or the last subheading of that heading.
+
+The row's description spells out where the next share will land.
 
 ## Fetch link titles
 

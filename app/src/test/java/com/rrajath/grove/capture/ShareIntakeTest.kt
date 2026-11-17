@@ -1,7 +1,12 @@
 package com.rrajath.grove.capture
 
+import com.rrajath.grove.org.NotePlacement
+import com.rrajath.grove.org.OrgMutations
+import com.rrajath.grove.org.OrgParser
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShareIntakeTest {
@@ -64,5 +69,44 @@ class ShareIntakeTest {
         val note = ShareIntake.composeNote(SharedPayload(text = exact, url = ""), resolvedTitle = null)
         assertEquals(exact, note.heading)
         assertNull(note.body)
+    }
+
+    private val placeDoc = OrgParser.parse(
+        "#+TITLE: Inbox\n* Projects\nnotes\n** Reading\n*** Old\n* Later\n"
+    )
+    private val shared = ShareIntake.Note(heading = "New link", body = null)
+    private val noOptions = OrgMutations.NewNoteOptions()
+
+    @Test
+    fun `place at the top of the file lands below the preface`() {
+        val placed = ShareIntake.place(placeDoc, emptyList(), NotePlacement.TOP, shared, noOptions)
+        assertTrue(placed.headingFound)
+        assertEquals("#+TITLE: Inbox\n* New link\n* Projects\n", placed.text.substringBefore("notes"))
+    }
+
+    @Test
+    fun `place at the bottom of the file appends a top-level heading`() {
+        val placed = ShareIntake.place(placeDoc, emptyList(), NotePlacement.BOTTOM, shared, noOptions)
+        assertTrue(placed.text.endsWith("* Later\n* New link\n"))
+    }
+
+    @Test
+    fun `place under a heading at the top makes the first subheading`() {
+        val placed = ShareIntake.place(placeDoc, listOf("Projects", "Reading"), NotePlacement.TOP, shared, noOptions)
+        assertTrue(placed.headingFound)
+        assertTrue(placed.text.contains("** Reading\n*** New link\n*** Old\n"))
+    }
+
+    @Test
+    fun `place under a heading at the bottom makes the last subheading`() {
+        val placed = ShareIntake.place(placeDoc, listOf("Projects"), NotePlacement.BOTTOM, shared, noOptions)
+        assertTrue(placed.text.contains("*** Old\n** New link\n* Later\n"))
+    }
+
+    @Test
+    fun `a missing heading falls back to the file at the chosen placement`() {
+        val placed = ShareIntake.place(placeDoc, listOf("Gone"), NotePlacement.TOP, shared, noOptions)
+        assertFalse(placed.headingFound)
+        assertTrue(placed.text.startsWith("#+TITLE: Inbox\n* New link\n* Projects\n"))
     }
 }

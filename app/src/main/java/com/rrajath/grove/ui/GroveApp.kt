@@ -1075,6 +1075,7 @@ private fun GroveNavigation(
                         onSelectSearchResult = viewModel::locationSelectSearchResult,
                         headerTitle = "Set archive location",
                         confirmLabel = "Set as archive location",
+                        onCreateFile = viewModel::locationCreateFile,
                     )
                 }
             }
@@ -1116,6 +1117,7 @@ private fun GroveNavigation(
                         headerTitle = "Set quick add target",
                         confirmLabel = "Add tasks under this heading",
                         topLevelConfirmLabel = "Add tasks to this file",
+                        onCreateFile = viewModel::locationCreateFile,
                     )
                 }
             }
@@ -1134,9 +1136,30 @@ private fun GroveNavigation(
                 SettingsSharingScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
-                    onSetShareTargetFile = viewModel::setShareTargetFile,
+                    onOpenShareTargetPicker = viewModel::startShareTargetPick,
+                    onSetShareInsertPlacement = viewModel::setShareInsertPlacement,
                     onSetFetchSharedLinkTitles = viewModel::setFetchSharedLinkTitles,
                 )
+                val locationPicker by viewModel.locationPicker.collectAsStateWithLifecycle()
+                locationPicker?.let { picker ->
+                    RefileSheet(
+                        state = picker,
+                        currentFileName = null,
+                        currentDoc = null,
+                        onPickNotebook = viewModel::locationPickNotebook,
+                        onDrillInto = viewModel::locationDrillInto,
+                        onBack = viewModel::locationBack,
+                        onCancel = viewModel::locationCancel,
+                        onConfirm = viewModel::locationConfirm,
+                        onArchive = {},
+                        onPickLastUsed = {},
+                        onSelectSearchResult = viewModel::locationSelectSearchResult,
+                        headerTitle = "Set shared content target",
+                        confirmLabel = "Share under this heading",
+                        topLevelConfirmLabel = "Share to this file",
+                        onCreateFile = viewModel::locationCreateFile,
+                    )
+                }
             }
             screen(Routes.SETTINGS_ROAM) {
                 SettingsRoamScreen(

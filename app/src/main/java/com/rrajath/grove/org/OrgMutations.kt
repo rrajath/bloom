@@ -4,6 +4,17 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
+/** Where a new note lands among its siblings: first child or last child. */
+enum class NotePlacement(val storageKey: String) {
+    TOP("top"),
+    BOTTOM("bottom");
+
+    companion object {
+        /** Unknown or missing values fall back to [BOTTOM], the long-standing behavior. */
+        fun fromStorage(key: String?): NotePlacement = entries.firstOrNull { it.storageKey == key } ?: BOTTOM
+    }
+}
+
 /**
  * Span edits on a document's text. Every function returns the new full text;
  * only the lines belonging to the edit are touched: the rest of the file is
@@ -961,6 +972,28 @@ object OrgMutations {
         title: String,
         options: NewNoteOptions = NewNoteOptions(),
     ): Pair<String, Int> = insertNote(doc, doc.lines.size, 1, title, options)
+
+    /**
+     * Insert a new note in [parent]'s subtree, or at the file's top level when
+     * [parent] is null. [NotePlacement.TOP] makes it the first child (for a file:
+     * just above the first heading, below the preface and intro);
+     * [NotePlacement.BOTTOM] makes it the last child (for a file: the end).
+     */
+    fun newNoteIn(
+        doc: OrgDocument,
+        parent: OrgHeadline?,
+        placement: NotePlacement,
+        title: String,
+        options: NewNoteOptions = NewNoteOptions(),
+    ): Pair<String, Int> {
+        val atLine = when {
+            parent == null && placement == NotePlacement.TOP -> doc.preambleEnd
+            parent == null -> doc.lines.size
+            placement == NotePlacement.TOP -> parent.contentEnd
+            else -> doc.subtreeEndLine(parent)
+        }
+        return insertNote(doc, atLine, (parent?.level ?: 0) + 1, title, options)
+    }
 
     /** Insert a new sibling note immediately above [h] (same level). */
     fun insertSiblingAbove(

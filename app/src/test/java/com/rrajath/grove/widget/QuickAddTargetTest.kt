@@ -14,6 +14,14 @@ class QuickAddTargetTest {
     }
 
     @Test
+    fun `unset target follows the share target's heading too`() {
+        val settings = GroveSettings(shareTargetFile = "inbox.org", shareTargetHeadingPath = "Projects/Reading")
+        val target = QuickAddTarget.from(settings)
+        assertEquals(QuickAddTarget("inbox.org", listOf("Projects", "Reading")), target)
+        assertEquals("inbox › Projects › Reading", target.label)
+    }
+
+    @Test
     fun `set target ignores the share target`() {
         val settings = GroveSettings(
             shareTargetFile = "links.org",

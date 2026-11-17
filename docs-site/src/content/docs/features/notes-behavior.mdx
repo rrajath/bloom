@@ -59,7 +59,7 @@ The destination is looked up in this order, first match wins:
 
 1. An `:ARCHIVE:` property on the heading itself, or on its nearest ancestor
 2. An `:ARCHIVE:` in the file's top `:PROPERTIES:` drawer, then a `#+ARCHIVE:` line
-3. The archive location set in Settings, only while **Auto-archive done items** is on
+3. The archive location set in Settings, only while **Auto-archive done items** is on. Its picker's **New file…** row creates a notebook to archive into.
 
 A location looks like `file::* Heading/Subheading`. `%s` stands for the current file, so `%s_archive::` archives `agenda.org` into `agenda.org_archive`, just like Emacs. A file name with its own extension is used exactly as written. Only a bare name like `archive` becomes `archive.org`. Missing files and headings are created. Files that don't end in `.org` stay out of Bloom's notebook list, search, and agenda.
 

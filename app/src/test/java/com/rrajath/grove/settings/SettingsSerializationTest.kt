@@ -1,5 +1,6 @@
 package com.rrajath.grove.settings
 
+import com.rrajath.grove.org.NotePlacement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
@@ -70,6 +71,8 @@ class SettingsSerializationTest {
         autoArchiveHeadingPath = "Done/2026",
         quickAddTargetFile = "tasks.org",
         quickAddHeadingPath = "Work/Inbox",
+        shareTargetHeadingPath = "Projects/Reading",
+        shareInsertPlacement = NotePlacement.TOP,
         lastRefileFile = "projects.org",
         lastRefileHeadingPath = "Active/Grove",
         roamFeaturesEnabled = true,
@@ -145,6 +148,8 @@ class SettingsSerializationTest {
         assertEquals(sample.autoArchiveHeadingPath, restored.autoArchiveHeadingPath)
         assertEquals(sample.quickAddTargetFile, restored.quickAddTargetFile)
         assertEquals(sample.quickAddHeadingPath, restored.quickAddHeadingPath)
+        assertEquals(sample.shareTargetHeadingPath, restored.shareTargetHeadingPath)
+        assertEquals(sample.shareInsertPlacement, restored.shareInsertPlacement)
         assertEquals(sample.lastRefileFile, restored.lastRefileFile)
         assertEquals(sample.lastRefileHeadingPath, restored.lastRefileHeadingPath)
         assertEquals(sample.roamFeaturesEnabled, restored.roamFeaturesEnabled)
@@ -201,7 +206,7 @@ class SettingsSerializationTest {
     @Test
     fun `the attachment folder survives an export then import`() {
         val json = SettingsSerialization.export(GroveSettings(attachFolder = "media/files/"))
-        assertTrue(json.contains("\"version\": 14"))
+        assertTrue(json.contains("\"version\": ${SettingsExport.CURRENT_VERSION}"))
         val restored = SettingsSerialization.import(json, GroveSettings())
         assertEquals("media/files/", restored.attachFolder)
     }
@@ -273,6 +278,22 @@ class SettingsSerializationTest {
         )
         assertEquals(listOf("inbox.org", "area/sub/deep.org"), restored.pinnedNotebooks)
         assertEquals(listOf("projects", "projects/clients"), restored.pinnedFolders)
+    }
+
+    @Test
+    fun `a v14 export without the share heading and placement imports as file bottom`() {
+        val restored = SettingsSerialization.import(
+            "{}",
+            GroveSettings(shareTargetHeadingPath = "Old/Path", shareInsertPlacement = NotePlacement.TOP),
+        )
+        assertEquals("", restored.shareTargetHeadingPath)
+        assertEquals(NotePlacement.BOTTOM, restored.shareInsertPlacement)
+    }
+
+    @Test
+    fun `an unknown share placement imports as bottom`() {
+        val restored = SettingsSerialization.import("""{"shareInsertPlacement":"middle"}""", GroveSettings())
+        assertEquals(NotePlacement.BOTTOM, restored.shareInsertPlacement)
     }
 
     @Test

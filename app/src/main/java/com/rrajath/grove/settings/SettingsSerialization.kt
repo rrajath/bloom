@@ -1,5 +1,6 @@
 package com.rrajath.grove.settings
 
+import com.rrajath.grove.org.NotePlacement
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
@@ -73,6 +74,8 @@ data class SettingsExport(
     val folderColors: Map<String, String> = emptyMap(),
     val captureNotification: Boolean = false,
     val shareTargetFile: String = GroveSettings.DEFAULT_SHARE_TARGET,
+    val shareTargetHeadingPath: String = "",
+    val shareInsertPlacement: String = NotePlacement.BOTTOM.storageKey,
     val fetchSharedLinkTitles: Boolean = true,
     val showTagsInOutline: Boolean = true,
     val showTimestampsInOutline: Boolean = true,
@@ -163,6 +166,8 @@ data class SettingsExport(
         folderColors = folderColors,
         captureNotification = captureNotification,
         shareTargetFile = shareTargetFile,
+        shareTargetHeadingPath = shareTargetHeadingPath,
+        shareInsertPlacement = NotePlacement.fromStorage(shareInsertPlacement),
         fetchSharedLinkTitles = fetchSharedLinkTitles,
         showTagsInOutline = showTagsInOutline,
         showTimestampsInOutline = showTimestampsInOutline,
@@ -256,7 +261,10 @@ data class SettingsExport(
         // v14: added the attachment tag (attachAutoTag). Additive: older exports
         // omit it and import as ATTACH; an invalid value also imports as ATTACH,
         // and an empty one stays empty (no tag).
-        const val CURRENT_VERSION = 14
+        // v15: added the share target heading and placement (shareTargetHeadingPath/
+        // shareInsertPlacement). Additive: older exports omit them and import as
+        // the file's top level and bottom, the behavior before they existed.
+        const val CURRENT_VERSION = 15
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,
@@ -283,6 +291,8 @@ data class SettingsExport(
             folderColors = s.folderColors,
             captureNotification = s.captureNotification,
             shareTargetFile = s.shareTargetFile,
+            shareTargetHeadingPath = s.shareTargetHeadingPath,
+            shareInsertPlacement = s.shareInsertPlacement.storageKey,
             fetchSharedLinkTitles = s.fetchSharedLinkTitles,
             showTagsInOutline = s.showTagsInOutline,
             showTimestampsInOutline = s.showTimestampsInOutline,

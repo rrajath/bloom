@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -37,11 +39,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.capture.FilenameValidation
 import com.rrajath.grove.org.ArchiveTarget
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.ui.components.BrandMarkGlyph
 import com.rrajath.grove.ui.components.HeadingTag
+import com.rrajath.grove.ui.components.NameDialog
 import com.rrajath.grove.ui.components.PickerSearchField
 import com.rrajath.grove.ui.components.PickerSearchHeader
 import com.rrajath.grove.ui.components.notebookIcon
@@ -104,12 +108,18 @@ fun RefileSheet(
     searchHeader: String? = null,
     /** A small muted tag after a heading row's title (e.g. "ID"), or null for none. */
     headingTag: (OrgHeadline) -> String? = { null },
+    /**
+     * Non-null adds a "New file…" row atop the notebook list; it asks for a name
+     * and hands it over (always ending in `.org`) to create and open that file.
+     */
+    onCreateFile: ((String) -> Unit)? = null,
 ) {
     val c = MaterialTheme.grove
     val doc = state.pickedDoc
 
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
+    var naming by rememberSaveable { mutableStateOf(false) }
 
     // Rows inside a source's own subtree are invalid targets: in the drill-down only
     // while browsing the source file, in search for that file's heading hits.
@@ -196,6 +206,9 @@ fun RefileSheet(
                         },
                     )
                 } else if (doc == null) {
+                    if (onCreateFile != null) {
+                        item(key = NEW_FILE_ROW_KEY) { NewFileRow(onClick = { naming = true }) }
+                    }
                     items(state.notebooks.orEmpty(), key = { it.fileName }) { nb ->
                         RefileRow(
                             icon = notebookIcon(),
@@ -271,7 +284,27 @@ fun RefileSheet(
             }
         }
     }
+
+    if (naming && onCreateFile != null) {
+        NameDialog(
+            title = "New file",
+            initial = "",
+            confirmLabel = "Create",
+            placeholder = "ideas",
+            filenameSuffix = ".org",
+            validate = FilenameValidation::errorForNewNotebook,
+            helperText = "Use a slash to nest it in folders, e.g. work/ideas",
+            onDismiss = { naming = false },
+            onConfirm = { name ->
+                naming = false
+                onCreateFile(name)
+            },
+        )
+    }
 }
+
+// Notebook rows key on their file name, which always ends in .org, so this can't collide.
+private const val NEW_FILE_ROW_KEY = "new-file"
 
 private fun headingCountLabel(doc: OrgDocument, h: OrgHeadline): String? {
     val n = doc.directChildren(h).size
@@ -308,6 +341,34 @@ private fun ArchiveRow(sub: String, onClick: () -> Unit) {
             Text(sub, fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2)
         }
         Text("→", fontFamily = PlexSans, fontSize = 14.sp, color = c.accent)
+    }
+}
+
+/** Top row of the notebook list: create a file and pick it (same frame as [LastUsedRow]). */
+@Composable
+private fun NewFileRow(onClick: () -> Unit) {
+    val c = MaterialTheme.grove
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, c.line, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Icon(
+            Icons.Filled.Add,
+            contentDescription = null,
+            tint = c.accent,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "New file…",
+            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp, color = c.ink,
+        )
     }
 }
 

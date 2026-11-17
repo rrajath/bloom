@@ -13,6 +13,7 @@ import com.rrajath.grove.capture.SharedPayload
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.FavoritesRepository
 import com.rrajath.grove.data.GroveDatabase
+import com.rrajath.grove.org.NotePlacement
 import com.rrajath.grove.reminders.AlarmScheduler
 import com.rrajath.grove.reminders.ExactAlarmPrompt
 import com.rrajath.grove.search.SavedSearch
@@ -370,8 +371,8 @@ class AppViewModel(
     fun setCaptureNotification(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setCaptureNotification(enabled) }
 
-    fun setShareTargetFile(fileName: String) =
-        viewModelScope.launch { settingsRepository.setShareTargetFile(fileName.trim()) }
+    fun setShareInsertPlacement(placement: NotePlacement) =
+        viewModelScope.launch { settingsRepository.setShareInsertPlacement(placement) }
 
     fun setFetchSharedLinkTitles(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setFetchSharedLinkTitles(enabled) }
@@ -451,7 +452,7 @@ class AppViewModel(
     // default destination instead of moving an actual note. ---
 
     /** Which setting a confirmed [locationPicker] pick is saved to. */
-    enum class LocationPickerPurpose { ARCHIVE, QUICK_ADD }
+    enum class LocationPickerPurpose { ARCHIVE, QUICK_ADD, SHARE }
 
     private val _locationPicker = MutableStateFlow<RefileUiState?>(null)
     val locationPicker: StateFlow<RefileUiState?> = _locationPicker
@@ -460,6 +461,8 @@ class AppViewModel(
     fun startArchiveLocationPick() = startLocationPick(LocationPickerPurpose.ARCHIVE)
 
     fun startQuickAddTargetPick() = startLocationPick(LocationPickerPurpose.QUICK_ADD)
+
+    fun startShareTargetPick() = startLocationPick(LocationPickerPurpose.SHARE)
 
     private fun startLocationPick(purpose: LocationPickerPurpose) {
         locationPickerPurpose = purpose
@@ -509,6 +512,32 @@ class AppViewModel(
         }
     }
 
+    /**
+     * The picker's "New file…": creates [name] (a vault-relative path; `.org` is
+     * appended when missing) and opens it in the picker, ready to confirm or to
+     * pick a heading in once it has one.
+     */
+    fun locationCreateFile(name: String) {
+        val vault = vaultFlow.value ?: return
+        val trimmed = name.trim()
+        val fileName = if (trimmed.endsWith(".org")) trimmed else "$trimmed.org"
+        viewModelScope.launch {
+            if (!vault.createNotebook(fileName)) {
+                toast("A notebook with that name already exists")
+                return@launch
+            }
+            sync.requestSync("notebook created")
+            _locationPicker.value = _locationPicker.value?.let { picker ->
+                picker.copy(
+                    notebooks = (picker.notebooks.orEmpty() + RefileNotebook(fileName, 0))
+                        .sortedBy { it.fileName }
+                        .toImmutableList(),
+                )
+            }
+            locationPickNotebook(fileName)
+        }
+    }
+
     fun locationDrillInto(line: Int) {
         _locationPicker.value =
             _locationPicker.value?.let { it.copy(path = (it.path + line).toImmutableList()) }
@@ -534,6 +563,7 @@ class AppViewModel(
             when (locationPickerPurpose) {
                 LocationPickerPurpose.ARCHIVE -> settingsRepository.setAutoArchiveLocation(fileName, headingPath)
                 LocationPickerPurpose.QUICK_ADD -> settingsRepository.setQuickAddTarget(fileName, headingPath)
+                LocationPickerPurpose.SHARE -> settingsRepository.setShareTarget(fileName, headingPath)
             }
         }
     }

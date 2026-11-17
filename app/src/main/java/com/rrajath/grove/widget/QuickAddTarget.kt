@@ -5,7 +5,8 @@ import com.rrajath.grove.settings.GroveSettings
 /**
  * Where the widget quick-add composer saves a task: a file plus an optional
  * heading path inside it (empty = bottom of the file). Set in Settings § Widget;
- * until then it follows Settings § Sharing's "Shared content target", which is
+ * until then it follows Settings § Sharing's "Shared content target" (file and
+ * heading; the composer always adds at the bottom), which is
  * what the composer always used before it had a target of its own.
  */
 data class QuickAddTarget(val fileName: String, val headingPath: List<String>) {
@@ -16,9 +17,11 @@ data class QuickAddTarget(val fileName: String, val headingPath: List<String>) {
     companion object {
         fun from(settings: GroveSettings): QuickAddTarget {
             val file = settings.quickAddTargetFile
-                ?: return QuickAddTarget(resolveShareTargetFile(settings), emptyList())
-            return QuickAddTarget(file, settings.quickAddHeadingPath.split('/').filter { it.isNotEmpty() })
+                ?: return QuickAddTarget(resolveShareTargetFile(settings), splitPath(settings.shareTargetHeadingPath))
+            return QuickAddTarget(file, splitPath(settings.quickAddHeadingPath))
         }
+
+        private fun splitPath(path: String): List<String> = path.split('/').filter { it.isNotEmpty() }
 
         /**
          * Settings § Sharing's "Shared content target", resolved exactly like

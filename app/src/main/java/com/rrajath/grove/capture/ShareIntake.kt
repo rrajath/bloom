@@ -2,6 +2,8 @@ package com.rrajath.grove.capture
 
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
+import com.rrajath.grove.org.NotePlacement
+import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.settings.GroveSettings
@@ -43,8 +45,9 @@ object ShareIntake {
     }
 
     /**
-     * Routes [payload] straight to the configured file (PRD §10): fetches a
-     * URL's page title, composes the note, appends it, syncs, and toasts the
+     * Routes [payload] straight to the configured file or heading (PRD §10):
+     * fetches a URL's page title, composes the note, inserts it at the top or
+     * bottom of the target (Settings § Sharing), syncs, and toasts the
      * result. Not tied to any particular scope — [com.rrajath.grove.ui.AppViewModel.consumeSharedContent]
      * runs this on `viewModelScope` for shares that arrive while the app is on
      * screen; [ShareReceiverActivity] runs it on [GroveApplication.appScope] so
@@ -72,18 +75,50 @@ object ShareIntake {
             toast(app, "Couldn't open $fileName")
             return
         }
-        val (newText, _) = OrgMutations.newTopLevel(
+        val headingPath = settings.shareTargetHeadingPath.split('/').filter { it.isNotEmpty() }
+        val placed = place(
             doc,
-            note.heading,
+            headingPath,
+            settings.shareInsertPlacement,
+            note,
             OrgMutations.NewNoteOptions(
                 id = if (settings.addIdToNewNotes) newOrgId() else null,
                 createdAt = if (settings.addCreatedToNewNotes) LocalDateTime.now() else null,
                 body = note.body,
             ),
         )
-        vault.save(fileName, newText)
-        app.syncManager.requestReindex(fileName, newText, "shared note")
-        toast(app, "Saved to $fileName")
+        vault.save(fileName, placed.text)
+        app.syncManager.requestReindex(fileName, placed.text, "shared note")
+        val fileLabel = fileName.removeSuffix(".org")
+        toast(
+            app,
+            when {
+                headingPath.isEmpty() -> "Saved to $fileLabel"
+                placed.headingFound -> "Saved to " + (listOf(fileLabel) + headingPath).joinToString(" › ")
+                else -> "Heading \"${headingPath.last()}\" not found. Saved to $fileLabel"
+            },
+        )
+    }
+
+    /** [text] is the new document; [headingFound] is false when the target heading was missing. */
+    data class Placed(val text: String, val headingFound: Boolean)
+
+    /**
+     * Inserts [note] as the first or last child ([placement]) of the heading at
+     * [headingPath] (exact titles, outermost first), or of the file when the path
+     * is empty. A heading that no longer exists falls back to the file itself,
+     * so a renamed or deleted heading never drops a share.
+     */
+    fun place(
+        doc: OrgDocument,
+        headingPath: List<String>,
+        placement: NotePlacement,
+        note: Note,
+        options: OrgMutations.NewNoteOptions,
+    ): Placed {
+        val parent = if (headingPath.isEmpty()) null else CaptureInserter.findByPath(doc, headingPath)
+        val (text, _) = OrgMutations.newNoteIn(doc, parent, placement, note.heading, options)
+        return Placed(text, headingFound = headingPath.isEmpty() || parent != null)
     }
 
     private suspend fun toast(app: GroveApplication, message: String) = withContext(Dispatchers.Main) {

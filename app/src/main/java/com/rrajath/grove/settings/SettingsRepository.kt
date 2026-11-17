@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.rrajath.grove.org.NotePlacement
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -169,6 +170,10 @@ data class GroveSettings(
     val captureNotification: Boolean = false,
     /** .org file that receives content shared into Grove from other apps. */
     val shareTargetFile: String = DEFAULT_SHARE_TARGET,
+    /** '/'-separated heading path within [shareTargetFile]; empty = the file's top level. */
+    val shareTargetHeadingPath: String = "",
+    /** Whether shared items become the first or the last child of the share target. */
+    val shareInsertPlacement: NotePlacement = NotePlacement.BOTTOM,
     /** Fetch a shared link's page title over the network (plain HTTP, then a hidden-WebView fallback). */
     val fetchSharedLinkTitles: Boolean = true,
     // Outline display toggles (PRD §5.3)
@@ -395,6 +400,8 @@ class SettingsRepository(
         val folderColors = stringPreferencesKey("folder_colors")
         val captureNotification = booleanPreferencesKey("capture_notification")
         val shareTargetFile = stringPreferencesKey("share_target_file")
+        val shareTargetHeadingPath = stringPreferencesKey("share_target_heading_path")
+        val shareInsertPlacement = stringPreferencesKey("share_insert_placement")
         val fetchSharedLinkTitles = booleanPreferencesKey("fetch_shared_link_titles")
         val showTagsInOutline = booleanPreferencesKey("show_tags_in_outline")
         val showTimestampsInOutline = booleanPreferencesKey("show_timestamps_in_outline")
@@ -516,6 +523,8 @@ class SettingsRepository(
             folderColors = decodeModes(prefs[Keys.folderColors]),
             captureNotification = prefs[Keys.captureNotification] ?: false,
             shareTargetFile = prefs[Keys.shareTargetFile] ?: GroveSettings.DEFAULT_SHARE_TARGET,
+            shareTargetHeadingPath = prefs[Keys.shareTargetHeadingPath] ?: "",
+            shareInsertPlacement = NotePlacement.fromStorage(prefs[Keys.shareInsertPlacement]),
             fetchSharedLinkTitles = prefs[Keys.fetchSharedLinkTitles] ?: true,
             showTagsInOutline = prefs[Keys.showTagsInOutline] ?: true,
             showTimestampsInOutline = prefs[Keys.showTimestampsInOutline] ?: true,
@@ -668,6 +677,8 @@ class SettingsRepository(
             p.remove(Keys.notebookIcons)
             p[Keys.captureNotification] = s.captureNotification
             p[Keys.shareTargetFile] = s.shareTargetFile
+            p[Keys.shareTargetHeadingPath] = s.shareTargetHeadingPath
+            p[Keys.shareInsertPlacement] = s.shareInsertPlacement.storageKey
             p[Keys.fetchSharedLinkTitles] = s.fetchSharedLinkTitles
             p[Keys.showTagsInOutline] = s.showTagsInOutline
             p[Keys.showTimestampsInOutline] = s.showTimestampsInOutline
@@ -912,8 +923,15 @@ class SettingsRepository(
         editSettings { it[Keys.captureNotification] = enabled }
     }
 
-    suspend fun setShareTargetFile(fileName: String) {
-        editSettings { it[Keys.shareTargetFile] = fileName }
+    suspend fun setShareTarget(fileName: String, headingPath: List<String>) {
+        editSettings { prefs ->
+            prefs[Keys.shareTargetFile] = fileName
+            prefs[Keys.shareTargetHeadingPath] = headingPath.joinToString("/")
+        }
+    }
+
+    suspend fun setShareInsertPlacement(placement: NotePlacement) {
+        editSettings { it[Keys.shareInsertPlacement] = placement.storageKey }
     }
 
     suspend fun setFetchSharedLinkTitles(enabled: Boolean) {

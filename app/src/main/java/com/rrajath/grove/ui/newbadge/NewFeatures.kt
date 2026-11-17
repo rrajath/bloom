@@ -77,6 +77,9 @@ object NewAnchors {
     /** The "Fetch link titles" toggle inside Settings § Sharing. */
     const val SETTINGS_SHARING_FETCH_TITLES = "settings.sharing.fetchTitles"
 
+    /** The "Add shared items at" (Top/Bottom) row inside Settings § Sharing. */
+    const val SETTINGS_SHARING_PLACEMENT = "settings.sharing.placement"
+
     /** The Settings hub row leading to the Widget page. */
     const val SETTINGS_WIDGET = "settings.widget"
 
@@ -533,5 +536,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG,
         ),
         destination = NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG,
+    ),
+    NewFeature(
+        // Settings § Sharing's target became a file-or-heading picker and gained
+        // an "Add shared items at" Top/Bottom row. `since` is the versionCode of
+        // the release that ships it: bump it to match `gradle.properties`
+        // versionName when cutting the release.
+        id = "sharing-target-placement",
+        since = 11600,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_SHARING,
+            NewAnchors.SETTINGS_SHARING_PLACEMENT,
+        ),
+        destination = NewAnchors.SETTINGS_SHARING_PLACEMENT,
     ),
 )
