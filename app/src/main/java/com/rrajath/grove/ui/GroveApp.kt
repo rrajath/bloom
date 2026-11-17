@@ -1208,6 +1208,9 @@ private fun GroveNavigation(
                     onBack = { navController.popBackStack() },
                     onExportSettings = viewModel::exportSettings,
                     onImportSettings = viewModel::importSettings,
+                    pendingImport = viewModel.pendingImport.collectAsStateWithLifecycle().value,
+                    onConfirmImport = { viewModel.confirmImport(it) },
+                    onCancelImport = viewModel::cancelImport,
                 )
             }
             screen(Routes.SETTINGS_BUG_REPORT) {

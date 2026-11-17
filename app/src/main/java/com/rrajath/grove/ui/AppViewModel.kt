@@ -27,6 +27,8 @@ import com.rrajath.grove.settings.OutlineToggle
 import com.rrajath.grove.settings.ReminderLeadTime
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.settings.SettingsSerialization
+import com.rrajath.grove.settings.BackupSection
+import com.rrajath.grove.settings.sections
 import com.rrajath.grove.settings.SyncMode
 import com.rrajath.grove.settings.ThemeMode
 import com.rrajath.grove.settings.ThemePreference
@@ -71,6 +73,7 @@ class AppViewModel(
     // Kept for the handful of Android Context APIs with no JVM stub: Toast,
     // asset streams, contentResolver, getString, and ShareIntake.consumeShare.
     private val app: GroveApplication,
+    private val templatesRepository: com.rrajath.grove.capture.TemplatesRepository = app.templatesRepository,
 ) : ViewModel() {
 
     /** Null until the DataStore emits, so the UI can gate on first load. */
@@ -613,10 +616,15 @@ class AppViewModel(
     fun setAgendaWidgetFontSize(fontSize: FontSizePreference) =
         viewModelScope.launch { settingsRepository.setAgendaWidgetFontSize(fontSize) }
 
-    /** Write the current preferences as a JSON document to the user-picked [uri]. */
+    /** Write the current preferences, capture templates, favorites and saved searches
+     *  as a JSON document to the user-picked [uri]. */
     fun exportSettings(uri: android.net.Uri) = viewModelScope.launch {
-        val current = settingsRepository.settings.first()
-        val text = SettingsSerialization.export(current)
+        val text = SettingsSerialization.export(
+            settings = settingsRepository.settings.first(),
+            captureTemplates = templatesRepository.templates.first(),
+            favorites = favoritesRepository.favorites.first(),
+            savedSearches = searchRepository.savedSearches.first(),
+        )
         val ok = withContext(dispatchers.io) {
             runCatching {
                 app.contentResolver.openOutputStream(uri, "wt")?.use {
@@ -627,7 +635,15 @@ class AppViewModel(
         toast(if (ok) "Settings exported" else "Couldn't write settings file")
     }
 
-    /** Read a JSON document from [uri] and apply the portable preferences within. */
+    /**
+     * A parsed backup that carries list sections, waiting on the import dialog's
+     * checklist ([confirmImport] / [cancelImport]). A settings-only file (older
+     * export) skips the dialog and applies straight away.
+     */
+    private val _pendingImport = MutableStateFlow<com.rrajath.grove.settings.Backup?>(null)
+    val pendingImport: StateFlow<com.rrajath.grove.settings.Backup?> = _pendingImport
+
+    /** Read a JSON document from [uri]: apply a settings-only file at once, otherwise ask which sections to import. */
     fun importSettings(uri: android.net.Uri) = viewModelScope.launch {
         val text = withContext(dispatchers.io) {
             runCatching {
@@ -639,13 +655,32 @@ class AppViewModel(
             return@launch
         }
         val current = settingsRepository.settings.first()
-        val imported = runCatching { SettingsSerialization.import(text, current) }.getOrNull()
-        if (imported == null) {
+        val backup = runCatching { SettingsSerialization.parse(text, current) }.getOrNull()
+        if (backup == null) {
             toast("Not a valid ${app.getString(R.string.app_name)} settings file")
             return@launch
         }
-        settingsRepository.applyImported(imported)
-        toast("Settings imported")
+        if (backup.sections() == listOf(BackupSection.SETTINGS)) {
+            settingsRepository.applyImported(backup.settings)
+            toast("Settings imported")
+        } else {
+            _pendingImport.value = backup
+        }
+    }
+
+    /** Apply the checked [sections] of the pending backup; each replaces what's on the device. */
+    fun confirmImport(sections: Set<BackupSection>) = viewModelScope.launch {
+        val backup = _pendingImport.value ?: return@launch
+        _pendingImport.value = null
+        if (BackupSection.SETTINGS in sections) settingsRepository.applyImported(backup.settings)
+        if (BackupSection.CAPTURE_TEMPLATES in sections) backup.captureTemplates?.let { templatesRepository.save(it) }
+        if (BackupSection.FAVORITES in sections) backup.favorites?.let { favoritesRepository.replaceAll(it) }
+        if (BackupSection.SAVED_SEARCHES in sections) backup.savedSearches?.let { searchRepository.replaceAll(it) }
+        toast("Backup imported")
+    }
+
+    fun cancelImport() {
+        _pendingImport.value = null
     }
 
     companion object {

@@ -62,6 +62,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Settings › Sharing › Add shared items at puts shares at the top or bottom of the target.
 - File and heading pickers for sharing, archive and quick add gained a New file… row.
 - Settings › Notes › Highlight current line shades the line you're editing, wraps included, in every editor.
+- Settings › Backup now also exports capture templates, favorites, saved searches and Quick Start cards; import lets you pick sections.
 
 ### Changed
 - Settings › Sharing's target is now a file-or-heading picker with search; your existing file is kept.

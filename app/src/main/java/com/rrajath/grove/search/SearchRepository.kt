@@ -37,6 +37,9 @@ class SearchRepository(private val context: Context) {
         }
     }
 
+    /** Replaces every saved search, Quick Start overrides included, with [list] (settings backup import). */
+    suspend fun replaceAll(list: List<SavedSearch>) = persist(list)
+
     suspend fun saveSearch(name: String, query: String) {
         val current = savedSearches.first()
         val updated = current + SavedSearch(UUID.randomUUID().toString(), name, query)

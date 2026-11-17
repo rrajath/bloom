@@ -10,6 +10,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 
 /** Where a capture template inserts its entry (PRD §7.4). */
 @Serializable
@@ -130,6 +133,18 @@ object TemplateSerializer {
         runCatching {
             json.decodeFromJsonElement<TemplateListSurrogate>(migrate(json.parseToJsonElement(text))).templates
         }.getOrDefault(emptyList())
+
+    /** The bare template array, for the settings backup file (see [com.rrajath.grove.settings.SettingsExport]). */
+    fun toJsonArray(templates: List<CaptureTemplate>): JsonArray =
+        json.encodeToJsonElement(TemplateListSurrogate(templates)).jsonObject.getValue("templates").jsonArray
+
+    /**
+     * Inverse of [toJsonArray], running the same legacy migrations as [decode]. Unlike
+     * [decode] it throws on a malformed array, so a bad backup is rejected instead of
+     * silently importing as no templates.
+     */
+    fun fromJsonArray(array: JsonArray): List<CaptureTemplate> =
+        json.decodeFromJsonElement<TemplateListSurrogate>(migrate(JsonObject(mapOf("templates" to array)))).templates
 
     /**
      * Rewrites templates saved with the retired "Datetree (date)" location

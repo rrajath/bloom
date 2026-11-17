@@ -46,6 +46,11 @@ class FavoritesRepository(private val context: Context) {
         context.favoritesDataStore.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(updated) }
     }
 
+    /** Replaces every favorite with [list], in order (settings backup import). */
+    suspend fun replaceAll(list: List<FavoriteNote>) {
+        context.favoritesDataStore.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(list) }
+    }
+
     /** Keeps favorites in [oldPath] pointing at the file after it is renamed or moved to [newPath]. */
     suspend fun rebaseFile(oldPath: String, newPath: String) = rewrite { it.rebasedFile(oldPath, newPath) }
 

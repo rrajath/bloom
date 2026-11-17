@@ -473,4 +473,44 @@ class SettingsSerializationTest {
             SettingsSerialization.import("not json at all", GroveSettings())
         }
     }
+
+    @Test
+    fun `backup lists round-trip and absent sections parse as null`() {
+        val templates = listOf(
+            com.rrajath.grove.capture.CaptureTemplate(
+                id = "t1", name = "Inbox", targetFile = "inbox.org",
+                location = com.rrajath.grove.capture.TargetLocation.BottomOfFile, template = "* TODO %?",
+            ),
+        )
+        val favorites = listOf(com.rrajath.grove.data.FavoriteNote("work.org", 4, "Plan", "abc"))
+        val searches = listOf(
+            com.rrajath.grove.search.SavedSearch("s1", "Todo", "i.todo"),
+            com.rrajath.grove.search.SavedSearch(com.rrajath.grove.search.QuickStartOverrides.TODAY_ID, "Today", "s.eq.today"),
+        )
+        val text = SettingsSerialization.export(GroveSettings(), templates, favorites, searches)
+        val backup = SettingsSerialization.parse(text)
+        assertEquals(templates, backup.captureTemplates)
+        assertEquals(favorites, backup.favorites)
+        assertEquals(searches, backup.savedSearches)
+        assertEquals(BackupSection.entries, backup.sections())
+
+        val old = SettingsSerialization.parse(SettingsSerialization.export(GroveSettings()))
+        assertEquals(null, old.captureTemplates)
+        assertEquals(null, old.favorites)
+        assertEquals(null, old.savedSearches)
+        assertEquals(listOf(BackupSection.SETTINGS), old.sections())
+    }
+
+    @Test
+    fun `backup templates run legacy migrations and a malformed list is rejected`() {
+        val legacy = """{"captureTemplates": [{"id": "d", "name": "Log", "targetFile": "log.org",
+            "location": {"type": "datetree_date"}, "template": "* %T"}]}"""
+        val migrated = SettingsSerialization.parse(legacy).captureTemplates!!.single()
+        assertTrue(migrated.location is com.rrajath.grove.capture.TargetLocation.Datetree)
+        assertEquals("* %t", migrated.template)
+
+        assertThrows(Exception::class.java) {
+            SettingsSerialization.parse("""{"favorites": [{"nope": 1}]}""")
+        }
+    }
 }

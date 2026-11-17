@@ -1,10 +1,15 @@
 package com.rrajath.grove.settings
 
+import com.rrajath.grove.capture.CaptureTemplate
+import com.rrajath.grove.capture.TemplateSerializer
+import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.org.NotePlacement
+import com.rrajath.grove.search.SavedSearch
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 
 /**
  * Human-readable JSON backup of the user's preferences (PRD §11 settings).
@@ -13,6 +18,10 @@ import kotlinx.serialization.json.Json
  * install-specific state (the SAF vault URI and the onboarding flag) is
  * deliberately left out: a folder grant can't travel to another device, so an
  * import keeps whatever folder the current install already points at.
+ *
+ * Since v17 the file also carries the capture templates, favorites and saved
+ * searches (Quick Start overrides included). Each is optional: an older file
+ * leaves that section out, and import then leaves the device's list alone.
  */
 object SettingsSerialization {
 
@@ -22,8 +31,34 @@ object SettingsSerialization {
         encodeDefaults = true
     }
 
-    fun export(settings: GroveSettings): String =
-        json.encodeToString(SettingsExport.serializer(), SettingsExport.fromSettings(settings))
+    fun export(
+        settings: GroveSettings,
+        captureTemplates: List<CaptureTemplate>? = null,
+        favorites: List<FavoriteNote>? = null,
+        savedSearches: List<SavedSearch>? = null,
+    ): String = json.encodeToString(
+        SettingsExport.serializer(),
+        SettingsExport.fromSettings(settings).copy(
+            captureTemplates = captureTemplates?.let(TemplateSerializer::toJsonArray),
+            favorites = favorites,
+            savedSearches = savedSearches,
+        ),
+    )
+
+    /**
+     * Parse a whole backup file: [Backup.settings] layered over [base] as in [import],
+     * plus whichever list sections the file has (null when absent). Throws if [text]
+     * isn't valid JSON for this schema, including a malformed list section.
+     */
+    fun parse(text: String, base: GroveSettings = GroveSettings()): Backup {
+        val export = json.decodeFromString(SettingsExport.serializer(), text)
+        return Backup(
+            settings = export.applyTo(base),
+            captureTemplates = export.captureTemplates?.let(TemplateSerializer::fromJsonArray),
+            favorites = export.favorites,
+            savedSearches = export.savedSearches,
+        )
+    }
 
     /**
      * Parse a previously exported document, layering its values over [base] so
@@ -32,6 +67,25 @@ object SettingsSerialization {
      */
     fun import(text: String, base: GroveSettings = GroveSettings()): GroveSettings =
         json.decodeFromString(SettingsExport.serializer(), text).applyTo(base)
+}
+
+/** A parsed backup file; a null list means the file has no such section. */
+data class Backup(
+    val settings: GroveSettings,
+    val captureTemplates: List<CaptureTemplate>?,
+    val favorites: List<FavoriteNote>?,
+    val savedSearches: List<SavedSearch>?,
+)
+
+/** One checkbox in the import dialog: a part of a [Backup] that can be applied on its own. */
+enum class BackupSection { SETTINGS, CAPTURE_TEMPLATES, FAVORITES, SAVED_SEARCHES }
+
+/** The sections this backup can apply, in dialog order. Settings are always present. */
+fun Backup.sections(): List<BackupSection> = buildList {
+    add(BackupSection.SETTINGS)
+    if (captureTemplates != null) add(BackupSection.CAPTURE_TEMPLATES)
+    if (favorites != null) add(BackupSection.FAVORITES)
+    if (savedSearches != null) add(BackupSection.SAVED_SEARCHES)
 }
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -138,6 +192,11 @@ data class SettingsExport(
     val attachImageWidthPx: Int = AttachImageWidth.DEFAULT_PX,
     val attachFolder: String = AttachFolder.DEFAULT,
     val attachAutoTag: String = AttachAutoTag.DEFAULT,
+    // v17 list sections, null when absent (older files). Templates travel as raw JSON so
+    // import runs them through TemplateSerializer's legacy migrations.
+    val captureTemplates: JsonArray? = null,
+    val favorites: List<FavoriteNote>? = null,
+    val savedSearches: List<SavedSearch>? = null,
 ) {
     private fun themeSelection(): ThemeSelection =
         ThemeSelection.fromStorage(themeMode, lightTheme, darkTheme)
@@ -268,7 +327,10 @@ data class SettingsExport(
         // the file's top level and bottom, the behavior before they existed.
         // v16: added highlightCurrentLine. Additive: older exports omit it and
         // import as on, the default.
-        const val CURRENT_VERSION = 16
+        // v17: added the captureTemplates, favorites and savedSearches sections (Quick
+        // Start card overrides live in savedSearches). Additive: older exports omit them
+        // and import leaves those lists untouched; present ones replace the device's.
+        const val CURRENT_VERSION = 17
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,

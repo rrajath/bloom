@@ -1,13 +1,13 @@
 ---
 title: Backup (Export / Import Settings)
-description: Export or import all of Bloom's app preferences as a single JSON file, separate from your .org note files.
+description: Export or import Bloom's preferences, capture templates, favorites and saved searches as a single JSON file, separate from your .org note files.
 ---
 
 import ThemeShot from '../../../components/ThemeShot.astro';
 import settingsBackupLight from '../assets/light/settings-backup.png';
 import settingsBackupDark from '../assets/dark/settings-backup.png';
 
-Settings → Backup covers Bloom's own configuration, not your notes. Your `.org` files are already durable, plain-text, and synced independently (see [Sync](/features/sync)); this screen is for everything else: themes, templates, keyword sets, swipe-action bindings, and so on.
+Settings → Backup covers Bloom's own configuration, not your notes. Your `.org` files are already durable, plain-text, and synced independently (see [Sync](/features/sync)); this screen is for everything else: preferences, capture templates, favorites and saved searches.
 
 <ThemeShot
   light={settingsBackupLight}
@@ -19,15 +19,24 @@ Settings → Backup covers Bloom's own configuration, not your notes. Your `.org
 
 ## Export
 
-Writes every configured preference to a single JSON file: theme selection, app-wide text size, read/edit-mode font sizes, custom TODO keyword sets, default priority, capture templates, sync folder and mode, Agenda swipe-action bindings, reminder settings, sharing defaults, and any other Settings-page value.
+Writes one JSON file with:
 
-The export carries a schema version (currently 3; `appFontSize` was added in v3). Older exports still import cleanly, with any keys they predate filling in from their defaults.
+- **Settings**: every preference on the Settings pages, such as theme, text sizes, TODO keywords, sync mode, Agenda swipe actions, reminders, sharing and attachment defaults.
+- **Capture templates**: every template, in order.
+- **Favorites**: your favorite notes, in order.
+- **Saved searches and Quick Start cards**: your saved searches plus any Quick Start card you've customized from the search screen.
+
+The sync folder isn't included. A folder permission can't move to another device, so it stays as it is on this one.
+
+The file carries a schema version (currently 17). Older exports still import cleanly: settings they predate fall back to their defaults, and an export made before templates, favorites and saved searches were included simply has no such sections.
 
 ## Import
 
-Reads a previously exported JSON file back in, restoring the full preference set in one step, useful when setting up Bloom on a new device, or recovering after a reinstall.
+Pick a previously exported file. If it holds only settings (an older export), Bloom applies them straight away. Otherwise a dialog lists each section the file contains, with counts, all checked to start. Uncheck anything you want to keep as it is, then tap **Import**.
 
-Because this covers *every* settings surface, any time a new setting is added anywhere in the app, the export/import logic is expected to be updated to include it, so a backup taken on one version stays complete going forward.
+Each checked section **replaces** what's on this device. For example, importing capture templates swaps your current templates for the ones in the file; it doesn't merge them. Favorites point at notes by file path and heading ID, so they work best when the vault on this device has the same files.
+
+Because this covers every settings surface, any time a new setting is added anywhere in the app, the export/import logic is updated to include it, so a backup stays complete going forward.
 
 ## Related
 
