@@ -7,8 +7,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -52,8 +54,9 @@ fun SettingsSharingScreen(
                 Text(
                     target,
                     fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,
-                    // Wraps instead of truncating, so a deep heading path shows in full.
-                    textAlign = TextAlign.End,
+                    // Wraps instead of truncating, so a deep heading path shows in full;
+                    // start-aligned so wrapped lines line up under the file name.
+                    textAlign = TextAlign.Start,
                     modifier = Modifier.widthIn(max = 150.dp),
                 )
             }
@@ -62,10 +65,7 @@ fun SettingsSharingScreen(
                 label = "Add shared items at",
                 descriptionContent = {
                     Text(
-                        buildAnnotatedString {
-                            append(placementDescriptionLead(toHeading, settings.shareInsertPlacement))
-                            withStyle(SpanStyle(fontFamily = PlexMono)) { append(target) }
-                        },
+                        placementDescription(target, toHeading, settings.shareInsertPlacement),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     )
                 },
@@ -101,12 +101,20 @@ internal fun shareTargetBreadcrumb(settings: GroveSettings): String {
     return (listOf(file.removeSuffix(".org")) + headings).joinToString(" › ")
 }
 
-/** The "Add shared items at" description up to the target breadcrumb, which follows it in PlexMono. */
-internal fun placementDescriptionLead(toHeading: Boolean, placement: NotePlacement): String {
+/**
+ * The "Add shared items at" description: where in the target items land, then
+ * the target breadcrumb in PlexMono. A heading target's "first"/"last" is SemiBold (PlexSans has no Bold face).
+ */
+internal fun placementDescription(target: String, toHeading: Boolean, placement: NotePlacement): AnnotatedString {
     val top = placement == NotePlacement.TOP
-    return if (toHeading) {
-        "Shared items are added as the ${if (top) "first" else "last"} subheading of "
-    } else {
-        "Shared items are added as a new heading at the ${if (top) "top" else "bottom"} of "
+    return buildAnnotatedString {
+        if (toHeading) {
+            append("Shared items are added as the ")
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(if (top) "first" else "last") }
+            append(" subheading of ")
+        } else {
+            append("Shared items are added as a new heading at the ${if (top) "top" else "bottom"} of ")
+        }
+        withStyle(SpanStyle(fontFamily = PlexMono)) { append(target) }
     }
 }
