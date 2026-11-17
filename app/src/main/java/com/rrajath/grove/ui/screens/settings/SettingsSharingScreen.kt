@@ -7,7 +7,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
@@ -18,6 +21,7 @@ import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexMono
+import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 
 /** Settings § Sharing. */
@@ -48,8 +52,30 @@ fun SettingsSharingScreen(
                 Text(
                     target,
                     fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    // Wraps instead of truncating, so a deep heading path shows in full.
+                    textAlign = TextAlign.End,
                     modifier = Modifier.widthIn(max = 150.dp),
+                )
+            }
+            RowDivider()
+            SettingsRow(
+                label = "Add shared items at",
+                descriptionContent = {
+                    Text(
+                        buildAnnotatedString {
+                            append(placementDescriptionLead(toHeading, settings.shareInsertPlacement))
+                            withStyle(SpanStyle(fontFamily = PlexMono)) { append(target) }
+                        },
+                        fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
+                    )
+                },
+                labelBadge = { NewDot(NewAnchors.SETTINGS_SHARING_PLACEMENT) },
+            ) {
+                SegmentedControl(
+                    options = listOf("Top", "Bottom"),
+                    selectedIndex = PLACEMENT_OPTIONS.indexOf(settings.shareInsertPlacement),
+                    onSelect = { onSetShareInsertPlacement(PLACEMENT_OPTIONS[it]) },
+                    modifier = Modifier.width(160.dp),
                 )
             }
             RowDivider()
@@ -61,19 +87,6 @@ fun SettingsSharingScreen(
                 labelBadge = { NewDot(NewAnchors.SETTINGS_SHARING_FETCH_TITLES) },
                 onToggle = onSetFetchSharedLinkTitles,
             )
-            RowDivider()
-            SettingsRow(
-                label = "Add shared items at",
-                description = placementDescription(target, toHeading, settings.shareInsertPlacement),
-                labelBadge = { NewDot(NewAnchors.SETTINGS_SHARING_PLACEMENT) },
-            ) {
-                SegmentedControl(
-                    options = listOf("Top", "Bottom"),
-                    selectedIndex = PLACEMENT_OPTIONS.indexOf(settings.shareInsertPlacement),
-                    onSelect = { onSetShareInsertPlacement(PLACEMENT_OPTIONS[it]) },
-                    modifier = Modifier.width(160.dp),
-                )
-            }
         }
     }
 }
@@ -88,12 +101,12 @@ internal fun shareTargetBreadcrumb(settings: GroveSettings): String {
     return (listOf(file.removeSuffix(".org")) + headings).joinToString(" › ")
 }
 
-/** The "Add shared items at" description: names the target and where in it items land. */
-internal fun placementDescription(target: String, toHeading: Boolean, placement: NotePlacement): String {
+/** The "Add shared items at" description up to the target breadcrumb, which follows it in PlexMono. */
+internal fun placementDescriptionLead(toHeading: Boolean, placement: NotePlacement): String {
     val top = placement == NotePlacement.TOP
     return if (toHeading) {
-        "Shared items are added as the ${if (top) "first" else "last"} subheading of $target"
+        "Shared items are added as the ${if (top) "first" else "last"} subheading of "
     } else {
-        "Shared items are added as a new heading at the ${if (top) "top" else "bottom"} of $target"
+        "Shared items are added as a new heading at the ${if (top) "top" else "bottom"} of "
     }
 }
