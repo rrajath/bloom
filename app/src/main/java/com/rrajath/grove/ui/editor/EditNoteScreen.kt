@@ -48,9 +48,15 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.input.TextFieldDecorator
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
@@ -400,6 +406,8 @@ fun EditNoteScreen(
     }
     // Written from the field's onTextLayout; read only by KeepCursorClearOfBottom's flow.
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    // Current-line highlight shows only while the field has focus (a caret to anchor to).
+    var fieldFocused by remember { mutableStateOf(false) }
     KeepCursorClearOfBottom(textState, scrollState, { textLayout }, EditorBottomMarginLines)
 
     // Idle auto-save (Settings § Notes → Auto-save notes) runs inside
@@ -507,6 +515,29 @@ fun EditNoteScreen(
                         cursorBrush = SolidColor(c.accent),
                         onTextLayout = { getResult -> textLayout = getResult() },
                         scrollState = scrollState,
+                        // Prototype: tint the logical line holding the caret, so where a
+                        // line really ends (vs. soft-wraps) is visible without a line-number
+                        // gutter. Bleeds into the field's 18dp side padding to span the screen.
+                        decorator = TextFieldDecorator { innerTextField ->
+                            Box(
+                                Modifier.drawBehind {
+                                    if (!fieldFocused) return@drawBehind
+                                    val layout = textLayout ?: return@drawBehind
+                                    val (top, bottom) = currentLineBand(
+                                        textState.text, textState.selection, layout,
+                                    ) ?: return@drawBehind
+                                    val bleed = 18.dp.toPx()
+                                    clipRect(left = -bleed, top = 0f, right = size.width + bleed, bottom = size.height) {
+                                        val y = top - scrollState.value
+                                        drawRect(
+                                            color = c.surface2,
+                                            topLeft = Offset(-bleed, y),
+                                            size = Size(size.width + 2 * bleed, bottom - top),
+                                        )
+                                    }
+                                },
+                            ) { innerTextField() }
+                        },
                         modifier = Modifier
                             .fillMaxSize()
                             // Scrolls away like Read mode's top contentPadding, so
@@ -523,6 +554,7 @@ fun EditNoteScreen(
                                 bottom = if (imeVisible) SuggestionSlotHeight else 80.dp,
                             )
                             .focusRequester(focusRequester)
+                            .onFocusChanged { fieldFocused = it.isFocused }
                             .testTag("edit_note_field"),
                     )
                 }
@@ -857,6 +889,24 @@ private fun charOffsetForLine(buffer: String, bufferStartLine: Int, targetLineIn
     var offset = 0
     for (i in 0 until relativeLine) offset += lines[i].length + 1
     return offset
+}
+
+/**
+ * Vertical extent (top to bottom, in text-layout px) of the logical line holding a
+ * collapsed caret, spanning every visual row it soft-wraps onto. Null for a range
+ * selection, which already has its own highlight. Offsets map 1:1 onto [layout]:
+ * [OrgSyntaxHighlight] keeps lengths, only appending blank lines past the end.
+ */
+private fun currentLineBand(text: CharSequence, selection: TextRange, layout: TextLayoutResult): Pair<Float, Float>? {
+    if (!selection.collapsed) return null
+    val caret = selection.start.coerceIn(0, text.length)
+    val start = text.lastIndexOf('\n', caret - 1) + 1
+    val end = text.indexOf('\n', caret).let { if (it == -1) text.length else it }
+    val maxOffset = layout.layoutInput.text.length
+    if (end > maxOffset) return null
+    val first = layout.getLineForOffset(start)
+    val last = layout.getLineForOffset(end)
+    return layout.getLineTop(first) to layout.getLineBottom(last)
 }
 
 @Composable
