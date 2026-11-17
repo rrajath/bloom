@@ -6,9 +6,11 @@ import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.StorageOp
 import com.rrajath.grove.vault.storage.StorageResult
 import com.rrajath.grove.vault.storage.VaultCapabilities
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -71,6 +73,13 @@ interface FileStore {
      * everything.
      */
     val capabilities: StateFlow<VaultCapabilities> get() = ALL_CAPABILITIES
+
+    /**
+     * Emits a reason each time an operation is refused because the provider
+     * can't be reached, so the app can show it's offline without waiting for
+     * the next sync. Stores that are never offline emit nothing.
+     */
+    val unreachable: Flow<String> get() = emptyFlow()
 
     /** All files in the vault, recursively (not filtered to .org; callers apply ignore rules). */
     suspend fun list(): List<FileEntry>

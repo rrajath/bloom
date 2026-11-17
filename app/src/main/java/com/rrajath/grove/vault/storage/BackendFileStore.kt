@@ -12,8 +12,12 @@ import android.net.Uri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -114,6 +118,12 @@ class BackendFileStore(
     /** Why the vault root couldn't be listed completely on the last walk; null when it could. */
     @Volatile
     private var rootProblem: String? = null
+
+    private val _unreachable = MutableSharedFlow<String>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val unreachable: Flow<String> = _unreachable.asSharedFlow()
 
     // Per-document capabilities, keyed like [docIds] / [dirDocIds]. Filled from
     // the same listings; a missing entry means "never listed", which operations
@@ -431,19 +441,24 @@ class BackendFileStore(
     override suspend fun write(name: String, content: String, ifMatch: String?): StorageResult<String> =
         withContext(Dispatchers.IO) {
             val docId = documentId(name) ?: return@withContext missing()
-            if (ifMatch != null && backend.profile.statFromListingCache) refreshListing(name)
+            if (ifMatch != null && backend.profile.statFromListingCache && !refreshListing(name)) {
+                _unreachable.tryEmit("The provider didn't answer before saving $name")
+                return@withContext StorageError.Offline
+            }
             backend.write(docId, content.toByteArray(Charsets.UTF_8), ifMatch)
         }
 
     /**
      * Lists [name]'s folder so the provider refetches it from the server, and
      * the backend's revision check sees an edit made elsewhere instead of the
-     * provider's cached stat. Best effort: on failure the check uses what it has.
+     * provider's cached stat. False when the server didn't answer: the cached
+     * stat proves nothing then, and a provider like Seafile accepts the write
+     * locally and loses it when its upload fails.
      */
-    private suspend fun refreshListing(name: String) {
+    private suspend fun refreshListing(name: String): Boolean {
         val dir = name.substringBeforeLast('/', "")
-        val parent = resolveDir(dir, createMissing = false) as? StorageResult.Ok ?: return
-        backend.listChildren(parent.value.docId)
+        val parent = resolveDir(dir, createMissing = false) as? StorageResult.Ok ?: return false
+        return backend.listChildren(parent.value.docId) is Listing.Complete
     }
 
     override suspend fun create(name: String): StorageResult<Unit> = createFile(name, content = null)

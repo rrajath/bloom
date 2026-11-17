@@ -1050,7 +1050,11 @@ class DocumentViewModel(
                 // writes are for an edit that didn't happen. [mutate] catches it.
                 throw SaveRefused()
             }
-            is StorageError -> throw StorageException(written)
+            is StorageError -> {
+                // Nothing was written (offline, refused): drop the edit shown before the save.
+                load(fileName)
+                throw StorageException(written)
+            }
         }
     }
 

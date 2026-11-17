@@ -9,6 +9,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.atomic.AtomicInteger
@@ -105,6 +106,15 @@ class SyncEngine(
 
     companion object {
         private const val PARSE_CONCURRENCY = 3
+    }
+
+    /**
+     * Shows [SyncState.Offline] now, after an operation outside sync found the
+     * provider unreachable. A sync in progress decides for itself; the next
+     * sync replaces this either way.
+     */
+    fun markOffline(reason: String) {
+        _state.update { if (it is SyncState.Checking || it is SyncState.Pulling) it else SyncState.Offline(reason) }
     }
 
     suspend fun sync(log: (String) -> Unit = {}): SyncResult? {

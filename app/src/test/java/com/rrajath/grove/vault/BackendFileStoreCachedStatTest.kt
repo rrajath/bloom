@@ -9,7 +9,11 @@ import com.rrajath.grove.vault.storage.SafBackend
 import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.isOk
 import java.io.File
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -33,8 +37,10 @@ class BackendFileStoreCachedStatTest {
 
     private val context get() = ApplicationProvider.getApplicationContext<Application>()
 
+    private lateinit var provider: FakeDocumentsProvider
+
     private fun store(profile: ProviderProfile): BackendFileStore {
-        val provider = FakeDocumentsProvider.install(tmp.root, FakeDocumentsProvider.OPAQUE_AUTHORITY)
+        provider = FakeDocumentsProvider.install(tmp.root, FakeDocumentsProvider.OPAQUE_AUTHORITY)
         provider.statFromListing = true
         val backend = SafBackend(
             context,
@@ -82,5 +88,50 @@ class BackendFileStoreCachedStatTest {
 
         assertTrue(store.write("a.org", "* One\n* From Bloom\n", ifMatch = loaded).isOk)
         assertEquals("* One\n* From Bloom\n", file("a.org").readText())
+    }
+
+    @Test
+    fun `a conditional write is refused when the folder never finishes loading`() = runTest {
+        file("notes").mkdirs()
+        file("notes/a.org").writeText("* One\n")
+        val store = store(ProviderProfiles.SEAFILE)
+        store.list()
+        val loaded = revisionOf(store, "notes/a.org")
+
+        // Server hung: the provider answers "loading" and never finishes.
+        provider.loadingDirs.add("${FakeDocumentsProvider.ROOT_ID}/notes")
+        val written = store.write("notes/a.org", "* DONE One\n", ifMatch = loaded)
+
+        assertEquals(StorageError.Offline, written)
+        assertEquals("* One\n", file("notes/a.org").readText())
+    }
+
+    @Test
+    fun `a conditional write is refused when the folder listing fails`() = runTest {
+        file("a.org").writeText("* One\n")
+        val store = store(ProviderProfiles.SEAFILE)
+        store.list()
+        val loaded = revisionOf(store, "a.org")
+
+        // No network: the provider reports an error for the listing.
+        provider.errorDirs.add(FakeDocumentsProvider.ROOT_ID)
+        val written = store.write("a.org", "* DONE One\n", ifMatch = loaded)
+
+        assertEquals(StorageError.Offline, written)
+        assertEquals("* One\n", file("a.org").readText())
+    }
+
+    @Test
+    fun `a write refused as offline is reported, so the app can show it at once`() = runTest {
+        file("a.org").writeText("* One\n")
+        val store = store(ProviderProfiles.SEAFILE)
+        store.list()
+        val loaded = revisionOf(store, "a.org")
+        val reports = async(start = CoroutineStart.UNDISPATCHED) { store.unreachable.first() }
+
+        provider.errorDirs.add(FakeDocumentsProvider.ROOT_ID)
+        store.write("a.org", "* DONE One\n", ifMatch = loaded)
+
+        assertTrue(withTimeout(5_000) { reports.await() }.isNotBlank())
     }
 }

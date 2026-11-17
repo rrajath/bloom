@@ -86,7 +86,11 @@ class SyncManager(
             SyncEngine(it, RoomNoteIndex(database, keywords, onNotebookIndexed)) { System.currentTimeMillis() }
         }
         engine?.let { e ->
-            stateJob = scope.launch { e.state.collect { _state.value = it } }
+            stateJob = scope.launch {
+                launch { e.state.collect { _state.value = it } }
+                // A save refused as unreachable shows the Offline banner at once.
+                store?.unreachable?.collect { e.markOffline(it) }
+            }
         }
         if (store != null) requestSync("folder configured")
     }

@@ -8,6 +8,7 @@ import com.rrajath.grove.vault.storage.StorageError
 import com.rrajath.grove.vault.storage.StorageOp
 import com.rrajath.grove.vault.storage.StorageResult
 import com.rrajath.grove.vault.storage.VaultCapabilities
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.FileNotFoundException
 import java.io.InputStream
@@ -70,6 +71,9 @@ class FakeFileStore(
 
     /** Settable so tests can model a provider that refuses rename/move/delete. */
     override val capabilities: MutableStateFlow<VaultCapabilities> = MutableStateFlow(VaultCapabilities.UNKNOWN)
+
+    /** Emit a reason here to act as a store that found its provider unreachable. */
+    override val unreachable: MutableSharedFlow<String> = MutableSharedFlow(extraBufferCapacity = 8)
 
     override suspend fun list(): List<FileEntry> = mutex.withLock {
         files.entries

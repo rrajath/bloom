@@ -18,6 +18,8 @@ import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
+import com.rrajath.grove.vault.storage.StorageError
+import com.rrajath.grove.vault.storage.StorageOp
 import com.rrajath.grove.ui.editor.filterLinkSearch
 import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.CoroutineScope
@@ -523,6 +525,30 @@ class DocumentViewModelIntegrationTest {
         assertEquals("TODO", OrgParser.parse(after).headlines.first { it.title == "Groceries" }.keyword)
         val last = toasts.lastOrNull { it != null }?.message.orEmpty()
         assertTrue("the last message should be the conflict, was \"$last\"", last.contains("changed somewhere else"))
+    }
+
+    @Test
+    fun `a state change refused as offline puts the old state back on screen`() {
+        // The refusal reaches the app's storage-failure handler (a toast), which
+        // runTest reports after the body: assertion failures show up there too.
+        val outcome = runCatching {
+            runTest {
+                store.write("projects.org", "* TODO Groceries\n* TODO Other\n")
+                val vm = loaded("projects.org")
+                val toasts = mutableListOf<OutlineToast?>()
+                backgroundScope.launch { vm.toast.toList(toasts) }
+                store.failWith(StorageOp.Write, StorageError.Offline)
+
+                vm.setState(headline(vm, "Groceries"), "DONE")
+                advanceUntilIdle()
+
+                assertEquals("TODO", headline(vm, "Groceries").keyword)
+                assertTrue("no success message", toasts.none { it?.message?.startsWith("State") == true })
+                assertTrue("nothing reindexed for an edit that wasn't saved", sync.reindexCalls.isEmpty())
+            }
+        }.exceptionOrNull()
+        val storage = outcome?.let(::findStorageException)
+        assertTrue("expected only the offline refusal, got $outcome", outcome == null || storage?.error == StorageError.Offline)
     }
 
     @Test

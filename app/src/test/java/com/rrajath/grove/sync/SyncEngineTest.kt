@@ -449,4 +449,17 @@ class SyncEngineTest {
 
         assertEquals(marker, index.conflicts["sub/b.org"])
     }
+
+    @Test
+    fun `a refused save marks the engine Offline until the next sync`() = runTest {
+        File(tmp.root, "a.org").writeText("* One\n")
+        val e = engine()
+        e.sync()
+
+        e.markOffline("The provider didn't answer before a save")
+        assertEquals(SyncState.Offline("The provider didn't answer before a save"), e.state.value)
+
+        e.sync()
+        assertTrue(e.state.value is SyncState.Done)
+    }
 }
