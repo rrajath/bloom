@@ -1,6 +1,7 @@
 package com.rrajath.grove.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -81,7 +82,8 @@ data class NotebookEntity(
         Index("deadline"),
         Index("activeTimestamps"),
         // Back the vault-wide `[[id:…]]` / `[[#custom-id]]` link lookups so they
-        // probe an index instead of scanning every note row.
+        // probe an index instead of scanning every note row. The columns are
+        // NOCASE (see [NoteEntity.orgId]), so these indexes are too.
         Index("orgId"),
         Index("customId"),
     ],
@@ -107,7 +109,15 @@ data class NoteEntity(
      * its day(s); never becomes overdue.
      */
     val activeTimestamps: String?,
+    /**
+     * NOCASE, like [customId], so the search `id.` facet's case-insensitive
+     * `LIKE 'prefix%'` can use the index: SQLite only turns LIKE into an index
+     * range on a NOCASE column. Exact lookups that must stay case-sensitive
+     * add `AND col = :x COLLATE BINARY` (see [IndexDao.noteLocationByOrgId]).
+     */
+    @ColumnInfo(collate = ColumnInfo.NOCASE)
     val orgId: String?,
+    @ColumnInfo(collate = ColumnInfo.NOCASE)
     val customId: String?,
     val createdAt: String?,
     /** Own body text, in full, for full-text search and snippets. */
@@ -365,8 +375,12 @@ abstract class IndexDao {
     @Query("SELECT fileName, lineIndex, level, title, orgId FROM notes WHERE fileName IN (:files) AND lineIndex >= 0 ORDER BY fileName, lineIndex")
     abstract suspend fun headingOutlinesFor(files: List<String>): List<NoteOutlineRow>
 
-    /** Where a heading with this `:ID:` lives, for resolving `[[id:…]]` links vault-wide. */
-    @Query("SELECT fileName, lineIndex FROM notes WHERE orgId = :id LIMIT 1")
+    /**
+     * Where a heading with this `:ID:` lives, for resolving `[[id:…]]` links vault-wide.
+     * `orgId` is a NOCASE column: the first term probes its index, the BINARY
+     * one keeps the match case-sensitive. A BINARY term alone would scan.
+     */
+    @Query("SELECT fileName, lineIndex FROM notes WHERE orgId = :id AND orgId = :id COLLATE BINARY LIMIT 1")
     abstract suspend fun noteLocationByOrgId(id: String): NoteKey?
 
     /**
@@ -379,10 +393,11 @@ abstract class IndexDao {
     /**
      * Every (file, `:ID:`) pair among [ids], headings and file-level drawers
      * alike: which files share an attachment dir (attachments, experimental).
-     * Callers chunk [ids] under SQLite's bound-parameter limit.
+     * Callers chunk [ids] under SQLite's bound-parameter limit ([ids] binds
+     * three times). Case-sensitive on `notes` as in [noteLocationByOrgId].
      */
     @Query(
-        "SELECT fileName, orgId FROM notes WHERE orgId IN (:ids) " +
+        "SELECT fileName, orgId FROM notes WHERE orgId IN (:ids) AND orgId COLLATE BINARY IN (:ids) " +
             "UNION SELECT fileName, orgId FROM notebooks WHERE orgId IN (:ids)"
     )
     abstract suspend fun filesHoldingOrgIds(ids: List<String>): List<FileOrgId>
@@ -400,8 +415,12 @@ abstract class IndexDao {
     )
     abstract suspend fun attachOwners(): List<IndexedAttachOwner>
 
-    /** Where a heading with this `:CUSTOM_ID:` lives, for resolving `[[#id]]` links vault-wide. */
-    @Query("SELECT fileName, lineIndex FROM notes WHERE customId = :customId LIMIT 1")
+    /**
+     * Where a heading with this `:CUSTOM_ID:` lives, for resolving `[[#id]]` links
+     * vault-wide. Case-sensitive (`#Intro` and `#intro` are different targets)
+     * with an indexed probe, as in [noteLocationByOrgId].
+     */
+    @Query("SELECT fileName, lineIndex FROM notes WHERE customId = :customId AND customId = :customId COLLATE BINARY LIMIT 1")
     abstract suspend fun noteLocationByCustomId(customId: String): NoteKey?
 
     /**
@@ -670,6 +689,11 @@ interface ReminderDao {
         NotebookEntity::class, NoteEntity::class, FtsMapEntity::class,
         SyncLogEntity::class, ReminderEntity::class,
     ],
+    // v20: NoteEntity.orgId / customId are COLLATE NOCASE (and so their indexes),
+    // so the search `id.` facet's case-insensitive LIKE prefix probes the index
+    // instead of scanning every note. Exact ID lookups stay case-sensitive via a
+    // COLLATE BINARY term. Destructive migration drops the rebuildable index;
+    // the next sync repopulates it from the .org files, no file data touched.
     // v19: added NoteEntity.dirProperty / NotebookEntity.dirProperty (a heading's
     // or file's `:DIR:`, so the attach sheet's Vault scope lists `:DIR:` owners in
     // other files and resolves them by `:DIR:` before `:ID:`). Destructive
@@ -726,7 +750,7 @@ interface ReminderDao {
     // v5: added NotebookEntity.isIndexed (stub vs fully-parsed notebook rows);
     // v4: added NotebookEntity.title (cached #+TITLE: preamble value). Destructive
     // migration drops the index so the next sync rebuilds it from the .org files.
-    version = 19,
+    version = 20,
     exportSchema = false,
 )
 abstract class GroveDatabase : RoomDatabase() {

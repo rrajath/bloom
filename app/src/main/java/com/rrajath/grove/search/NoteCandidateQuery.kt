@@ -187,7 +187,8 @@ object NoteCandidateQuery {
         is Condition.Created -> dateCondition("createdAt", condition.period)
 
         // SQLite's LIKE folds ASCII case only, matching the matcher's
-        // case-insensitive prefix test exactly for ASCII prefixes.
+        // case-insensitive prefix test exactly for ASCII prefixes. Both columns
+        // are NOCASE, so each LIKE becomes an index range (IdFacetIndexTest).
         is Condition.Id ->
             if (condition.isNone) "(orgId IS NULL AND customId IS NULL)" to emptyList()
             else condition.prefix.ifAscii {
