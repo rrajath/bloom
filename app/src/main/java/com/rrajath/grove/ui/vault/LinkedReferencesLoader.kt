@@ -2,6 +2,11 @@ package com.rrajath.grove.ui.vault
 
 import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.data.GroveDatabase
+import com.rrajath.grove.data.IndexDao
+import com.rrajath.grove.data.NoteEntity
+import com.rrajath.grove.data.NotesFts
+import com.rrajath.grove.data.rawQuery
+import com.rrajath.grove.search.FtsQuery
 import com.rrajath.grove.settings.SettingsSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -13,6 +18,32 @@ import kotlinx.coroutines.withContext
 
 /** SQLite's host-parameter limit is 999 on older Android; stay well under it. */
 private const val OUTLINE_QUERY_CHUNK = 500
+
+/**
+ * Candidate notes whose body contains [text] (case-insensitive), for the
+ * Linked (`id:…`) and Unlinked (title) halves of Backlinks. A superset only:
+ * [computeLinkedReferences] decides every hit.
+ *
+ * Probes the [NotesFts] trigram index, so a note open costs about a
+ * millisecond instead of a `LIKE` scan of every body in the vault. The index
+ * also folds non-ASCII case (`Über`/`über`), which `LIKE` doesn't, so it
+ * returns at least every row the scan did. Falls back to the scan when [text]
+ * is under three characters (no trigram to look up) or FTS5 is unavailable.
+ */
+internal suspend fun IndexDao.notesWithBodyText(text: String): List<NoteEntity> {
+    val match = if (ftsAvailable) FtsQuery.bodyContains(text) else null
+    return if (match != null) {
+        notesMatching(
+            rawQuery(
+                "SELECT * FROM notes WHERE (fileName, lineIndex) IN " +
+                    "(SELECT fileName, lineIndex FROM ${NotesFts.TABLE} WHERE ${NotesFts.TABLE} MATCH ?)",
+                listOf(match),
+            ),
+        )
+    } else {
+        notesWithBodyContaining(escapeLikeNeedle(text))
+    }
+}
 
 /**
  * Backlinks/mentions for the Backlinks bar+sheet, shared by
@@ -39,8 +70,8 @@ class LinkedReferencesLoader(
     fun load(fileName: String, lineIndex: Int, targetId: String?, title: String) {
         job?.cancel()
         job = scope.launch {
-            // A vault-wide body scan that only the Backlinks bar uses: skip it
-            // entirely while that bar can't show.
+            // Vault-wide body lookups that only the Backlinks bar uses: skip
+            // them entirely while that bar can't show.
             if (!settings.settings.first().roamBacklinksActive) {
                 _result.value = LinkedReferencesResult.EMPTY
                 return@launch
@@ -48,11 +79,11 @@ class LinkedReferencesLoader(
             _result.value = withContext(dispatchers.default) {
                 val dao = database.indexDao()
                 val linkCandidates = targetId
-                    ?.let { dao.notesWithBodyContaining(escapeLikeNeedle("id:$it")) }
+                    ?.let { dao.notesWithBodyText("id:$it") }
                     .orEmpty()
                 val mentionCandidates = title
                     .takeIf { it.isNotBlank() }
-                    ?.let { dao.notesWithBodyContaining(escapeLikeNeedle(it)) }
+                    ?.let { dao.notesWithBodyText(it) }
                     .orEmpty()
                 val bare = computeLinkedReferences(
                     targetId, title, fileName to lineIndex, linkCandidates, mentionCandidates, emptyMap(),

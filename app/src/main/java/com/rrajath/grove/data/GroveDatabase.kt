@@ -425,12 +425,11 @@ abstract class IndexDao {
 
     /**
      * Every note whose own body text contains [needle] as a literal substring
-     * (case-insensitive) -- the candidate set the Backlinks sheet
-     * scans for `[[id:…]]` backlinks and plain-text title mentions. LIKE
-     * rather than an FTS `MATCH`: a needle like `id:AB12` or a short title
-     * isn't a safe FTS token, and the `notes` table is small enough (a
-     * personal vault, not a corpus) for the scan to be cheap. [needle] must
-     * already have `%`/`_`/`\` escaped by the caller (see `escapeLikeNeedle`).
+     * (ASCII case-insensitive), by scanning every body. Only the fallback for
+     * Backlinks' `notesWithBodyText` (`ui/vault/LinkedReferencesLoader.kt`),
+     * which uses the FTS trigram index instead whenever the needle has at least
+     * three characters and FTS5 is available. [needle] must already have
+     * `%`/`_`/`\` escaped by the caller (see `escapeLikeNeedle`).
      */
     @Query("SELECT * FROM notes WHERE body LIKE '%' || :needle || '%' ESCAPE '\\'")
     abstract suspend fun notesWithBodyContaining(needle: String): List<NoteEntity>

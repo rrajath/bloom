@@ -53,6 +53,13 @@ object FtsQuery {
     private fun String.isSearchable(): Boolean = codePointCount(0, length) >= MIN_TERM_CHARS
 
     /**
+     * A MATCH expression for notes whose `body` contains [text] as a substring,
+     * case-insensitively (the tokenizer folds Unicode case, not just ASCII).
+     * Null when [text] is too short for the trigram index ([MIN_TERM_CHARS]).
+     */
+    fun bodyContains(text: String): String? = if (text.isSearchable()) "body : ${quote(text)}" else null
+
+    /**
      * Wraps a term as an FTS5 string literal so that operators the user typed
      * (`AND`, `*`, `^`, `-`, quotes, parentheses) are matched as text instead of
      * being parsed as query syntax. Against the trigram tokenizer a quoted
