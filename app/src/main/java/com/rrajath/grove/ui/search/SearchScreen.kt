@@ -115,6 +115,18 @@ import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.style.TextOverflow
+import com.rrajath.grove.ui.components.FlyUpPositionProvider
 
 private val OPERATOR_CHIPS = listOf(
     "t.TAG", "i.STATE", "s.PERIOD", "d.PERIOD", "a.PERIOD", "c.PERIOD", "cr.PERIOD", "b.NOTEBOOK", "p.PRIORITY",
@@ -1322,6 +1334,17 @@ private fun FilterPanel(
     // panel is freshly opened since it's recomposed from scratch each time.
     var visibleNotebooks by remember(catalog.notebooks) { mutableIntStateOf(minOf(10, catalog.notebooks.size)) }
     var visibleTags by remember(catalog.tags) { mutableIntStateOf(minOf(10, catalog.tags.size)) }
+    // Past TYPEAHEAD_THRESHOLD a section swaps its chip list for a type-to-pick
+    // field. Chips picked that way stick for this sheet session even once tapped
+    // back to neutral, so a filter can be re-applied without retyping it.
+    val notebookTypeahead = useFacetTypeahead(catalog.notebooks.size)
+    val tagTypeahead = useFacetTypeahead(catalog.tags.size)
+    val pickedNotebooks = remember {
+        mutableStateListOf<String>().apply { addAll((filters.notebooks + filters.excludedNotebooks).sorted()) }
+    }
+    val pickedTags = remember {
+        mutableStateListOf<String>().apply { addAll((filters.tags + filters.excludedTags).sorted()) }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = c.surface,
@@ -1364,7 +1387,29 @@ private fun FilterPanel(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
             ) {
-                FilterSection("Notebook", negatable = true) {
+                if (notebookTypeahead) FilterSection("Notebook", negatable = true) {
+                    val shown = shownFacetChips(pickedNotebooks, filters.notebooks + filters.excludedNotebooks)
+                    FacetTypeaheadField(
+                        label = "Enter filename:",
+                        pool = catalog.notebooks,
+                        exclude = shown.toSet(),
+                        display = { it },
+                        testTag = "filter_notebook_field",
+                    ) { nb ->
+                        if (nb !in pickedNotebooks) pickedNotebooks += nb
+                        onToggleNotebook(nb)
+                    }
+                    PanelChip("All notebooks", filters.notebooks.isEmpty() && filters.excludedNotebooks.isEmpty()) {
+                        onClearNotebooks()
+                    }
+                    shown.forEach { nb ->
+                        val st = facetState(nb, filters.notebooks, filters.excludedNotebooks)
+                        PanelChip(nb, included = st == FacetState.INCLUDED, excluded = st == FacetState.EXCLUDED) {
+                            if (nb !in pickedNotebooks) pickedNotebooks += nb
+                            onToggleNotebook(nb)
+                        }
+                    }
+                } else FilterSection("Notebook", negatable = true) {
                     PanelChip("All notebooks", filters.notebooks.isEmpty() && filters.excludedNotebooks.isEmpty()) {
                         onClearNotebooks()
                     }
@@ -1380,7 +1425,28 @@ private fun FilterPanel(
                         }
                     }
                 }
-                if (catalog.tags.isNotEmpty()) {
+                if (tagTypeahead) {
+                    FilterSection("Tags", negatable = true) {
+                        val shown = shownFacetChips(pickedTags, filters.tags + filters.excludedTags)
+                        FacetTypeaheadField(
+                            label = "Enter tag:",
+                            pool = catalog.tags,
+                            exclude = shown.toSet(),
+                            display = { ":$it:" },
+                            testTag = "filter_tag_field",
+                        ) { tag ->
+                            if (tag !in pickedTags) pickedTags += tag
+                            onToggleTag(tag)
+                        }
+                        shown.forEach { tag ->
+                            val st = facetState(tag, filters.tags, filters.excludedTags)
+                            PanelChip(":$tag:", included = st == FacetState.INCLUDED, excluded = st == FacetState.EXCLUDED) {
+                                if (tag !in pickedTags) pickedTags += tag
+                                onToggleTag(tag)
+                            }
+                        }
+                    }
+                } else if (catalog.tags.isNotEmpty()) {
                     FilterSection("Tags", negatable = true) {
                         catalog.tags.take(visibleTags).forEach { tag ->
                             val st = facetState(tag, filters.tags, filters.excludedTags)
@@ -1574,6 +1640,111 @@ private fun PanelChip(label: String, included: Boolean, excluded: Boolean = fals
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
             color = fg,
         )
+    }
+}
+
+/**
+ * Typeahead row for a filter section too big to list (see [useFacetTypeahead]):
+ * an inline "[label] [field]" row taking a full FlowRow line. Typing opens a
+ * fly-up list of [facetSuggestions] above the field (never over it, and clear of
+ * the IME below); picking one calls [onPick] and clears the field so the next
+ * pick can follow. IME Done picks the top suggestion.
+ */
+@Composable
+private fun FacetTypeaheadField(
+    label: String,
+    pool: List<String>,
+    exclude: Set<String>,
+    display: (String) -> String,
+    testTag: String,
+    onPick: (String) -> Unit,
+) {
+    val c = MaterialTheme.grove
+    var query by remember { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
+    // Separate from focus: the non-focusable popup sees taps on the IME (another
+    // window) as outside touches and dismisses itself, so each keystroke must
+    // reopen it or the list vanishes after the first character.
+    var menuOpen by remember { mutableStateOf(false) }
+    var fieldWidthPx by remember { mutableIntStateOf(0) }
+    val suggestions = remember(query, pool, exclude) { facetSuggestions(pool, query, exclude) }
+    fun pick(name: String) {
+        onPick(name)
+        query = ""
+    }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2)
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.weight(1f).onSizeChanged { fieldWidthPx = it.width }) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(c.surface)
+                    .border(1.dp, if (focused) c.accent else c.line, RoundedCornerShape(9.dp))
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it; menuOpen = true },
+                    singleLine = true,
+                    textStyle = TextStyle(fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink),
+                    cursorBrush = SolidColor(c.accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { suggestions.firstOrNull()?.let(::pick) }),
+                    modifier = Modifier
+                        .weight(1f)
+                        .onFocusChanged { focused = it.isFocused; menuOpen = it.isFocused }
+                        .testTag(testTag),
+                )
+                if (query.isNotEmpty()) {
+                    Text(
+                        "×", fontFamily = PlexMono, fontSize = 15.sp, color = c.ink3,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { query = "" }
+                            .padding(4.dp),
+                    )
+                }
+            }
+            if (focused && menuOpen && suggestions.isNotEmpty()) {
+                val density = LocalDensity.current
+                val gapPx = with(density) { 6.dp.roundToPx() }
+                Popup(
+                    popupPositionProvider = remember(gapPx) { FlyUpPositionProvider(gapPx) },
+                    onDismissRequest = { menuOpen = false },
+                    // Non-focusable so typed characters keep reaching the field.
+                    properties = PopupProperties(focusable = false),
+                ) {
+                    Column(
+                        Modifier
+                            .width(with(density) { fieldWidthPx.toDp() })
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(c.surface2)
+                            .border(1.dp, c.line, RoundedCornerShape(12.dp))
+                            .heightIn(max = 240.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                    ) {
+                        suggestions.forEach { name ->
+                            Text(
+                                display(name),
+                                fontFamily = PlexSans, fontSize = 13.sp, color = c.ink,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { pick(name) }
+                                    .padding(horizontal = 8.dp, vertical = 9.dp)
+                                    .testTag("${testTag}_suggestion"),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

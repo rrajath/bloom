@@ -44,14 +44,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
@@ -61,6 +56,7 @@ import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.components.orgInlinePlainText
 import com.rrajath.grove.ui.screens.NoteDialog
+import com.rrajath.grove.ui.components.FlyUpPositionProvider
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -427,27 +423,6 @@ fun MetadataSheet(
                 noteDialogOpen = false
             },
         )
-    }
-}
-
-/**
- * Positions a popup so its bottom edge sits [gapPx] above the anchor, left edges
- * aligned. Opens downward instead only when there isn't room above (the field is
- * near the top of the screen). Keeps the tag suggestion list clear of the IME,
- * which docks directly under the focused text field.
- */
-private class FlyUpPositionProvider(private val gapPx: Int) : PopupPositionProvider {
-    override fun calculatePosition(
-        anchorBounds: IntRect,
-        windowSize: IntSize,
-        layoutDirection: LayoutDirection,
-        popupContentSize: IntSize,
-    ): IntOffset {
-        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
-        val x = anchorBounds.left.coerceIn(0, maxX)
-        val above = anchorBounds.top - popupContentSize.height - gapPx
-        val y = if (above >= 0) above else anchorBounds.bottom + gapPx
-        return IntOffset(x, y)
     }
 }
 

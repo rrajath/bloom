@@ -67,6 +67,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Changed
 - Settings › Sharing's target is now a file-or-heading picker with search; your existing file is kept.
+- Search filters: with 40+ notebooks or tags, type a name and pick it from suggestions instead of paging chips.
 
 ## [1.15.0] - 2026-11-14
 
