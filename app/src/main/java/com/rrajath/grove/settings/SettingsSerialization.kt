@@ -167,6 +167,7 @@ data class SettingsExport(
     val agendaShowFile: Boolean = false,
     val agendaShowTimestamps: Boolean = false,
     val agendaDeadlineWarningDays: Int = GroveSettings.DEFAULT_AGENDA_DEADLINE_WARNING_DAYS,
+    val weekStart: String = WeekStart.SYSTEM.storageKey,
     val agendaWidgetTransparency: Float = 0f,
     val agendaWidgetDaysAhead: Int = GroveSettings.DEFAULT_AGENDA_WIDGET_DAYS_AHEAD,
     val agendaWidgetShowFileName: Boolean = false,
@@ -261,6 +262,7 @@ data class SettingsExport(
         agendaShowFile = agendaShowFile,
         agendaShowTimestamps = agendaShowTimestamps,
         agendaDeadlineWarningDays = agendaDeadlineWarningDays.coerceIn(0, GroveSettings.MAX_AGENDA_DEADLINE_WARNING_DAYS),
+        weekStart = WeekStart.fromStorage(weekStart),
         agendaWidgetTransparency = agendaWidgetTransparency.coerceIn(0f, 1f),
         agendaWidgetDaysAhead = agendaWidgetDaysAhead.coerceAtLeast(2),
         agendaWidgetShowFileName = agendaWidgetShowFileName,
@@ -330,7 +332,9 @@ data class SettingsExport(
         // v17: added the captureTemplates, favorites and savedSearches sections (Quick
         // Start card overrides live in savedSearches). Additive: older exports omit them
         // and import leaves those lists untouched; present ones replace the device's.
-        const val CURRENT_VERSION = 17
+        // v18: added weekStart (Settings § Agenda). Additive: older exports omit
+        // it and import as System default; an unknown value also imports as that.
+        const val CURRENT_VERSION = 18
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,
@@ -389,6 +393,7 @@ data class SettingsExport(
             agendaShowFile = s.agendaShowFile,
             agendaShowTimestamps = s.agendaShowTimestamps,
             agendaDeadlineWarningDays = s.agendaDeadlineWarningDays,
+            weekStart = s.weekStart.storageKey,
             agendaWidgetTransparency = s.agendaWidgetTransparency,
             agendaWidgetDaysAhead = s.agendaWidgetDaysAhead,
             agendaWidgetShowFileName = s.agendaWidgetShowFileName,

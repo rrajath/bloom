@@ -68,6 +68,9 @@ object NewAnchors {
     /** The "Deadline warning" row inside Settings § Agenda. */
     const val SETTINGS_AGENDA_DEADLINE_WARNING = "settings.agenda.deadlineWarning"
 
+    /** The "Start of week" row inside Settings § Agenda. */
+    const val SETTINGS_AGENDA_WEEK_START = "settings.agenda.weekStart"
+
     /** The Settings hub row leading to the Reminders page. */
     const val SETTINGS_REMINDERS = "settings.reminders"
 
@@ -569,5 +572,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE,
         ),
         destination = NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE,
+    ),
+    NewFeature(
+        // Settings § Agenda gained a "Start of week" row (System default,
+        // Sunday or Monday) for every month calendar. `since` is the versionCode
+        // of the release that ships it: bump it to match `gradle.properties`
+        // versionName when cutting the release.
+        id = "agenda-week-start",
+        since = 11600,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_AGENDA,
+            NewAnchors.SETTINGS_AGENDA_WEEK_START,
+        ),
+        destination = NewAnchors.SETTINGS_AGENDA_WEEK_START,
     ),
 )

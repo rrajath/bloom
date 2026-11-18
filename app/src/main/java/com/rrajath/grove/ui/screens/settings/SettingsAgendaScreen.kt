@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -14,12 +15,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.settings.AgendaSwipeAction
 import com.rrajath.grove.settings.GroveSettings
+import com.rrajath.grove.settings.WeekStart
 import com.rrajath.grove.ui.components.DropdownPicker
+import com.rrajath.grove.ui.components.systemFirstDayOfWeek
 import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import java.time.DayOfWeek
+import java.time.format.TextStyle
+import java.util.Locale
 
 /**
  * Only these two are offered from the swipe-action pickers below; [AgendaSwipeAction.SET_DEADLINE]
@@ -35,11 +41,14 @@ fun SettingsAgendaScreen(
     onSetAgendaSwipeLeftAction: (AgendaSwipeAction) -> Unit,
     onSetAgendaSwipeRightAction: (AgendaSwipeAction) -> Unit,
     onSetAgendaDeadlineWarningDays: (Int) -> Unit,
+    onSetWeekStart: (WeekStart) -> Unit,
 ) {
     val c = MaterialTheme.grove
     // Leaving this screen retires the Deadline warning's NEW dot from its whole
     // trail (menu glyph, drawer, Settings hub row, the row itself).
     MarkNewFeatureSeen(NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING)
+    MarkNewFeatureSeen(NewAnchors.SETTINGS_AGENDA_WEEK_START)
+    val systemFirstDay = remember { systemFirstDayOfWeek() }
     SettingsPageScaffold(title = "Agenda", onBack = onBack) {
         SettingsGroup {
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
@@ -105,6 +114,39 @@ fun SettingsAgendaScreen(
                 }
                 IntSettingField(settings.agendaDeadlineWarningDays, minValue = 0, onSet = onSetAgendaDeadlineWarningDays)
             }
+            RowDivider()
+            Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+                Row(
+                    Modifier.padding(bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Start of week",
+                        fontFamily = PlexSans, fontWeight = FontWeight.Medium,
+                        fontSize = 14.5.sp, color = c.ink,
+                    )
+                    NewDot(NewAnchors.SETTINGS_AGENDA_WEEK_START, Modifier.padding(start = 8.dp))
+                }
+                Text(
+                    "The first column of every calendar. System default follows your device's region.",
+                    fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
+                DropdownPicker(
+                    options = WeekStart.entries.map { weekStartLabel(it, systemFirstDay) },
+                    selectedIndex = WeekStart.entries.indexOf(settings.weekStart),
+                    onSelect = { onSetWeekStart(WeekStart.entries[it]) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
+
+/** "System default (Monday)" names the day the device region resolves to. */
+private fun weekStartLabel(weekStart: WeekStart, systemFirstDay: DayOfWeek): String =
+    if (weekStart == WeekStart.SYSTEM) {
+        "${weekStart.label} (${systemFirstDay.getDisplayName(TextStyle.FULL, Locale.ENGLISH)})"
+    } else {
+        weekStart.label
+    }

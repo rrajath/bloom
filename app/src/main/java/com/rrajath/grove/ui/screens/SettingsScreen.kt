@@ -94,7 +94,7 @@ fun SettingsScreen(
         ),
         SettingsPage(
             "Agenda",
-            "Swipe actions on agenda rows, deadline warnings",
+            "Swipe actions, deadline warnings, start of week",
             onOpenAgenda,
             badge = { NewDot(NewAnchors.SETTINGS_AGENDA) },
         ),

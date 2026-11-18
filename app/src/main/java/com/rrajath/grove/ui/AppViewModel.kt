@@ -21,6 +21,7 @@ import com.rrajath.grove.search.SearchRepository
 import com.rrajath.grove.settings.AgendaSwipeAction
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.GroveSettings
+import com.rrajath.grove.settings.WeekStart
 import com.rrajath.grove.settings.NoteOpenMode
 import com.rrajath.grove.settings.NotebookDisplayNameMode
 import com.rrajath.grove.settings.OutlineToggle
@@ -607,6 +608,9 @@ class AppViewModel(
 
     fun setAgendaDeadlineWarningDays(days: Int) =
         viewModelScope.launch { settingsRepository.setAgendaDeadlineWarningDays(days) }
+
+    fun setWeekStart(weekStart: WeekStart) =
+        viewModelScope.launch { settingsRepository.setWeekStart(weekStart) }
 
     fun setAgendaWidgetDaysAhead(days: Int) =
         viewModelScope.launch { settingsRepository.setAgendaWidgetDaysAhead(days) }

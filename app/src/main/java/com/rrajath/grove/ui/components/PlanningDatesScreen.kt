@@ -103,6 +103,7 @@ import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.org.orgLocale
+import com.rrajath.grove.settings.WeekStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -195,6 +196,7 @@ fun PlanningDatesScreen(
     // scheduling calendar) with a small dot, distinct from this note's own dates.
     val app = LocalContext.current.applicationContext as GroveApplication
     val plannedDates by remember(app) { plannedDatesFlow(app) }.collectAsState(initial = emptySet())
+    val firstDay = rememberFirstDayOfWeek()
 
     var sched by remember { mutableStateOf(scheduled) }
     var dead by remember { mutableStateOf(deadline) }
@@ -497,6 +499,7 @@ fun PlanningDatesScreen(
                         accentSoft = accentSoft,
                         secondaryMarks = secondaryMarks,
                         plannedDates = plannedDates,
+                        firstDay = firstDay,
                         rangeEnabled = isActiveTab,
                         onPrev = { month = month.minusMonths(1) },
                         onNext = { month = month.plusMonths(1) },
@@ -721,6 +724,7 @@ fun InsertTimestampScreen(
 
     val app = LocalContext.current.applicationContext as GroveApplication
     val plannedDates by remember(app) { plannedDatesFlow(app) }.collectAsState(initial = emptySet())
+    val firstDay = rememberFirstDayOfWeek()
 
     fun tapDay(day: LocalDate) {
         ts = ts.copy(date = day, rangeEnd = null)
@@ -789,6 +793,7 @@ fun InsertTimestampScreen(
                         accentSoft = accentSoft,
                         secondaryMarks = emptyMap(),
                         plannedDates = plannedDates,
+                        firstDay = firstDay,
                         rangeEnabled = false,
                         onPrev = { month = month.minusMonths(1) },
                         onNext = { month = month.plusMonths(1) },
@@ -889,6 +894,7 @@ private fun AccentCalendar(
     accentSoft: Color,
     secondaryMarks: Map<LocalDate, Color>,
     plannedDates: Set<LocalDate>,
+    firstDay: java.time.DayOfWeek,
     rangeEnabled: Boolean,
     onPrev: () -> Unit,
     onNext: () -> Unit,
@@ -898,8 +904,8 @@ private fun AccentCalendar(
     val c = MaterialTheme.grove
     val density = LocalDensity.current
 
-    // Sunday-first grid: DayOfWeek.value is Mon=1..Sun=7, so % 7 puts Sunday at 0.
-    val leading = month.atDay(1).dayOfWeek.value % 7
+    // Columns start at [firstDay] (Settings § Agenda "Start of week").
+    val leading = WeekStart.leadingBlanks(month.atDay(1).dayOfWeek, firstDay)
     val len = month.lengthOfMonth()
     val weeks = (leading + len + 6) / 7
     val cellHeightPx = with(density) { 38.dp.toPx() }
@@ -956,8 +962,8 @@ private fun AccentCalendar(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            // Sunday-first, matching the grid below; letters in the device language.
-            (listOf(java.time.DayOfWeek.SUNDAY) + java.time.DayOfWeek.entries.dropLast(1)).forEach { dow ->
+            // Same column order as the grid below; letters in the device language.
+            WeekStart.weekdays(firstDay).forEach { dow ->
                 val d = dow.getDisplayName(java.time.format.TextStyle.NARROW_STANDALONE, orgLocale())
                 Text(
                     d,
@@ -972,11 +978,11 @@ private fun AccentCalendar(
             Modifier
                 .fillMaxWidth()
                 .onSizeChanged { gridSize = it }
-                .pointerInput(month, entries, selectedIndex) {
+                .pointerInput(month, entries, selectedIndex, firstDay) {
                     detectTapGestures { pos -> dayAt(pos)?.let(onTapDay) }
                 }
                 .then(
-                    if (rangeEnabled) Modifier.pointerInput(month, entries) {
+                    if (rangeEnabled) Modifier.pointerInput(month, entries, firstDay) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { pos -> dayAt(pos)?.let { dragFrom = it; dragTo = it } },
                             onDrag = { change, _ ->

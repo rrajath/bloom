@@ -312,6 +312,38 @@ object AttachAutoTag {
     fun sanitize(raw: String?): String = raw?.let(::normalize) ?: DEFAULT
 }
 
+/**
+ * First column of every month calendar (Settings § Agenda "Start of week").
+ * [SYSTEM] follows the device region, so it can resolve to a day other than
+ * Sunday or Monday (e.g. Saturday). Display only: org repeaters, ISO week
+ * datetrees and the "next week" shorthand never read it.
+ */
+enum class WeekStart(val storageKey: String, val label: String) {
+    SYSTEM("system", "System default"),
+    SUNDAY("sunday", "Sunday"),
+    MONDAY("monday", "Monday");
+
+    /** The concrete first day, given the device region's own first day for [SYSTEM]. */
+    fun resolve(systemFirstDay: java.time.DayOfWeek): java.time.DayOfWeek = when (this) {
+        SYSTEM -> systemFirstDay
+        SUNDAY -> java.time.DayOfWeek.SUNDAY
+        MONDAY -> java.time.DayOfWeek.MONDAY
+    }
+
+    companion object {
+        fun fromStorage(value: String?): WeekStart =
+            entries.firstOrNull { it.storageKey == value } ?: SYSTEM
+
+        /** Blank cells before day 1 of a month whose 1st falls on [firstOfMonth]. */
+        fun leadingBlanks(firstOfMonth: java.time.DayOfWeek, firstDay: java.time.DayOfWeek): Int =
+            (firstOfMonth.value - firstDay.value + 7) % 7
+
+        /** The seven weekdays in column order, starting at [firstDay]. */
+        fun weekdays(firstDay: java.time.DayOfWeek): List<java.time.DayOfWeek> =
+            List(7) { firstDay.plus(it.toLong()) }
+    }
+}
+
 /** Agenda row swipe gesture (either direction), Settings § Agenda. */
 enum class AgendaSwipeAction(val storageKey: String, val label: String) {
     SET_SCHEDULED("set_scheduled", "Schedule Task"),

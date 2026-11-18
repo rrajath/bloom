@@ -32,6 +32,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.settings.WeekStart
+import com.rrajath.grove.ui.components.rememberFirstDayOfWeek
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.org.LocalDates
@@ -49,6 +51,7 @@ fun DailyDatePickerSheet(
     val c = MaterialTheme.grove
     var month by remember { mutableStateOf(YearMonth.from(initialMonth)) }
     val today = LocalDate.now()
+    val firstDay = rememberFirstDayOfWeek()
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surface) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -65,7 +68,8 @@ fun DailyDatePickerSheet(
                 MonthArrow("›", "Next month") { month = month.plusMonths(1) }
             }
             val firstOfMonth = month.atDay(1)
-            val leadingBlanks = (firstOfMonth.dayOfWeek.value + 6) % 7 // Monday-first grid, per the mockup
+            // Columns start at Settings § Agenda "Start of week".
+            val leadingBlanks = WeekStart.leadingBlanks(firstOfMonth.dayOfWeek, firstDay)
             val days = (1..month.lengthOfMonth()).map { month.atDay(it) }
             // Always six rows (the most any month needs), so the sheet keeps one height
             // as the user pages between months.

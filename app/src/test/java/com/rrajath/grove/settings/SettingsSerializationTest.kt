@@ -62,6 +62,7 @@ class SettingsSerializationTest {
         agendaStateFilterToday = AgendaStateFilter.Keyword("NEXT"),
         agendaStateFilterUpcoming = AgendaStateFilter.All,
         agendaWidgetTransparency = 0.35f,
+        weekStart = WeekStart.MONDAY,
         agendaWidgetDaysAhead = 21,
         agendaWidgetShowFileName = true,
         agendaWidgetShowTags = false,
@@ -103,6 +104,7 @@ class SettingsSerializationTest {
         assertEquals(sample.syncMode, restored.syncMode)
         assertEquals(sample.periodicSyncMinutes, restored.periodicSyncMinutes)
         assertEquals(sample.todoKeywords, restored.todoKeywords)
+        assertEquals(sample.weekStart, restored.weekStart)
         assertEquals(sample.ignoreList, restored.ignoreList)
         assertEquals(sample.defaultPriority, restored.defaultPriority)
         assertEquals(sample.addIdToNewNotes, restored.addIdToNewNotes)
@@ -290,6 +292,12 @@ class SettingsSerializationTest {
         )
         assertEquals("", restored.shareTargetHeadingPath)
         assertEquals(NotePlacement.BOTTOM, restored.shareInsertPlacement)
+    }
+
+    @Test
+    fun `a v17 export without weekStart, or an unknown one, imports as system default`() {
+        assertEquals(WeekStart.SYSTEM, SettingsSerialization.import("{}", GroveSettings(weekStart = WeekStart.SUNDAY)).weekStart)
+        assertEquals(WeekStart.SYSTEM, SettingsSerialization.import("""{"weekStart":"friday"}""", GroveSettings()).weekStart)
     }
 
     @Test

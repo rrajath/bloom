@@ -1,5 +1,7 @@
 package com.rrajath.grove.settings
 
+import java.time.DayOfWeek
+import java.time.YearMonth
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -132,5 +134,48 @@ class PreferencesTest {
         }
         assertEquals(NewNoteCursor.BODY, NewNoteCursor.fromStorage(null))
         assertEquals(NewNoteCursor.BODY, NewNoteCursor.fromStorage("footer"))
+    }
+
+    @Test
+    fun `week start round-trips and defaults to system`() {
+        for (pref in WeekStart.entries) {
+            assertEquals(pref, WeekStart.fromStorage(pref.storageKey))
+        }
+        assertEquals(WeekStart.SYSTEM, WeekStart.fromStorage(null))
+        assertEquals(WeekStart.SYSTEM, WeekStart.fromStorage("friday"))
+    }
+
+    @Test
+    fun `week start resolves system to the region's day and fixed choices to themselves`() {
+        assertEquals(DayOfWeek.SATURDAY, WeekStart.SYSTEM.resolve(DayOfWeek.SATURDAY))
+        assertEquals(DayOfWeek.SUNDAY, WeekStart.SUNDAY.resolve(DayOfWeek.MONDAY))
+        assertEquals(DayOfWeek.MONDAY, WeekStart.MONDAY.resolve(DayOfWeek.SUNDAY))
+    }
+
+    @Test
+    fun `weekdays start at the first day and wrap`() {
+        assertEquals(
+            listOf(DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY),
+            WeekStart.weekdays(DayOfWeek.SUNDAY),
+        )
+        assertEquals(DayOfWeek.MONDAY, WeekStart.weekdays(DayOfWeek.MONDAY).first())
+        assertEquals(DayOfWeek.SUNDAY, WeekStart.weekdays(DayOfWeek.MONDAY).last())
+    }
+
+    @Test
+    fun `leading blanks put day 1 under its own weekday column`() {
+        // November 2026 starts on a Sunday; June 2026 on a Monday.
+        val nov = YearMonth.of(2026, 11).atDay(1).dayOfWeek
+        val jun = YearMonth.of(2026, 6).atDay(1).dayOfWeek
+        assertEquals(0, WeekStart.leadingBlanks(nov, DayOfWeek.SUNDAY))
+        assertEquals(6, WeekStart.leadingBlanks(nov, DayOfWeek.MONDAY))
+        assertEquals(1, WeekStart.leadingBlanks(jun, DayOfWeek.SUNDAY))
+        assertEquals(0, WeekStart.leadingBlanks(jun, DayOfWeek.MONDAY))
+        // Every month/first-day pair: the column of day 1 names its weekday.
+        for (first in DayOfWeek.entries) for (m in 1..12) {
+            val dow = YearMonth.of(2026, m).atDay(1).dayOfWeek
+            assertEquals(dow, WeekStart.weekdays(first)[WeekStart.leadingBlanks(dow, first)])
+        }
     }
 }
