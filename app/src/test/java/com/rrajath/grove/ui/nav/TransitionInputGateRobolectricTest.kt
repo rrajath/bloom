@@ -9,6 +9,10 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.SideEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
@@ -75,6 +79,33 @@ class TransitionInputGateRobolectricTest {
         composeRule.waitForIdle()
 
         assertEquals(listOf("home"), stack())
+    }
+
+    @Test
+    fun `lifecycle steps recompose the overlay, not the screen content`() {
+        // LifecycleRegistry holds its owner weakly; keep a strong reference for the test.
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry.createUnsafe(this)
+            override val lifecycle: Lifecycle get() = registry
+        }
+        val lifecycle = owner.registry
+        lifecycle.currentState = Lifecycle.State.CREATED
+        var contentCompositions = 0
+        composeRule.setContent {
+            TransitionInputGate(lifecycle) {
+                SideEffect { contentCompositions++ }
+                Text("content")
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(1, contentCompositions)
+
+        for (step in listOf(Lifecycle.State.STARTED, Lifecycle.State.RESUMED, Lifecycle.State.STARTED, Lifecycle.State.CREATED)) {
+            composeRule.runOnIdle { lifecycle.currentState = step }
+            composeRule.waitForIdle()
+        }
+
+        assertEquals(1, contentCompositions)
     }
 
     @Test

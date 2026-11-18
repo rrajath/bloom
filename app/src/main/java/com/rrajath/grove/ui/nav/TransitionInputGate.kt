@@ -2,6 +2,7 @@ package com.rrajath.grove.ui.nav
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -42,22 +43,31 @@ fun NavGraphBuilder.screen(
  * it once the transition settles, so this blocks input on both screens for the
  * length of a transition and never otherwise. Rendering and accessibility are
  * untouched; only pointer input is intercepted, by an overlay above the content.
+ *
+ * The lifecycle is read only inside [InputBlocker], a sibling restart scope, so
+ * each lifecycle step during a transition recomposes the overlay and never re-runs
+ * the screen's [content].
  */
 @Composable
 internal fun TransitionInputGate(lifecycle: Lifecycle, content: @Composable () -> Unit) {
-    val state by lifecycle.currentStateFlow.collectAsState()
     Box(propagateMinConstraints = true) {
         content()
-        if (!state.isAtLeast(Lifecycle.State.RESUMED)) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) awaitPointerEvent().changes.forEach { it.consume() }
-                        }
-                    },
-            )
-        }
+        InputBlocker(lifecycle)
+    }
+}
+
+@Composable
+private fun BoxScope.InputBlocker(lifecycle: Lifecycle) {
+    val state by lifecycle.currentStateFlow.collectAsState()
+    if (!state.isAtLeast(Lifecycle.State.RESUMED)) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                    }
+                },
+        )
     }
 }
