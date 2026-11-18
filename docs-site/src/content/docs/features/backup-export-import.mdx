@@ -12,14 +12,14 @@ Settings → Backup covers Bloom's own configuration, not your notes. Your `.org
 <ThemeShot
   light={settingsBackupLight}
   dark={settingsBackupDark}
-  alt="Backup settings screen with Export settings and Import settings buttons, and a note that the sync folder isn't included and stays on this device"
+  alt="Backup settings screen with Export and Import buttons, and a note that the sync folder isn't included and stays on this device"
   widths={[340, 680]}
   sizes="340px"
 />
 
 ## Export
 
-Writes one JSON file with:
+Tap **Export** to write one JSON file, named `bloom-backup.json` by default, with:
 
 - **Settings**: every preference on the Settings pages, such as theme, text sizes, TODO keywords, sync mode, Agenda swipe actions, reminders, sharing and attachment defaults.
 - **Capture templates**: every template, in order.
@@ -32,7 +32,7 @@ The file carries a schema version (currently 17). Older exports still import cle
 
 ## Import
 
-Pick a previously exported file. If it holds only settings (an older export), Bloom applies them straight away. Otherwise a dialog lists each section the file contains, with counts, all checked to start. Uncheck anything you want to keep as it is, then tap **Import**.
+Tap **Import** and pick a previously exported file. If it holds only settings (an older export), Bloom applies them straight away. Otherwise a dialog lists each section the file contains, with counts, all checked to start. Uncheck anything you want to keep as it is, then tap **Import**.
 
 Each checked section **replaces** what's on this device. For example, importing capture templates swaps your current templates for the ones in the file; it doesn't merge them. Favorites point at notes by file path and heading ID, so they work best when the vault on this device has the same files.
 

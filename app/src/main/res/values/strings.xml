@@ -112,4 +112,10 @@
         <item quantity="one">Too large to open whole (%1$d line). Open a heading instead.</item>
         <item quantity="other">Too large to open whole (%1$d lines). Open a heading instead.</item>
     </plurals>
+
+    <!-- Settings › Backup -->
+    <string name="backup_export">Export</string>
+    <string name="backup_import">Import</string>
+    <!-- Default file name for a settings backup; %1$s is the app name, lowercased with spaces as dashes. -->
+    <string name="backup_file_name" translatable="false">%1$s-backup.json</string>
 </resources>

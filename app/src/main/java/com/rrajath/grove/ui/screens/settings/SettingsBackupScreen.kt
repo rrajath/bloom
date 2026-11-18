@@ -31,7 +31,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import com.rrajath.grove.R
 import com.rrajath.grove.search.QuickStartOverrides
 import com.rrajath.grove.settings.Backup
 import com.rrajath.grove.settings.BackupSection
@@ -76,14 +78,19 @@ fun SettingsBackupScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 15.dp, vertical = 14.dp),
             ) {
+                // "Bloom Debug" -> "bloom-debug-backup.json"
+                val backupFileName = stringResource(
+                    R.string.backup_file_name,
+                    stringResource(R.string.app_name).lowercase(java.util.Locale.ROOT).replace(' ', '-'),
+                )
                 BackupSecondaryButton(
-                    label = "Export settings",
+                    label = stringResource(R.string.backup_export),
                     modifier = Modifier.weight(1f),
-                    onClick = { settingsExporter.launch("bloom-settings.json") },
+                    onClick = { settingsExporter.launch(backupFileName) },
                 )
                 Spacer(Modifier.width(10.dp))
                 BackupSecondaryButton(
-                    label = "Import settings",
+                    label = stringResource(R.string.backup_import),
                     modifier = Modifier.weight(1f),
                     // Providers report .json inconsistently; accept text-ish types too.
                     onClick = {
