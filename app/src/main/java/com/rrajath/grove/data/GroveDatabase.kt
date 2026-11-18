@@ -56,6 +56,11 @@ data class NotebookEntity(
      */
     val dirProperty: String? = null,
     /**
+     * Space-joined keys of the file's leading property drawer (as written, no
+     * colons), for the editor's property-key suggestions. Null when there are none.
+     */
+    val propertyKeys: String? = null,
+    /**
      * False for a lightweight stub row inserted at discovery time (file listed
      * but not yet parsed): note count / title are placeholders until the
      * background parse pass fills them in and flips this to true. Lets the
@@ -131,6 +136,12 @@ data class NoteEntity(
      * attach sheet's Vault scope list `:DIR:` owners in other files.
      */
     val dirProperty: String? = null,
+    /**
+     * Space-joined keys of the heading's `:PROPERTIES:` drawer (as written, no
+     * colons; org keys never contain whitespace), for the editor's property-key
+     * suggestions. Null when the heading has no properties.
+     */
+    val propertyKeys: String? = null,
 )
 
 /**
@@ -348,6 +359,16 @@ abstract class IndexDao {
 
     @Query("SELECT * FROM notebooks")
     abstract suspend fun notebooks(): List<NotebookEntity>
+
+    /**
+     * Every non-empty [NoteEntity.propertyKeys] / [NotebookEntity.propertyKeys]
+     * value, one row per drawer, for counting how often each key is used.
+     */
+    @Query(
+        "SELECT propertyKeys FROM notes WHERE propertyKeys IS NOT NULL " +
+            "UNION ALL SELECT propertyKeys FROM notebooks WHERE propertyKeys IS NOT NULL"
+    )
+    abstract suspend fun allPropertyKeys(): List<String>
 
     @Query("SELECT * FROM notebooks")
     abstract fun notebooksFlow(): Flow<List<NotebookEntity>>
@@ -688,6 +709,11 @@ interface ReminderDao {
         NotebookEntity::class, NoteEntity::class, FtsMapEntity::class,
         SyncLogEntity::class, ReminderEntity::class,
     ],
+    // v21: added NoteEntity.propertyKeys / NotebookEntity.propertyKeys (the
+    // keys of each heading's or file's property drawer, so the editor can
+    // suggest property keys ranked by how often the vault uses them).
+    // Destructive migration drops the rebuildable index; the next sync
+    // repopulates it from the .org files, no file data touched.
     // v20: NoteEntity.orgId / customId are COLLATE NOCASE (and so their indexes),
     // so the search `id.` facet's case-insensitive LIKE prefix probes the index
     // instead of scanning every note. Exact ID lookups stay case-sensitive via a
@@ -749,7 +775,7 @@ interface ReminderDao {
     // v5: added NotebookEntity.isIndexed (stub vs fully-parsed notebook rows);
     // v4: added NotebookEntity.title (cached #+TITLE: preamble value). Destructive
     // migration drops the index so the next sync rebuilds it from the .org files.
-    version = 20,
+    version = 21,
     exportSchema = false,
 )
 abstract class GroveDatabase : RoomDatabase() {

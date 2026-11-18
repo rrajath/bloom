@@ -66,6 +66,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Search's new `id.` prefix finds headings whose ID or CUSTOM_ID starts with a value; `id.none` finds headings without either.
 - Settings › Agenda › Start of week sets calendars to start on Sunday, Monday, or your region's default.
 - The Dailies date picker now shows weekday letters above the days.
+- Typing `:` in a properties drawer suggests property keys, most-used first; tap one to insert it.
 
 ### Changed
 - Settings › Sharing's target is now a file-or-heading picker with search; your existing file is kept.

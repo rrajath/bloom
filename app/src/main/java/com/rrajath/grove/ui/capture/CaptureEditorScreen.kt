@@ -120,6 +120,10 @@ import com.rrajath.grove.ui.editor.AutoSaveTimestamp
 import com.rrajath.grove.ui.editor.BlockTemplateSuggestionStrip
 import com.rrajath.grove.ui.editor.applyBlockTemplate
 import com.rrajath.grove.ui.editor.rememberBlockTrigger
+import com.rrajath.grove.ui.editor.PropertyKeySuggestionStrip
+import com.rrajath.grove.ui.editor.applyPropertyKey
+import com.rrajath.grove.ui.editor.rememberPropertyKeySuggestions
+import com.rrajath.grove.ui.editor.rememberPropertyKeyTrigger
 import com.rrajath.grove.ui.editor.EditorBottomMarginLines
 import com.rrajath.grove.ui.editor.EditorToolbar
 import com.rrajath.grove.ui.editor.KeepCursorClearOfBottom
@@ -526,6 +530,7 @@ fun CaptureEditorScreen(
     // gated on the Roam capture flow only.
     val roamSuggestionsActive = roamSuggestionsEnabled && template.kind == TemplateKind.ROAM_NODE
     LaunchedEffect(Unit) { if (roamSuggestionsActive) viewModel.loadAutoLinkIndex() }
+    LaunchedEffect(Unit) { viewModel.loadPropertyKeyCounts() }
     val autoLinkIndex by viewModel.autoLinkIndex.collectAsStateWithLifecycle()
     var autoLinkTrigger by remember { mutableStateOf<WordAtCursor?>(null) }
     var expandedChipKeys by remember(autoLinkTrigger?.range) { mutableStateOf(emptySet<String>()) }
@@ -572,6 +577,9 @@ fun CaptureEditorScreen(
 
     // `<q` / `<e` / `<s` block-template chip: every capture kind, no setting gate.
     val blockTrigger by rememberBlockTrigger(textState)
+    val propertyKeyCounts by viewModel.propertyKeyCounts.collectAsStateWithLifecycle()
+    val propertyKeyTrigger by rememberPropertyKeyTrigger(textState)
+    val propertyKeySuggestions = rememberPropertyKeySuggestions(textState, propertyKeyTrigger, propertyKeyCounts)
 
     // Outside a body-only capture the draft is a single heading (the template
     // or withHeadingStars above supplies its "* " line), so this is what the
@@ -957,7 +965,15 @@ fun CaptureEditorScreen(
                         ) {
                             // Link and block chips only while typing: with the keyboard down they'd just cover the draft.
                             val block = blockTrigger
-                            if (imeVisible && block != null) {
+                            val keyTrigger = propertyKeyTrigger
+                            // Inside a drawer, a typed `:PRO` is a key, not a new drawer.
+                            if (imeVisible && keyTrigger != null && propertyKeySuggestions.isNotEmpty()) {
+                                PropertyKeySuggestionStrip(
+                                    keys = propertyKeySuggestions,
+                                    onPick = { key -> textState.applyPropertyKey(keyTrigger, key) },
+                                    modifier = Modifier.align(Alignment.CenterStart),
+                                )
+                            } else if (imeVisible && block != null && keyTrigger == null) {
                                 BlockTemplateSuggestionStrip(
                                     template = block.template,
                                     onPick = { textState.applyBlockTemplate(block) },

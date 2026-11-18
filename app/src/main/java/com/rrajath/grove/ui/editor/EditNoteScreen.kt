@@ -314,7 +314,10 @@ fun EditNoteScreen(
     }
 
     LaunchedEffect(noteRef) { if (!resumedDirty) viewModel.load(noteRef) }
-    LaunchedEffect(Unit) { viewModel.loadAutoLinkIndex() }
+    LaunchedEffect(Unit) {
+        viewModel.loadAutoLinkIndex()
+        viewModel.loadPropertyKeyCounts()
+    }
     LaunchedEffect(state.loading) {
         if (!state.loading && state.error == null) {
             if (isNewNote && !resumedDirty) {
@@ -397,6 +400,9 @@ fun EditNoteScreen(
     )
     val keyboard = LocalSoftwareKeyboardController.current
     val blockTrigger by rememberBlockTrigger(textState)
+    val propertyKeyCounts by viewModel.propertyKeyCounts.collectAsStateWithLifecycle()
+    val propertyKeyTrigger by rememberPropertyKeyTrigger(textState)
+    val propertyKeySuggestions = rememberPropertyKeySuggestions(textState, propertyKeyTrigger, propertyKeyCounts)
     val highlight = remember(c, state.keywords) {
         OrgSyntaxHighlight(c, state.keywords, trailingBlankLines = EditorBottomMarginLines)
     }
@@ -567,7 +573,15 @@ fun EditNoteScreen(
                         trailing = { Spacer(Modifier.size(width = EditorFabCompactWidth, height = 36.dp)) },
                     ) {
                         val block = blockTrigger
-                        if (block != null) {
+                        val keyTrigger = propertyKeyTrigger
+                        // Inside a drawer, a typed `:PRO` is a key, not a new drawer.
+                        if (keyTrigger != null && propertyKeySuggestions.isNotEmpty()) {
+                            PropertyKeySuggestionStrip(
+                                keys = propertyKeySuggestions,
+                                onPick = { key -> textState.applyPropertyKey(keyTrigger, key) },
+                                modifier = Modifier.align(Alignment.CenterStart),
+                            )
+                        } else if (block != null && keyTrigger == null) {
                             BlockTemplateSuggestionStrip(
                                 template = block.template,
                                 onPick = { textState.applyBlockTemplate(block) },

@@ -90,6 +90,18 @@ Tapping the chip replaces the shorthand with the block or drawer. The cursor lan
 
 The chips work in the note editor, the capture editor, Dailies, and the intro and whole-file editors. Block chips never show in a file's preface (its `#+KEY:` lines); drawer chips show anywhere.
 
+### Property key suggestions
+
+Inside a `:PROPERTIES:` drawer, type `:` at the start of a line and chips appear above the keyboard with property keys you can pick from. Keep typing to narrow them down: `:c` or `:C` both show `:CUSTOM_ID:`, `:CREATED:`, `:CATEGORY:` and any other key starting with C.
+
+- Keys come from every property drawer in your vault, plus common org keys like `ID`, `CUSTOM_ID`, `CREATED`, `CATEGORY` and `EFFORT`, and any keys you've typed in the open note but not saved yet.
+- The keys your vault uses most come first.
+- A key that's already set in the drawer you're typing in isn't offered again.
+
+Tapping a chip replaces what you typed with the full key (for example `:CUSTOM_ID: `), followed by a space so you can type the value straight away. The keyboard stays up.
+
+The chips work in every editor, including the property drawer editors you open from Read mode. Inside a drawer, `:PRO` suggests property keys rather than a new drawer.
+
 ## Instant Read ↔ Edit switching
 
 The **Read / Edit** toggle at the top swaps modes in place: no navigation transition, no extra back-stack entry. Tap anywhere on the toggle to switch. **Switching to Read mode never saves**: Read mode shows your unsaved text, marked by a green save icon (tap it to save). Leaving the note with unsaved changes asks whether to save or discard them.

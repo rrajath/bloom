@@ -77,6 +77,7 @@ class RoomNoteIndex(
                 isDone = h.keyword != null && doc.keywords.isDone(h.keyword),
                 lastModified = lastModified,
                 dirProperty = h.attachDirProperty(),
+                propertyKeys = joinPropertyKeys(h.properties.keys),
             )
         } + introNote(doc, fileName, lastModified)
         dao.replaceNotebook(
@@ -92,6 +93,7 @@ class RoomNoteIndex(
                 title = doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }?.second,
                 orgId = doc.filePropertyDrawer.firstOrNull { it.first.equals(":ID:", ignoreCase = true) }?.second,
                 dirProperty = doc.fileAttachDirProperty(),
+                propertyKeys = joinPropertyKeys(doc.filePropertyDrawer.map { it.first.trim(':') }),
             ),
             notes,
         )

@@ -54,6 +54,24 @@ class HeadingOutlineCache(private val dao: IndexDao) {
     fun invalidate() {
         generation.incrementAndGet()
         cached = null
+        cachedKeyCounts = null
+    }
+
+    @Volatile
+    private var cachedKeyCounts: Map<String, Int>? = null
+
+    /**
+     * How many property drawers across the vault use each key, for the editor's
+     * property-key suggestions ([countPropertyKeys]).
+     * Cached alongside [snapshot] and dropped by the same invalidation, but loaded
+     * separately: most snapshot readers never need it.
+     */
+    suspend fun propertyKeyCounts(): Map<String, Int> {
+        cachedKeyCounts?.let { return it }
+        val gen = generation.get()
+        val loaded = countPropertyKeys(dao.allPropertyKeys())
+        if (generation.get() == gen) cachedKeyCounts = loaded
+        return loaded
     }
 
     suspend fun snapshot(): Snapshot {

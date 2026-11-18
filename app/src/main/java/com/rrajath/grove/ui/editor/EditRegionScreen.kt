@@ -228,6 +228,7 @@ fun EditRegionScreen(
     // mechanism as EditNoteScreen: an index loaded once, and a trigger word
     // recomputed on every text/selection change.
     val autoLinkIndex by viewModel.autoLinkIndex.collectAsStateWithLifecycle()
+    val propertyKeyCounts by viewModel.propertyKeyCounts.collectAsStateWithLifecycle()
     val roamNodeTemplates by viewModel.roamNodeSuggestionTemplates.collectAsStateWithLifecycle()
     var autoLinkTrigger by remember { mutableStateOf<WordAtCursor?>(null) }
     var expandedChipKeys by remember(autoLinkTrigger?.range) { mutableStateOf(emptySet<String>()) }
@@ -302,6 +303,7 @@ fun EditRegionScreen(
         if (!resumedDirty) viewModel.loadRegion(fileName, noteId, region, blockLine)
     }
     LaunchedEffect(Unit) { if (region == EditRegion.WHOLE_FILE) viewModel.loadAutoLinkIndex() }
+    LaunchedEffect(Unit) { viewModel.loadPropertyKeyCounts() }
     // Recomputed on every text/selection change so it tracks whatever word is
     // being typed right now; see EditNoteScreen's identical wiring.
     LaunchedEffect(roamSuggestionsEnabled, region) {
@@ -462,12 +464,15 @@ fun EditRegionScreen(
                 imeVisible = imeVisible,
                 onLink = { textState.applyToolbarLink(clipboard) },
                 modifier = Modifier.fillMaxSize(),
-                // Intro gets the slot too, for the block-template chip; the Roam
-                // providers below stay whole-file only.
-                suggestionSlotEnabled = region == EditRegion.WHOLE_FILE || region == EditRegion.INTRO,
+                // Intro gets the slot too, for the block-template chip, and the property
+                // drawers for the property-key chips; the Roam providers below stay
+                // whole-file only.
+                suggestionSlotEnabled = region == EditRegion.WHOLE_FILE || region == EditRegion.INTRO ||
+                    region == EditRegion.FILE_PROPERTIES || region == EditRegion.HEADING_PROPERTIES,
                 roamNodeEnabled = roamSuggestionsEnabled && region == EditRegion.WHOLE_FILE && wholeFileMeta?.first != null,
                 roamNodeTemplates = roamNodeTemplates,
                 autoLinkIndex = autoLinkIndex,
+                propertyKeyCounts = propertyKeyCounts,
                 createOrLinkRoamNode = viewModel::createOrLinkRoamNode,
             )
         }
@@ -580,6 +585,9 @@ internal fun WholeFileEditorBody(
     roamNodeTemplates: List<CaptureTemplate> = emptyList(),
     /** For flipping the roam-node prompt to "link" when the selection names an existing node. */
     autoLinkIndex: List<AutoLinkSuggestion>? = null,
+    /** Vault-wide drawer-key usage counts for the property-key chips ([PropertyKeySuggestionStrip]);
+     *  only takes effect with [suggestionSlotEnabled]. */
+    propertyKeyCounts: Map<String, Int> = emptyMap(),
     createOrLinkRoamNode: suspend (CaptureTemplate, String) -> RoamNodeResult? = { _, _ -> null },
     /** Whether the suggestion slot is on screen; Dailies hides its floating date pills
      *  while it is, since with the keyboard down they'd sit on top of the strip. */
@@ -619,6 +627,8 @@ internal fun WholeFileEditorBody(
     val roamNodeSuggestionActive = suggestionSlotEnabled && roamNodeSelection != null && roamNodeTemplates.isNotEmpty()
     // `<q` / `<e` / `<s` block-template chip: on wherever the slot is, no setting gate.
     val blockTrigger by rememberBlockTrigger(textState)
+    val propertyKeyTrigger by rememberPropertyKeyTrigger(textState)
+    val propertyKeySuggestions = rememberPropertyKeySuggestions(textState, propertyKeyTrigger, propertyKeyCounts)
     // Reserved while typing (so the text never jumps as link chips come and go), and
     // also shown for a selection with the keyboard down: entering Edit doesn't raise
     // the keyboard, so a long-press selection is often made without it, and the
@@ -690,7 +700,15 @@ internal fun WholeFileEditorBody(
         if (suggestionSlotShown) SuggestionSlot {
             val stripModifier = Modifier.fillMaxWidth().align(Alignment.CenterStart)
             val block = blockTrigger
-            if (imeVisible && block != null) {
+            val keyTrigger = propertyKeyTrigger
+            // Inside a drawer, a typed `:PRO` is a key, not a new drawer.
+            if (imeVisible && keyTrigger != null && propertyKeySuggestions.isNotEmpty()) {
+                PropertyKeySuggestionStrip(
+                    keys = propertyKeySuggestions,
+                    onPick = { key -> textState.applyPropertyKey(keyTrigger, key) },
+                    modifier = stripModifier,
+                )
+            } else if (imeVisible && block != null && keyTrigger == null) {
                 BlockTemplateSuggestionStrip(
                     template = block.template,
                     onPick = { textState.applyBlockTemplate(block) },

@@ -997,6 +997,16 @@ class EditorViewModel(
     private suspend fun fetchAutoLinkIndex(): ImmutableList<AutoLinkSuggestion> =
         database.headingOutlines.snapshot().autoLinkIndex()
 
+    // Property-key suggestions: how often the vault uses each drawer key, loaded
+    // once when an editor opens (cached vault-wide in HeadingOutlineCache, so this
+    // is a map lookup unless the index changed). Not settings-gated.
+    private val _propertyKeyCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val propertyKeyCounts: StateFlow<Map<String, Int>> = _propertyKeyCounts
+
+    fun loadPropertyKeyCounts() {
+        viewModelScope.launch { _propertyKeyCounts.value = database.headingOutlines.propertyKeyCounts() }
+    }
+
     // --- selection-triggered roam-node suggestions ---
     // Parallel to the typing-triggered auto-link suggester above: offers to
     // turn a non-collapsed selection into a link to a new or existing roam

@@ -513,6 +513,8 @@ fun DailyNoteScreen(
                     // EditRegionScreen -- an index loaded once, and a trigger word
                     // recomputed on every text/selection change.
                     val autoLinkIndex by editorViewModel.autoLinkIndex.collectAsStateWithLifecycle()
+                    val propertyKeyCounts by editorViewModel.propertyKeyCounts.collectAsStateWithLifecycle()
+                    LaunchedEffect(Unit) { editorViewModel.loadPropertyKeyCounts() }
                     val roamNodeTemplates by editorViewModel.roamNodeSuggestionTemplates.collectAsStateWithLifecycle()
                     // From the loaded buffer, not docState: a brand-new day has no parsed
                     // document yet, but its header template usually seeds a file-level :ID:.
@@ -611,6 +613,7 @@ fun DailyNoteScreen(
                         roamNodeEnabled = roamSuggestionsEnabled && bufferIsRoamFile,
                         roamNodeTemplates = roamNodeTemplates,
                         autoLinkIndex = autoLinkIndex,
+                        propertyKeyCounts = propertyKeyCounts,
                         createOrLinkRoamNode = editorViewModel::createOrLinkRoamNode,
                         onSuggestionSlotShownChange = { editorStripShown = it },
                         bottomMarginLines = EditorBottomMarginLines,
