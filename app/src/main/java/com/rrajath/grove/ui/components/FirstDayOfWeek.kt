@@ -76,6 +76,28 @@ fun rememberFirstDayOfWeek(): DayOfWeek {
 }
 
 /**
+ * The standalone narrow weekday name for [dow] in [locale] ("S" for Sunday in
+ * English, "日" in Chinese).
+ *
+ * Reads ICU's CLDR data on API 24+. `java.time`'s NARROW styles can't be used:
+ * with minSdk 23 core library desugaring routes them through `j$.time`, which
+ * has no narrow names and keeps only the first character of the full name, so
+ * every Chinese day (星期日, 星期一, ...) becomes "星". API 23 has no
+ * `android.icu`, so it keeps the `java.time` result.
+ */
+fun narrowWeekdayName(dow: DayOfWeek, locale: Locale): String {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        val names = android.icu.text.DateFormatSymbols.getInstance(locale).getWeekdays(
+            android.icu.text.DateFormatSymbols.STANDALONE,
+            android.icu.text.DateFormatSymbols.NARROW,
+        )
+        // ICU indexes by Calendar.SUNDAY = 1 .. SATURDAY = 7; DayOfWeek is MONDAY = 1 .. SUNDAY = 7.
+        names.getOrNull(dow.value % 7 + 1)?.takeIf { it.isNotEmpty() }?.let { return it }
+    }
+    return dow.getDisplayName(TextStyle.NARROW_STANDALONE, locale)
+}
+
+/**
  * One narrow weekday letter per column, starting at [firstDay], in the device
  * language. Columns are equal weights, so it lines up with any 7-column grid
  * that uses the same [spacing] between cells. Each letter reads out as the full
@@ -88,7 +110,7 @@ fun WeekdayHeaderRow(firstDay: DayOfWeek, modifier: Modifier = Modifier, spacing
         WeekStart.weekdays(firstDay).forEach { dow ->
             val full = dow.getDisplayName(TextStyle.FULL, orgLocale())
             Text(
-                dow.getDisplayName(TextStyle.NARROW_STANDALONE, orgLocale()),
+                narrowWeekdayName(dow, orgLocale()),
                 fontFamily = PlexSans, fontSize = 10.sp, color = c.ink3,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
