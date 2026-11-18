@@ -54,19 +54,20 @@ class SafFileStore(
      */
     private val caseInsensitive = treeUri.authority == EXTERNAL_STORAGE_AUTHORITY
 
-    // ConcurrentHashMap, not plain maps: Vault (and therefore this store) is a
-    // process-wide singleton reached concurrently by SyncEngine on appScope and
-    // by ViewModels on viewModelScope. list() swaps these wholesale while
-    // create/rename/delete mutate them and pruneEmptyDirs iterates their keys —
-    // a CME (or silent corruption) window with a LinkedHashMap.
+    // DocIdMap (ConcurrentHashMap-backed), not plain maps: Vault (and therefore
+    // this store) is a process-wide singleton reached concurrently by SyncEngine
+    // on appScope and by ViewModels on viewModelScope. list() swaps these
+    // wholesale while create/rename/delete mutate them and pruneEmptyDirs
+    // iterates their keys — a CME (or silent corruption) window with a
+    // LinkedHashMap. DocIdMap also indexes case-folded keys for [resolve].
 
     /** relative file path -> document id */
     @Volatile
-    private var docIds: MutableMap<String, String> = ConcurrentHashMap()
+    private var docIds = DocIdMap(caseInsensitive)
 
     /** relative directory path ("" == vault root) -> document id */
     @Volatile
-    private var dirDocIds: MutableMap<String, String> = ConcurrentHashMap()
+    private var dirDocIds = DocIdMap(caseInsensitive)
 
     /** Serializes tree walks so concurrent cache misses don't each rebuild the maps. */
     private val listMutex = Mutex()
@@ -123,8 +124,8 @@ class SafFileStore(
                 }
             }
         }
-        docIds = ConcurrentHashMap(files)
-        dirDocIds = ConcurrentHashMap(dirs)
+        docIds = DocIdMap(caseInsensitive, files)
+        dirDocIds = DocIdMap(caseInsensitive, dirs)
         listed = true
         return entries.sortedBy { it.name }
     }
@@ -179,11 +180,11 @@ class SafFileStore(
         }
         val prefix = if (dir.isEmpty()) "" else "$dir/"
         fun isDirectChild(path: String) = path.startsWith(prefix) && '/' !in path.removePrefix(prefix)
-        docIds.keys.removeAll { isDirectChild(it) && it !in seenFiles }
+        docIds.removeKeysIf { isDirectChild(it) && it !in seenFiles }
         // A vanished subdirectory takes its cached descendants with it.
         val goneDirs = dirDocIds.keys.filter { isDirectChild(it) && it !in seenDirs }
-        dirDocIds.keys.removeAll { key -> goneDirs.any { key == it || key.startsWith("$it/") } }
-        docIds.keys.removeAll { key -> goneDirs.any { key.startsWith("$it/") } }
+        dirDocIds.removeKeysIf { key -> goneDirs.any { key == it || key.startsWith("$it/") } }
+        docIds.removeKeysIf { key -> goneDirs.any { key.startsWith("$it/") } }
         return entries
     }
 
@@ -216,11 +217,7 @@ class SafFileStore(
     private fun sameName(a: String, b: String) = if (caseInsensitive) a.equals(b, ignoreCase = true) else a == b
 
     /** The [dirDocIds] key for [dir]: itself, or its real spelling on a case-insensitive provider. */
-    private fun dirKey(dir: String): String? {
-        if (dir in dirDocIds) return dir
-        if (!caseInsensitive) return null
-        return dirDocIds.keys.firstOrNull { it.equals(dir, ignoreCase = true) }
-    }
+    private fun dirKey(dir: String): String? = dirDocIds.keyFor(dir)
 
     private sealed interface DirectLookup {
         /** This provider's document ids aren't paths: only a listing can answer. */
@@ -518,11 +515,8 @@ class SafFileStore(
         }
     }
 
-    private fun cachedKey(name: String): String? {
-        if (name in docIds) return name
-        if (!caseInsensitive) return null
-        return docIds.keys.firstOrNull { it.equals(name, ignoreCase = true) }
-    }
+    /** The [docIds] key for [name]: itself, or its real spelling on a case-insensitive provider. O(1). */
+    private fun cachedKey(name: String): String? = docIds.keyFor(name)
 
     /**
      * A relative directory path (its real spelling, on a case-insensitive
@@ -682,8 +676,8 @@ class SafFileStore(
         drop(rawFileIds)
         drop(rawDirIds)
         rawVerifiedAt.keys.removeAll { it == path || it.startsWith("$path/") }
-        drop(docIds)
-        drop(dirDocIds)
+        docIds.removeKeysIf { it == path || it.startsWith("$path/") }
+        dirDocIds.removeKeysIf { it == path || it.startsWith("$path/") }
         rawListings.clear()
     }
 

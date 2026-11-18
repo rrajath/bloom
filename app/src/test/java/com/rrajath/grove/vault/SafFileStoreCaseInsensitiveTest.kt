@@ -136,6 +136,36 @@ class SafFileStoreCaseInsensitiveTest {
     }
 
     @Test
+    fun `misses on a listed store stay misses in any case`() = runTest {
+        write("Dailies/2026-11-16.org", "d")
+        write("Inbox.org", "i")
+        val saf = store()
+        saf.list()
+
+        assertFalse(saf.exists("Dailies/2026-11-17.org"))
+        assertFalse(saf.exists("dailies/2026-11-15.org"))
+        assertFalse(saf.exists("inbox.org.bak"))
+        assertTrue(saf.exists("DAILIES/2026-11-16.ORG"))
+        assertEquals("Dailies/2026-11-16.org", saf.canonicalName("dailies/2026-11-16.org"))
+    }
+
+    @Test
+    fun `after a rename or delete the old spelling no longer resolves in any case`() = runTest {
+        write("Work.org", "w")
+        write("Old.org", "o")
+        val saf = store()
+        saf.list()
+
+        assertTrue(saf.rename("Work.org", "Jobs.org"))
+        assertTrue(saf.delete("old.org"))
+
+        assertFalse(saf.exists("work.org"))
+        assertFalse(saf.exists("OLD.org"))
+        assertTrue(saf.create("work.org"))
+        assertEquals("work.org", saf.stat("WORK.org")?.name)
+    }
+
+    @Test
     fun `pruning another case of an emptied folder removes it`() = runTest {
         write("Projects/only.org", "x")
         val saf = store()
