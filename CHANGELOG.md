@@ -57,6 +57,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-11-18
+
 ### Added
 - Bloom now warns when your vault folder comes from a cloud app like Seafile, which isn't fully supported yet.
 - Settings › Sharing › Add shared items at puts shares at the top or bottom of the target.
