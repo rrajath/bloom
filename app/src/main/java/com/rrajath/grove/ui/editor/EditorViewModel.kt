@@ -697,8 +697,9 @@ class EditorViewModel(
         }
     }
 
-    private fun setAttachBaseline(fileName: String, doc: OrgDocument) {
-        attachBaseline = doc.attachOwners()
+    /** Off Main: [attachOwners] is linear but still walks every heading of the file. */
+    private suspend fun setAttachBaseline(fileName: String, doc: OrgDocument) {
+        attachBaseline = withContext(dispatchers.default) { doc.attachOwners() }
         attachBaselineFile = fileName
     }
 

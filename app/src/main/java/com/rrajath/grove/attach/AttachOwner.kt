@@ -72,9 +72,22 @@ fun OrgDocument.ownerOf(h: OrgHeadline): AttachOwner.Heading =
 fun OrgDocument.fileOwner(): AttachOwner.File =
     AttachOwner.File(fileProp("ID"), fileAttachDirProperty())
 
-/** The heading whose section contains [lineIndex], or null above the first heading. */
-fun OrgDocument.headingAtLine(lineIndex: Int): OrgHeadline? =
-    headlines.lastOrNull { it.lineIndex <= lineIndex }
+/** The heading whose section contains [lineIndex], or null above the first heading. Binary search. */
+fun OrgDocument.headingAtLine(lineIndex: Int): OrgHeadline? {
+    var lo = 0
+    var hi = headlines.size - 1
+    var found = -1
+    while (lo <= hi) {
+        val mid = (lo + hi) ushr 1
+        if (headlines[mid].lineIndex <= lineIndex) {
+            found = mid
+            lo = mid + 1
+        } else {
+            hi = mid - 1
+        }
+    }
+    return headlines.getOrNull(found)
+}
 
 /** Zero-based line index of character [offset] in [text]. */
 internal fun lineOfOffset(text: String, offset: Int): Int {
@@ -107,15 +120,19 @@ fun resolveOwner(doc: OrgDocument, offset: Int): AttachOwner =
  */
 fun resolveOwnerAtLine(doc: OrgDocument, lineIndex: Int): AttachOwner {
     val h = doc.headingAtLine(lineIndex) ?: return doc.fileOwner()
-    val own = doc.ownerOf(h)
+    // The heading, then its ancestors nearest first; one parent walk, title paths as prefixes.
+    val ancestry = generateSequence(h) { doc.parent(it) }.toList()
+    val rootFirstTitles = ancestry.asReversed().map { it.title }
     val chain = buildList {
-        var cur: OrgHeadline? = h
-        while (cur != null) {
-            add(DirSupplier(doc.ownerOf(cur), cur.properties.prop("DIR"), cur.properties.prop("ATTACH_DIR")))
-            cur = doc.parent(cur)
+        for ((k, cur) in ancestry.withIndex()) {
+            val owner = AttachOwner.Heading(
+                cur.lineIndex, rootFirstTitles.take(ancestry.size - k), cur.properties.prop("ID"), cur.attachDirProperty(),
+            )
+            add(DirSupplier(owner, cur.properties.prop("DIR"), cur.properties.prop("ATTACH_DIR")))
         }
         add(DirSupplier(doc.fileOwner(), doc.fileProp("DIR"), doc.fileProp("ATTACH_DIR")))
     }
+    val own = chain.first().owner as AttachOwner.Heading
     val (supplier, value) = chain.firstNotNullOfOrNull { s -> s.dir?.let { s to it } }
         ?: chain.firstNotNullOfOrNull { s -> s.attachDir?.let { s to it } }
         ?: return own
@@ -125,17 +142,85 @@ fun resolveOwnerAtLine(doc: OrgDocument, lineIndex: Int): AttachOwner {
 private class DirSupplier(val owner: AttachOwner, val dir: String?, val attachDir: String?)
 
 /**
+ * Every heading's owner, indexed by [OrgHeadline.index], computed in one forward
+ * pass with an ancestor stack (O(headings x depth)) instead of a parent walk per
+ * heading: [own] as [ownerOf] gives it, [resolved] as [resolveOwnerAtLine] does.
+ */
+internal class HeadingOwners(
+    val own: List<AttachOwner.Heading>,
+    val resolved: List<AttachOwner.Heading>,
+)
+
+internal fun OrgDocument.headingOwners(): HeadingOwners {
+    val file = fileOwner()
+    val fileDir = fileProp("DIR")?.let { file to it }
+    val fileAttachDir = fileProp("ATTACH_DIR")?.let { file to it }
+
+    /** A heading on the current path, with the nearest `:DIR:` / `:ATTACH_DIR:` supplier at or above it. */
+    class Frame(
+        val level: Int,
+        val owner: AttachOwner.Heading,
+        val dir: Pair<AttachOwner, String>?,
+        val attachDir: Pair<AttachOwner, String>?,
+    )
+
+    val stack = ArrayDeque<Frame>()
+    val own = ArrayList<AttachOwner.Heading>(headlines.size)
+    val resolved = ArrayList<AttachOwner.Heading>(headlines.size)
+    for (h in headlines) {
+        // Same rule as [OrgDocument.parent]: the nearest earlier heading with a lower level.
+        while (stack.isNotEmpty() && stack.last().level >= h.level) stack.removeLast()
+        val parent = stack.lastOrNull()
+        val dirProp = h.properties.prop("DIR")
+        val attachDirProp = h.properties.prop("ATTACH_DIR")
+        val owner = AttachOwner.Heading(
+            h.lineIndex,
+            parent?.owner?.titlePath.orEmpty() + h.title,
+            h.properties.prop("ID"),
+            dirProp ?: attachDirProp,
+        )
+        val dir = dirProp?.let { owner to it } ?: parent?.dir ?: fileDir
+        val attachDir = attachDirProp?.let { owner to it } ?: parent?.attachDir ?: fileAttachDir
+        val win = dir ?: attachDir
+        own += owner
+        resolved += if (win == null) owner else owner.copy(dirProperty = win.second, dirFrom = win.first.takeIf { it !== owner })
+        stack.addLast(Frame(h.level, owner, dir, attachDir))
+    }
+    return HeadingOwners(own, resolved)
+}
+
+/**
+ * Re-finds owners in [doc] by `:ID:`, then title path (see [relocateOwner]),
+ * with both lookups indexed once so relocating many owners is linear overall.
+ */
+internal class OwnerLocator(private val doc: OrgDocument, private val owners: HeadingOwners = doc.headingOwners()) {
+    private val byId = HashMap<String, Int>()
+    private val byPath = HashMap<List<String>, Int>()
+
+    init {
+        // First match wins, as in a front-to-back search.
+        for ((i, o) in owners.own.withIndex()) {
+            o.id?.let { byId.putIfAbsent(it, i) }
+            byPath.putIfAbsent(o.titlePath, i)
+        }
+    }
+
+    /** The [OrgHeadline.index] [owner] now lives at, or null when it's gone (or is the file owner). */
+    fun headingIndex(owner: AttachOwner.Heading): Int? =
+        owner.id?.let { byId[it] } ?: byPath[owner.titlePath]
+
+    fun relocate(owner: AttachOwner): AttachOwner? = when (owner) {
+        is AttachOwner.File -> doc.fileOwner()
+        is AttachOwner.Heading -> headingIndex(owner)?.let { owners.own[it] }
+    }
+}
+
+/**
  * Re-find [owner] in a (possibly edited) [doc]: by `:ID:` first, then by title
  * path. Null when a heading owner can no longer be found. A file owner always
  * resolves to the current file-level owner.
  */
 fun relocateOwner(doc: OrgDocument, owner: AttachOwner): AttachOwner? = when (owner) {
     is AttachOwner.File -> doc.fileOwner()
-    is AttachOwner.Heading -> {
-        val byId = owner.id?.let { id ->
-            doc.headlines.firstOrNull { it.properties.prop("ID") == id }
-        }
-        val match = byId ?: doc.headlines.firstOrNull { doc.titlePath(it) == owner.titlePath }
-        match?.let { doc.ownerOf(it) }
-    }
+    is AttachOwner.Heading -> OwnerLocator(doc).relocate(owner)
 }

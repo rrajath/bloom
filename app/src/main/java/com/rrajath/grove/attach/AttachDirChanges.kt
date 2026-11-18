@@ -92,13 +92,17 @@ fun AttachDirChange.Move.shownTarget(): String {
 }
 
 /**
- * Every attach owner in [doc]: the file itself, then each heading in document
- * order (ancestors before descendants), each with the `:DIR:` it resolves to
- * ([resolveOwnerAtLine]: own or inherited, [AttachOwner.Heading.dirFrom] set
- * when inherited).
+ * The attach owners in [doc] that can have a folder: the file itself, then each
+ * heading in document order (ancestors before descendants) that has an `:ID:`
+ * or resolves to a `:DIR:` ([resolveOwnerAtLine]: own or inherited,
+ * [AttachOwner.Heading.dirFrom] set when inherited). A heading with neither
+ * resolves to no dir, so [AttachDirChangeDetector] would skip it anyway. One
+ * linear pass ([headingOwners]).
  */
-fun OrgDocument.attachOwners(): List<AttachOwner> =
-    listOf(fileOwner()) + headlines.map { resolveOwnerAtLine(this, it.lineIndex) }
+fun OrgDocument.attachOwners(): List<AttachOwner> = attachOwners(headingOwners())
+
+internal fun OrgDocument.attachOwners(owners: HeadingOwners): List<AttachOwner> =
+    listOf(fileOwner()) + owners.resolved.filter { it.id != null || it.dirProperty != null }
 
 /** The owner's own `:DIR:` value, not an inherited one. */
 private fun AttachOwner.ownDir(): String? =
@@ -168,7 +172,9 @@ class AttachDirChangeDetector(
 
     suspend fun detect(orgFile: String, baseline: List<AttachOwner>, after: OrgDocument): List<AttachDirChange> {
         val orgDir = dirOf(orgFile)
-        val afterOwners = after.attachOwners()
+        val headingOwners = after.headingOwners()
+        val afterOwners = after.attachOwners(headingOwners)
+        val locator = OwnerLocator(after, headingOwners)
         val fileCounts = mutableMapOf<String, Int>()
         suspend fun holdsFiles(dir: String) = fileCounts.getOrPut(dir) { files.sizeOf(dir).files } > 0
 
@@ -176,8 +182,10 @@ class AttachDirChangeDetector(
         val broken = mutableListOf<Pair<Int, AttachDirChange.Broken>>()
         val brokenFrom = mutableSetOf<String>()
         for ((order, before) in baseline.withIndex()) {
-            val own = relocateOwner(after, before) ?: continue
-            val now = if (own is AttachOwner.Heading) resolveOwnerAtLine(after, own.lineIndex) else own
+            val now = when (before) {
+                is AttachOwner.File -> after.fileOwner()
+                is AttachOwner.Heading -> locator.headingIndex(before)?.let { headingOwners.resolved[it] } ?: continue
+            }
             val oldDir = before.dirProperty.clean()
             val newDir = now.dirProperty.clean()
             val oldId = before.id.clean()
@@ -334,9 +342,10 @@ fun OrgDocument.attachmentLinkTargets(owner: AttachOwner): List<String> {
  */
 fun renameAttachmentLinks(doc: OrgDocument, renames: List<Pair<AttachOwner, Map<String, String>>>): String {
     val lines = doc.lines.toMutableList()
+    val locator by lazy { OwnerLocator(doc) }
     for ((owner, map) in renames) {
         if (map.isEmpty()) continue
-        val current = relocateOwner(doc, owner)
+        val current = locator.relocate(owner)
             // A capture's owner came from the snippet, so its title path may lack the target's ancestors.
             ?: (owner as? AttachOwner.Heading)?.let { o ->
                 doc.headlines.singleOrNull { it.title == o.title && doc.ownerOf(it).dirProperty == o.dirProperty }
