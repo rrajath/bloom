@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.search
 
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.attach.PreviewChip
 import com.rrajath.grove.ui.attach.rememberPreviewChipText
 import androidx.activity.compose.BackHandler
@@ -1390,7 +1391,7 @@ private fun FilterPanel(
                 if (notebookTypeahead) FilterSection("Notebook", negatable = true) {
                     val shown = shownFacetChips(pickedNotebooks, filters.notebooks + filters.excludedNotebooks)
                     FacetTypeaheadField(
-                        hint = "Type a filename, add one or more",
+                        hint = stringResource(R.string.search_filter_notebook_hint),
                         pool = catalog.notebooks,
                         exclude = shown.toSet(),
                         display = { it },
@@ -1429,7 +1430,7 @@ private fun FilterPanel(
                     FilterSection("Tags", negatable = true) {
                         val shown = shownFacetChips(pickedTags, filters.tags + filters.excludedTags)
                         FacetTypeaheadField(
-                            hint = "Type a tag, add one or more",
+                            hint = stringResource(R.string.search_filter_tag_hint),
                             pool = catalog.tags,
                             exclude = shown.toSet(),
                             display = { ":$it:" },

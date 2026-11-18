@@ -17,6 +17,9 @@
     <string name="provider_warning_dismiss">Dismiss</string>
     <string name="provider_warning_fallback_name">this storage provider</string>
     <!-- Shared live search in the insert-link and refile pickers (ui/components/PickerSearch.kt). -->
+    <!-- Search Filters sheet: hint inside the notebook/tag typeahead fields (40+ items) -->
+    <string name="search_filter_notebook_hint">Add filename(s)</string>
+    <string name="search_filter_tag_hint">Add tag(s)</string>
     <string name="picker_search_placeholder">Search files and headings</string>
     <string name="picker_search_results_header">FILES &amp; HEADINGS</string>
     <string name="picker_search_no_matches">No matches</string>
