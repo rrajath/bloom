@@ -1,0 +1,138 @@
+---
+title: 'Bloom 1.16.0: property keys, fuller backups and a week that starts on your terms'
+# Noon UTC: a bare date is UTC midnight and renders as the previous day when built west of UTC.
+date: 2026-11-18T12:00:00Z
+authors: rrajath
+tags:
+  - release
+excerpt: Version 1.16.0 suggests property keys as you type, highlights the line you're editing, backs up templates and favorites, lets shares land under a heading, and adds a Start of week setting.
+---
+
+import ThemeShot from '../../../components/ThemeShot.astro';
+import propertyKeysShot from '../../../assets/blog/bloom-1-16-0/property-keys.png';
+import currentLineShot from '../../../assets/blog/bloom-1-16-0/current-line.png';
+import sharingShot from '../../../assets/blog/bloom-1-16-0/sharing.png';
+import newFileShot from '../../../assets/blog/bloom-1-16-0/new-file.png';
+import idSearchShot from '../../../assets/blog/bloom-1-16-0/id-search.png';
+import startOfWeekShot from '../../../assets/blog/bloom-1-16-0/start-of-week.png';
+import backupImportShot from '../../../assets/blog/bloom-1-16-0/backup-import.png';
+
+1.16.0 is a release full of small things that remove friction. The editor now suggests property keys and shows which line you're on. Backups carry your templates, favorites and saved searches, not just your settings. Shared items can land under a specific heading, at the top or the bottom. Calendars can start the week on the day you expect. Search learns a new `id.` prefix, and large vaults get faster at opening notes and searching. There's also an honest warning if your vault lives in a folder from a cloud app that Bloom can't fully work with yet.
+
+## Editing
+
+### Property key suggestions
+
+<ThemeShot
+  light={propertyKeysShot}
+  alt='The editor with the keyboard up on "Japan: Spring 2027". Inside its :PROPERTIES: drawer, below the :CREATED: line, a new line holds a single colon and is shaded as the current line. A row of chips above the formatting toolbar offers :ID:, :ARCHIVE:, :CATEGORY: and :COOKIE_DATA:'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+Typing `:` at the start of a line inside a `:PROPERTIES:` drawer now shows chips above the keyboard with property keys to pick from. The suggestions come from every drawer in your vault, plus common org keys like `ID`, `CUSTOM_ID`, `CREATED`, `CATEGORY` and `EFFORT`, and any keys you've typed in the open note but not saved yet. The keys your vault uses most come first, and a key that's already set in the drawer you're in isn't offered again. Keep typing to narrow the list down; matching ignores case, so `:c` and `:C` both find `:CUSTOM_ID:`. Tapping a chip inserts the full key and a trailing space, and the keyboard stays up so you can type the value straight away. It works in every editor, including the property drawer editors you open from Read mode, and Tips & Tricks has a new entry explaining it.
+
+### Highlight current line
+
+<ThemeShot
+  light={currentLineShot}
+  alt='The editor with the keyboard up on "Japan: Spring 2027". The body line "Two weeks, mostly Kyoto, with a few days in Tokyo at the end." wraps onto two rows, and both rows are shaded as the current line'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+A new setting, **Settings › Notes › Highlight current line**, shades the whole line the cursor is on, including every row it wraps onto. On a phone screen, one long wrapped line and several short ones can look the same; the shading makes it obvious which is which without spending space on line numbers. It's on by default and works in every editor: notes, whole files, the preface and other scoped editors, Dailies and capture. The shading shows only while the editor has focus and hides while you're selecting text. See [Notes Behavior](/features/notes-behavior) for details.
+
+## Sharing
+
+### Share into a heading, at the top or the bottom
+
+<ThemeShot
+  light={sharingShot}
+  alt='Settings › Sharing. Shared content target reads "ideas › Captures". Add shared items at is set to Top, and its description says shared items are added as the first subheading of ideas › Captures. Fetch link titles is switched on'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+The **Shared content target** in Settings › Sharing used to be a free-text file name. It's now the same file and heading picker as the archive location, with search, so you can send shares to a specific heading as well as to a file. Your existing target file is kept, and starts out at file level.
+
+A new **Add shared items at** row chooses where shares land: **Top** or **Bottom** (the default). For a file, that means a new top-level heading above the first heading or at the end of the file. For a heading, it means its first or last subheading. The row's description spells out where the next share will go. If the target heading has since been deleted, the share falls back to the file and the confirmation tells you so. See [Share Intake](/features/share-intake).
+
+### New file… in the pickers
+
+<ThemeShot
+  light={newFileShot}
+  alt='The "Set shared content target" sheet over Settings › Sharing, with a "Search files and headings" field, a "New file…" row with a plus sign, and then the notebooks ideas, inbox, journal, reading and recipes with their heading counts'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+The file and heading pickers for sharing, the archive location and quick add now offer a **New file…** row. It creates a notebook and selects it in one step, so you no longer have to leave Settings to make the file first.
+
+## Search
+
+### Find headings by ID
+
+<ThemeShot
+  light={idSearchShot}
+  alt='Search for "id.7c" with the Advanced operators panel open, listing t.TAG, i.STATE, s.PERIOD, d.PERIOD, a.PERIOD, c.PERIOD, cr.PERIOD, b.NOTEBOOK, p.PRIORITY and the new id.ID chip. One result: "Hakone: Day 9" in travel.org'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+The new `id.` prefix finds headings whose `:ID:` or `:CUSTOM_ID:` starts with the value you type, ignoring case. `id.a1b2` finds a heading with an org-id beginning `a1b2`, and `id.none` finds headings that have neither property. It has its own operator chip and a line in the legend. See [Search](/features/search) for the full list of prefixes.
+
+### Filters that scale to big vaults
+
+The Filters sheet used to list every notebook and tag as chips, ten at a time behind **Load more**. With 40 or more notebooks or tags, that section now shows a field instead: type part of a name and pick it from the suggestions that pop up above it. Names starting with what you typed come first, then names containing it. Your pick becomes a chip you can tap to exclude, and tap again to turn off.
+
+## Agenda and calendars
+
+### Start of week
+
+<ThemeShot
+  light={startOfWeekShot}
+  alt="Settings › Agenda with the Start of week menu open below its description, which says the first column of every calendar follows your device's region by default. The menu offers System default (Monday), which is checked, Sunday and Monday"
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+**Settings › Agenda › Start of week** sets the first column of every month calendar: **System default** (your device's region), **Sunday** or **Monday**. Before, the planning date calendar always started on Sunday and the Dailies date picker always started on Monday; now they agree with each other and with you. The Dailies date picker also gained weekday letters above its days, so you can see where the week begins. This only changes the layout: repeaters, week datetrees and "next week" work exactly as before.
+
+## Backup
+
+### Templates, favorites and saved searches come along
+
+<ThemeShot
+  light={backupImportShot}
+  alt="The Import backup dialog, which says each checked item replaces what's on this device. Settings is unchecked, while Capture templates (3 templates), Favorites (0 favorites) and Saved searches and Quick Start cards (3 saved searches) are checked, above Cancel and Import buttons"
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+**Settings › Backup** now exports your capture templates, favorites, saved searches and any Quick Start cards you've customized, alongside your settings. When you import a file that has those sections, a dialog lists each one with counts, all checked to start. Uncheck anything you want to keep as it is on this device. Each checked section replaces what's there rather than merging. Older settings-only backups still import straight away. Favorites work best when the vault on the new device has the same files, since they point at notes by file path and heading ID.
+
+### Export and Import
+
+The two buttons now simply read **Export** and **Import**, and backups are saved as `bloom-backup.json` by default. See [Backup, Export & Import](/features/backup-export-import).
+
+## Sync
+
+### A warning for folders from cloud apps
+
+The Android folder picker also lists folders served by other apps, such as Seafile or Nextcloud. Bloom isn't fully compatible with these yet. Those apps download and upload in the background, and Bloom can't always tell when a file is still loading, when an upload failed, or when a file changed elsewhere. That can mean notebooks disappearing from the list, offline edits getting lost, or changes from other devices being overwritten. Bloom now asks once, for each such folder, whether you want to pick another one or keep using it. Settings › Sync shows a note under the folder, and the Notebooks screen shows a banner until you dismiss it. If you stay, keep version history on in that app; for the most reliable setup, use a folder on the device's own storage and sync it with Syncthing. See [Sync](/features/sync#folders-from-cloud-apps).
+
+## Performance improvements
+
+- Opening and saving notes in files with many headings is faster and no longer stutters. Work that used to grow with the square of the heading count, and ran on the main thread, is now a single pass in the background.
+- Searching with `id.` is much faster in large vaults, because it now uses an index instead of scanning every note on each keystroke. The search index rebuilds once from your `.org` files after you update.
+
+## Fixes
+
+- With **Sync App Icon** off, the icon preview, the drawer logo and launcher shortcuts now use Bloom Light colors, matching the launcher icon, instead of Grove Light.
+- Calendar weekday letters now show correctly in Chinese and other languages. Previously, every day could show the same character.
+- Tips & Tricks now describes the heading asterisk button correctly: it starts a subheading, then raises its level.
+
+## Full changelog
+
+The complete list of changes is in the [1.16.0 release on GitHub](https://github.com/rrajath/bloom/releases/tag/v1.16.0).
