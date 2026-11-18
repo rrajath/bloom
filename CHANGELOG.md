@@ -80,6 +80,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Unlinked references now find mentions that differ in case in non-English letters, like "über" for "Über".
 - With Sync App Icon off, the icon preview, drawer logo and launcher shortcuts now use Bloom Light, not Grove Light.
 - Calendar weekday letters now show correctly in Chinese and other languages, instead of repeating one character.
+- Tips & Tricks now describes the heading asterisk button correctly: it starts a subheading, then raises its level.
 
 ## [1.15.0] - 2026-11-14
 
