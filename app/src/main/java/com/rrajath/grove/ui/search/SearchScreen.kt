@@ -1390,7 +1390,7 @@ private fun FilterPanel(
                 if (notebookTypeahead) FilterSection("Notebook", negatable = true) {
                     val shown = shownFacetChips(pickedNotebooks, filters.notebooks + filters.excludedNotebooks)
                     FacetTypeaheadField(
-                        label = "Enter filename:",
+                        hint = "Type a filename, add one or more",
                         pool = catalog.notebooks,
                         exclude = shown.toSet(),
                         display = { it },
@@ -1429,7 +1429,7 @@ private fun FilterPanel(
                     FilterSection("Tags", negatable = true) {
                         val shown = shownFacetChips(pickedTags, filters.tags + filters.excludedTags)
                         FacetTypeaheadField(
-                            label = "Enter tag:",
+                            hint = "Type a tag, add one or more",
                             pool = catalog.tags,
                             exclude = shown.toSet(),
                             display = { ":$it:" },
@@ -1594,7 +1594,7 @@ private fun FilterSection(label: String, negatable: Boolean = false, content: @C
             if (negatable) {
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "tap again to exclude",
+                    "(tap again to exclude)",
                     fontFamily = PlexSans, fontSize = 10.5.sp, color = c.ink3,
                 )
             }
@@ -1644,15 +1644,15 @@ private fun PanelChip(label: String, included: Boolean, excluded: Boolean = fals
 }
 
 /**
- * Typeahead row for a filter section too big to list (see [useFacetTypeahead]):
- * an inline "[label] [field]" row taking a full FlowRow line. Typing opens a
+ * Typeahead field for a filter section too big to list (see [useFacetTypeahead]),
+ * taking a full FlowRow line, with [hint] shown inside it while empty. Typing opens a
  * fly-up list of [facetSuggestions] above the field (never over it, and clear of
  * the IME below); picking one calls [onPick] and clears the field so the next
  * pick can follow. IME Done picks the top suggestion.
  */
 @Composable
 private fun FacetTypeaheadField(
-    label: String,
+    hint: String,
     pool: List<String>,
     exclude: Set<String>,
     display: (String) -> String,
@@ -1672,75 +1672,83 @@ private fun FacetTypeaheadField(
         onPick(name)
         query = ""
     }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2)
-        Spacer(Modifier.width(8.dp))
-        Box(Modifier.weight(1f).onSizeChanged { fieldWidthPx = it.width }) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(c.surface)
-                    .border(1.dp, if (focused) c.accent else c.line, RoundedCornerShape(9.dp))
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BasicTextField(
-                    value = query,
-                    onValueChange = { query = it; menuOpen = true },
-                    singleLine = true,
-                    textStyle = TextStyle(fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink),
-                    cursorBrush = SolidColor(c.accent),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { suggestions.firstOrNull()?.let(::pick) }),
-                    modifier = Modifier
-                        .weight(1f)
-                        .onFocusChanged { focused = it.isFocused; menuOpen = it.isFocused }
-                        .testTag(testTag),
-                )
-                if (query.isNotEmpty()) {
-                    Text(
-                        "×", fontFamily = PlexMono, fontSize = 15.sp, color = c.ink3,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { query = "" }
-                            .padding(4.dp),
-                    )
-                }
-            }
-            if (focused && menuOpen && suggestions.isNotEmpty()) {
-                val density = LocalDensity.current
-                val gapPx = with(density) { 6.dp.roundToPx() }
-                Popup(
-                    popupPositionProvider = remember(gapPx) { FlyUpPositionProvider(gapPx) },
-                    onDismissRequest = { menuOpen = false },
-                    // Non-focusable so typed characters keep reaching the field.
-                    properties = PopupProperties(focusable = false),
-                ) {
-                    Column(
-                        Modifier
-                            .width(with(density) { fieldWidthPx.toDp() })
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(c.surface2)
-                            .border(1.dp, c.line, RoundedCornerShape(12.dp))
-                            .heightIn(max = 240.dp)
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 4.dp, vertical = 6.dp),
-                    ) {
-                        suggestions.forEach { name ->
+    Box(Modifier.fillMaxWidth().onSizeChanged { fieldWidthPx = it.width }) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(36.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(c.surface)
+                .border(1.dp, if (focused) c.accent else c.line, RoundedCornerShape(9.dp))
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = query,
+                onValueChange = { query = it; menuOpen = true },
+                singleLine = true,
+                textStyle = TextStyle(fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink),
+                cursorBrush = SolidColor(c.accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { suggestions.firstOrNull()?.let(::pick) }),
+                decorationBox = { inner ->
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (query.isEmpty()) {
                             Text(
-                                display(name),
-                                fontFamily = PlexSans, fontSize = 13.sp, color = c.ink,
+                                hint,
+                                fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink3,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { pick(name) }
-                                    .padding(horizontal = 8.dp, vertical = 9.dp)
-                                    .testTag("${testTag}_suggestion"),
                             )
                         }
+                        inner()
+                    }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { focused = it.isFocused; menuOpen = it.isFocused }
+                    .testTag(testTag),
+            )
+            if (query.isNotEmpty()) {
+                Text(
+                    "×", fontFamily = PlexMono, fontSize = 15.sp, color = c.ink3,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { query = "" }
+                        .padding(4.dp),
+                )
+            }
+        }
+        if (focused && menuOpen && suggestions.isNotEmpty()) {
+            val density = LocalDensity.current
+            val gapPx = with(density) { 6.dp.roundToPx() }
+            Popup(
+                popupPositionProvider = remember(gapPx) { FlyUpPositionProvider(gapPx) },
+                onDismissRequest = { menuOpen = false },
+                // Non-focusable so typed characters keep reaching the field.
+                properties = PopupProperties(focusable = false),
+            ) {
+                Column(
+                    Modifier
+                        .width(with(density) { fieldWidthPx.toDp() })
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(c.surface2)
+                        .border(1.dp, c.line, RoundedCornerShape(12.dp))
+                        .heightIn(max = 240.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                ) {
+                    suggestions.forEach { name ->
+                        Text(
+                            display(name),
+                            fontFamily = PlexSans, fontSize = 13.sp, color = c.ink,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { pick(name) }
+                                .padding(horizontal = 8.dp, vertical = 9.dp)
+                                .testTag("${testTag}_suggestion"),
+                        )
                     }
                 }
             }
