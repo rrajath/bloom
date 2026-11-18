@@ -15,7 +15,7 @@ import com.rrajath.grove.icon.AppIconManager
 import com.rrajath.grove.settings.ThemePreference
 import com.rrajath.grove.ui.components.monogramLetter
 import com.rrajath.grove.ui.nav.DeepLinks
-import com.rrajath.grove.ui.theme.GroveLightColors
+import com.rrajath.grove.ui.theme.GroveBloomLightColors
 import com.rrajath.grove.ui.theme.groveColorsFor
 
 /**
@@ -33,10 +33,10 @@ object ShortcutSyncer {
     /**
      * [theme]/[iconThemed] mirror the same fields AppIconManager uses for the
      * launcher icon itself, so shortcut glyphs stay visually consistent with
-     * whichever icon (default warm mark, or theme-tinted) is currently shown.
+     * whichever icon (default Bloom Light mark, or theme-tinted) is currently shown.
      */
     fun sync(context: Context, templates: List<CaptureTemplate>, theme: ThemePreference, iconThemed: Boolean) {
-        val colors = if (iconThemed) groveColorsFor(theme) else GroveLightColors
+        val colors = if (iconThemed) groveColorsFor(theme) else GroveBloomLightColors
         val bg = colors.accent.toArgb()
         val fg = colors.accentInk.toArgb()
         val max = ShortcutManagerCompat.getMaxShortcutCountPerActivity(context).takeIf { it > 0 } ?: 4
@@ -69,7 +69,7 @@ object ShortcutSyncer {
      */
     fun requestPin(context: Context, template: CaptureTemplate, theme: ThemePreference, iconThemed: Boolean): Boolean {
         if (!ShortcutManagerCompat.isRequestPinShortcutSupported(context)) return false
-        val colors = if (iconThemed) groveColorsFor(theme) else GroveLightColors
+        val colors = if (iconThemed) groveColorsFor(theme) else GroveBloomLightColors
         val bg = colors.accent.toArgb()
         val fg = colors.accentInk.toArgb()
         val ownerAlias = AppIconManager.currentAliasComponent(context)

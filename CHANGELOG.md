@@ -76,6 +76,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Fixed
 - Unlinked references now find mentions that differ in case in non-English letters, like "über" for "Über".
+- With Sync App Icon off, the icon preview, drawer logo and launcher shortcuts now use Bloom Light, not Grove Light.
 
 ## [1.15.0] - 2026-11-14
 

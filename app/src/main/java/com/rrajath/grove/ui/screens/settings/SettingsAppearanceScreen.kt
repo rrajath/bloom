@@ -175,7 +175,7 @@ private fun SyncAppIconRow(
     onToggle: (Boolean) -> Unit,
 ) {
     val c = MaterialTheme.grove
-    val previewColors = if (checked) com.rrajath.grove.ui.theme.groveColorsFor(theme) else com.rrajath.grove.ui.theme.GroveLightColors
+    val previewColors = if (checked) com.rrajath.grove.ui.theme.groveColorsFor(theme) else com.rrajath.grove.ui.theme.GroveBloomLightColors
     Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
         Row(
             Modifier

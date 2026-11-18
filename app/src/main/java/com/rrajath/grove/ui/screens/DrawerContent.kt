@@ -54,7 +54,7 @@ import com.rrajath.grove.ui.components.settingsIcon
 import com.rrajath.grove.ui.nav.Routes
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDot
-import com.rrajath.grove.ui.theme.GroveLightColors
+import com.rrajath.grove.ui.theme.GroveBloomLightColors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -95,8 +95,8 @@ fun GroveDrawerContent(
             } else {
                 BrandMark(
                     tileSize = 42.dp,
-                    tileColor = GroveLightColors.accentSoft,
-                    barColor = GroveLightColors.accent,
+                    tileColor = GroveBloomLightColors.accentSoft,
+                    barColor = GroveBloomLightColors.accent,
                 )
             }
             Spacer(Modifier.height(10.dp))
