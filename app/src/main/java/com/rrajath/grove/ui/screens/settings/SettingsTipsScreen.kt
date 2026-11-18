@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
@@ -475,6 +476,14 @@ private fun tipGroups(appName: String, str: (Int) -> String): List<TipGroup> = l
                     ":LOGBOOK: drawer, closed by :END:, with the cursor on its empty line. The chip stays up as " +
                     "you type more of the word.",
                 newAnchor = NewAnchors.tipsItem("writing", "drawer-shorthand"),
+            ),
+            Tip(
+                "property-keys", Icons.Default.Key, "Pick property keys as you type",
+                "Inside a :PROPERTIES: drawer, type : at the start of a line. Chips above the keyboard offer " +
+                    "property keys, most-used first; keep typing to narrow them (:c shows :CUSTOM_ID:, :CREATED:, " +
+                    "and so on). Tap one to insert the full key, ready for its value. Keys already in the drawer " +
+                    "aren't offered again.",
+                newAnchor = NewAnchors.tipsItem("writing", "property-keys"),
             ),
         ),
     ),

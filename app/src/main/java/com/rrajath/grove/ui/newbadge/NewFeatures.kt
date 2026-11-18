@@ -588,4 +588,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
         ),
         destination = NewAnchors.SETTINGS_AGENDA_WEEK_START,
     ),
+    NewFeature(
+        // Typing `:` inside a :PROPERTIES: drawer offers the vault's property
+        // keys as chips. Points at its Tips & Tricks entry. `since` is the
+        // versionCode of the release that ships it: bump it to match
+        // `gradle.properties` versionName when cutting the release.
+        id = "property-key-suggestions",
+        since = 11600,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_TIPS,
+            NewAnchors.tipsGroup("writing"),
+            NewAnchors.tipsItem("writing", "property-keys"),
+        ),
+        destination = NewAnchors.tipsItem("writing", "property-keys"),
+    ),
 )
