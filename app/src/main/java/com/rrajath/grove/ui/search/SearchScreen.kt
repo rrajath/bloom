@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.search
 
+import androidx.compose.ui.res.pluralStringResource
 import com.rrajath.grove.R
 import com.rrajath.grove.ui.attach.PreviewChip
 import com.rrajath.grove.ui.attach.rememberPreviewChipText
@@ -1357,12 +1358,12 @@ private fun FilterPanel(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Filters", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 16.5.sp, color = c.ink)
+                    Text(stringResource(R.string.search_filters_title), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 16.5.sp, color = c.ink)
                     Text(
                         if (filters.activeCount > 0) {
-                            "${filters.activeCount} ${if (filters.activeCount == 1) "filter" else "filters"} active"
+                            pluralStringResource(R.plurals.search_filters_active_count, filters.activeCount, filters.activeCount)
                         } else {
-                            "Nothing filtered yet. Everything shows."
+                            stringResource(R.string.search_filters_none_active)
                         },
                         fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2,
                         modifier = Modifier.padding(top = 2.dp),
@@ -1370,7 +1371,7 @@ private fun FilterPanel(
                 }
                 if (filters.activeCount > 0) {
                     Text(
-                        "Reset",
+                        stringResource(R.string.search_filters_reset),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.ink2,
                         modifier = Modifier
                             .clip(RoundedCornerShape(9.dp))
@@ -1388,7 +1389,7 @@ private fun FilterPanel(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
             ) {
-                if (notebookTypeahead) FilterSection("Notebook", negatable = true) {
+                if (notebookTypeahead) FilterSection(stringResource(R.string.search_filters_section_notebook), negatable = true) {
                     val shown = shownFacetChips(pickedNotebooks, filters.notebooks + filters.excludedNotebooks)
                     FacetTypeaheadField(
                         hint = stringResource(R.string.search_filter_notebook_hint),
@@ -1400,7 +1401,7 @@ private fun FilterPanel(
                         if (nb !in pickedNotebooks) pickedNotebooks += nb
                         onToggleNotebook(nb)
                     }
-                    PanelChip("All notebooks", filters.notebooks.isEmpty() && filters.excludedNotebooks.isEmpty()) {
+                    PanelChip(stringResource(R.string.search_filters_all_notebooks), filters.notebooks.isEmpty() && filters.excludedNotebooks.isEmpty()) {
                         onClearNotebooks()
                     }
                     shown.forEach { nb ->
@@ -1410,8 +1411,8 @@ private fun FilterPanel(
                             onToggleNotebook(nb)
                         }
                     }
-                } else FilterSection("Notebook", negatable = true) {
-                    PanelChip("All notebooks", filters.notebooks.isEmpty() && filters.excludedNotebooks.isEmpty()) {
+                } else FilterSection(stringResource(R.string.search_filters_section_notebook), negatable = true) {
+                    PanelChip(stringResource(R.string.search_filters_all_notebooks), filters.notebooks.isEmpty() && filters.excludedNotebooks.isEmpty()) {
                         onClearNotebooks()
                     }
                     catalog.notebooks.take(visibleNotebooks).forEach { nb ->
@@ -1427,7 +1428,7 @@ private fun FilterPanel(
                     }
                 }
                 if (tagTypeahead) {
-                    FilterSection("Tags", negatable = true) {
+                    FilterSection(stringResource(R.string.search_filters_section_tags), negatable = true) {
                         val shown = shownFacetChips(pickedTags, filters.tags + filters.excludedTags)
                         FacetTypeaheadField(
                             hint = stringResource(R.string.search_filter_tag_hint),
@@ -1448,7 +1449,7 @@ private fun FilterPanel(
                         }
                     }
                 } else if (catalog.tags.isNotEmpty()) {
-                    FilterSection("Tags", negatable = true) {
+                    FilterSection(stringResource(R.string.search_filters_section_tags), negatable = true) {
                         catalog.tags.take(visibleTags).forEach { tag ->
                             val st = facetState(tag, filters.tags, filters.excludedTags)
                             PanelChip(":$tag:", included = st == FacetState.INCLUDED, excluded = st == FacetState.EXCLUDED) {
@@ -1463,9 +1464,9 @@ private fun FilterPanel(
                     }
                 }
                 if (catalog.states.isNotEmpty()) {
-                    FilterSection("TODO state", negatable = true) {
+                    FilterSection(stringResource(R.string.search_filters_section_state), negatable = true) {
                         catalog.states.forEach { st ->
-                            val label = if (st == NO_STATE) "no state" else st
+                            val label = if (st == NO_STATE) stringResource(R.string.search_filters_no_state) else st
                             val chipState = facetState(st, filters.states, filters.excludedStates)
                             PanelChip(label, included = chipState == FacetState.INCLUDED, excluded = chipState == FacetState.EXCLUDED) {
                                 onToggleState(st)
@@ -1473,52 +1474,52 @@ private fun FilterPanel(
                         }
                     }
                 }
-                FilterSection("Scheduled") {
+                FilterSection(stringResource(R.string.search_filters_section_scheduled)) {
                     DatePreset.entries.filter { it != DatePreset.ANY && it != DatePreset.CUSTOM }.forEach { preset ->
-                        PanelChip(preset.label, filters.scheduled == preset) { onSetScheduled(preset) }
+                        PanelChip(stringResource(preset.labelRes), filters.scheduled == preset) { onSetScheduled(preset) }
                     }
                     PanelChip(customRangeLabel(filters.scheduledRange), filters.scheduled == DatePreset.CUSTOM) {
                         if (filters.scheduled == DatePreset.CUSTOM) onSetScheduled(DatePreset.CUSTOM)
                         else rangeTarget = PillKind.SCHEDULED
                     }
                 }
-                FilterSection("Deadline") {
+                FilterSection(stringResource(R.string.search_filters_section_deadline)) {
                     DatePreset.entries.filter { it != DatePreset.ANY && it != DatePreset.CUSTOM }.forEach { preset ->
-                        PanelChip(preset.label, filters.deadline == preset) { onSetDeadline(preset) }
+                        PanelChip(stringResource(preset.labelRes), filters.deadline == preset) { onSetDeadline(preset) }
                     }
                     PanelChip(customRangeLabel(filters.deadlineRange), filters.deadline == DatePreset.CUSTOM) {
                         if (filters.deadline == DatePreset.CUSTOM) onSetDeadline(DatePreset.CUSTOM)
                         else rangeTarget = PillKind.DEADLINE
                     }
                 }
-                FilterSection("Active") {
+                FilterSection(stringResource(R.string.search_filters_section_active)) {
                     DatePreset.entries.filter { it != DatePreset.ANY && it != DatePreset.CUSTOM }.forEach { preset ->
-                        PanelChip(preset.label, filters.active == preset) { onSetActive(preset) }
+                        PanelChip(stringResource(preset.labelRes), filters.active == preset) { onSetActive(preset) }
                     }
                     PanelChip(customRangeLabel(filters.activeRange), filters.active == DatePreset.CUSTOM) {
                         if (filters.active == DatePreset.CUSTOM) onSetActive(DatePreset.CUSTOM)
                         else rangeTarget = PillKind.ACTIVE
                     }
                 }
-                FilterSection("Closed") {
+                FilterSection(stringResource(R.string.search_filters_section_closed)) {
                     DatePreset.entries.filter { it != DatePreset.ANY && it != DatePreset.CUSTOM }.forEach { preset ->
-                        PanelChip(preset.label, filters.closed == preset) { onSetClosed(preset) }
+                        PanelChip(stringResource(preset.labelRes), filters.closed == preset) { onSetClosed(preset) }
                     }
                     PanelChip(customRangeLabel(filters.closedRange), filters.closed == DatePreset.CUSTOM) {
                         if (filters.closed == DatePreset.CUSTOM) onSetClosed(DatePreset.CUSTOM)
                         else rangeTarget = PillKind.CLOSED
                     }
                 }
-                FilterSection("Created") {
+                FilterSection(stringResource(R.string.search_filters_section_created)) {
                     DatePreset.entries.filter { it != DatePreset.ANY && it != DatePreset.CUSTOM }.forEach { preset ->
-                        PanelChip(preset.label, filters.created == preset) { onSetCreated(preset) }
+                        PanelChip(stringResource(preset.labelRes), filters.created == preset) { onSetCreated(preset) }
                     }
                     PanelChip(customRangeLabel(filters.createdRange), filters.created == DatePreset.CUSTOM) {
                         if (filters.created == DatePreset.CUSTOM) onSetCreated(DatePreset.CUSTOM)
                         else rangeTarget = PillKind.CREATED
                     }
                 }
-                FilterSection("Priority", negatable = true) {
+                FilterSection(stringResource(R.string.search_filters_section_priority), negatable = true) {
                     listOf("A", "B", "C").forEach { p ->
                         val st = facetState(p, filters.priorities, filters.excludedPriorities)
                         PanelChip("[#$p]", included = st == FacetState.INCLUDED, excluded = st == FacetState.EXCLUDED) {
@@ -1540,7 +1541,7 @@ private fun FilterPanel(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        if (resultCount > 0) "Show $resultCount ${if (resultCount == 1) "result" else "results"}" else "No matches",
+                        if (resultCount > 0) pluralStringResource(R.plurals.search_filters_show_results, resultCount, resultCount) else stringResource(R.string.search_filters_no_matches),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.accentInk,
                     )
                 }
@@ -1574,10 +1575,11 @@ private fun FilterPanel(
     }
 }
 
+@Composable
 private fun customRangeLabel(range: DateRange?): String {
-    if (range == null) return "Custom range"
+    if (range == null) return stringResource(R.string.search_filters_custom_range)
     val fmt = LocalDates.formatter("dMMM", "d MMM")
-    return "${range.start.format(fmt)} – ${range.end.format(fmt)}"
+    return stringResource(R.string.search_filters_range_format, range.start.format(fmt), range.end.format(fmt))
 }
 
 /** [negatable] sections show a hint next to the label that tapping a chip a
@@ -1595,7 +1597,7 @@ private fun FilterSection(label: String, negatable: Boolean = false, content: @C
             if (negatable) {
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "(tap again to exclude)",
+                    stringResource(R.string.search_filters_tap_again_to_exclude),
                     fontFamily = PlexSans, fontSize = 10.5.sp, color = c.ink3,
                 )
             }
@@ -1768,7 +1770,7 @@ private fun LoadMoreChip(remaining: Int, onClick: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
-            "Load ${minOf(10, remaining)} more",
+            minOf(10, remaining).let { pluralStringResource(R.plurals.search_filters_load_more, it, it) },
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = c.ink2,
         )
     }

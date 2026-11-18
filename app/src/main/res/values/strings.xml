@@ -17,6 +17,46 @@
     <string name="provider_warning_dismiss">Dismiss</string>
     <string name="provider_warning_fallback_name">this storage provider</string>
     <!-- Shared live search in the insert-link and refile pickers (ui/components/PickerSearch.kt). -->
+    <!-- Search Filters sheet -->
+    <string name="search_filters_title">Filters</string>
+    <plurals name="search_filters_active_count">
+        <item quantity="one">%d filter active</item>
+        <item quantity="other">%d filters active</item>
+    </plurals>
+    <string name="search_filters_none_active">Nothing filtered yet. Everything shows.</string>
+    <string name="search_filters_reset">Reset</string>
+    <string name="search_filters_tap_again_to_exclude">(tap again to exclude)</string>
+    <string name="search_filters_section_notebook">Notebook</string>
+    <string name="search_filters_section_tags">Tags</string>
+    <string name="search_filters_section_state">TODO state</string>
+    <string name="search_filters_section_scheduled">Scheduled</string>
+    <string name="search_filters_section_deadline">Deadline</string>
+    <string name="search_filters_section_active">Active</string>
+    <string name="search_filters_section_closed">Closed</string>
+    <string name="search_filters_section_created">Created</string>
+    <string name="search_filters_section_priority">Priority</string>
+    <string name="search_filters_all_notebooks">All notebooks</string>
+    <!-- Chip for headings with no TODO keyword -->
+    <string name="search_filters_no_state">no state</string>
+    <plurals name="search_filters_load_more">
+        <item quantity="one">Load %d more</item>
+        <item quantity="other">Load %d more</item>
+    </plurals>
+    <plurals name="search_filters_show_results">
+        <item quantity="one">Show %d result</item>
+        <item quantity="other">Show %d results</item>
+    </plurals>
+    <string name="search_filters_no_matches">No matches</string>
+    <string name="search_filters_custom_range">Custom range</string>
+    <!-- Custom date range chip, e.g. "3 Oct – 9 Oct" -->
+    <string name="search_filters_range_format">%1$s – %2$s</string>
+    <string name="date_preset_any">Any</string>
+    <string name="date_preset_today">Today</string>
+    <string name="date_preset_next_7_days">Next 7 days</string>
+    <string name="date_preset_overdue">Overdue</string>
+    <string name="date_preset_no_date">No date</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_set">Set</string>
     <!-- Search Filters sheet: hint inside the notebook/tag typeahead fields (40+ items) -->
     <string name="search_filter_notebook_hint">Add filename(s)</string>
     <string name="search_filter_tag_hint">Add tag(s)</string>

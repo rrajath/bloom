@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.search
 
+import com.rrajath.grove.R
+import androidx.annotation.StringRes
 import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.FileRewrite
 import com.rrajath.grove.attach.rewritesFor
@@ -77,13 +79,13 @@ import java.util.Locale
  *  and the states catalog, distinct from any real keyword string. */
 const val NO_STATE = "-"
 
-enum class DatePreset(val label: String) {
-    ANY("Any"),
-    TODAY("Today"),
-    NEXT_7_DAYS("Next 7 days"),
-    OVERDUE("Overdue"),
-    NO_DATE("No date"),
-    CUSTOM("Custom range"),
+enum class DatePreset(@StringRes val labelRes: Int) {
+    ANY(R.string.date_preset_any),
+    TODAY(R.string.date_preset_today),
+    NEXT_7_DAYS(R.string.date_preset_next_7_days),
+    OVERDUE(R.string.date_preset_overdue),
+    NO_DATE(R.string.date_preset_no_date),
+    CUSTOM(R.string.search_filters_custom_range),
 }
 
 /** Inclusive start/end for [DatePreset.CUSTOM]. */

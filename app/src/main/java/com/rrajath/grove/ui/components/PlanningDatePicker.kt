@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.components
 
+import com.rrajath.grove.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,7 +70,7 @@ fun CustomDateRangePicker(
                     Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(onClick = onDismiss) { Text("Cancel", color = c.ink2, fontWeight = FontWeight.SemiBold) }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = c.ink2, fontWeight = FontWeight.SemiBold) }
                     TextButton(
                         onClick = {
                             val startMillis = rangeState.selectedStartDateMillis
@@ -81,7 +83,7 @@ fun CustomDateRangePicker(
                             }
                         },
                         enabled = rangeState.selectedStartDateMillis != null && rangeState.selectedEndDateMillis != null,
-                    ) { Text("Set", color = c.accent, fontWeight = FontWeight.SemiBold) }
+                    ) { Text(stringResource(R.string.action_set), color = c.accent, fontWeight = FontWeight.SemiBold) }
                 }
             }
         }
