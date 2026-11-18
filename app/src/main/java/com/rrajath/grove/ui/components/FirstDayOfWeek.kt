@@ -1,14 +1,30 @@
 package com.rrajath.grove.ui.components
 
 import android.os.Build
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.org.orgLocale
 import com.rrajath.grove.settings.WeekStart
+import com.rrajath.grove.ui.theme.PlexSans
+import com.rrajath.grove.ui.theme.grove
 import java.time.DayOfWeek
+import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -57,4 +73,29 @@ fun rememberFirstDayOfWeek(): DayOfWeek {
             .onEach { lastKnownWeekStart = it }
     }.collectAsState(initial = lastKnownWeekStart)
     return pref.resolve(system)
+}
+
+/**
+ * One narrow weekday letter per column, starting at [firstDay], in the device
+ * language. Columns are equal weights, so it lines up with any 7-column grid
+ * that uses the same [spacing] between cells. Each letter reads out as the full
+ * day name, since "T" and "S" alone are ambiguous.
+ */
+@Composable
+fun WeekdayHeaderRow(firstDay: DayOfWeek, modifier: Modifier = Modifier, spacing: Dp = 0.dp) {
+    val c = MaterialTheme.grove
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(spacing)) {
+        WeekStart.weekdays(firstDay).forEach { dow ->
+            val full = dow.getDisplayName(TextStyle.FULL, orgLocale())
+            Text(
+                dow.getDisplayName(TextStyle.NARROW_STANDALONE, orgLocale()),
+                fontFamily = PlexSans, fontSize = 10.sp, color = c.ink3,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(bottom = 4.dp)
+                    .semantics { contentDescription = full },
+            )
+        }
+    }
 }

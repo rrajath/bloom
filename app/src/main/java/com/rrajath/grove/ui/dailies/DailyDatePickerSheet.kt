@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.settings.WeekStart
+import com.rrajath.grove.ui.components.WeekdayHeaderRow
 import com.rrajath.grove.ui.components.rememberFirstDayOfWeek
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -74,7 +75,9 @@ fun DailyDatePickerSheet(
             // Always six rows (the most any month needs), so the sheet keeps one height
             // as the user pages between months.
             val cells: List<LocalDate?> = (List(leadingBlanks) { null } + days).let { it + List(42 - it.size) { null } }
-            LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.padding(vertical = 8.dp)) {
+            // Equal-weight columns with no gaps, matching the grid's Fixed(7) cells.
+            WeekdayHeaderRow(firstDay, Modifier.padding(top = 8.dp))
+            LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.padding(bottom = 8.dp)) {
                 items(cells) { date ->
                     if (date == null) {
                         Box(Modifier.aspectRatio(1f))

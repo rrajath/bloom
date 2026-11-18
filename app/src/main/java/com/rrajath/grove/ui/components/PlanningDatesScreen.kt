@@ -961,18 +961,8 @@ private fun AccentCalendar(
             MonthArrow("›", onNext)
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            // Same column order as the grid below; letters in the device language.
-            WeekStart.weekdays(firstDay).forEach { dow ->
-                val d = dow.getDisplayName(java.time.format.TextStyle.NARROW_STANDALONE, orgLocale())
-                Text(
-                    d,
-                    fontFamily = PlexSans, fontSize = 10.sp, color = c.ink3,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f).padding(bottom = 4.dp),
-                )
-            }
-        }
+        // Same column order and 2dp gaps as the grid below.
+        WeekdayHeaderRow(firstDay, spacing = 2.dp)
 
         Column(
             Modifier
