@@ -171,6 +171,11 @@ android {
         // unlisted variant is safe; turned on per build type below for `debug`
         // and `benchmark`. `release` stays false — R8 then dead-strips the hook.
         buildConfigField("boolean", "TEST_HOOKS", "false")
+
+        // Gates every Roam surface (Settings page, master switch). On for `debug`
+        // and the Performance build (see perfVariants below), so Roam can be
+        // measured on near-release code; off in `release` until Roam ships.
+        buildConfigField("boolean", "ROAM_FEATURES", "false")
     }
 
     signingConfigs {
@@ -193,6 +198,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             buildConfigField("boolean", "TEST_HOOKS", "true")
+            buildConfigField("boolean", "ROAM_FEATURES", "true")
         }
         release {
             isMinifyEnabled = true
@@ -291,6 +297,11 @@ androidComponents {
     onVariants { variant ->
         if (variant.name in perfVariants) {
             variant.applicationId.set(perfApplicationId)
+            // Inherits release's `false`; the perf build is where Roam gets timed.
+            variant.buildConfigFields?.put(
+                "ROAM_FEATURES",
+                com.android.build.api.variant.BuildConfigField("boolean", "true", "Roam features"),
+            )
         }
         val variantName = variant.name.replaceFirstChar { it.uppercase() }
         val copyTask = tasks.register<CopyChangelogTask>("copy${variantName}ChangelogAsset") {

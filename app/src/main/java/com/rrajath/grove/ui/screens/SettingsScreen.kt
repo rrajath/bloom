@@ -110,8 +110,8 @@ fun SettingsScreen(
             onClick = onOpenReminders,
             badge = { NewDot(NewAnchors.SETTINGS_REMINDERS) },
         ),
-        // Debug builds only, like every Roam surface (see SettingsRepository's load).
-        if (!com.rrajath.grove.BuildConfig.DEBUG) null else SettingsPage(
+        // Debug and perf builds only, like every Roam surface (see SettingsRepository's load).
+        if (!com.rrajath.grove.BuildConfig.ROAM_FEATURES) null else SettingsPage(
             "Roam Features",
             "Backlinks and link suggestions while typing",
             onClick = onOpenRoam,
