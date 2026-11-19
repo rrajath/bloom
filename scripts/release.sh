@@ -3,7 +3,9 @@
 #
 #   scripts/release.sh 1.8.2
 #
-# Bumps `versionName` and `versionCode` in gradle.properties, archives `## [Unreleased]` in
+# Runs the unit tests and requires a baseline profile regenerated since the
+# previous tag; it exits without changing anything if either check fails. Then
+# bumps `versionName` and `versionCode` in gradle.properties, archives `## [Unreleased]` in
 # CHANGELOG.md as `## [1.8.2] - <UTC date>`, commits both as "Release v1.8.2",
 # tags that commit v1.8.2, and moves `main` to it. Nothing is pushed: the
 # script prints the push commands at the end.
@@ -52,13 +54,23 @@ else
   [ -z "$(git status --porcelain --untracked-files=no)" ] || die "working tree has uncommitted changes"
 fi
 
+# Unit tests (JVM + Robolectric) must pass before anything is versioned or tagged.
+# Gradle needs a JDK; fall back to Android Studio's bundled JBR when none is set.
+if [ -z "${JAVA_HOME:-}" ] && [ -d "/Applications/Android Studio.app/Contents/jbr/Contents/Home" ]; then
+  export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+fi
+echo "Running unit tests (./gradlew test)..."
+./gradlew test || die "unit tests failed; fix them before releasing"
+
 # The baseline profile is a checked-in source file (so F-Droid's rebuild matches);
-# it only stays useful if it's regenerated as the code changes.
+# it only stays useful if it's regenerated as the code changes, so every release
+# must include a freshly generated one.
 PROFILE_DIR=app/src/release/generated/baselineProfiles
-[ -n "$(ls "$PROFILE_DIR"/*.txt 2>/dev/null)" ] || die "no baseline profile in $PROFILE_DIR; run ./gradlew :app:generateBaselineProfile and commit it"
+REGEN_HINT="run ./gradlew :app:generateBaselineProfile and commit the result"
+[ -n "$(ls "$PROFILE_DIR"/*.txt 2>/dev/null)" ] || die "no baseline profile in $PROFILE_DIR; $REGEN_HINT"
 PREV_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
 if [ -n "$PREV_TAG" ] && [ -z "$(git log --oneline "$PREV_TAG"..HEAD -- "$PROFILE_DIR")" ]; then
-  echo "warning: baseline profile unchanged since $PREV_TAG; consider ./gradlew :app:generateBaselineProfile first" >&2
+  die "baseline profile unchanged since $PREV_TAG; $REGEN_HINT"
 fi
 
 sed -i.bak -e "s/^versionName=.*/versionName=$VERSION/" -e "s/^versionCode=.*/versionCode=$NEW_CODE/" gradle.properties

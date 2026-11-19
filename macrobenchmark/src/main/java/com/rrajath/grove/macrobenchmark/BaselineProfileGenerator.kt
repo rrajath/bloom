@@ -22,7 +22,7 @@ import org.junit.runner.RunWith
  *
  * Run: `./gradlew :app:generateBaselineProfile` (needs a connected API 33+
  * device or emulator). Output lands in `app/src/release/generated/baselineProfiles/`:
- * commit it, and regenerate before each release (`scripts/release.sh` reminds).
+ * commit it, and regenerate before each release (`scripts/release.sh` refuses to tag without it).
  *
  * Dailies has no journey: it is behind the Roam toggle, which only debug
  * builds honour, so release code never reaches it.
