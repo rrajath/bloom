@@ -29,10 +29,36 @@ class MainDispatcherRule(
     val appDispatchers = AppDispatchers(main = dispatcher, io = dispatcher, default = dispatcher)
 
     override fun starting(description: Description) {
-        Dispatchers.setMain(dispatcher)
+        swapMain { Dispatchers.setMain(dispatcher) }
     }
 
     override fun finished(description: Description) {
-        Dispatchers.resetMain()
+        swapMain { Dispatchers.resetMain() }
+    }
+
+    /**
+     * DataStore resumes `viewModelScope` coroutines (often a finished test's) from its
+     * own IO thread, which reads `Dispatchers.Main`. When that read overlaps a
+     * set/reset, kotlinx-coroutines-test throws "Dispatchers.Main is used concurrently
+     * with setting it" from the swap, possibly on the *next* swap. A failed `setMain`
+     * in [starting] leaves the real Main in place while the test body still runs, so
+     * the test hangs or fails for no reason of its own. The collision is transient and
+     * retrying is safe (setting the same value twice is a no-op), so retry it.
+     */
+    private fun swapMain(swap: () -> Unit) {
+        repeat(MAX_SWAP_ATTEMPTS - 1) {
+            try {
+                return swap()
+            } catch (e: IllegalStateException) {
+                if (e.message?.contains("concurrently") != true) throw e
+                Thread.sleep(SWAP_RETRY_DELAY_MS)
+            }
+        }
+        swap()
+    }
+
+    private companion object {
+        const val MAX_SWAP_ATTEMPTS = 20
+        const val SWAP_RETRY_DELAY_MS = 5L
     }
 }
