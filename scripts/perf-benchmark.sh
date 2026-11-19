@@ -11,8 +11,7 @@
 # so the working copy is never touched. Commits from before the Performance
 # variant existed are refused: their benchmark build installs as
 # com.rrajath.grove, the production app's ID.
-#
-# How to read the results: internal/perf-benchmarking.md.
+
 set -euo pipefail
 
 PERF_PACKAGE="com.rrajath.grove.perf"

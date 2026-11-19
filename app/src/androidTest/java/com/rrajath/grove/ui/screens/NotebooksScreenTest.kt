@@ -20,8 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Layer-2 UI coverage for [NotebooksScreen] (see
- * internal/test-suite-02-ui-compose.md § NotebooksScreen).
+ * Layer-2 UI coverage for [NotebooksScreen].
  */
 @RunWith(AndroidJUnit4::class)
 class NotebooksScreenTest {

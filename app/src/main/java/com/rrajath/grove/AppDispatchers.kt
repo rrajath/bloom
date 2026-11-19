@@ -10,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
  *
  * Production code holds the real values (see [GroveApplication.dispatchers]);
  * nothing else should read [Dispatchers] directly once a class has been handed
- * an [AppDispatchers]. See internal/test-suite-00-overview.md § Dispatcher injection.
+ * an [AppDispatchers].
  */
 data class AppDispatchers(
     val main: CoroutineDispatcher = Dispatchers.Main,

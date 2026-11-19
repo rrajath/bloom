@@ -23,8 +23,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Layer-2 UI coverage for [ReadNoteScreen] (see
- * internal/test-suite-02-ui-compose.md § ReadNoteScreen). Renders the note AST
+ * Layer-2 UI coverage for [ReadNoteScreen].
+ * Renders the note AST
  * to Compose text/blocks — no WebView. Fixtures: `reading-list.org`,
  * `table.org`, `large-subtree.org`, plus an inline markup note written straight
  * into the fake store.

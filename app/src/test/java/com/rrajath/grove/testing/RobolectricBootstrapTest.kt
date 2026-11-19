@@ -23,8 +23,7 @@ import org.robolectric.annotation.Config
  *
  * `GroveDatabase` under Robolectric: resolved in M3 — the desktop `sqlite-bundled`
  * natives (`testRuntimeOnly sqlite-bundled-jvm`) let `BundledSQLiteDriver` load on
- * the JVM with full FTS5. `RoomUnderRobolectricTest` guards that; see
- * `internal/LEARNINGS.md` 2026-09-07.
+ * the JVM with full FTS5. `RoomUnderRobolectricTest` guards that.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [34])

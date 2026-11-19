@@ -54,8 +54,6 @@ import java.time.LocalDate
  *
  * The 27 link forms also have Maestro end-to-end coverage (flow 05); this pins
  * the resolution at the VM level against the Room index + vault.
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

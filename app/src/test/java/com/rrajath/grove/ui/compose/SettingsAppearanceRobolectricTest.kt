@@ -23,8 +23,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Layer-2 smoke slice that runs on the JVM per-push job instead of only the
- * nightly emulator (see internal/test-suite-02-ui-compose.md § "Robolectric
- * subset"). Robolectric + `@GraphicsMode.NATIVE` renders real Compose frames
+ * nightly emulator. Robolectric + `@GraphicsMode.NATIVE` renders real Compose frames
  * off-device; it covers only the stateless pure-composable screens — anything
  * needing a live vault / ViewModel / SAF launcher stays in `androidTest/`.
  *

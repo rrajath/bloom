@@ -20,8 +20,6 @@ import kotlin.coroutines.CoroutineContext
  * [queryCoroutineContext] so DAO queries run in the test's virtual time and
  * `advanceUntilIdle()` deterministically drains them; instrumented callers keep
  * the [Dispatchers.IO] default.
- *
- * See internal/test-suite-00-overview.md § Fakes to build (in-memory Room).
  */
 object InMemoryGroveDatabase {
     fun create(

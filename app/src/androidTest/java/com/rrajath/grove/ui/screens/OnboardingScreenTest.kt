@@ -24,8 +24,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Layer-2 UI coverage for [OnboardingScreen] (see
- * internal/test-suite-02-ui-compose.md § OnboardingScreen). The screen is
+ * Layer-2 UI coverage for [OnboardingScreen].
+ * The screen is
  * stateless — no ViewModel, no vault — so it renders directly with recorded
  * callbacks. The SAF folder picker result itself is a Layer-3 (Maestro)
  * concern; here we only assert the CTA opens it without prematurely firing

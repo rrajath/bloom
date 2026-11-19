@@ -7,8 +7,7 @@
 # app/src/testFixtures/resources/fixtures by the copyDebugTestFixtures Gradle
 # task — the same content OrgFixtures reads in the JVM/UI test layers).
 #
-# Flow 01 (onboarding + SAF system picker) is deferred — see
-# internal/test-suite-03-e2e-maestro.md. Flows 02-04 skip onboarding via the
+# Flow 01 (onboarding + SAF system picker) is deferred. Flows 02-04 skip onboarding via the
 # hook.
 #
 # Run:

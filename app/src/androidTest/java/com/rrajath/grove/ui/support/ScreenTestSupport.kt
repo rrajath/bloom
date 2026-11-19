@@ -33,8 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
 /**
- * Shared wiring for the Layer-2 Compose UI tests (see
- * internal/test-suite-02-ui-compose.md).
+ * Shared wiring for the Layer-2 Compose UI tests.
  *
  * Screens are hosted directly (not the nav graph) with a ViewModel built from
  * the shared `testFixtures` fakes. What has no JVM-free fake — the Context-backed

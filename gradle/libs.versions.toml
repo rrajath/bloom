@@ -25,7 +25,7 @@ uiautomator = "2.3.0"
 profileinstaller = "1.4.1"
 javaDiffUtils = "4.15"
 desugarJdkLibs = "2.1.5"
-# Test-suite layers (see internal/test-suite-00-overview.md). Robolectric is
+# Test-suite layers. Robolectric is
 # bumped past the design doc's 4.14.1 because AGP 9 / compileSdk 36 need 4.16+.
 robolectric = "4.16.1"
 turbine = "1.2.1"
@@ -36,10 +36,10 @@ androidxTest = "1.7.0"
 # app data (DataStore) between tests.
 androidxTestOrchestrator = "1.6.1"
 androidxTestServices = "1.6.0"
-# Layer-4 macrobenchmark (internal/test-suite-04-performance-macrobenchmark.md).
+# Layer-4 macrobenchmark.
 # Kept in lockstep with `benchmark` above.
 baselineprofile = "1.5.0-rc02"
-# Attachments (internal/image-file-support-tech-design.md 3.3). Coil 3.5+ is
+# Attachments. Coil 3.5+ is
 # built with Kotlin 2.4 (stdlib 2.4.x); 3.4.0 is the newest line a Kotlin 2.2
 # compiler can read. Bump with Kotlin.
 coil = "3.4.0"

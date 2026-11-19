@@ -15,8 +15,6 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * The conflict helpers ([conflictTexts], [resolveConflict]) delegate to
  * caller-supplied lambdas; the defaults behave as "no conflict".
- *
- * See internal/test-suite-01-integration-robolectric.md § Test conventions.
  */
 class FakeSyncTrigger(
     private val onConflictTexts: suspend (String) -> Pair<String, String>? = { null },

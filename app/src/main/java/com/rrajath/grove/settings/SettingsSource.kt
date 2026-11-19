@@ -7,8 +7,6 @@ import kotlinx.coroutines.flow.Flow
  * dependency to this interface lets tests supply a trivial fake
  * (`FakeSettingsRepository`, backed by a `MutableStateFlow`) instead of a real
  * DataStore. [SettingsRepository] implements it.
- *
- * See internal/test-suite-01-integration-robolectric.md § Prerequisites.
  */
 interface SettingsSource {
     /**

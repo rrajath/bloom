@@ -17,8 +17,8 @@ import java.time.LocalDate
 /**
  * Report phases 4 and 5 (issue #97 follow-up): future repeats of SCHEDULED /
  * DEADLINE in Upcoming, deadline prewarnings ("Due soon") and the SCHEDULED
- * delay cookie. Case IDs (S8, D6, B3, ...) are the Emacs fixture cases in
- * `internal/2026-11-04-emacs-date-parity-report.md`, all viewed on Wed Nov 4 2026.
+ * delay cookie. Case IDs (S8, D6, B3, ...) are the Emacs fixture cases, all viewed
+ * on Wed Nov 4 2026.
  */
 class AgendaRepeatsAndWarningsTest {
 

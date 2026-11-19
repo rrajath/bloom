@@ -6,7 +6,6 @@ plugins {
 }
 
 // Layer 4 of the test suite — Macrobenchmark + Baseline Profile.
-// See internal/test-suite-04-performance-macrobenchmark.md.
 //
 // A `com.android.test` module: builds a standalone instrumentation APK that
 // measures :app (installed separately). Nothing here ships in the app. The

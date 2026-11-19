@@ -46,8 +46,6 @@ import org.robolectric.annotation.Config
 /**
  * Layer-1 integration coverage for [EditorViewModel]: load → edit → save on a
  * real in-memory Room DB (for the tag query) and an in-memory FileStore.
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

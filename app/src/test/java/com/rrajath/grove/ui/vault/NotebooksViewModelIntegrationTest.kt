@@ -48,8 +48,6 @@ import org.robolectric.annotation.Config
  * [SettingsRepository]'s own responsibility and has direct coverage there.
  * Every VM's scope is cancelled in teardown so its `state` collector and its
  * first-open-defaults write don't leak into the next Robolectric class.
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

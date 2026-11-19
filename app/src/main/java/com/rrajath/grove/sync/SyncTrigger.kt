@@ -7,8 +7,6 @@ import kotlinx.coroutines.flow.StateFlow
  * can hand a VM a recording fake instead of the real [SyncManager] (which stands
  * up WorkManager, a FileObserver and a foreground Service). [SyncManager]
  * implements it; every member below already exists there.
- *
- * See internal/test-suite-01-integration-robolectric.md § Prerequisites (M2).
  */
 interface SyncTrigger {
     /** Current sync state machine position (Idle → Checking → … → Done/Conflict/Error). */

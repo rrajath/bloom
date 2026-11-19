@@ -10,8 +10,6 @@ import com.rrajath.grove.vault.FileStore
  * [GroveDatabase] index from them. Shared by the integration tests, the Maestro
  * debug-vault hook (M5), and the benchmark module (M6) so every layer starts
  * from the same vault contents.
- *
- * See internal/test-suite-00-overview.md § Fakes to build (TestVaultSeeder).
  */
 object TestVaultSeeder {
 

@@ -33,8 +33,6 @@ import java.time.LocalDate
  * Layer-1 integration coverage for [AgendaViewModel]: planned notes indexed in
  * Room are bucketed into the agenda, and a swipe-to-done writes the file and
  * requests a sync.
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

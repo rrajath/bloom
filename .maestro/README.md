@@ -1,6 +1,6 @@
 # Maestro end-to-end flows (test suite Layer 3 / M5)
 
-Design: `internal/test-suite-03-e2e-maestro.md`. Status: **passing** — all
+Status: **passing** — all
 flows verified against a Pixel_9a AVD (API 35, AOSP keyboard) on 2026-09-07.
 
 ## What runs

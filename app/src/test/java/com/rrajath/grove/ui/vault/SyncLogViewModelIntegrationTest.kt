@@ -21,8 +21,6 @@ import org.robolectric.annotation.Config
  * Layer-1 integration coverage for [SyncLogViewModel]: the sync-log rows in Room
  * stream into the exposed flow newest-first, `total` tracks the full count, and
  * `loadMore` grows the page past the first [SyncLogViewModel.PAGE_SIZE].
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

@@ -21,8 +21,7 @@ import java.io.File
  * the `debug` and `benchmark` build types and off for `release` (R8 then
  * dead-strips this). The `.org` fixtures the small seed reads are only copied
  * into those two variants' assets (`copy{Debug,Benchmark}TestFixtures` in
- * `app/build.gradle.kts`). See internal/test-suite-03-e2e-maestro.md and
- * internal/test-suite-04-performance-macrobenchmark.md.
+ * `app/build.gradle.kts`).
  */
 object DebugTestVault {
 

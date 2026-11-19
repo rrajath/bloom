@@ -19,8 +19,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Layer-2 UI coverage for [SettingsAppearanceScreen] (see
- * internal/test-suite-02-ui-compose.md § SettingsAppearanceScreen). The screen
+ * Layer-2 UI coverage for [SettingsAppearanceScreen].
+ * The screen
  * is stateless — it takes a [GroveSettings] plus setter lambdas — so it renders
  * directly with recorded callbacks. The text-size lever is a
  * Small/Medium/Large [com.rrajath.grove.ui.components.SegmentedControl], not the

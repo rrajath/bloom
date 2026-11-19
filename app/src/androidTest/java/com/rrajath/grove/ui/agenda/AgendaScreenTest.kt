@@ -19,7 +19,7 @@ import org.junit.runner.RunWith
 import java.time.LocalDate
 
 /**
- * Layer-2 UI coverage for [AgendaScreen] (see internal/test-suite-02-ui-compose.md).
+ * Layer-2 UI coverage for [AgendaScreen].
  *
  * A heading with no TODO keyword is an event, not a task, whether it is placed
  * on the day by a bare active timestamp or by SCHEDULED: the agenda renders it

@@ -29,8 +29,6 @@ import org.robolectric.annotation.Config
  * in-memory Room index, exercised through the real [SyncEngine] +
  * [com.rrajath.grove.data.RoomNoteIndex]. Complements [SyncEngineTest], which
  * tests the diff algorithm in isolation.
- *
- * See internal/test-suite-01-integration-robolectric.md § Repository-interaction round trip.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

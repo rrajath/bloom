@@ -175,7 +175,7 @@ class OrgMutationsTest {
         assertEquals("* Gym\nSCHEDULED: <2025-06-09 Mon +1d>\nLeg day <2025-06-16 Mon +1w>\n", result)
     }
 
-    // --- markDone parity with Emacs org-auto-repeat-maybe (internal/emacs-date-parity) ---
+    // --- markDone parity with Emacs org-auto-repeat-maybe ---
 
     private val nov4 = LocalDateTime.of(2026, 11, 4, 10, 0)
 

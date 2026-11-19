@@ -24,8 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Layer-2 UI coverage for [EditNoteScreen] (see
- * internal/test-suite-02-ui-compose.md § EditNoteScreen).
+ * Layer-2 UI coverage for [EditNoteScreen].
  */
 @RunWith(AndroidJUnit4::class)
 class EditNoteScreenTest {

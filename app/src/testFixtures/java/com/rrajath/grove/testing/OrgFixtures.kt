@@ -10,7 +10,7 @@ package com.rrajath.grove.testing
  * so there is a single source of truth: this object reads them off the test
  * classpath, and the debug build copies the same directory into its APK assets
  * (`copyDebugTestFixtures` in `app/build.gradle.kts`) so the Maestro debug-vault
- * hook seeds from identical content. See internal/test-suite-03-e2e-maestro.md.
+ * hook seeds from identical content.
  */
 object OrgFixtures {
 

@@ -74,7 +74,7 @@ abstract class CopyChangelogTask : org.gradle.api.DefaultTask() {
 // test-vault hook (DebugTestVault) can seed a vault from identical content with
 // no SAF picker. Wired only for the variants with BuildConfig.TEST_HOOKS on
 // (see `testHookVariants` in androidComponents) — plain `release` never carries
-// these. See internal/test-suite-03-e2e-maestro.md and -04-performance-macrobenchmark.md.
+// these.
 abstract class CopyTestFixturesTask : org.gradle.api.DefaultTask() {
     @get:org.gradle.api.tasks.InputDirectory
     abstract val inputDir: org.gradle.api.file.DirectoryProperty
@@ -235,7 +235,6 @@ android {
     // Shared test fakes/fixtures (FakeFileStore, FakeSettingsRepository, OrgFixtures,
     // TestVaultSeeder, in-memory Room helper) live in src/testFixtures and are
     // consumed by both the JVM (test/) and instrumented (androidTest/) suites.
-    // See internal/test-suite-00-overview.md § Shared test infrastructure.
     testFixtures {
         enable = true
     }
@@ -274,7 +273,7 @@ android {
 
 composeCompiler {
     // Value types (domain models, java.time) that are immutable in practice but
-    // the compiler can't verify. See internal/PERFORMANCE_AUDIT_2026-08-27.md #6.
+    // the compiler can't verify.
     stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file("app/compose_stability.conf"))
 }
 
@@ -383,12 +382,10 @@ dependencies {
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.room.testing)
     // Desktop SQLite natives so BundledSQLiteDriver (and thus GroveDatabase +
-    // FTS5) works under Robolectric on the host JVM. See internal/LEARNINGS.md
-    // 2026-09-07.
+    // FTS5) works under Robolectric on the host JVM.
     testRuntimeOnly(libs.androidx.sqlite.bundled.jvm)
     // A slice of the Layer-2 Compose UI tests also runs under Robolectric
-    // (@GraphicsMode NATIVE) on the per-push JVM job — see
-    // internal/test-suite-02-ui-compose.md § "Robolectric subset".
+    // (@GraphicsMode NATIVE) on the per-push JVM job.
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.compose.ui.test.manifest)

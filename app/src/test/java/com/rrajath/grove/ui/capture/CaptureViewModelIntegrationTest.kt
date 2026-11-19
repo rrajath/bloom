@@ -37,8 +37,6 @@ import java.time.LocalDateTime
  * Layer-1 integration coverage for [CaptureViewModel]: the save path writes the
  * entry into the target notebook and requests a sync; the guard rails
  * (blank text, no vault folder) surface as [SaveState.Failed].
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

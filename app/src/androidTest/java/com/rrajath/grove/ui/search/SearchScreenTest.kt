@@ -20,8 +20,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Layer-2 UI coverage for [SearchScreen] (see
- * internal/test-suite-02-ui-compose.md § SearchScreen). Fixture:
+ * Layer-2 UI coverage for [SearchScreen].
+ * Fixture:
  * `reading-list.org` has the unique body word "photosynthesis" under the
  * heading "How leaves work".
  */

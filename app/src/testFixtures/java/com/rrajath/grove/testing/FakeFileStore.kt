@@ -20,8 +20,6 @@ import kotlinx.coroutines.sync.withLock
  * anything under a dot-directory, [read] on a missing file throws, [create] /
  * [rename] refuse to clobber. Directories are not real entities here, so
  * [pruneEmptyDirs] is a no-op (as the interface allows).
- *
- * See internal/test-suite-00-overview.md § Fakes to build.
  */
 class FakeFileStore(
     initial: Map<String, String> = emptyMap(),

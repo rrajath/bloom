@@ -10,7 +10,7 @@ import java.time.LocalDateTime
 
 /**
  * Repeater projection and arithmetic, with expectations taken from real Emacs
- * 30.2 / Org 9.8 runs (`internal/emacs-date-parity/`): which days `org-agenda`
+ * 30.2 / Org 9.8 runs: which days `org-agenda`
  * lists a repeating timestamp on, and where `org-todo` moves it.
  */
 class RepeaterOccurrenceTest {

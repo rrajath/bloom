@@ -19,8 +19,6 @@ import org.robolectric.annotation.Config
  * Robolectric, FTS5 + the trigram tokenizer are compiled in, and DAO queries
  * run in the test's virtual time when [GroveDatabase.inMemory] is handed a
  * `TestDispatcher`.
- *
- * See internal/LEARNINGS.md 2026-09-07 and the M3 rollout in PROGRESS.md.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

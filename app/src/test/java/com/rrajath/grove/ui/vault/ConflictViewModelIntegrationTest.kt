@@ -31,8 +31,6 @@ import org.robolectric.annotation.Config
  * The resolution *mechanics* (what KEEP_CURRENT / KEEP_CONFLICT_COPY / KEEP_BOTH
  * write to disk) are pinned by `SyncConflictsTest`; here [FakeSyncTrigger] stands
  * in for that layer so the VM's own branching is what's under test.
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

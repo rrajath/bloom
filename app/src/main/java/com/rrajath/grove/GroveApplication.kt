@@ -74,10 +74,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 /**
  * Historical ignore-file name from the now-superseded `.orgzlyignore`
- * mechanism (see [com.rrajath.grove.vault.IgnorePatterns] and
- * internal/ignore-list-feature/00-overview.md). Hardcoded as a literal rather
- * than a shared constant, since the class that used to own it was deleted
- * once every caller of it was migrated.
+ * mechanism (see [com.rrajath.grove.vault.IgnorePatterns]). Hardcoded as a
+ * literal rather than a shared constant, since the class that used to own it
+ * was deleted once every caller of it was migrated.
  */
 private const val LEGACY_IGNORE_FILE_NAME = ".orgzlyignore"
 
@@ -486,7 +485,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
         appScope.launch {
             // .orgzlyignore is superseded by the ignoreList setting (see
-            // internal/ignore-list-feature/00-overview.md). Import its lines into
+            // IgnorePatterns). Import its lines into
             // ignoreList exactly once, then never read the file again — the file
             // itself is left on disk, untouched.
             val store = fileStore.filterNotNull().first()

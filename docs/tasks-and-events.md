@@ -36,7 +36,7 @@ A repeater is a `+1w` / `++1w` / `.+1w`-style suffix written *inside* a timestam
 
 Completing a repeating timestamp always advances its date to the next occurrence instead of closing or marking anything done. A zero interval (`+0d`) counts as no repeater, as in Emacs. Month and year repeaters follow Emacs's arithmetic: a day the target month lacks overflows into the next month, so `<2026-01-31 Sat +1m>` advances to Mar 3 and a Feb 29 `+1y` to Mar 1 (`plusOrgUnits`).
 
-On the Agenda, widget, and Search `ad.N`, a repeating bare active timestamp shows on its own date and on every later occurrence, projected from the stored date the way the Emacs agenda does (`OrgTimestamp.occurrenceCovering`). All three forms display alike; the form only matters when the entry is completed. Unlike the Emacs agenda, a repeating range and a repeater followed by a warning cookie (`<... +1w -1d>`) repeat too. SCHEDULED and DEADLINE still show on their stored date only (see `internal/2026-11-04-emacs-date-parity-report.md` for the remaining Emacs gaps).
+On the Agenda, widget, and Search `ad.N`, a repeating bare active timestamp shows on its own date and on every later occurrence, projected from the stored date the way the Emacs agenda does (`OrgTimestamp.occurrenceCovering`). All three forms display alike; the form only matters when the entry is completed. Unlike the Emacs agenda, a repeating range and a repeater followed by a warning cookie (`<... +1w -1d>`) repeat too. SCHEDULED and DEADLINE still show on their stored date only.
 
 ## Completing a task
 

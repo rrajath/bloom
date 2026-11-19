@@ -18,8 +18,6 @@ import org.junit.runner.Description
  *
  * [appDispatchers] points main/io/default at that same dispatcher, so a VM built
  * with it is fully deterministic. Pass it to the VM constructor under test.
- *
- * See internal/test-suite-01-integration-robolectric.md § Test conventions.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule(

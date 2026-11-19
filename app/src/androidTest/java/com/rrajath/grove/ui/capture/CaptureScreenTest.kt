@@ -28,7 +28,7 @@ import org.junit.runner.RunWith
 
 /**
  * Layer-2 UI coverage for the capture flow — [CapturePickerSheet] +
- * [CaptureEditorScreen] (see internal/test-suite-02-ui-compose.md § Capture).
+ * [CaptureEditorScreen].
  * The template list comes from the real (DataStore-backed) [TemplatesRepository],
  * which on a clean emulator serves the three built-in templates.
  */

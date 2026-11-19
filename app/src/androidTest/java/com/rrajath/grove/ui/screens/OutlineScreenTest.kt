@@ -28,8 +28,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Layer-2 UI coverage for [OutlineScreen] (see
- * internal/test-suite-02-ui-compose.md § OutlineScreen). Fixture: `projects.org`
+ * Layer-2 UI coverage for [OutlineScreen].
+ * Fixture: `projects.org`
  * (multi-level TODO tree, see [com.rrajath.grove.testing.OrgFixtures.PROJECTS]).
  */
 @RunWith(AndroidJUnit4::class)

@@ -36,8 +36,6 @@ import org.robolectric.annotation.Config
  * Layer-1 integration coverage for [SearchViewModel]: a query is debounced and
  * run against the real FTS-backed index, and clearing it returns to the blank
  * state.
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -75,7 +73,6 @@ class SearchViewModelIntegrationTest {
         // cancelled leaves eager collectors on SearchRepository's process-wide
         // "search" DataStore parked on a dead test scheduler, which backs up the
         // DataStore actor and flakes a later test (often one in this class).
-        // See internal/LEARNINGS.md 2026-09-07 "leaked viewModelScope wedges…".
         liveVms.forEach { it.viewModelScope.cancel() }
         db.close()
     }

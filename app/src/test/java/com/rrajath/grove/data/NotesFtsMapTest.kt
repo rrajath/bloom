@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Finding #2 of internal/PERFORMANCE_AUDIT_2026-09-10.md: the per-file FTS delete
+ * A performance audit finding: the per-file FTS delete
  * now targets rowids via `notes_fts_map` instead of scanning the UNINDEXED
  * `fileName` column. These tests pin the invariant that has to hold for that to
  * be safe — the map stays exactly in step with `notes_fts`, and deleting one

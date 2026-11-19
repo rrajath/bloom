@@ -12,8 +12,6 @@ import kotlinx.coroutines.flow.asStateFlow
  * emits its seed immediately (no "nothing until first read" gap); a test that
  * needs to assert the pre-load behaviour should drive the real repository under
  * Robolectric instead.
- *
- * See internal/test-suite-00-overview.md § Fakes to build.
  */
 class FakeSettingsRepository(
     initial: GroveSettings = GroveSettings(),

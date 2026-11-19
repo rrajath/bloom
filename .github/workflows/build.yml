@@ -340,7 +340,7 @@ jobs:
               --notes "$NOTES"
           fi
 
-  # Layer-2 Compose UI tests (internal/test-suite-02-ui-compose.md). They need
+  # Layer-2 Compose UI tests. They need
   # an emulator, so they run nightly on a schedule or on a manual "Run workflow"
   # dispatch — never on the per-push regression net.
   ui-tests:
@@ -446,7 +446,7 @@ jobs:
             /tmp/android-runner/emu-crash-*
           if-no-files-found: warn
 
-  # Layer-3 Maestro end-to-end journeys (internal/test-suite-03-e2e-maestro.md).
+  # Layer-3 Maestro end-to-end journeys.
   # Manual "Run workflow" only — the slowest layer, and journey 02's capture path
   # can be timing-sensitive. Flows 02-04 use the debug build's test-vault hook
   # (--ez grove_test_direct_vault true) to skip onboarding and the SAF picker;

@@ -51,8 +51,6 @@ import org.robolectric.annotation.Config
  * `ShareIntake.consumeShare`, which needs a fully wired `GroveApplication`
  * (real vault + sync). `ShareIntake.composeNote` (the routing rule) is covered
  * by `ShareIntakeTest`.
- *
- * See internal/test-suite-01-integration-robolectric.md § Coverage matrix.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -89,8 +87,8 @@ class AppViewModelIntegrationTest {
 
     @After
     fun tearDown() {
-        // See internal/LEARNINGS.md 2026-09-07: an uncancelled viewModelScope
-        // leaves eager DataStore collectors parked on a dead test scheduler,
+        // An uncancelled viewModelScope leaves eager DataStore collectors parked
+        // on a dead test scheduler,
         // backing up the process-wide DataStore actor and flaking a later test.
         liveVms.forEach { it.viewModelScope.cancel() }
         repoScope.cancel()
