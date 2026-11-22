@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings > Sync, sync mode options (settings/Preferences.kt SyncMode). -->
+    <string name="settings_sync_mode_manual">Manual only</string>
+    <!-- Sync when the app is opened and when it's closed. -->
+    <string name="settings_sync_mode_on_open_close">On open / close</string>
+    <!-- Sync every few minutes in the background. -->
+    <string name="settings_sync_mode_periodic">Periodic</string>
+    <!-- Sync as soon as a file changes, with a foreground service. -->
+    <string name="settings_sync_mode_continuous">Continuous</string>
+
+    <!-- Settings > Notebooks, sort order options (NotebookSortKey). Short: two share one segmented control. -->
+    <string name="settings_notebooks_sort_alphabetical">Alphabetical</string>
+    <string name="settings_notebooks_sort_last_modified">Last modified</string>
+
+    <!-- Settings > Attachments, photo size options (AttachPhotoSize). Short: four share one segmented control. -->
+    <string name="settings_attach_photo_size_original">Original</string>
+    <string name="settings_attach_photo_size_large">Large</string>
+    <string name="settings_attach_photo_size_medium">Medium</string>
+    <string name="settings_attach_photo_size_small">Small</string>
+    <!-- Helper under the photo size control when Original is picked. HEIC and JPEG are image formats. -->
+    <string name="settings_attach_photo_size_original_helper">Full resolution. HEIC is still converted to JPEG.</string>
+    <!-- Helper under the photo size control. %1$d = pixels on the image's longer side, e.g. 1920. -->
+    <string name="settings_attach_photo_size_long_edge">Long edge %1$d px</string>
+
+    <!-- Settings > Attachments, default inline image width (AttachImageWidth). Short: two share one segmented control. -->
+    <!-- The image scales to the width of the text column. -->
+    <string name="settings_attach_image_width_fit">Fit column</string>
+    <!-- The image is shown at a set width in pixels. -->
+    <string name="settings_attach_image_width_fixed">Fixed</string>
+
+    <!-- Settings > Agenda, first day of the week (WeekStart). -->
+    <string name="settings_week_start_system">System default</string>
+    <!-- The System default option with the day the phone's region starts weeks on. %1$s = weekday name, e.g. Monday. -->
+    <string name="settings_week_start_system_with_day">System default (%1$s)</string>
+    <string name="settings_week_start_sunday">Sunday</string>
+    <string name="settings_week_start_monday">Monday</string>
+</resources>

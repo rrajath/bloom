@@ -57,6 +57,9 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Changed
+- Settings › Agenda › Start of week now names your region's first weekday in your device language.
+
 ## [1.16.0] - 2026-11-18
 
 ### Added

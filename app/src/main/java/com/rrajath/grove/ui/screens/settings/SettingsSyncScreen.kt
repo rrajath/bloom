@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,7 +92,7 @@ fun SettingsSyncScreen(
                             .padding(horizontal = 12.dp, vertical = 9.dp),
                     ) {
                         Text(
-                            mode.label,
+                            stringResource(mode.labelRes),
                             fontFamily = PlexSans,
                             fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                             fontSize = 13.5.sp,

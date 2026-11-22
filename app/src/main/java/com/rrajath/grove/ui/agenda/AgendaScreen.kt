@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
@@ -389,7 +390,7 @@ private fun LeversPanel(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             AgendaGrouping.entries.forEach { g ->
-                LeverChip(g.label, active = g == state.grouping) { onGrouping(g) }
+                LeverChip(stringResource(g.labelRes), active = g == state.grouping) { onGrouping(g) }
             }
         }
 

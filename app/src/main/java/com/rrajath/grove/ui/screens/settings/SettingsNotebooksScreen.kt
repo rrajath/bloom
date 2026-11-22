@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -122,7 +123,7 @@ fun SettingsNotebooksScreen(
                 description = "Pinned notebooks and folders are excluded from sorting; they keep their pinned order",
             ) {
                 SegmentedControl(
-                    options = listOf("Alphabetical", "Last modified"),
+                    options = NotebookSortKey.entries.map { stringResource(it.labelRes) },
                     selectedIndex = settings.notebookSortKey.ordinal,
                     onSelect = { onSetNotebookSortKey(NotebookSortKey.entries[it]) },
                     modifier = Modifier.width(220.dp),

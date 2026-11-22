@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Counted nouns (ui/util/Plurals.kt countLabel). Use these only where the count stands
+         alone as a label, e.g. the meta text under a notebook in a picker. A count inside a
+         sentence ("Refiled 3 notes to inbox.org") gets its own whole-sentence <plurals>. -->
+    <!-- A note is an org heading together with its body. -->
+    <plurals name="count_notes">
+        <item quantity="one">%d note</item>
+        <item quantity="other">%d notes</item>
+    </plurals>
+    <!-- A heading is an org headline ("* Title"). -->
+    <plurals name="count_headings">
+        <item quantity="one">%d heading</item>
+        <item quantity="other">%d headings</item>
+    </plurals>
+    <!-- Files on disk, e.g. .org files inside a folder of the notes folder. -->
+    <plurals name="count_files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <plurals name="count_folders">
+        <item quantity="one">%d folder</item>
+        <item quantity="other">%d folders</item>
+    </plurals>
+    <!-- Links from other notes pointing at this one. -->
+    <plurals name="count_backlinks">
+        <item quantity="one">%d backlink</item>
+        <item quantity="other">%d backlinks</item>
+    </plurals>
+    <!-- Places in other notes that mention this note. -->
+    <plurals name="count_references">
+        <item quantity="one">%d reference</item>
+        <item quantity="other">%d references</item>
+    </plurals>
+    <!-- A folder holding a heading's attached files. -->
+    <plurals name="count_attachment_folders">
+        <item quantity="one">%d attachment folder</item>
+        <item quantity="other">%d attachment folders</item>
+    </plurals>
+</resources>

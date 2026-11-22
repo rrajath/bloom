@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.settings.AttachAutoTag
 import com.rrajath.grove.settings.AttachFolder
 import com.rrajath.grove.settings.AttachImageWidth
@@ -93,13 +95,15 @@ fun SettingsAttachmentsScreen(
                     modifier = Modifier.padding(top = 2.dp, bottom = 11.dp),
                 )
                 SegmentedControl(
-                    options = AttachPhotoSize.entries.map { it.label },
+                    options = AttachPhotoSize.entries.map { stringResource(it.labelRes) },
                     selectedIndex = settings.attachPhotoSize.ordinal,
                     onSelect = { onSetPhotoSize(AttachPhotoSize.entries[it]) },
                     modifier = Modifier.fillMaxWidth().testTag("attach_photo_size"),
                 )
                 Text(
-                    settings.attachPhotoSize.helper,
+                    settings.attachPhotoSize.longEdge
+                        ?.let { stringResource(R.string.settings_attach_photo_size_long_edge, it) }
+                        ?: stringResource(R.string.settings_attach_photo_size_original_helper),
                     fontFamily = PlexMono, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 9.dp),
                 )
@@ -116,7 +120,7 @@ fun SettingsAttachmentsScreen(
                     modifier = Modifier.padding(top = 2.dp, bottom = 11.dp),
                 )
                 SegmentedControl(
-                    options = AttachImageWidth.entries.map { it.label },
+                    options = AttachImageWidth.entries.map { stringResource(it.labelRes) },
                     selectedIndex = settings.attachImageWidth.ordinal,
                     onSelect = { onSetImageWidth(AttachImageWidth.entries[it]) },
                     modifier = Modifier.fillMaxWidth().testTag("attach_image_width"),

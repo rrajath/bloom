@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Agenda row swipe action, picked in Settings > Agenda (AgendaSwipeAction). -->
+    <!-- Add or change the task's SCHEDULED date. -->
+    <string name="agenda_swipe_action_schedule">Schedule Task</string>
+    <!-- Add or change the task's DEADLINE date. -->
+    <string name="agenda_swipe_action_deadline">Set Deadline</string>
+    <string name="agenda_swipe_action_done">Mark as Done</string>
+
+    <!-- Agenda "Group by" chips (AgendaGrouping). Short chips in one row. -->
+    <string name="agenda_group_by_date">Date</string>
+    <!-- Group by org priority (#A, #B, #C). -->
+    <string name="agenda_group_by_priority">Priority</string>
+    <!-- Group by org tag. -->
+    <string name="agenda_group_by_tag">Tag</string>
+    <!-- Group by the .org file the item is in. -->
+    <string name="agenda_group_by_file">File</string>
+</resources>

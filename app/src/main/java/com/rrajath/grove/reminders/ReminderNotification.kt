@@ -61,8 +61,9 @@ object ReminderNotification {
             .setColor(NotificationAppearance.markColor(context))
             .setContentTitle(orgInlinePlainText(reminder.headingTitle))
             .setContentText(
-                if (isTask) ReminderLeadTime.fromStorage(reminder.leadTime).dueMessage
-                else eventMessage(ReminderLeadTime.fromStorage(reminder.leadTime))
+                ReminderLeadTime.fromStorage(reminder.leadTime).let {
+                    context.getString(if (isTask) it.taskMessageRes else it.eventMessageRes)
+                }
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -112,11 +113,6 @@ object ReminderNotification {
             .build()
         nm.notify(DIGEST_NOTIFICATION_ID, notification)
     }
-
-    /** Event phrasing for a non-task reminder, honouring the lead time it was armed with. */
-    private fun eventMessage(leadTime: ReminderLeadTime): String =
-        if (leadTime == ReminderLeadTime.AT_TIME) "Your event is starting now"
-        else "This event starts in ${leadTime.label.substringBefore(" before the event")}"
 
     private fun completeAction(context: Context, reminder: ReminderEntity): PendingIntent {
         val intent = Intent(context, ReminderActionReceiver::class.java)

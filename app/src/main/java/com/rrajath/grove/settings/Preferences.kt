@@ -1,6 +1,10 @@
 package com.rrajath.grove.settings
 
-// Pure-Kotlin preference enums (no android imports) so mapping logic is JVM-testable.
+import androidx.annotation.StringRes
+import com.rrajath.grove.R
+
+// Pure-Kotlin preference enums (no android framework imports) so mapping logic is JVM-testable.
+// User-visible labels are string resource ids (`R` and `@StringRes` are plain JVM types).
 
 /**
  * A concrete color theme. [isDark] sorts it into the light or dark family: the
@@ -141,11 +145,11 @@ enum class FontSizePreference(val storageKey: String, val scale: Float) {
     }
 }
 
-enum class SyncMode(val storageKey: String, val label: String) {
-    MANUAL("manual", "Manual only"),
-    ON_OPEN_CLOSE("on_open_close", "On open / close"),
-    PERIODIC("periodic", "Periodic"),
-    CONTINUOUS("continuous", "Continuous");
+enum class SyncMode(val storageKey: String, @StringRes val labelRes: Int) {
+    MANUAL("manual", R.string.settings_sync_mode_manual),
+    ON_OPEN_CLOSE("on_open_close", R.string.settings_sync_mode_on_open_close),
+    PERIODIC("periodic", R.string.settings_sync_mode_periodic),
+    CONTINUOUS("continuous", R.string.settings_sync_mode_continuous);
 
     companion object {
         fun fromStorage(value: String?): SyncMode =
@@ -196,9 +200,9 @@ enum class NotebookDisplayNameMode(val storageKey: String) {
  * and folders always keep their pin order and are unaffected. A folder sorts by
  * its most recently modified descendant file when [LAST_MODIFIED] is picked.
  */
-enum class NotebookSortKey(val storageKey: String, val label: String) {
-    ALPHABETICAL("alphabetical", "Alphabetical"),
-    LAST_MODIFIED("last_modified", "Last modified");
+enum class NotebookSortKey(val storageKey: String, @StringRes val labelRes: Int) {
+    ALPHABETICAL("alphabetical", R.string.settings_notebooks_sort_alphabetical),
+    LAST_MODIFIED("last_modified", R.string.settings_notebooks_sort_last_modified);
 
     companion object {
         fun fromStorage(value: String?): NotebookSortKey =
@@ -213,14 +217,22 @@ enum class NotebookSortKey(val storageKey: String, val label: String) {
  * time exactly (see `ReminderEntity.firesOwnNotification`), so a lead time has
  * nothing to shift for those.
  */
-enum class ReminderLeadTime(val storageKey: String, val label: String, val offsetMinutes: Long, val dueMessage: String) {
-    AT_TIME("at_time", "At the time of event", 0L, "Your task is due now"),
-    MIN_5("min_5", "5 minutes before the event", 5L, "Your task is due in 5 minutes"),
-    MIN_10("min_10", "10 minutes before the event", 10L, "Your task is due in 10 minutes"),
-    MIN_15("min_15", "15 minutes before the event", 15L, "Your task is due in 15 minutes"),
-    MIN_30("min_30", "30 minutes before the event", 30L, "Your task is due in 30 minutes"),
-    HOUR_1("hour_1", "1 hour before the event", 60L, "Your task is due in 1 hour"),
-    DAY_1("day_1", "1 day before the event", 1440L, "Your task is due in a day");
+enum class ReminderLeadTime(
+    val storageKey: String,
+    @StringRes val labelRes: Int,
+    val offsetMinutes: Long,
+    /** Notification text for a task (a heading with a todo keyword). */
+    @StringRes val taskMessageRes: Int,
+    /** Notification text for an event (no todo keyword). */
+    @StringRes val eventMessageRes: Int,
+) {
+    AT_TIME("at_time", R.string.reminders_lead_at_time, 0L, R.string.reminders_task_due_now, R.string.reminders_event_starting_now),
+    MIN_5("min_5", R.string.reminders_lead_min_5, 5L, R.string.reminders_task_due_min_5, R.string.reminders_event_starts_min_5),
+    MIN_10("min_10", R.string.reminders_lead_min_10, 10L, R.string.reminders_task_due_min_10, R.string.reminders_event_starts_min_10),
+    MIN_15("min_15", R.string.reminders_lead_min_15, 15L, R.string.reminders_task_due_min_15, R.string.reminders_event_starts_min_15),
+    MIN_30("min_30", R.string.reminders_lead_min_30, 30L, R.string.reminders_task_due_min_30, R.string.reminders_event_starts_min_30),
+    HOUR_1("hour_1", R.string.reminders_lead_hour_1, 60L, R.string.reminders_task_due_hour_1, R.string.reminders_event_starts_hour_1),
+    DAY_1("day_1", R.string.reminders_lead_day_1, 1440L, R.string.reminders_task_due_day_1, R.string.reminders_event_starts_day_1);
 
     companion object {
         fun fromStorage(value: String?): ReminderLeadTime =
@@ -233,11 +245,11 @@ enum class ReminderLeadTime(val storageKey: String, val label: String, val offse
  * the target long edge in px, or null to keep full resolution (HEIC is still
  * converted to JPEG). Files-picker attachments are always copied as-is.
  */
-enum class AttachPhotoSize(val storageKey: String, val label: String, val longEdge: Int?, val helper: String) {
-    ORIGINAL("ORIGINAL", "Original", null, "Full resolution. HEIC is still converted to JPEG."),
-    LARGE("LARGE", "Large", 2560, "Long edge 2560 px"),
-    MEDIUM("MEDIUM", "Medium", 1920, "Long edge 1920 px"),
-    SMALL("SMALL", "Small", 1280, "Long edge 1280 px");
+enum class AttachPhotoSize(val storageKey: String, @StringRes val labelRes: Int, val longEdge: Int?) {
+    ORIGINAL("ORIGINAL", R.string.settings_attach_photo_size_original, null),
+    LARGE("LARGE", R.string.settings_attach_photo_size_large, 2560),
+    MEDIUM("MEDIUM", R.string.settings_attach_photo_size_medium, 1920),
+    SMALL("SMALL", R.string.settings_attach_photo_size_small, 1280);
 
     companion object {
         fun fromStorage(value: String?): AttachPhotoSize = entries.firstOrNull { it.storageKey == value } ?: ORIGINAL
@@ -245,9 +257,9 @@ enum class AttachPhotoSize(val storageKey: String, val label: String, val longEd
 }
 
 /** Settings § Attachments: default read-mode width for inline images. */
-enum class AttachImageWidth(val storageKey: String, val label: String) {
-    FIT("FIT", "Fit column"),
-    FIXED("FIXED", "Fixed");
+enum class AttachImageWidth(val storageKey: String, @StringRes val labelRes: Int) {
+    FIT("FIT", R.string.settings_attach_image_width_fit),
+    FIXED("FIXED", R.string.settings_attach_image_width_fixed);
 
     companion object {
         const val DEFAULT_PX = 320
@@ -318,10 +330,10 @@ object AttachAutoTag {
  * Sunday or Monday (e.g. Saturday). Display only: org repeaters, ISO week
  * datetrees and the "next week" shorthand never read it.
  */
-enum class WeekStart(val storageKey: String, val label: String) {
-    SYSTEM("system", "System default"),
-    SUNDAY("sunday", "Sunday"),
-    MONDAY("monday", "Monday");
+enum class WeekStart(val storageKey: String, @StringRes val labelRes: Int) {
+    SYSTEM("system", R.string.settings_week_start_system),
+    SUNDAY("sunday", R.string.settings_week_start_sunday),
+    MONDAY("monday", R.string.settings_week_start_monday);
 
     /** The concrete first day, given the device region's own first day for [SYSTEM]. */
     fun resolve(systemFirstDay: java.time.DayOfWeek): java.time.DayOfWeek = when (this) {
@@ -345,10 +357,10 @@ enum class WeekStart(val storageKey: String, val label: String) {
 }
 
 /** Agenda row swipe gesture (either direction), Settings § Agenda. */
-enum class AgendaSwipeAction(val storageKey: String, val label: String) {
-    SET_SCHEDULED("set_scheduled", "Schedule Task"),
-    SET_DEADLINE("set_deadline", "Set Deadline"),
-    MARK_DONE("mark_done", "Mark as Done");
+enum class AgendaSwipeAction(val storageKey: String, @StringRes val labelRes: Int) {
+    SET_SCHEDULED("set_scheduled", R.string.agenda_swipe_action_schedule),
+    SET_DEADLINE("set_deadline", R.string.agenda_swipe_action_deadline),
+    MARK_DONE("mark_done", R.string.agenda_swipe_action_done);
 
     companion object {
         fun fromStorage(value: String?, default: AgendaSwipeAction): AgendaSwipeAction =
@@ -361,11 +373,11 @@ enum class AgendaSwipeAction(val storageKey: String, val label: String) {
  * Lives in settings rather than the ViewModel because a user who always works
  * by priority shouldn't re-pick it on every visit to the screen.
  */
-enum class AgendaGrouping(val storageKey: String, val label: String) {
-    DATE("date", "Date"),
-    PRIORITY("priority", "Priority"),
-    TAG("tag", "Tag"),
-    FILE("file", "File");
+enum class AgendaGrouping(val storageKey: String, @StringRes val labelRes: Int) {
+    DATE("date", R.string.agenda_group_by_date),
+    PRIORITY("priority", R.string.agenda_group_by_priority),
+    TAG("tag", R.string.agenda_group_by_tag),
+    FILE("file", R.string.agenda_group_by_file);
 
     companion object {
         fun fromStorage(value: String?): AgendaGrouping =

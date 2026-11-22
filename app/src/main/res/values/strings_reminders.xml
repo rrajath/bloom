@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings > Reminders, lead time options (ReminderLeadTime): how early the notification
+         for a timed task or event fires. -->
+    <string name="reminders_lead_at_time">At the time of event</string>
+    <string name="reminders_lead_min_5">5 minutes before the event</string>
+    <string name="reminders_lead_min_10">10 minutes before the event</string>
+    <string name="reminders_lead_min_15">15 minutes before the event</string>
+    <string name="reminders_lead_min_30">30 minutes before the event</string>
+    <string name="reminders_lead_hour_1">1 hour before the event</string>
+    <string name="reminders_lead_day_1">1 day before the event</string>
+
+    <!-- Reminder notification text for a task (a heading with a TODO keyword), per lead time. -->
+    <string name="reminders_task_due_now">Your task is due now</string>
+    <string name="reminders_task_due_min_5">Your task is due in 5 minutes</string>
+    <string name="reminders_task_due_min_10">Your task is due in 10 minutes</string>
+    <string name="reminders_task_due_min_15">Your task is due in 15 minutes</string>
+    <string name="reminders_task_due_min_30">Your task is due in 30 minutes</string>
+    <string name="reminders_task_due_hour_1">Your task is due in 1 hour</string>
+    <string name="reminders_task_due_day_1">Your task is due in a day</string>
+
+    <!-- Reminder notification text for an event (a timed heading without a TODO keyword), per lead time. -->
+    <string name="reminders_event_starting_now">Your event is starting now</string>
+    <string name="reminders_event_starts_min_5">This event starts in 5 minutes</string>
+    <string name="reminders_event_starts_min_10">This event starts in 10 minutes</string>
+    <string name="reminders_event_starts_min_15">This event starts in 15 minutes</string>
+    <string name="reminders_event_starts_min_30">This event starts in 30 minutes</string>
+    <string name="reminders_event_starts_hour_1">This event starts in 1 hour</string>
+    <string name="reminders_event_starts_day_1">This event starts in 1 day</string>
+</resources>

@@ -10,9 +10,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
+import com.rrajath.grove.org.orgLocale
 import com.rrajath.grove.settings.AgendaSwipeAction
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.WeekStart
@@ -25,7 +28,6 @@ import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import java.time.DayOfWeek
 import java.time.format.TextStyle
-import java.util.Locale
 
 /**
  * Only these two are offered from the swipe-action pickers below; [AgendaSwipeAction.SET_DEADLINE]
@@ -64,7 +66,7 @@ fun SettingsAgendaScreen(
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
                 DropdownPicker(
-                    options = SWIPE_ACTION_OPTIONS.map { it.label },
+                    options = SWIPE_ACTION_OPTIONS.map { stringResource(it.labelRes) },
                     selectedIndex = SWIPE_ACTION_OPTIONS.indexOf(settings.agendaSwipeLeftAction).coerceAtLeast(0),
                     onSelect = { onSetAgendaSwipeLeftAction(SWIPE_ACTION_OPTIONS[it]) },
                     modifier = Modifier.fillMaxWidth(),
@@ -84,7 +86,7 @@ fun SettingsAgendaScreen(
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
                 DropdownPicker(
-                    options = SWIPE_ACTION_OPTIONS.map { it.label },
+                    options = SWIPE_ACTION_OPTIONS.map { stringResource(it.labelRes) },
                     selectedIndex = SWIPE_ACTION_OPTIONS.indexOf(settings.agendaSwipeRightAction).coerceAtLeast(0),
                     onSelect = { onSetAgendaSwipeRightAction(SWIPE_ACTION_OPTIONS[it]) },
                     modifier = Modifier.fillMaxWidth(),
@@ -143,10 +145,14 @@ fun SettingsAgendaScreen(
     }
 }
 
-/** "System default (Monday)" names the day the device region resolves to. */
+/** "System default (Monday)" names the day the device region resolves to, in the app's language. */
+@Composable
 private fun weekStartLabel(weekStart: WeekStart, systemFirstDay: DayOfWeek): String =
     if (weekStart == WeekStart.SYSTEM) {
-        "${weekStart.label} (${systemFirstDay.getDisplayName(TextStyle.FULL, Locale.ENGLISH)})"
+        stringResource(
+            R.string.settings_week_start_system_with_day,
+            systemFirstDay.getDisplayName(TextStyle.FULL, orgLocale()),
+        )
     } else {
-        weekStart.label
+        stringResource(weekStart.labelRes)
     }
