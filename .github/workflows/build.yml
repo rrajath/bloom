@@ -1,7 +1,7 @@
 name: Build & Release
 
 # What runs depends on the trigger, cheapest first:
-#   - Any push (any branch) or PR: unit tests + assembleDebug only. This is
+#   - Any push (any branch) or PR: unit tests + lintDebug + assembleDebug only. This is
 #     the regression net; the expensive release/bundle/R8 work is skipped.
 #     The debug APK is still uploaded as a CI artifact for sideload testing.
 #   - Push to the default branch: the above PLUS assembleRelease (no bundle,
@@ -97,6 +97,12 @@ jobs:
 
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
+
+      # Fails on the translation errors configured in app/build.gradle.kts
+      # (broken placeholders, keys English no longer has, missing plural
+      # forms), so a bad Weblate PR can't be merged on a green check.
+      - name: Lint
+        run: ./gradlew lintDebug
 
       # Computed once here and reused for the GitHub Release tag/title below.
       #

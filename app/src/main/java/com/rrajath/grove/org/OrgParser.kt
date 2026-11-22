@@ -1,3 +1,4 @@
+// i18n: org syntax, never translate
 package com.rrajath.grove.org
 
 /**

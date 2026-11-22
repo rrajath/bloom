@@ -197,6 +197,9 @@ android {
             // installed side-by-side with the CI-signed release build on the same device.
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // en-XA (accented, ~30% longer) and ar-XB (mirrored RTL) under
+            // Developer options: finds hardcoded strings and truncation.
+            isPseudoLocalesEnabled = true
             buildConfigField("boolean", "TEST_HOOKS", "true")
             buildConfigField("boolean", "ROAM_FEATURES", "true")
         }
@@ -230,6 +233,13 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // Translations (Weblate). generateLocaleConfig writes android:localeConfig from
+    // the values-xx folders (base language from res/resources.properties), so
+    // Android 13+ lists Bloom under Settings > System > Languages > App languages.
+    androidResources {
+        generateLocaleConfig = true
     }
 
     // Shared test fakes/fixtures (FakeFileStore, FakeSettingsRepository, OrgFixtures,
@@ -267,6 +277,19 @@ android {
             "NewerVersionAvailable",
             "AndroidGradlePluginVersion",
             "OldTargetApi",
+        )
+        // Translations ship partial by design (untranslated strings fall back to
+        // English per string), so a missing translation is not an error.
+        informational += "MissingTranslation"
+        // What does break a translated build: a broken or mismatched placeholder,
+        // a key the English file no longer has, missing plural forms.
+        error += setOf(
+            "ExtraTranslation",
+            "StringFormatInvalid",
+            "StringFormatMatches",
+            "StringFormatCount",
+            "MissingQuantity",
+            "ImpliedQuantity",
         )
     }
 }

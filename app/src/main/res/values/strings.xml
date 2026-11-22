@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">Bloom</string>
+    <string name="app_name" translatable="false">Bloom</string>
     <string name="widget_description">One-tap capture into your org notes</string>
     <string name="ledger_widget_description">Agenda ledger: overdue and upcoming tasks grouped by day</string>
     <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->

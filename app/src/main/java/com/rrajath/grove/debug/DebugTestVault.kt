@@ -1,3 +1,4 @@
+// i18n: debug-build test hooks, never translate
 package com.rrajath.grove.debug
 
 import android.content.Context

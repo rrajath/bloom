@@ -21,7 +21,7 @@ data class OrgKeywords(
     }
 
     companion object {
-        val DEFAULT = parse("TODO IN-PROGRESS | DONE CANCELLED")
+        val DEFAULT = parse("TODO IN-PROGRESS | DONE CANCELLED")  // i18n: org keywords, never translate
 
         fun parse(config: String): OrgKeywords {
             val parts = config.split('|', limit = 2)

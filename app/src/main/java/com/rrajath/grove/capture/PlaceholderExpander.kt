@@ -1,3 +1,4 @@
+// i18n: capture placeholders are org-capture syntax, never translate (their help text in ui/capture/PlaceholderHelp.kt is translatable)
 package com.rrajath.grove.capture
 
 import com.rrajath.grove.org.OrgTimestamp

@@ -573,6 +573,7 @@ private fun bugPayload(includeDeviceInfo: Boolean, includeErrorLog: Boolean, err
     return rows
 }
 
+// i18n-begin: the report body is read by the developer, stays English
 /** Builds the email body (and the "copy as text" fallback) from exactly the
  *  toggles the user has on, with blank lines between sections for readability. */
 private fun formatBugReportEmail(
@@ -612,3 +613,4 @@ private fun formatBugReportEmail(
     appendLine()
     appendLine("Report time: ${Instant.now().truncatedTo(ChronoUnit.SECONDS)}")
 }.trim()
+// i18n-end

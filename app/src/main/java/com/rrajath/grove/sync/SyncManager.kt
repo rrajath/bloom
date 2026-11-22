@@ -112,11 +112,11 @@ class SyncManager(
     private suspend fun runSyncPass(reason: String) {
         val engine = engine ?: return
         val messages = java.util.concurrent.ConcurrentLinkedQueue<String>()
-        messages.add("sync started ($reason)")
+        messages.add("sync started ($reason)")  // i18n: sync log, stays English
         val result = engine.sync(log = { msg -> messages.add(msg) })
         if (result != null) {
             _lastResult.value = result
-            messages.add("sync done: ${result.pulled.size} pulled, ${result.conflicts.size} conflicts")
+            messages.add("sync done: ${result.pulled.size} pulled, ${result.conflicts.size} conflicts")  // i18n: sync log, stays English
             notifyConflicts(result.conflicts.keys)
         }
         logBatch(messages.toList())
@@ -149,12 +149,12 @@ class SyncManager(
                 // A caller's `inbox.org` may be the vault's `Inbox.org` (case-insensitive
                 // storage): index it under the real name, never as a second notebook.
                 val name = store.canonicalName(fileName)
-                val messages = mutableListOf("reindex started ($reason): $name")
+                val messages = mutableListOf("reindex started ($reason): $name")  // i18n: sync log, stays English
                 try {
                     engine.reindexOne(name, text, database.indexDao().conflictFileNameFor(name))
-                    messages.add("reindexed $name")
+                    messages.add("reindexed $name")  // i18n: sync log, stays English
                 } catch (e: Exception) {
-                    messages.add("reindex failed for $name: ${e.message}")
+                    messages.add("reindex failed for $name: ${e.message}")  // i18n: sync log, stays English
                 }
                 logBatch(messages)
                 database.syncLogDao().trim()
@@ -175,11 +175,11 @@ class SyncManager(
             mutex.withLock {
                 database.indexDao().clearAll()
                 val messages = java.util.concurrent.ConcurrentLinkedQueue<String>()
-                messages.add("sync started ($reason)")
+                messages.add("sync started ($reason)")  // i18n: sync log, stays English
                 val result = engine.sync(log = { msg -> messages.add(msg) })
                 if (result != null) {
                     _lastResult.value = result
-                    messages.add("sync done: ${result.pulled.size} pulled, ${result.conflicts.size} conflicts")
+                    messages.add("sync done: ${result.pulled.size} pulled, ${result.conflicts.size} conflicts")  // i18n: sync log, stays English
                     notifyConflicts(result.conflicts.keys)
                 }
                 logBatch(messages.toList())

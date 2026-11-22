@@ -342,7 +342,7 @@ data class GroveSettings(
         get() = roamFeaturesEnabled && roamShowSuggestions
 
     companion object {
-        const val DEFAULT_TODO_KEYWORDS = "TODO IN-PROGRESS | DONE CANCELLED"
+        const val DEFAULT_TODO_KEYWORDS = "TODO IN-PROGRESS | DONE CANCELLED"  // i18n: org keywords, never translate
         const val DEFAULT_SHARE_TARGET = "inbox.org"
         val DEFAULT_REMINDER_TIME: LocalTime = LocalTime.of(9, 0)
         const val DEFAULT_AGENDA_WIDGET_DAYS_AHEAD = 14

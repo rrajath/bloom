@@ -1,5 +1,7 @@
 package com.rrajath.grove
 
+import com.rrajath.grove.testing.support.appModuleDir
+import com.rrajath.grove.testing.support.kotlinStringLiterals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -17,8 +19,7 @@ import java.io.File
  */
 class NoHardcodedAppNameTest {
 
-    private val appDir: File =
-        File("app").takeIf { File(it, "src/main").isDirectory } ?: File(".")
+    private val appDir: File = appModuleDir
 
     private val oldName = Regex("""\bGrove\b""")
 
@@ -33,8 +34,8 @@ class NoHardcodedAppNameTest {
         val hits = sourceSets().flatMap { dir ->
             dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.flatMap { file ->
                 kotlinStringLiterals(file.readText())
-                    .filter { (_, text) -> text !in allowedLiterals && anyName.containsMatchIn(text) }
-                    .map { (line, text) -> "${file.relativeTo(appDir)}:$line: \"$text\"" }
+                    .filter { (_, _, text) -> text !in allowedLiterals && anyName.containsMatchIn(text) }
+                    .map { (line, _, text) -> "${file.relativeTo(appDir)}:$line: \"$text\"" }
             }.toList()
         }
         assertTrue(
@@ -74,8 +75,8 @@ class NoHardcodedAppNameTest {
         val hits = sourceSets().flatMap { dir ->
             dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.flatMap { file ->
                 kotlinStringLiterals(file.readText())
-                    .filter { (_, text) -> oldUrl.containsMatchIn(text) }
-                    .map { (line, text) -> "${file.relativeTo(appDir)}:$line: \"$text\"" }
+                    .filter { (_, _, text) -> oldUrl.containsMatchIn(text) }
+                    .map { (line, _, text) -> "${file.relativeTo(appDir)}:$line: \"$text\"" }
             }.toList()
         }
         assertTrue("Old repo/docs URLs; use rrajath/bloom or bloom.rrajath.com:\n" + hits.joinToString("\n"), hits.isEmpty())
@@ -93,64 +94,4 @@ class NoHardcodedAppNameTest {
             .map { File(appDir, "src/$it/java") }
             .filter { it.isDirectory }
             .also { assertTrue("no source sets found under $appDir", it.isNotEmpty()) }
-
-    /**
-     * Returns (1-based line, contents) for each string literal in [src], skipping
-     * comments and char literals. Handles `"…"`, raw `"""…"""` and escapes; `${…}`
-     * template code is kept as part of the literal, which is fine for a name check.
-     */
-    private fun kotlinStringLiterals(src: String): List<Pair<Int, String>> {
-        val out = mutableListOf<Pair<Int, String>>()
-        var i = 0
-        var line = 1
-        fun advance(n: Int = 1) {
-            repeat(n) {
-                if (i < src.length && src[i] == '\n') line++
-                i++
-            }
-        }
-        while (i < src.length) {
-            when {
-                src.startsWith("//", i) -> while (i < src.length && src[i] != '\n') advance()
-                src.startsWith("/*", i) -> {
-                    advance(2)
-                    while (i < src.length && !src.startsWith("*/", i)) advance()
-                    advance(2)
-                }
-                src.startsWith("\"\"\"", i) -> {
-                    advance(3)
-                    val startLine = line
-                    val start = i
-                    while (i < src.length && !src.startsWith("\"\"\"", i)) advance()
-                    out += startLine to src.substring(start, minOf(i, src.length))
-                    advance(3)
-                }
-                src[i] == '"' -> {
-                    advance()
-                    val startLine = line
-                    val sb = StringBuilder()
-                    while (i < src.length && src[i] != '"' && src[i] != '\n') {
-                        if (src[i] == '\\' && i + 1 < src.length) {
-                            sb.append(src[i + 1])
-                            advance(2)
-                        } else {
-                            sb.append(src[i])
-                            advance()
-                        }
-                    }
-                    out += startLine to sb.toString()
-                    advance()
-                }
-                src[i] == '\'' -> {
-                    advance()
-                    while (i < src.length && src[i] != '\'' && src[i] != '\n') {
-                        if (src[i] == '\\') advance(2) else advance()
-                    }
-                    advance()
-                }
-                else -> advance()
-            }
-        }
-        return out
-    }
 }

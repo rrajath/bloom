@@ -1,3 +1,4 @@
+// i18n: developer tools (debug builds only), never translate
 package com.rrajath.grove.ui.screens.settings
 
 import androidx.compose.foundation.layout.Spacer

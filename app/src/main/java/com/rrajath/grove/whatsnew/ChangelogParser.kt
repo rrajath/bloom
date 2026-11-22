@@ -1,3 +1,4 @@
+// i18n: parses the English CHANGELOG.md, never translate
 package com.rrajath.grove.whatsnew
 
 /**
