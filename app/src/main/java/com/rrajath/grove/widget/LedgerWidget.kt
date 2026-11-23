@@ -837,7 +837,7 @@ class MarkDoneAction : ActionCallback {
                             com.rrajath.grove.attach.FileRewrite(fileName, doc.text, result.sourceText),
                             com.rrajath.grove.attach.FileRewrite(result.destFile, result.destTextBefore, result.destText),
                         ),
-                        "Archived",
+                        com.rrajath.grove.attach.FollowAction.Archived,
                     )
                 }
             }

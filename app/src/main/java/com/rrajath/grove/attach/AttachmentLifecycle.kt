@@ -1,5 +1,7 @@
 package com.rrajath.grove.attach
 
+import androidx.annotation.PluralsRes
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.isAttachShard
@@ -22,15 +24,22 @@ data class FileRewrite(val file: String, val before: String, val after: String)
 /**
  * Told about edits that rewrote several files at once (refile, auto-archive,
  * and their UNDO) so attach dirs follow the subtrees that moved. Fire and
- * forget: the work runs in the application scope. [verb] starts the failure
+ * forget: the work runs in the application scope. [action] picks the failure
  * toast (`Refiled; 2 attachment folders couldn't be moved`).
  */
 fun interface AttachmentFollow {
-    fun filesRewritten(writes: List<FileRewrite>, verb: String)
+    fun filesRewritten(writes: List<FileRewrite>, action: FollowAction)
 
     companion object {
         val None = AttachmentFollow { _, _ -> }
     }
+}
+
+/** What rewrote the files; [failedRes] is its whole failure toast (`%1$d` = folders that didn't move). */
+enum class FollowAction(@PluralsRes val failedRes: Int) {
+    Undone(R.plurals.attach_follow_failed_undone),
+    Archived(R.plurals.attach_follow_failed_archived),
+    Refiled(R.plurals.attach_follow_failed_refiled),
 }
 
 /** One existing attach dir found by an inventory. */

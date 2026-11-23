@@ -1236,11 +1236,12 @@ internal fun OrgText(
         }
     }
     // A missing chip's tap toasts instead of opening.
-    val onTapLink: (String) -> Unit = remember(onOpenLink, chips, chipRun?.missing, render) {
+    val chipRes = LocalResources.current
+    val onTapLink: (String) -> Unit = remember(onOpenLink, chips, chipRun?.missing, render, chipRes) {
         { target ->
             val chip = chips.firstOrNull { it.rawTarget == target }
             if (chip != null && render != null && chipRun?.missing?.get(chip.id) == true) {
-                render.toast(fileNotFoundMessage(chip.link.fileName))
+                render.toast(fileNotFoundMessage(chipRes, chip.link.fileName))
             } else {
                 onOpenLink(target)
             }

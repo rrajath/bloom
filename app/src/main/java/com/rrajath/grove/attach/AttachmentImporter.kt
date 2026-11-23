@@ -1,5 +1,8 @@
 package com.rrajath.grove.attach
 
+import androidx.annotation.StringRes
+import com.rrajath.grove.R
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.vault.FileStore
 import java.io.File
 import java.io.FileInputStream
@@ -41,11 +44,11 @@ data class ImportProgress(
     val bytesTotal: Long?,
 )
 
-/** Why a copy failed, worded for the `Couldn't attach <name>: <reason>` toast. */
-enum class ImportFailure(val reason: String) {
-    StorageFull("storage full"),
-    SourceUnavailable("file unavailable"),
-    WriteFailed("couldn't write to vault"),
+/** Why a copy failed; [messageRes] is the whole `Couldn't attach <name>: <reason>` toast (`%1\$s` = name). */
+enum class ImportFailure(@StringRes val messageRes: Int) {
+    StorageFull(R.string.attach_failed_storage_full),
+    SourceUnavailable(R.string.attach_failed_unavailable),
+    WriteFailed(R.string.attach_failed_write),
 }
 
 sealed interface ImportResult {
@@ -194,7 +197,7 @@ class AttachmentImporter(
         var t: Throwable? = e
         while (t != null) {
             val msg = t.message.orEmpty()
-            if ("ENOSPC" in msg || "No space left" in msg) return true
+            if ("ENOSPC" in msg || "No space left" in msg) return true // i18n: matches OS error text
             t = t.cause
         }
         return false
@@ -207,19 +210,19 @@ class AttachmentImporter(
 }
 
 /** `182 KB`, `2.4 MB` (one decimal from 1 MB), `0 B`. */
-fun formatAttachmentSize(bytes: Long): String = when {
-    bytes < 1024 -> "$bytes B"
-    bytes < MB -> "${(bytes + 512) / 1024} KB"
-    else -> String.format(java.util.Locale.US, "%.1f MB", bytes / MB.toDouble())
+fun formatAttachmentSize(bytes: Long): UiText = when {
+    bytes < 1024 -> UiText.res(R.string.attach_size_bytes, bytes)
+    bytes < MB -> UiText.res(R.string.attach_size_kb, (bytes + 512) / 1024)
+    else -> UiText.res(R.string.attach_size_mb, bytes / MB.toDouble())
 }
 
 /** The snackbar subline for one item: `2.1 of 4.1 MB`, `120 of 180 KB`, or just `2.1 MB` when the total is unknown. */
-fun formatCopyBytes(done: Long, total: Long?): String {
+fun formatCopyBytes(done: Long, total: Long?): UiText {
     if (total == null || total <= 0) return formatAttachmentSize(done)
     return if (total >= MB) {
-        String.format(java.util.Locale.US, "%.1f of %.1f MB", done / MB.toDouble(), total / MB.toDouble())
+        UiText.res(R.string.attach_progress_mb, done / MB.toDouble(), total / MB.toDouble())
     } else {
-        "${(done + 512) / 1024} of ${(total + 512) / 1024} KB"
+        UiText.res(R.string.attach_progress_kb, (done + 512) / 1024, (total + 512) / 1024)
     }
 }
 

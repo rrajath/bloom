@@ -23,7 +23,7 @@ object AttachmentIntents {
     enum class Result { Launched, Missing, NoHandler }
 
     /** Toast for [Result.NoHandler]. */
-    const val NO_HANDLER_MESSAGE = "No app can open this file"
+    val NO_HANDLER_MESSAGE: Int = R.string.attach_no_handler
 
     /** MIME type for [name] by extension, `application/octet-stream` when unknown. */
     fun mimeType(name: String): String {

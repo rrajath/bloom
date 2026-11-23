@@ -32,4 +32,19 @@ class AttachNameStylesTest {
         assertEquals("No folder here", out.text)
         assertEquals(0, out.spanStyles.size)
     }
+
+    @Test
+    fun `withStyledArgs fills every placeholder in the translation's order`() {
+        val folder = StyledArg("Notes/", style)
+        val out = withStyledArgs("%2\$s: %1\$d dossiers dans %2\$s", StyledArg("3"), folder)
+        assertEquals("Notes/: 3 dossiers dans Notes/", out.text)
+        assertEquals(listOf(0 to 6, 24 to 30), out.spanStyles.map { it.start to it.end })
+    }
+
+    @Test
+    fun `withStyledArgs leaves a placeholder without an argument as it is`() {
+        val out = withStyledArgs("Move %1\$s to %2\$s", StyledArg("a.org"))
+        assertEquals("Move a.org to %2\$s", out.text)
+        assertEquals(0, out.spanStyles.size)
+    }
 }

@@ -240,8 +240,10 @@ class AttachController internal constructor(
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(context.packageManager) != null
     }
 
-    fun showToast(message: String) {
-        toast = OutlineToast(UiText.raw(message), ++toastId)
+    fun showToast(message: String) = showToast(UiText.raw(message))
+
+    fun showToast(message: UiText) {
+        toast = OutlineToast(message, ++toastId)
     }
 
     internal fun clearToast(id: Long) {
@@ -586,7 +588,7 @@ class AttachController internal constructor(
             dir = dir,
             kind = kind,
             sources = sources,
-            ownerLabel = if (p.onDisk && owner is AttachOwner.File) orgFileName else ownerToastLabel(owner),
+            ownerLabel = if (p.onDisk && owner is AttachOwner.File) UiText.raw(orgFileName) else ownerToastLabel(owner),
             ownerChanged = changed,
             onDisk = p.onDisk,
         )
@@ -677,7 +679,7 @@ class AttachController internal constructor(
         insertBlockAtCursor(block)
         showToast(
             if (idSaved) successMessage(request, result)
-            else context.getString(R.string.attach_capture_id_failed, (owner as? AttachOwner.Heading)?.title ?: orgFileName),
+            else UiText.res(R.string.attach_capture_id_failed, (owner as? AttachOwner.Heading)?.title ?: orgFileName),
         )
     }
 
@@ -748,7 +750,7 @@ class AttachController internal constructor(
         val store = storeProvider() ?: return
         scope.launch {
             when (AttachmentIntents.open(context, store, file.name)) {
-                AttachmentIntents.Result.NoHandler -> showToast(AttachmentIntents.NO_HANDLER_MESSAGE)
+                AttachmentIntents.Result.NoHandler -> showToast(UiText.res(AttachmentIntents.NO_HANDLER_MESSAGE))
                 AttachmentIntents.Result.Missing -> showToast(context.getString(R.string.attach_file_not_found, file.name.substringAfterLast('/')))
                 AttachmentIntents.Result.Launched -> Unit
             }

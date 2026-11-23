@@ -11,6 +11,7 @@ import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.attachOwners
 import com.rrajath.grove.attach.withAttachedOwner
 import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.FollowAction
 import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.attach.rewritesFor
 import androidx.lifecycle.ViewModel
@@ -254,7 +255,7 @@ class EditorViewModel(
                 vault.save(name, text)
                 sync.requestReindex(name, text, "note undo")
             }
-            attachFollow.filesRewritten(rewrites, "Undone")
+            attachFollow.filesRewritten(rewrites, FollowAction.Undone)
             val revision = vault.revision(snap.fileName)
             _state.update {
                 it.copy(
@@ -591,7 +592,7 @@ class EditorViewModel(
                                 FileRewrite(s.fileName, doc.text, result.sourceText),
                                 FileRewrite(result.destFile, result.destTextBefore, result.destText),
                             ),
-                            "Archived",
+                            FollowAction.Archived,
                         )
                     }
                     val destDoc = OrgParser.parse(result.destText, doc.keywords)

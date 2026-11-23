@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.attach
 
+import android.content.res.Resources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,7 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.rrajath.grove.R
 import androidx.compose.ui.semantics.Role
@@ -58,7 +61,8 @@ import com.rrajath.grove.ui.components.SyncedCheckIcon
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.asString
 
 /**
  * 1l: moving a notebook that owns attachment folders into another directory.
@@ -83,40 +87,43 @@ fun NotebookMoveAttachmentsSheet(
     val folder = folderSpan()
     LifecycleSheet(onDismiss, Modifier.testTag("attach_move_sheet")) {
         Text(
-            "This notebook has attachments. Move them too?",
+            stringResource(R.string.attach_move_sheet_title),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = c.ink,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
         Text(
-            moveSubline(leaf, newDir, inventory),
+            moveSubline(leaf, newDir, inventory).asString(),
             fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink2,
             modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 14.dp),
         )
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ChoiceCard(
                 selected = moveAttachments,
-                title = "Move attachments",
-                body = moveAttachmentsBody(attachDirLabel(target, config), folderLabel(sourceDir), inventory.sharedFolders, folder),
+                title = stringResource(R.string.attach_move_choice_move),
+                body = moveAttachmentsBody(
+                    LocalResources.current, attachDirLabel(target, config), folderLabel(sourceDir), inventory.sharedFolders, folder,
+                ),
                 modifier = Modifier.testTag("attach_move_choice_move"),
             ) { moveAttachments = true }
             ChoiceCard(
                 selected = !moveAttachments,
-                title = "Move notebook only",
-                body = buildAnnotatedString {
-                    append("Attachments stay in ")
-                    withStyle(folder) { append(attachDirLabel(fileName, config)) }
-                    append(". Links in $leaf will show as missing.")
-                },
+                title = stringResource(R.string.attach_move_choice_only),
+                body = withStyledArgs(
+                    stringResource(R.string.attach_move_choice_only_body),
+                    StyledArg(attachDirLabel(fileName, config), folder),
+                    StyledArg(leaf),
+                ),
                 modifier = Modifier.testTag("attach_move_choice_only"),
             ) { moveAttachments = false }
         }
         if (inventory.dirProperties.isNotEmpty()) {
             Text(
                 buildAnnotatedString {
-                    append("Not moved either way: ")
+                    append(stringResource(R.string.attach_move_not_moved))
+                    append(" ")
                     inventory.dirProperties.forEachIndexed { i, dir ->
                         if (i > 0) append("\n")
-                        withStyle(SpanStyle(fontFamily = PlexMono)) { append(":DIR: $dir") }
+                        withStyle(SpanStyle(fontFamily = PlexMono)) { append(":DIR: $dir") } // i18n: org property
                     }
                 },
                 fontFamily = PlexSans, fontSize = 12.sp, lineHeight = 18.sp, color = c.ink3,
@@ -124,7 +131,7 @@ fun NotebookMoveAttachmentsSheet(
             )
         }
         SheetButtons(
-            confirmLabel = "Move",
+            confirmLabel = stringResource(R.string.attach_move_confirm),
             confirmColor = c.accent,
             confirmWeight = 1.4f,
             confirmFontSize = 14.5f,
@@ -135,17 +142,24 @@ fun NotebookMoveAttachmentsSheet(
 }
 
 /** `Folders move into Archive/data/ and merge with what's there. 2 folders shared with notes in Notes/ are copied instead.` */
-internal fun moveAttachmentsBody(destData: String, sourceFolder: String, shared: Int, folder: SpanStyle): AnnotatedString =
-    buildAnnotatedString {
-        append("Folders move into ")
-        withStyle(folder) { append(destData) }
-        append(" and merge with what's there.")
-        if (shared == 0) return@buildAnnotatedString
-        val verb = if (shared == 1) "is" else "are"
-        append(" ${pluralCount(shared, "folder")} shared with notes in ")
-        withStyle(folder) { append(sourceFolder) }
-        append(" $verb copied instead.")
-    }
+internal fun moveAttachmentsBody(
+    res: Resources,
+    destData: String,
+    sourceFolder: String,
+    shared: Int,
+    folder: SpanStyle,
+): AnnotatedString = buildAnnotatedString {
+    append(withStyledArgs(res.getString(R.string.attach_move_choice_move_body), StyledArg(destData, folder)))
+    if (shared == 0) return@buildAnnotatedString
+    append(" ")
+    append(
+        withStyledArgs(
+            res.getQuantityString(R.plurals.attach_move_choice_move_shared, shared),
+            StyledArg(shared.toString()),
+            StyledArg(sourceFolder, folder),
+        ),
+    )
+}
 
 /**
  * 1n: deleting a notebook that owns attachment folders. "Also delete
@@ -162,17 +176,15 @@ fun NotebookDeleteAttachmentsSheet(
     var deleteAttachments by rememberSaveable { mutableStateOf(true) }
     LifecycleSheet(onDismiss, Modifier.testTag("attach_delete_notebook_sheet")) {
         Text(
-            buildAnnotatedString {
-                append("Delete ")
-                withStyle(SpanStyle(fontFamily = PlexMono, fontSize = 17.sp)) { append(fileName.substringAfterLast('/')) }
-                append("?")
-            },
+            withStyledArgs(
+                stringResource(R.string.attach_delete_title),
+                StyledArg(fileName.substringAfterLast('/'), SpanStyle(fontFamily = PlexMono, fontSize = 17.sp)),
+            ),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = c.ink,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
         Text(
-            "Deleting is permanent. ${stringResource(R.string.app_name)} removes files directly " +
-                "and there's no trash to restore from.",
+            stringResource(R.string.attach_delete_notebook_permanent, stringResource(R.string.app_name)),
             fontFamily = PlexSans, fontSize = 13.sp, lineHeight = 19.5.sp, color = c.ink,
             modifier = Modifier
                 .padding(top = 12.dp)
@@ -181,9 +193,11 @@ fun NotebookDeleteAttachmentsSheet(
                 .background(c.redSoft)
                 .padding(horizontal = 13.dp, vertical = 11.dp),
         )
-        DeleteAttachmentsCheckbox(deleteAttachments, deleteDetail(inventory)) { deleteAttachments = it }
+        DeleteAttachmentsCheckbox(deleteAttachments, deleteDetail(inventory).asString()) { deleteAttachments = it }
         SheetButtons(
-            confirmLabel = if (deleteAttachments) "Delete notebook and attachments" else "Delete notebook",
+            confirmLabel = stringResource(
+                if (deleteAttachments) R.string.attach_delete_notebook_and_attachments else R.string.attach_delete_notebook,
+            ),
             confirmColor = c.red,
             confirmWeight = 2f,
             confirmFontSize = 14f,
@@ -211,17 +225,23 @@ fun HeadingDeleteAttachmentsSheet(
     var deleteAttachments by rememberSaveable { mutableStateOf(false) }
     LifecycleSheet(onDismiss, Modifier.testTag("attach_delete_heading_sheet")) {
         Text(
-            if (count > 1 || title == null) "Delete $count notes?" else "Delete “$title”?",
+            if (count > 1 || title == null) {
+                pluralStringResource(R.plurals.attach_delete_notes_title, count, count)
+            } else {
+                stringResource(R.string.attach_delete_note_title, title)
+            },
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = c.ink,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
-        DeleteAttachmentsCheckbox(deleteAttachments, deleteDetail(inventory)) { deleteAttachments = it }
+        DeleteAttachmentsCheckbox(deleteAttachments, deleteDetail(inventory).asString()) { deleteAttachments = it }
         SheetButtons(
-            confirmLabel = when {
-                !deleteAttachments -> "Delete"
-                count > 1 -> "Delete notes and attachments"
-                else -> "Delete note and attachments"
-            },
+            confirmLabel = stringResource(
+                when {
+                    !deleteAttachments -> R.string.action_delete
+                    count > 1 -> R.string.attach_delete_notes_and_attachments
+                    else -> R.string.attach_delete_note_and_attachments
+                },
+            ),
             confirmColor = c.red,
             confirmWeight = 2f,
             confirmFontSize = 14f,
@@ -232,12 +252,11 @@ fun HeadingDeleteAttachmentsSheet(
 }
 
 /** `6 folders · 23 files · 41 MB. 2 folders shared with other notes are kept.` */
-internal fun deleteDetail(inventory: AttachmentInventory): String {
+internal fun deleteDetail(inventory: AttachmentInventory): UiText {
     val shared = inventory.sharedFolders
     val base = inventoryDetail(inventory)
     if (shared == 0) return base
-    val verb = if (shared == 1) "is" else "are"
-    return "$base. ${pluralCount(shared, "folder")} shared with other notes $verb kept."
+    return UiText.plural(R.plurals.attach_delete_detail_shared, shared, base, shared)
 }
 
 /** Shared 1l/1n sheet frame: `surface`, 24dp top corners, 38×4dp `line2` handle. */
@@ -343,7 +362,7 @@ internal fun DeleteAttachmentsCheckbox(checked: Boolean, detail: String, onChang
         }
         Column {
             Text(
-                "Also delete attachments",
+                stringResource(R.string.attach_delete_also),
                 fontFamily = PlexSans, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = c.ink,
             )
             Text(
@@ -373,7 +392,7 @@ private fun SheetButtons(
     val shape = RoundedCornerShape(24.dp)
     Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SheetButton(
-            "Cancel",
+            stringResource(R.string.action_cancel),
             Modifier
                 .clip(shape)
                 .border(1.dp, c.line2, shape)

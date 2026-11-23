@@ -57,6 +57,8 @@
         <item quantity="one">Copying %1$d photo</item>
         <item quantity="other">Copying %1$d photos</item>
     </plurals>
+    <!-- Progress snackbar subline while several files copy: %1$d = the one copying now, %2$d = how many in all. -->
+    <string name="attach_copy_index">%1$d of %2$d</string>
     <!-- Progress snackbar for one file. %1$s = file name. -->
     <string name="attach_copying_one">Copying %1$s</string>
     <!-- Attach sheet header, followed by the heading (or file) files will attach to. -->
@@ -80,4 +82,118 @@
     <string name="attach_file_not_found">File not found: %1$s</string>
     <string name="attach_deleted">Deleted %1$s</string>
     <string name="attach_delete_failed">Couldn\'t delete %1$s</string>
+    <!-- Toasts when copying a picked file into the attachment folder fails. %1$s = file name. -->
+    <string name="attach_failed_storage_full">Couldn\'t attach %1$s: storage full</string>
+    <string name="attach_failed_unavailable">Couldn\'t attach %1$s: file unavailable</string>
+    <!-- Toasts after files were attached. %1$s (or %2$s in the plurals) = the heading title, the .org file name, or attach_owner_this_file. -->
+    <string name="attach_attached_to">Attached to %1$s</string>
+    <!-- The heading the files were meant for was edited away while they copied, so they went to another heading. %1$s = where they went. -->
+    <string name="attach_heading_changed">Heading changed. Attached to %1$s</string>
+    <!-- Shown only for 2 or more items. %1$d = how many. -->
+    <plurals name="attach_files_attached">
+        <item quantity="one">%1$d file attached to %2$s</item>
+        <item quantity="other">%1$d files attached to %2$s</item>
+    </plurals>
+    <plurals name="attach_photos_attached">
+        <item quantity="one">%1$d photo attached to %2$s</item>
+        <item quantity="other">%1$d photos attached to %2$s</item>
+    </plurals>
+    <!-- A file with the same name already existed, so the new one got a new name. %1$s = the new name. -->
+    <string name="attach_saved_as">Saved as %1$s (name already in use)</string>
+    <!-- Used as the %1$s of attach_attached_to when files attach to the whole .org file, not a heading: "Attached to this file". -->
+    <string name="attach_owner_this_file">this file</string>
+    <!-- Toast when no installed app can open or share an attachment. -->
+    <string name="attach_no_handler">No app can open this file</string>
+    <!-- Toasts when attachment folders couldn't follow notes that moved to another directory. %1$d = how many folders. Each starts with what the user just did: Undone (UNDO), Archived, Refiled. -->
+    <plurals name="attach_follow_failed_undone">
+        <item quantity="one">Undone; %1$d attachment folder couldn\'t be moved</item>
+        <item quantity="other">Undone; %1$d attachment folders couldn\'t be moved</item>
+    </plurals>
+    <plurals name="attach_follow_failed_archived">
+        <item quantity="one">Archived; %1$d attachment folder couldn\'t be moved</item>
+        <item quantity="other">Archived; %1$d attachment folders couldn\'t be moved</item>
+    </plurals>
+    <plurals name="attach_follow_failed_refiled">
+        <item quantity="one">Refiled; %1$d attachment folder couldn\'t be moved</item>
+        <item quantity="other">Refiled; %1$d attachment folders couldn\'t be moved</item>
+    </plurals>
+    <!-- Toast when a :DIR: change couldn't move the attachment folders. %1$d = how many folders. -->
+    <plurals name="attach_move_failed">
+        <item quantity="one">%1$d attachment folder couldn\'t be moved</item>
+        <item quantity="other">%1$d attachment folders couldn\'t be moved</item>
+    </plurals>
+    <!-- Toasts after moving a notebook to another folder. %1$s = notebook file name (travel.org), %2$s = destination folder (Archive/). -->
+    <string name="attach_notebook_moved">Moved %1$s to %2$s</string>
+    <!-- %1$d = attachment folders moved with it, %2$s = notebook file name, %3$s = destination folder. -->
+    <plurals name="attach_notebook_moved_with">
+        <item quantity="one">Moved %2$s and %1$d attachment folder to %3$s</item>
+        <item quantity="other">Moved %2$s and %1$d attachment folders to %3$s</item>
+    </plurals>
+    <!-- %1$d = attachment folders that failed, %2$s = notebook file name. -->
+    <plurals name="attach_notebook_moved_failed">
+        <item quantity="one">Moved %2$s; %1$d attachment folder couldn\'t be moved</item>
+        <item quantity="other">Moved %2$s; %1$d attachment folders couldn\'t be moved</item>
+    </plurals>
+    <!-- File sizes (1 KB = 1024 bytes). Translate the unit if your language writes it differently. -->
+    <string name="attach_size_bytes">%1$d B</string>
+    <string name="attach_size_kb">%1$d KB</string>
+    <string name="attach_size_mb">%1$.1f MB</string>
+    <!-- Whole megabytes, used from 10 MB on. -->
+    <string name="attach_size_mb_whole">%1$d MB</string>
+    <!-- Copy progress for one file: bytes copied of the file's size. -->
+    <string name="attach_progress_kb">%1$d of %2$d KB</string>
+    <string name="attach_progress_mb">%1$.1f of %2$.1f MB</string>
+    <!-- Summary of attachment folders: %1$s = "6 folders", %2$s = "23 files", %3$s = total size ("41 MB"). -->
+    <string name="attach_inventory_detail">%1$s · %2$s · %3$s</string>
+    <!-- Subline of the move-notebook sheet: %1$s = notebook file name, %2$s = destination folder, %3$s = "6 folders", %4$s = total size. Flip the arrow for right-to-left languages. -->
+    <string name="attach_move_subline">%1$s → %2$s · %3$s · %4$s</string>
+    <!-- Move-notebook sheet (shown when the notebook owns attachment folders). -->
+    <string name="attach_move_sheet_title">This notebook has attachments. Move them too?</string>
+    <string name="attach_move_choice_move">Move attachments</string>
+    <!-- %1$s = destination attachment folder (Archive/data/), drawn in monospace. -->
+    <string name="attach_move_choice_move_body">Folders move into %1$s and merge with what\'s there.</string>
+    <!-- Appended to attach_move_choice_move_body. %1$d = shared folders, %2$s = the notebook's current folder (Notes/), drawn in monospace. -->
+    <plurals name="attach_move_choice_move_shared">
+        <item quantity="one">%1$d folder shared with notes in %2$s is copied instead.</item>
+        <item quantity="other">%1$d folders shared with notes in %2$s are copied instead.</item>
+    </plurals>
+    <string name="attach_move_choice_only">Move notebook only</string>
+    <!-- %1$s = the attachment folder that stays behind (drawn in monospace), %2$s = notebook file name. -->
+    <string name="attach_move_choice_only_body">Attachments stay in %1$s. Links in %2$s will show as missing.</string>
+    <!-- Followed by one ":DIR: <folder>" line per note whose folder is set by a :DIR: property. -->
+    <string name="attach_move_not_moved">Not moved either way:</string>
+    <!-- Confirm button of the move-notebook sheet. -->
+    <string name="attach_move_confirm">Move</string>
+    <!-- Delete-notebook sheet. %1$s = app name. -->
+    <string name="attach_delete_notebook_permanent">Deleting is permanent. %1$s removes files directly and there\'s no trash to restore from.</string>
+    <string name="attach_delete_notebook_and_attachments">Delete notebook and attachments</string>
+    <string name="attach_delete_notebook">Delete notebook</string>
+    <!-- Delete-heading sheet title for several headings. %1$d = how many. -->
+    <plurals name="attach_delete_notes_title">
+        <item quantity="one">Delete %1$d note?</item>
+        <item quantity="other">Delete %1$d notes?</item>
+    </plurals>
+    <!-- Delete-heading sheet title for one heading. %1$s = heading title. -->
+    <string name="attach_delete_note_title">Delete “%1$s”?</string>
+    <string name="attach_delete_note_and_attachments">Delete note and attachments</string>
+    <string name="attach_delete_notes_and_attachments">Delete notes and attachments</string>
+    <!-- Checkbox in the delete sheets and the capture discard dialog. -->
+    <string name="attach_delete_also">Also delete attachments</string>
+    <!-- Appended to attach_inventory_detail under the checkbox. %1$s = that detail, %2$d = folders other notes also use. -->
+    <plurals name="attach_delete_detail_shared">
+        <item quantity="one">%1$s. %2$d folder shared with other notes is kept.</item>
+        <item quantity="other">%1$s. %2$d folders shared with other notes are kept.</item>
+    </plurals>
+    <!-- OK button of the attachment-folder notice while files are moving. -->
+    <string name="attach_dir_notice_moving">Moving…</string>
+    <!-- Missing or unreadable images. %1$s = file name. -->
+    <string name="attach_image_not_found">Image not found: %1$s</string>
+    <string name="attach_image_cant_display_named">Can\'t display image: %1$s</string>
+    <string name="attach_image_cant_display">Can\'t display image</string>
+    <!-- Caption under an animated GIF in Read mode, which shows its first frame only. %1$s = file name. -->
+    <string name="attach_gif_caption">%1$s · plays in viewer</string>
+    <!-- Full-screen image viewer. -->
+    <string name="attach_viewer_close">Close</string>
+    <string name="attach_viewer_open_in">Open in…</string>
+    <string name="attach_viewer_tap_hint">Tap for controls</string>
 </resources>

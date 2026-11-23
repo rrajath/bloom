@@ -30,3 +30,28 @@ internal fun withStyledArg(template: String, arg: String, style: SpanStyle): Ann
 }
 
 private const val ARG = "%1\$s"
+
+/** One argument for [withStyledArgs]: [text] drawn in [style], or plain when it's null. */
+internal class StyledArg(val text: String, val style: SpanStyle? = null)
+
+/**
+ * [template] (a raw string or plurals resource) with each `%N$s` / `%N$d` replaced
+ * by `args[N - 1]`, drawn in that argument's style. Lets a translated sentence keep
+ * a monospace folder path wherever the translation puts it.
+ */
+internal fun withStyledArgs(template: String, vararg args: StyledArg): AnnotatedString = buildAnnotatedString {
+    var last = 0
+    for (m in PLACEHOLDER.findAll(template)) {
+        append(template.substring(last, m.range.first))
+        val arg = args.getOrNull(m.groupValues[1].toInt() - 1)
+        when {
+            arg == null -> append(m.value)
+            arg.style == null -> append(arg.text)
+            else -> withStyle(arg.style) { append(arg.text) }
+        }
+        last = m.range.last + 1
+    }
+    append(template.substring(last))
+}
+
+private val PLACEHOLDER = Regex("""%(\d+)\$[sd]""")

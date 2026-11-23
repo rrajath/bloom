@@ -50,10 +50,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -129,6 +131,7 @@ fun AttachmentViewerScreen(
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
+    val res = LocalResources.current
     val app = context.applicationContext as? GroveApplication
     val store by remember(app) { app?.fileStore ?: MutableStateFlow(null) }.collectAsState()
     var uri by remember(path) { mutableStateOf<Uri?>(null) }
@@ -164,12 +167,12 @@ fun AttachmentViewerScreen(
     }
 
     suspend fun handOff(share: Boolean): String? {
-        val s = store ?: return imageNotFoundMessage(title)
+        val s = store ?: return imageNotFoundMessage(res, title)
         val result = if (share) AttachmentIntents.share(context, s, path) else AttachmentIntents.open(context, s, path)
         return when (result) {
             AttachmentIntents.Result.Launched -> null
-            AttachmentIntents.Result.Missing -> imageNotFoundMessage(title)
-            AttachmentIntents.Result.NoHandler -> AttachmentIntents.NO_HANDLER_MESSAGE
+            AttachmentIntents.Result.Missing -> imageNotFoundMessage(res, title)
+            AttachmentIntents.Result.NoHandler -> res.getString(AttachmentIntents.NO_HANDLER_MESSAGE)
         }
     }
 
@@ -278,7 +281,11 @@ fun AttachmentViewer(
             ) {
                 if (missing || failed) {
                     Text(
-                        if (missing) imageNotFoundMessage(title) else "Can't display image",
+                        if (missing) {
+                            stringResource(R.string.attach_image_not_found, title)
+                        } else {
+                            stringResource(R.string.attach_image_cant_display)
+                        },
                         fontFamily = PlexSans,
                         fontSize = 14.sp,
                         color = c.ink2,
@@ -323,13 +330,14 @@ fun AttachmentViewer(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    val closeLabel = stringResource(R.string.attach_viewer_close)
                     Box(
                         Modifier
                             .size(44.dp)
                             .clip(RoundedCornerShape(22.dp))
                             .clickable(onClick = onClose)
                             .semantics {
-                                contentDescription = "Close"
+                                contentDescription = closeLabel
                                 role = Role.Button
                             }
                             .testTag("attachment_viewer_close"),
@@ -367,10 +375,10 @@ fun AttachmentViewer(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                BarAction(R.drawable.ic_attach_share, 17, "Share") {
+                BarAction(R.drawable.ic_attach_share, 17, stringResource(R.string.attach_share)) {
                     scope.launch { onShare()?.let(::showToast) }
                 }
-                BarAction(R.drawable.ic_attach_open_with, 16, "Open in…") {
+                BarAction(R.drawable.ic_attach_open_with, 16, stringResource(R.string.attach_viewer_open_in)) {
                     scope.launch { onOpen()?.let(::showToast) }
                 }
             }
@@ -404,7 +412,7 @@ private fun BoxScope.TapHint(imageBottom: Float?, waitForImage: Boolean, viewerH
     val inBand = room != null && hintHeight > 0 && room >= hintHeight + 2 * gap
     val text = @Composable { modifier: Modifier ->
         Text(
-            "Tap for controls",
+            stringResource(R.string.attach_viewer_tap_hint),
             fontFamily = PlexSans,
             fontSize = 12.sp,
             color = c.ink3,

@@ -71,7 +71,7 @@ fun AttachDirNoticeDialog(changes: List<AttachDirChange>, busy: Boolean = false,
             // While the files move, OK reads "Moving…" and does nothing.
             TextButton(onClick = onOk, enabled = !busy, modifier = Modifier.testTag("attach_dir_notice_ok")) {
                 Text(
-                    if (busy) "Moving…" else "OK",
+                    stringResource(if (busy) R.string.attach_dir_notice_moving else R.string.action_ok),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                     color = if (busy) c.ink3 else c.accent,
                 )

@@ -96,6 +96,7 @@ import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.vault.OutlineToast
 import com.rrajath.grove.vault.FileEntry
+import com.rrajath.grove.ui.util.asString
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -132,8 +133,8 @@ fun BoxScope.AttachOverlays(controller: AttachController, bottomInset: Dp) {
         },
         subline = when {
             ui == null -> ""
-            ui.count > 1 -> "${ui.index} of ${ui.count}"
-            else -> formatCopyBytes(ui.bytesDone, ui.bytesTotal)
+            ui.count > 1 -> stringResource(R.string.attach_copy_index, ui.index, ui.count)
+            else -> formatCopyBytes(ui.bytesDone, ui.bytesTotal).asString()
         },
         fraction = when {
             ui == null -> null

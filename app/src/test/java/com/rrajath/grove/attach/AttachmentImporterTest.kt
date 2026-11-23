@@ -1,5 +1,6 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.testing.support.english
 import com.rrajath.grove.vault.JvmFileStore
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -144,12 +145,12 @@ class AttachmentImporterTest {
 
     @Test
     fun `sizes format as in the 1c list`() {
-        assertEquals("0 B", formatAttachmentSize(0))
-        assertEquals("182 KB", formatAttachmentSize(182 * 1024))
-        assertEquals("2.4 MB", formatAttachmentSize((2.4 * 1024 * 1024).toLong()))
-        assertEquals("2.1 of 4.1 MB", formatCopyBytes((2.1 * 1024 * 1024).toLong(), (4.1 * 1024 * 1024).toLong()))
-        assertEquals("100 of 200 KB", formatCopyBytes(100 * 1024, 200 * 1024))
-        assertEquals("1.5 MB", formatCopyBytes((1.5 * 1024 * 1024).toLong(), null))
+        assertEquals("0 B", formatAttachmentSize(0).english())
+        assertEquals("182 KB", formatAttachmentSize(182 * 1024).english())
+        assertEquals("2.4 MB", formatAttachmentSize((2.4 * 1024 * 1024).toLong()).english())
+        assertEquals("2.1 of 4.1 MB", formatCopyBytes((2.1 * 1024 * 1024).toLong(), (4.1 * 1024 * 1024).toLong()).english())
+        assertEquals("100 of 200 KB", formatCopyBytes(100 * 1024, 200 * 1024).english())
+        assertEquals("1.5 MB", formatCopyBytes((1.5 * 1024 * 1024).toLong(), null).english())
     }
 
     // Photo processing (M5): a fake processor stands in for ImageTranscoder.

@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.attach
 
+import android.content.res.Resources
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -56,9 +57,11 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.Placeholder
@@ -282,8 +285,8 @@ fun ProvideAttachmentRendering(
 }
 
 /** 1q toasts for missing attachments. */
-fun imageNotFoundMessage(name: String) = "Image not found: $name"
-fun fileNotFoundMessage(name: String) = "File not found: $name"
+fun imageNotFoundMessage(res: Resources, name: String): String = res.getString(R.string.attach_image_not_found, name)
+fun fileNotFoundMessage(res: Resources, name: String): String = res.getString(R.string.attach_file_not_found, name)
 
 private val ALPHA_EXTENSIONS = setOf("png", "gif", "webp")
 
@@ -383,6 +386,7 @@ fun AttachmentImage(
     }
 
     val name = link.fileName
+    val res = LocalResources.current
     val gate = Modifier.onGloballyPositioned { coords ->
         if (!nearViewport) {
             val b = coords.boundsInWindow()
@@ -395,7 +399,7 @@ fun AttachmentImage(
             val st = status
             val viewer = render.openImage
             when {
-                st == AttachmentStatus.Missing -> render.toast(imageNotFoundMessage(name))
+                st == AttachmentStatus.Missing -> render.toast(imageNotFoundMessage(res, name))
                 st is AttachmentStatus.Present && viewer != null -> viewer(st.path, name)
                 else -> render.openTarget(rawTarget)
             }
@@ -480,7 +484,7 @@ fun AttachmentImage(
                     }
                     if (gif) {
                         Text(
-                            "GIF",
+                            "GIF", // i18n: file format name
                             fontFamily = PlexMono,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -495,7 +499,7 @@ fun AttachmentImage(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    if (gif) "$name · plays in viewer" else name,
+                    if (gif) stringResource(R.string.attach_gif_caption, name) else name,
                     fontFamily = PlexMono,
                     fontSize = 11.5.sp,
                     color = c.ink3,
@@ -537,7 +541,7 @@ private fun MissingImage(name: String, modifier: Modifier) {
             tint = c.ink3,
             modifier = Modifier.size(20.dp),
         )
-        Text(imageNotFoundMessage(name), fontFamily = PlexMono, fontSize = 12.sp, color = c.ink3, maxLines = 1)
+        Text(stringResource(R.string.attach_image_not_found, name), fontFamily = PlexMono, fontSize = 12.sp, color = c.ink3, maxLines = 1)
     }
 }
 
@@ -554,7 +558,7 @@ private fun CantDisplayImage(name: String, modifier: Modifier) {
             .testTag("attachment_image_error"),
         contentAlignment = Alignment.Center,
     ) {
-        Text("Can't display image: $name", fontFamily = PlexMono, fontSize = 12.sp, color = c.ink2, maxLines = 1)
+        Text(stringResource(R.string.attach_image_cant_display_named, name), fontFamily = PlexMono, fontSize = 12.sp, color = c.ink2, maxLines = 1)
     }
 }
 

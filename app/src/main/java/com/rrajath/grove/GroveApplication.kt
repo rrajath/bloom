@@ -32,6 +32,8 @@ import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.ThemePreference
 import com.rrajath.grove.ui.theme.isNightMode
 import com.rrajath.grove.ui.theme.systemDarkThemeSupported
+import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.resolve
 import com.rrajath.grove.sync.SyncManager
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
@@ -79,9 +81,6 @@ import kotlinx.coroutines.withTimeoutOrNull
  * was deleted once every caller of it was migrated.
  */
 private const val LEGACY_IGNORE_FILE_NAME = ".orgzlyignore"
-
-/** 6.7: a copy finished after its editor closed and the owner heading was gone. */
-private const val ATTACH_KEPT_NOT_FOUND = "Attached files kept, but the heading was not found"
 
 open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
@@ -265,7 +264,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             opener = { uri -> contentResolver.openInputStream(uri.toUri()) },
             fallback = { done -> applyAttachToFile(done) },
             notify = { message ->
-                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(this, message.resolve(this), android.widget.Toast.LENGTH_SHORT).show()
             },
             photoProcessor = com.rrajath.grove.attach.ImageTranscoder(java.io.File(cacheDir, "attach-transcode")),
             photoLongEdge = { settingsRepository.settings.first().attachPhotoSize.longEdge },
@@ -346,16 +345,16 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
     /** Moves attach dirs after refiles and archives across directories; see [attachmentLifecycle]. */
     val attachmentFollow: com.rrajath.grove.attach.AttachmentFollow =
-        com.rrajath.grove.attach.AttachmentFollow { writes, verb ->
+        com.rrajath.grove.attach.AttachmentFollow { writes, action ->
             appScope.launch {
                 val lifecycle = attachmentLifecycle() ?: return@launch
                 // The lifecycle's onChanged drops the status cache.
                 val result = runCatching { lifecycle.followMovedOwners(writes) }.getOrNull() ?: return@launch
                 if (result.failed > 0) {
-                    val folders = if (result.failed == 1) "1 attachment folder" else "${result.failed} attachment folders"
+                    val text = resources.getQuantityString(action.failedRes, result.failed, result.failed)
                     withContext(dispatchers.main) {
                         android.widget.Toast.makeText(
-                            this@GroveApplication, "$verb; $folders couldn't be moved", android.widget.Toast.LENGTH_SHORT,
+                            this@GroveApplication, text, android.widget.Toast.LENGTH_SHORT,
                         ).show()
                     }
                 }
@@ -396,10 +395,10 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             }
             val outcome = job.await()
             if (outcome.failed > 0) {
-                val folders = if (outcome.failed == 1) "1 attachment folder" else "${outcome.failed} attachment folders"
+                val text = resources.getQuantityString(R.plurals.attach_move_failed, outcome.failed, outcome.failed)
                 withContext(dispatchers.main) {
                     android.widget.Toast.makeText(
-                        this@GroveApplication, "$folders couldn't be moved", android.widget.Toast.LENGTH_SHORT,
+                        this@GroveApplication, text, android.widget.Toast.LENGTH_SHORT,
                     ).show()
                 }
             }
@@ -407,15 +406,17 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
         }
     }
 
-    private suspend fun applyAttachToFile(done: com.rrajath.grove.attach.AttachDone): String? {
+    private suspend fun applyAttachToFile(done: com.rrajath.grove.attach.AttachDone): UiText? {
         val request = done.request
         val result = done.result as? com.rrajath.grove.attach.ImportResult.Success ?: return null
-        val v = vault.value ?: return ATTACH_KEPT_NOT_FOUND
-        val doc = v.open(request.orgFile) ?: return ATTACH_KEPT_NOT_FOUND
+        // 6.7: a copy finished after its editor closed and the owner heading was gone.
+        val keptNotFound = UiText.res(R.string.attach_kept_heading_missing)
+        val v = vault.value ?: return keptNotFound
+        val doc = v.open(request.orgFile) ?: return keptNotFound
         val edit = com.rrajath.grove.attach.appendAttachmentLinksToFile(
             doc.text, request.owner, request.newId, result.names, request.autoTag,
         )
-            ?: return ATTACH_KEPT_NOT_FOUND
+            ?: return keptNotFound
         v.save(request.orgFile, edit.text)
         syncManager.requestReindex(request.orgFile, edit.text, "attach")
         return com.rrajath.grove.attach.successMessage(request, result)

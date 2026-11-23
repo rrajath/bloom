@@ -3,6 +3,7 @@ package com.rrajath.grove.ui.agenda
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.FollowAction
 import com.rrajath.grove.attach.rewritesFor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -606,7 +607,7 @@ class AgendaViewModel(
                                 FileRewrite(fileName, doc.text, result.sourceText),
                                 FileRewrite(result.destFile, result.destTextBefore, result.destText),
                             ),
-                            "Archived",
+                            FollowAction.Archived,
                         )
                     }
                     showSnack(UiText.res(R.string.snack_marked_done_refiled, result.label))
@@ -734,7 +735,7 @@ class AgendaViewModel(
                 vault.save(it.fileName, it.text)
                 sync.requestReindex(it.fileName, it.text, "agenda undo")
             }
-            attachFollow.filesRewritten(rewrites, "Undone")
+            attachFollow.filesRewritten(rewrites, FollowAction.Undone)
         }
     }
 

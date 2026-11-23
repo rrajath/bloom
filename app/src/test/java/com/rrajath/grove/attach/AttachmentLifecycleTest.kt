@@ -1,5 +1,6 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.testing.support.english
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.vault.JvmFileStore
 import java.io.File
@@ -318,23 +319,23 @@ class AttachmentLifecycleTest {
     fun `sheet and toast copy`() {
         assertEquals("Notes/data/", attachDirLabel("Notes/travel.org", AttachConfig.Default))
         assertEquals("data/", attachDirLabel("travel.org", AttachConfig.Default))
-        assertEquals("41 MB", formatTotalSize(41L * 1024 * 1024 + 1000))
-        assertEquals("2.4 MB", formatTotalSize(2_500_000))
+        assertEquals("41 MB", formatTotalSize(41L * 1024 * 1024 + 1000).english())
+        assertEquals("2.4 MB", formatTotalSize(2_500_000).english())
         val inv = AttachmentInventory(
             listOf(
                 AttachDirEntry(a, "d/a", 20, 40L * 1024 * 1024, shared = false),
                 AttachDirEntry(b, "d/b", 3, 1L * 1024 * 1024, shared = true),
             ),
         )
-        assertEquals("2 folders · 23 files · 41 MB", inventoryDetail(inv))
-        assertEquals("travel.org → Archive/ · 2 folders · 41 MB", moveSubline("travel.org", "Archive", inv))
+        assertEquals("2 folders · 23 files · 41 MB", inventoryDetail(inv).english())
+        assertEquals("travel.org → Archive/ · 2 folders · 41 MB", moveSubline("travel.org", "Archive", inv).english())
         assertEquals(
             "Moved travel.org and 6 attachment folders to Archive/",
-            notebookMoveMessage("travel.org", "Archive", LifecycleResult(moved = 4, copied = 2)),
+            notebookMoveMessage("travel.org", "Archive", LifecycleResult(moved = 4, copied = 2)).english(),
         )
         assertEquals(
             "Moved travel.org; 1 attachment folder couldn't be moved",
-            notebookMoveMessage("travel.org", "Archive", LifecycleResult(moved = 4, failed = 1)),
+            notebookMoveMessage("travel.org", "Archive", LifecycleResult(moved = 4, failed = 1)).english(),
         )
     }
 }

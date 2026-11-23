@@ -27,6 +27,7 @@ import com.rrajath.grove.attach.orgIdsIn
 import com.rrajath.grove.attach.AttachmentIntents
 import com.rrajath.grove.attach.AttachmentLink
 import com.rrajath.grove.attach.AttachmentLookup
+import com.rrajath.grove.attach.FollowAction
 import com.rrajath.grove.attach.LocalAttachment
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.FavoritesRepository
@@ -537,7 +538,7 @@ class NotebooksViewModel(
                         val result = withContext(dispatchers.io) {
                             lifecycle.moveNotebookAttachments(path, newPath, inventory)
                         }
-                        UiText.raw(notebookMoveMessage(leaf, newDir.trim('/'), result))
+                        notebookMoveMessage(leaf, newDir.trim('/'), result)
                     } else {
                         UiText.res(R.string.notebooks_moved_attachments_stayed, leaf, attachDirLabel(path, lifecycle.config))
                     }
@@ -1137,7 +1138,7 @@ class DocumentViewModel(
         } ?: return false
         when (AttachmentIntents.open(app, store, path)) {
             AttachmentIntents.Result.Launched -> Unit
-            AttachmentIntents.Result.NoHandler -> showToast(AttachmentIntents.NO_HANDLER_MESSAGE)
+            AttachmentIntents.Result.NoHandler -> showToast(UiText.res(AttachmentIntents.NO_HANDLER_MESSAGE))
             AttachmentIntents.Result.Missing -> showToast(missingAttachmentMessage(attachment.fileName))
         }
         return true
@@ -1385,8 +1386,8 @@ class DocumentViewModel(
     private var undoSnapshot: UndoSnapshot? = null
 
     /** Lets attach dirs follow subtrees that an edit moved into another file (experimental). */
-    private fun followAttachments(writes: List<FileRewrite>, verb: String) {
-        if (writes.map { it.file }.distinct().size > 1) app.attachmentFollow.filesRewritten(writes, verb)
+    private fun followAttachments(writes: List<FileRewrite>, action: FollowAction) {
+        if (writes.map { it.file }.distinct().size > 1) app.attachmentFollow.filesRewritten(writes, action)
     }
 
     fun undo() {
@@ -1422,7 +1423,7 @@ class DocumentViewModel(
                 vault.save(name, text)
                 sync.requestReindex(name, text, "undo")
             }
-            followAttachments(rewrites, "Undone")
+            followAttachments(rewrites, FollowAction.Undone)
             snap.files.firstOrNull { it.first == loaded.fileName }?.let { (_, text) ->
                 val doc = withContext(dispatchers.default) {
                     OrgParser.parse(text, loaded.document.keywords)
@@ -1822,7 +1823,7 @@ class DocumentViewModel(
                                 FileRewrite(loaded.fileName, loaded.document.text, result.sourceText),
                                 FileRewrite(result.destFile, result.destTextBefore, result.destText),
                             ),
-                            "Archived",
+                            FollowAction.Archived,
                         )
                     }
                     showSnack(UiText.res(R.string.snack_marked_done_refiled, result.label))
@@ -2033,7 +2034,7 @@ class DocumentViewModel(
             followAttachments(
                 listOf(FileRewrite(loaded.fileName, loaded.document.text, result.sourceText)) +
                     result.destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
-                "Archived",
+                FollowAction.Archived,
             )
             val stateMessage = UiText.plural(
                 R.plurals.outline_bulk_state, result.changed,
@@ -2332,7 +2333,7 @@ class DocumentViewModel(
                     FileRewrite(loaded.fileName, loaded.document.text, write.sourceText),
                     FileRewrite(write.destFile, write.destTextBefore, write.destText),
                 ),
-                if (archive) "Archived" else "Refiled",
+                if (archive) FollowAction.Archived else FollowAction.Refiled,
             )
         }
         showSnack(UiText.res(if (archive) R.string.refile_snack_archived_to else R.string.refile_snack_refiled_to, write.label))
@@ -2363,7 +2364,7 @@ class DocumentViewModel(
                     if (archive) R.plurals.refile_snack_archived_n_to else R.plurals.refile_snack_refiled_n_to,
                     result.labels.size, result.labels.size, result.labels.first(),
                 ),
-                attachVerb = if (archive) "Archived" else "Refiled",
+                attachAction = if (archive) FollowAction.Archived else FollowAction.Refiled,
             )
         }
     }
@@ -2434,7 +2435,7 @@ class DocumentViewModel(
         destWrites: List<Triple<String, String, String>>,
         syncReason: String,
         message: UiText,
-        attachVerb: String = "Refiled",
+        attachAction: FollowAction = FollowAction.Refiled,
     ) {
         undoSnapshot = UndoSnapshot(
             listOf(loaded.fileName to loaded.document.text) + destWrites.map { (file, before, _) -> file to before }
@@ -2449,7 +2450,7 @@ class DocumentViewModel(
         followAttachments(
             listOf(FileRewrite(loaded.fileName, loaded.document.text, sourceText)) +
                 destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
-            attachVerb,
+            attachAction,
         )
         showSnack(message)
         val doc = loaded.document
@@ -2525,7 +2526,7 @@ class DocumentViewModel(
                         FileRewrite(loaded.fileName, loaded.document.text, newSourceText),
                         FileRewrite(destFile, destDoc.text, newDestText),
                     ),
-                    "Refiled",
+                    FollowAction.Refiled,
                 )
                 showSnack(refiledUnder(1, destLabel, target?.title))
                 rememberRefileTarget(destFile, headingPath)

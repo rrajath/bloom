@@ -1,5 +1,7 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.testing.support.english
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.vault.JvmFileStore
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -33,8 +35,8 @@ class AttachmentCopyManagerTest {
             io = dispatcher,
             store = { store },
             opener = { uri -> if (uri == "missing") null else ByteArrayInputStream(ByteArray(4)) },
-            fallback = { done -> fallbacks += done; "fallback" },
-            notify = { notes += it },
+            fallback = { done -> fallbacks += done; UiText.raw("fallback") },
+            notify = { notes += it.english() },
             onFilesAdded = { filesAdded++ },
         )
     }
@@ -47,7 +49,7 @@ class AttachmentCopyManagerTest {
         dir = "data/8B/41D2F0",
         kind = kind,
         sources = names.map { AttachSource(uri, it, 4) },
-        ownerLabel = "Lunch",
+        ownerLabel = UiText.raw("Lunch"),
     )
 
     @Test
@@ -103,21 +105,21 @@ class AttachmentCopyManagerTest {
     @Test
     fun `success toasts follow 1q`() {
         val one = ImportResult.Success(listOf("a.pdf"), emptySet())
-        assertEquals("Attached to Lunch", successMessage(request("a.pdf"), one))
+        assertEquals("Attached to Lunch", successMessage(request("a.pdf"), one).english())
         assertEquals(
             "Attached to this file",
-            successMessage(request("a.pdf").copy(ownerLabel = ownerToastLabel(AttachOwner.File(null, null))), one),
+            successMessage(request("a.pdf").copy(ownerLabel = ownerToastLabel(AttachOwner.File(null, null))), one).english(),
         )
         assertEquals(
             "Saved as photo-1.jpg (name already in use)",
-            successMessage(request("photo.jpg"), ImportResult.Success(listOf("photo-1.jpg"), setOf("photo-1.jpg"))),
+            successMessage(request("photo.jpg"), ImportResult.Success(listOf("photo-1.jpg"), setOf("photo-1.jpg"))).english(),
         )
         val three = ImportResult.Success(listOf("a.jpg", "b-1.jpg", "c.jpg"), setOf("b-1.jpg"))
-        assertEquals("3 photos attached to Lunch", successMessage(request("a", "b", "c", kind = AttachKind.Photos), three))
-        assertEquals("3 files attached to Lunch", successMessage(request("a", "b", "c"), three))
+        assertEquals("3 photos attached to Lunch", successMessage(request("a", "b", "c", kind = AttachKind.Photos), three).english())
+        assertEquals("3 files attached to Lunch", successMessage(request("a", "b", "c"), three).english())
         assertEquals(
             "Heading changed. Attached to Lunch",
-            successMessage(request("a.pdf").copy(ownerChanged = true), one),
+            successMessage(request("a.pdf").copy(ownerChanged = true), one).english(),
         )
     }
 

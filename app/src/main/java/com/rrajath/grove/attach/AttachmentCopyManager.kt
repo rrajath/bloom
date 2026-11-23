@@ -1,7 +1,9 @@
 package com.rrajath.grove.attach
 
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgParser
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.vault.FileStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -29,7 +31,7 @@ data class AttachRequest(
     val kind: AttachKind,
     val sources: List<AttachSource>,
     /** Toast suffix: `Lunch` or `this file`. */
-    val ownerLabel: String,
+    val ownerLabel: UiText,
     /** True when the owner seen after the picker isn't the one the sheet was opened for. */
     val ownerChanged: Boolean = false,
     /**
@@ -69,9 +71,9 @@ class AttachmentCopyManager(
     private val store: () -> FileStore?,
     private val opener: SourceOpener,
     /** Applies a finished attach to the file on disk when no editor is listening; returns a toast or null. */
-    private val fallback: suspend (AttachDone) -> String?,
+    private val fallback: suspend (AttachDone) -> UiText?,
     /** Shows a message when no editor is listening (an app-level toast on device). */
-    private val notify: (String) -> Unit,
+    private val notify: (UiText) -> Unit,
     private val clock: () -> Long = System::currentTimeMillis,
     /** Resizes/converts Camera and Photos images (Settings § Attachments); null copies as-is. */
     private val photoProcessor: PhotoProcessor? = null,
@@ -185,28 +187,28 @@ class AttachmentCopyManager(
 }
 
 /** `Couldn't attach receipt.pdf: storage full`. */
-fun failureMessage(r: ImportResult.Failed): String = "Couldn't attach ${r.name}: ${r.failure.reason}"
+fun failureMessage(r: ImportResult.Failed): UiText = UiText.res(r.failure.messageRes, r.name)
 
 /**
  * The toast for a successful attach (6.6 / 1q). A rename only gets its own
  * toast for a single item; a multi-pick always shows the combined count.
  */
-fun successMessage(request: AttachRequest, result: ImportResult.Success): String {
+fun successMessage(request: AttachRequest, result: ImportResult.Success): UiText {
     val n = result.names.size
-    if (request.ownerChanged) return "Heading changed. Attached to ${request.ownerLabel}"
+    if (request.ownerChanged) return UiText.res(R.string.attach_heading_changed, request.ownerLabel)
     if (n > 1) {
-        val noun = if (request.kind == AttachKind.Files) "files" else "photos"
-        return "$n $noun attached to ${request.ownerLabel}"
+        val id = if (request.kind == AttachKind.Files) R.plurals.attach_files_attached else R.plurals.attach_photos_attached
+        return UiText.plural(id, n, n, request.ownerLabel)
     }
     val only = result.names.single()
-    if (only in result.renamed) return "Saved as $only (name already in use)"
-    return "Attached to ${request.ownerLabel}"
+    if (only in result.renamed) return UiText.res(R.string.attach_saved_as, only)
+    return UiText.res(R.string.attach_attached_to, request.ownerLabel)
 }
 
 /** `Lunch` for a heading owner, `this file` for the file owner. */
-fun ownerToastLabel(owner: AttachOwner): String = when (owner) {
-    is AttachOwner.Heading -> owner.title
-    is AttachOwner.File -> "this file"
+fun ownerToastLabel(owner: AttachOwner): UiText = when (owner) {
+    is AttachOwner.Heading -> UiText.raw(owner.title)
+    is AttachOwner.File -> UiText.res(R.string.attach_owner_this_file)
 }
 
 /**

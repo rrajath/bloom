@@ -4,6 +4,7 @@ import com.rrajath.grove.R
 import androidx.annotation.StringRes
 import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.FollowAction
 import com.rrajath.grove.attach.rewritesFor
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
@@ -307,7 +308,7 @@ class SearchViewModel(
                 vault.save(name, text)
                 sync.requestReindex(name, text, "search undo")
             }
-            attachFollow.filesRewritten(rewrites, "Undone")
+            attachFollow.filesRewritten(rewrites, FollowAction.Undone)
         }
     }
 
@@ -499,7 +500,7 @@ class SearchViewModel(
                             FileRewrite(fileName, doc.text, result.sourceText),
                             FileRewrite(result.destFile, result.destTextBefore, result.destText),
                         ),
-                        "Archived",
+                        FollowAction.Archived,
                     )
                 }
                 showSnack(UiText.res(R.string.snack_marked_done_refiled, result.label))

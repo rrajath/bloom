@@ -186,7 +186,7 @@ class DocumentViewModelAttachmentLinkTest {
     fun `an attachment with no viewer app says so`() = runTest {
         put("data/ab/cdef/IMG_1.jpg")
         val vm = loaded()
-        assertEquals(listOf(AttachmentIntents.NO_HANDLER_MESSAGE), tap(vm, "attachment:IMG_1.jpg"))
+        assertEquals(listOf(app.getString(AttachmentIntents.NO_HANDLER_MESSAGE)), tap(vm, "attachment:IMG_1.jpg"))
         assertNull(shadowOf(app).nextStartedActivity)
     }
 }
