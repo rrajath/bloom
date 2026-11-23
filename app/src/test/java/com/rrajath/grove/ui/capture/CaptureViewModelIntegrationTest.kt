@@ -2,6 +2,7 @@ package com.rrajath.grove.ui.capture
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.TargetLocation
@@ -16,6 +17,7 @@ import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.ui.editor.AddedHeadingMarks
 import com.rrajath.grove.ui.editor.DiskHeadingMarks
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,7 +118,7 @@ class CaptureViewModelIntegrationTest {
         vm.save(quickNote, "   ", context)
         advanceUntilIdle()
 
-        assertEquals(SaveState.Failed("Nothing to save"), vm.saveState.value)
+        assertEquals(SaveState.Failed(UiText.res(R.string.capture_nothing_to_save)), vm.saveState.value)
         assertEquals(before, store.snapshot())
         assertTrue(sync.syncRequests.isEmpty())
     }
@@ -129,7 +131,7 @@ class CaptureViewModelIntegrationTest {
         vm.save(quickNote, "* Should not be saved", context)
         advanceUntilIdle()
 
-        assertEquals(SaveState.Failed("No sync folder configured"), vm.saveState.value)
+        assertEquals(SaveState.Failed(UiText.raw("No sync folder configured")), vm.saveState.value)
         assertEquals("the vault must be untouched", before, store.snapshot())
         assertTrue("no sync may be requested on a failed save", sync.syncRequests.isEmpty())
     }
@@ -185,7 +187,7 @@ class CaptureViewModelIntegrationTest {
         vm.save(template, "  \n", context, bodyOnly = true)
         advanceUntilIdle()
 
-        assertEquals(SaveState.Failed("Nothing to save"), vm.saveState.value)
+        assertEquals(SaveState.Failed(UiText.res(R.string.capture_nothing_to_save)), vm.saveState.value)
         assertEquals(before, store.snapshot())
     }
 

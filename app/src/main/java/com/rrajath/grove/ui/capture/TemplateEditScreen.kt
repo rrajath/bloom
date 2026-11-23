@@ -51,7 +51,9 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -97,6 +99,7 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.resolveFor
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.backArrowGlyph
 import com.rrajath.grove.ui.vault.RefileUiState
 import com.rrajath.grove.ui.vault.fileHeadingSearchIndex
 import com.rrajath.grove.ui.vault.headlineAtLine
@@ -109,7 +112,10 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 private val LOCATION_OPTIONS = listOf(
-    "Top of file", "Bottom of file", "Under heading", "Date tree",
+    R.string.template_insert_top,
+    R.string.template_insert_bottom,
+    R.string.template_insert_under_heading,
+    R.string.template_insert_datetree,
 )
 
 /** Which "Insert at" field the file-scoped heading picker sheet is filling. */
@@ -196,7 +202,7 @@ fun TemplateEditScreen(
     var pickerFor by remember { mutableStateOf<HeadingPickerFor?>(null) }
     var pickerState by remember { mutableStateOf<RefileUiState?>(null) }
     val previewDate = remember { LocalDate.now() }
-    var templateText by remember(existing) { mutableStateOf(existing?.template ?: "* %^{Title}\n%cursor") }
+    var templateText by remember(existing) { mutableStateOf(existing?.template ?: "* %^{Title}\n%cursor") } // i18n: template syntax
     val invalidPlaceholders = remember(templateText) {
         PlaceholderExpander.findInvalid(templateText).map { it.token }.distinct()
     }
@@ -250,11 +256,11 @@ fun TemplateEditScreen(
                             .clip(RoundedCornerShape(10.dp))
                             .clickable(onClick = leave)
                             .padding(12.dp),
-                    ) { Text("←", fontFamily = PlexMono, fontSize = 18.sp, color = c.ink) }
+                    ) { Text(backArrowGlyph(), fontFamily = PlexMono, fontSize = 18.sp, color = c.ink) }
                 },
                 title = {
                     Text(
-                        if (existing == null) "New template" else "Edit template",
+                        stringResource(if (existing == null) R.string.template_new_title else R.string.template_edit_title),
                         style = MaterialTheme.typography.titleLarge, color = c.ink,
                     )
                 },
@@ -270,7 +276,7 @@ fun TemplateEditScreen(
                             .padding(horizontal = 16.dp, vertical = 9.dp),
                     ) {
                         Text(
-                            "Save",
+                            stringResource(R.string.action_save),
                             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp, color = if (canSave) c.accentInk else c.ink3,
                         )
@@ -287,7 +293,7 @@ fun TemplateEditScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
         ) {
-            FieldLabel("Name")
+            FieldLabel(stringResource(R.string.template_field_name))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MonogramTile(
                     letter = monogramLetter(name),
@@ -307,14 +313,14 @@ fun TemplateEditScreen(
                     singleLine = true, modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     textStyle = TextStyle(fontFamily = PlexSans),
-                    placeholder = { Text("Meeting Note", fontFamily = PlexSans, color = c.ink3) },
+                    placeholder = { Text(stringResource(R.string.template_name_placeholder), fontFamily = PlexSans, color = c.ink3) },
                 )
             }
 
             if (showKindSwitch) {
-                FieldLabel("Type")
+                FieldLabel(stringResource(R.string.template_field_type))
                 SegmentedControl(
-                    options = listOf("Add to a file", "New node file"),
+                    options = listOf(stringResource(R.string.template_kind_plain), stringResource(R.string.template_kind_roam)),
                     selectedIndex = if (kind == TemplateKind.PLAIN) 0 else 1,
                     onSelect = { kind = if (it == 0) TemplateKind.PLAIN else TemplateKind.ROAM_NODE },
                     modifier = Modifier.fillMaxWidth(),
@@ -322,7 +328,7 @@ fun TemplateEditScreen(
             }
 
             if (kind == TemplateKind.PLAIN) {
-                FieldLabel("Target file")
+                FieldLabel(stringResource(R.string.template_field_target_file))
                 NotebookFileField(
                     value = targetFile,
                     onValueChange = {
@@ -335,12 +341,13 @@ fun TemplateEditScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                FieldLabel("Insert at")
+                FieldLabel(stringResource(R.string.template_field_insert_at))
                 val fileName = targetFile.trim()
                 val idTag = stringResource(R.string.heading_id_tag)
                 // Shown in place of a heading picker's helper text when the file isn't in the vault.
+                val headingGoneHint = stringResource(R.string.template_heading_gone, fileName)
                 val noFileHint = if (targetDocLoaded && targetDoc == null && fileName.isNotEmpty()) {
-                    "$fileName isn't in your vault yet, so there are no headings to pick."
+                    stringResource(R.string.template_file_not_in_vault, fileName)
                 } else null
                 fun openPicker(forWhat: HeadingPickerFor) {
                     val doc = targetDoc ?: return
@@ -356,16 +363,16 @@ fun TemplateEditScreen(
                     pickerFor = forWhat
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    LOCATION_OPTIONS.forEachIndexed { i, label ->
-                        InsertAtRow(label, selected = i == locationIdx) { locationIdx = i }
+                    LOCATION_OPTIONS.forEachIndexed { i, labelRes ->
+                        InsertAtRow(stringResource(labelRes), selected = i == locationIdx) { locationIdx = i }
                     }
                     if (locationIdx == 2) {
                         val resolved = targetDoc?.let { doc -> underHeading?.let { CaptureInserter.findTarget(doc, it) } }
                         SubOptionPanel(gap = 8.dp) {
-                            SubOptionLabel("Heading")
+                            SubOptionLabel(stringResource(R.string.template_heading_label))
                             HeadingPickerField(
                                 text = resolved?.title ?: underHeading?.headingLabel,
-                                placeholder = "Choose a heading",
+                                placeholder = stringResource(R.string.template_choose_heading),
                                 tag = idTag.takeIf {
                                     resolved?.let { it.id != null || it.customId != null }
                                         ?: (underHeading?.headingKey != null)
@@ -376,7 +383,7 @@ fun TemplateEditScreen(
                             when {
                                 noFileHint != null -> SubOptionHelp(noFileHint)
                                 targetDocLoaded && underHeading != null && resolved == null ->
-                                    SubOptionHelp("This heading isn't in $fileName anymore. Choose another.", error = true)
+                                    SubOptionHelp(headingGoneHint, error = true)
                             }
                         }
                     }
@@ -386,12 +393,12 @@ fun TemplateEditScreen(
                         }
                         SubOptionPanel(gap = 14.dp) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SubOptionLabel("Inside heading")
+                                SubOptionLabel(stringResource(R.string.template_inside_heading))
                                 HeadingPickerField(
                                     text = if (datetree.hasHeading) {
                                         resolved?.title ?: datetree.path.lastOrNull() ?: datetree.id?.let { "#$it" }
                                     } else null,
-                                    placeholder = "None (top level)",
+                                    placeholder = stringResource(R.string.template_none_top_level),
                                     tag = idTag.takeIf {
                                         resolved?.let { it.id != null || it.customId != null } ?: (datetree.id != null)
                                     },
@@ -401,20 +408,24 @@ fun TemplateEditScreen(
                                 when {
                                     noFileHint != null -> SubOptionHelp(noFileHint)
                                     targetDocLoaded && datetree.hasHeading && resolved == null ->
-                                        SubOptionHelp("This heading isn't in $fileName anymore. Choose another.", error = true)
-                                    else -> SubOptionHelp("Leave empty to put the date tree at the top level of the file.")
+                                        SubOptionHelp(headingGoneHint, error = true)
+                                    else -> SubOptionHelp(stringResource(R.string.template_datetree_top_level_help))
                                 }
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SubOptionLabel("Group entries by")
+                                SubOptionLabel(stringResource(R.string.template_group_by))
                                 GroupBySegments(
-                                    options = listOf("Day", "Week", "Month"),
+                                    options = listOf(
+                                        stringResource(R.string.template_group_day),
+                                        stringResource(R.string.template_group_week),
+                                        stringResource(R.string.template_group_month),
+                                    ),
                                     selectedIndex = datetree.treeType.ordinal,
                                     onSelect = { datetree = datetree.copy(treeType = DatetreeType.entries[it]) },
                                 )
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SubOptionLabel("Preview")
+                                SubOptionLabel(stringResource(R.string.template_preview))
                                 DatetreeOutlinePreview(
                                     path = if (datetree.hasHeading) {
                                         resolved?.let { h -> targetDoc?.let { CaptureInserter.outlinePath(it, h) } }
@@ -433,7 +444,7 @@ fun TemplateEditScreen(
                     )
                 }
 
-                FieldLabel("Template")
+                FieldLabel(stringResource(R.string.template_field_template))
                 OutlinedTextField(
                     value = templateText, onValueChange = { templateText = it },
                     modifier = Modifier.fillMaxWidth().height(140.dp),
@@ -442,14 +453,17 @@ fun TemplateEditScreen(
                 )
                 if (invalidPlaceholders.isNotEmpty()) {
                     Text(
-                        "Unsupported placeholder${if (invalidPlaceholders.size > 1) "s" else ""}: " +
+                        pluralStringResource(
+                            R.plurals.template_unsupported_placeholders,
+                            invalidPlaceholders.size,
                             invalidPlaceholders.joinToString(", "),
+                        ),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.red,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
                 Text(
-                    "placeholder help",
+                    stringResource(R.string.template_placeholder_help_link),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 12.5.sp, color = c.accent,
                     textDecoration = TextDecoration.Underline,
@@ -458,7 +472,7 @@ fun TemplateEditScreen(
                         .padding(vertical = 10.dp),
                 )
             } else {
-                FieldLabel("Directory")
+                FieldLabel(stringResource(R.string.template_field_directory))
                 DirectoryField(
                     value = roamDirectory,
                     onValueChange = { roamDirectory = it },
@@ -466,7 +480,7 @@ fun TemplateEditScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                FieldLabel("File name pattern")
+                FieldLabel(stringResource(R.string.template_field_filename_pattern))
                 OutlinedTextField(
                     value = filenamePattern, onValueChange = { filenamePattern = it },
                     singleLine = true, modifier = Modifier.fillMaxWidth(),
@@ -481,9 +495,9 @@ fun TemplateEditScreen(
                 )
                 InsertChipsRow(FILENAME_PATTERN_CHIPS) { insertText -> filenamePattern += insertText }
 
-                FieldLabel("New file template")
+                FieldLabel(stringResource(R.string.template_field_new_file_template))
                 Text(
-                    "An :ID: property is added automatically at the top of the file. No need to add it here.",
+                    stringResource(R.string.template_roam_id_auto),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
@@ -495,15 +509,18 @@ fun TemplateEditScreen(
                 )
                 if (roamInvalidPlaceholders.isNotEmpty()) {
                     Text(
-                        "Unsupported placeholder${if (roamInvalidPlaceholders.size > 1) "s" else ""}: " +
+                        pluralStringResource(
+                            R.plurals.template_unsupported_placeholders,
+                            roamInvalidPlaceholders.size,
                             roamInvalidPlaceholders.joinToString(", "),
+                        ),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.red,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
                 if (roamTemplateDefinesId) {
                     Text(
-                        "An ID is created automatically, so the :ID: in this template will be ignored.",
+                        stringResource(R.string.template_roam_id_ignored),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.amber,
                         modifier = Modifier.padding(top = 4.dp),
                     )
@@ -514,7 +531,7 @@ fun TemplateEditScreen(
                     newFileTemplate = TextFieldValue(text, TextRange(sel.min + insertText.length))
                 }
                 Text(
-                    "placeholder help",
+                    stringResource(R.string.template_placeholder_help_link),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 12.5.sp, color = c.accent,
                     textDecoration = TextDecoration.Underline,
@@ -527,24 +544,23 @@ fun TemplateEditScreen(
             // Leaving this screen retires this feature's NEW dot from its whole
             // trail (menu glyph, drawer, Settings hub row, this label).
             MarkNewFeatureSeen(NewAnchors.SETTINGS_CAPTURE_TEMPLATES_LINK)
-            FieldLabel("Capture link", badge = { NewDot(NewAnchors.SETTINGS_CAPTURE_TEMPLATES_LINK) })
+            FieldLabel(stringResource(R.string.template_field_capture_link), badge = { NewDot(NewAnchors.SETTINGS_CAPTURE_TEMPLATES_LINK) })
             Text(
-                "Jumps straight into this template's capture editor -- open it from a " +
-                    "browser bookmark, a launcher shortcut app, or anywhere else that can " +
-                    "open a link. Tap to copy it.",
+                stringResource(R.string.template_capture_link_help),
                 fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                 modifier = Modifier.padding(bottom = 6.dp),
             )
             val slug = remember(name) { templateSlug(name) }
             if (slug.isBlank()) {
                 Text(
-                    "Add a name above to generate this template's capture link.",
+                    stringResource(R.string.template_capture_link_needs_name),
                     fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3,
                 )
             } else {
                 val clipboard = LocalClipboard.current
                 val scope = rememberCoroutineScope()
                 val deepLink = DeepLinks.captureTemplate(slug)
+                val clipLabel = stringResource(R.string.template_capture_link_clip_label)
                 Text(
                     deepLink,
                     fontFamily = PlexMono, fontSize = 13.sp, color = c.accent,
@@ -552,7 +568,7 @@ fun TemplateEditScreen(
                     modifier = Modifier
                         .clickable {
                             scope.launch {
-                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("capture link", deepLink)))
+                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(clipLabel, deepLink)))
                             }
                         }
                         .padding(vertical = 4.dp),
@@ -560,6 +576,7 @@ fun TemplateEditScreen(
 
                 Spacer(Modifier.height(10.dp))
                 val context = LocalContext.current
+                val resources = LocalResources.current
                 val configuration = LocalConfiguration.current
                 val pinScope = rememberCoroutineScope()
                 Box(
@@ -581,7 +598,7 @@ fun TemplateEditScreen(
                                 if (!pinned) {
                                     android.widget.Toast.makeText(
                                         context,
-                                        "Your launcher doesn't support adding shortcuts to the homescreen.",
+                                        resources.getString(R.string.template_pin_unsupported),
                                         android.widget.Toast.LENGTH_LONG,
                                     ).show()
                                 }
@@ -590,7 +607,7 @@ fun TemplateEditScreen(
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        "Add to Homescreen",
+                        stringResource(R.string.template_add_to_homescreen),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp, color = if (canSave) c.accent else c.ink3,
                     )
@@ -639,11 +656,15 @@ fun TemplateEditScreen(
                 if (next != null) pickerState = next
                 next != null
             },
-            headerTitle = if (sheetFor == HeadingPickerFor.UNDER_HEADING) "Choose a heading" else "Inside heading",
-            confirmLabel = "Use this heading",
-            topLevelConfirmLabel = if (sheetFor == HeadingPickerFor.DATETREE) "Use top level" else null,
+            headerTitle = stringResource(
+                if (sheetFor == HeadingPickerFor.UNDER_HEADING) R.string.template_choose_heading else R.string.template_inside_heading,
+            ),
+            confirmLabel = stringResource(R.string.template_use_this_heading),
+            topLevelConfirmLabel = if (sheetFor == HeadingPickerFor.DATETREE) stringResource(R.string.template_use_top_level) else null,
             topLevelConfirmEnabled = sheetFor == HeadingPickerFor.DATETREE,
-            topLevelCrumbHint = if (sheetFor == HeadingPickerFor.DATETREE) "top level · or pick a heading" else "pick a heading",
+            topLevelCrumbHint = stringResource(
+                if (sheetFor == HeadingPickerFor.DATETREE) R.string.refile_crumb_top_level_or_pick else R.string.template_crumb_pick_heading,
+            ),
             showBackAtTopLevel = false,
             searchPlaceholder = stringResource(R.string.picker_search_headings_placeholder),
             searchHeader = stringResource(R.string.picker_search_headings_header),
@@ -653,8 +674,8 @@ fun TemplateEditScreen(
 
     if (showColorDialog) {
         ChangeIconColorDialog(
-            name = name.ifBlank { "New template" },
-            hint = "Letter follows the template name",
+            name = name.ifBlank { stringResource(R.string.template_new_title) },
+            hint = stringResource(R.string.template_icon_hint),
             letter = monogramLetter(name),
             currentColorKey = colorKey ?: nameHashPaletteKey(editingId),
             onPickColor = { colorKey = it },
@@ -794,6 +815,7 @@ private fun GroupBySegments(options: List<String>, selectedIndex: Int, onSelect:
 private fun DatetreeOutlinePreview(path: List<String>, type: DatetreeType, today: LocalDate) {
     val c = MaterialTheme.grove
     val nodes = path + CaptureInserter.datetreeTitles(today, type)
+    val entry = stringResource(R.string.template_datetree_preview_entry)
     val shape = RoundedCornerShape(12.dp)
     Column(
         Modifier
@@ -804,7 +826,7 @@ private fun DatetreeOutlinePreview(path: List<String>, type: DatetreeType, today
             .padding(vertical = 10.dp),
     ) {
         nodes.forEachIndexed { i, title -> OutlinePreviewLine("*".repeat(i + 1) + " " + title, highlighted = false) }
-        OutlinePreviewLine("*".repeat(nodes.size + 1) + " your entry", highlighted = true)
+        OutlinePreviewLine("*".repeat(nodes.size + 1) + " " + entry, highlighted = true)
     }
 }
 

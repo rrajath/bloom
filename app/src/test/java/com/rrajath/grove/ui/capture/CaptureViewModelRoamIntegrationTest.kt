@@ -2,6 +2,7 @@ package com.rrajath.grove.ui.capture
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.DefaultTemplates
@@ -16,6 +17,7 @@ import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.support.MainDispatcherRule
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -205,7 +207,7 @@ class CaptureViewModelRoamIntegrationTest {
         vm.saveRoam("roam/my-new-node.org", "   ", context)
         advanceUntilIdle()
 
-        assertEquals(SaveState.Failed("Nothing to save"), vm.saveState.value)
+        assertEquals(SaveState.Failed(UiText.res(R.string.capture_nothing_to_save)), vm.saveState.value)
         assertEquals(before, store.snapshot())
     }
 

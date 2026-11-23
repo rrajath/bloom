@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.capture
 
+import android.content.res.Resources
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,6 +47,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -82,6 +85,7 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureContext
 import com.rrajath.grove.capture.CaptureInserter
 import com.rrajath.grove.capture.CaptureTemplate
@@ -143,6 +147,7 @@ import com.rrajath.grove.ui.editor.filterAutoLinkSuggestions
 import com.rrajath.grove.ui.editor.formatAutoLinkInsertion
 import com.rrajath.grove.ui.editor.isInPreface
 import com.rrajath.grove.ui.editor.wordAtCursor
+import com.rrajath.grove.ui.util.asString
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -246,11 +251,12 @@ fun CaptureEditorScreen(
     // while the DataStore read is in flight) is a still-missing match a real
     // "no such template" rather than a load-in-progress false negative.
     val notFoundContext = LocalContext.current
+    val notFoundResources = LocalResources.current
     LaunchedEffect(template, templates) {
         if (template == null && templates.isNotEmpty()) {
             Toast.makeText(
                 notFoundContext,
-                "Couldn't find a capture template named \"$templateId\".",
+                notFoundResources.getString(R.string.capture_template_not_found, templateId),
                 Toast.LENGTH_LONG,
             ).show()
             onClose()
@@ -629,6 +635,7 @@ fun CaptureEditorScreen(
         }
     }
     val toastContext = LocalContext.current
+    val resources = LocalResources.current
 
     /**
      * The Roam node's target file. A continuation of an already-existing file
@@ -771,7 +778,7 @@ fun CaptureEditorScreen(
                     if (dirty || lastAutoSavedAt != null) {
                         Icon(
                             Icons.Outlined.Save,
-                            contentDescription = if (dirty) "Unsaved changes, tap to save" else "Saved",
+                            contentDescription = stringResource(if (dirty) R.string.read_unsaved_save else R.string.capture_saved),
                             tint = if (dirty) c.green else c.ink3,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
@@ -782,7 +789,7 @@ fun CaptureEditorScreen(
                                         val formatted = lastAutoSavedAt?.let(AutoSaveTimestamp::format)
                                         Toast.makeText(
                                             toastContext,
-                                            "The note auto saved at: $formatted",
+                                            resources.getString(R.string.capture_autosaved_at, formatted),
                                             Toast.LENGTH_SHORT,
                                         ).show()
                                     }
@@ -840,7 +847,7 @@ fun CaptureEditorScreen(
             )
             (saveState as? SaveState.Failed)?.let { failed ->
                 Text(
-                    failed.message,
+                    failed.message.asString(),
                     fontFamily = PlexSans, fontSize = 13.sp, color = c.red,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
                 )
@@ -1021,9 +1028,10 @@ fun CaptureEditorScreen(
                                                 selection = TextRange(lo + linkText.length)
                                             }
                                             val message = when (result) {
-                                                is RoamNodeResult.Linked -> "Linked to existing roam node: ${result.title}"
+                                                is RoamNodeResult.Linked ->
+                                                    resources.getString(R.string.capture_roam_linked, result.title)
                                                 is RoamNodeResult.Created ->
-                                                    "A roam node with title \"${result.title}\" has been created."
+                                                    resources.getString(R.string.capture_roam_created, result.title)
                                             }
                                             Toast.makeText(toastContext, message, Toast.LENGTH_SHORT).show()
                                         }
@@ -1084,7 +1092,7 @@ fun CaptureEditorScreen(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Discard note?",
+                    stringResource(R.string.editor_discard_blank_title),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
@@ -1092,13 +1100,14 @@ fun CaptureEditorScreen(
             text = {
                 Column {
                     Text(
-                        "Your changes will be lost.",
+                        stringResource(R.string.capture_discard_body),
                         fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                     )
                     if (attach.hasSessionAttachments) {
                         DeleteAttachmentsCheckbox(
                             checked = deleteAttachmentsOnDiscard,
                             detail = captureAttachmentsDetail(
+                                LocalResources.current,
                                 attach.addedFiles.size,
                                 addedTo = attach.addedDiskFileId?.let { attachTarget.substringAfterLast('/') }
                                     ?: attach.addedDiskHeading?.title,
@@ -1114,7 +1123,7 @@ fun CaptureEditorScreen(
                     showDiscardDialog = false
                     trySave()
                 }) {
-                    Text("Save", color = c.accent, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.action_save), color = c.accent, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
@@ -1122,7 +1131,7 @@ fun CaptureEditorScreen(
                     showDiscardDialog = false
                     discard(deleteAttachments = attach.hasSessionAttachments && deleteAttachmentsOnDiscard)
                 }) {
-                    Text("Discard", color = c.red)
+                    Text(stringResource(R.string.action_discard), color = c.red)
                 }
             },
         )
@@ -1134,20 +1143,20 @@ fun CaptureEditorScreen(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Add a heading",
+                    stringResource(R.string.capture_add_heading_title),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    "Please give this note a heading before saving.",
+                    stringResource(R.string.capture_add_heading_body),
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
             confirmButton = {
                 TextButton(onClick = { showEmptyHeadingAlert = false }) {
-                    Text("OK", color = c.accent, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.action_ok), color = c.accent, fontWeight = FontWeight.SemiBold)
                 }
             },
         )
@@ -1159,20 +1168,20 @@ fun CaptureEditorScreen(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Add a title",
+                    stringResource(R.string.capture_add_title_title),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    "Please give this note a title before saving.",
+                    stringResource(R.string.capture_add_title_body),
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
             confirmButton = {
                 TextButton(onClick = { showEmptyTitleAlert = false }) {
-                    Text("OK", color = c.accent, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.action_ok), color = c.accent, fontWeight = FontWeight.SemiBold)
                 }
             },
         )
@@ -1248,7 +1257,7 @@ private fun DraftPreview(doc: OrgDocument, headline: OrgHeadline, modifier: Modi
             }
         }
         Text(
-            annotateOrgInline(headline.title.ifBlank { "(no heading yet)" }, c),
+            annotateOrgInline(headline.title.ifBlank { stringResource(R.string.capture_no_heading_yet) }, c),
             fontFamily = PlexSerif, fontWeight = FontWeight.SemiBold,
             fontSize = 22.sp, color = if (headline.title.isBlank()) c.ink3 else c.ink, lineHeight = 1.3.em,
         )
@@ -1309,7 +1318,7 @@ private fun DraftIntroPreview(doc: OrgDocument, modifier: Modifier = Modifier, s
         // A body-only capture hides the title: its heading already exists in the file.
         if (showTitle) {
             Text(
-                annotateOrgInline(title?.takeIf { it.isNotBlank() } ?: "(no title yet)", c),
+                annotateOrgInline(title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.capture_no_title_yet), c),
                 fontFamily = PlexSerif, fontWeight = FontWeight.SemiBold,
                 fontSize = 22.sp,
                 color = if (title.isNullOrBlank()) c.ink3 else c.ink,
@@ -1381,7 +1390,7 @@ private fun DraftIntroPreview(doc: OrgDocument, modifier: Modifier = Modifier, s
 private fun TargetHeadingMissingWarning(targetFile: String) {
     val c = MaterialTheme.grove
     Text(
-        "Heading not found in $targetFile. Saving will fail until it exists.",
+        stringResource(R.string.capture_heading_missing, targetFile),
         fontFamily = PlexSans, fontSize = 13.sp, color = c.red,
         modifier = Modifier.padding(start = 20.dp, top = 12.dp, end = 20.dp),
     )
@@ -1432,16 +1441,16 @@ private fun CaptureTargetBar(
     }
     val (pill, pillFg, pillBg) = when {
         template.kind == TemplateKind.ROAM_NODE ->
-            if (roamFileExists) Triple("existing", c.accent, c.accentSoft)
-            else Triple("new file", c.green, c.greenSoft)
+            if (roamFileExists) Triple(R.string.capture_pill_existing, c.accent, c.accentSoft)
+            else Triple(R.string.capture_pill_new_file, c.green, c.greenSoft)
         location is TargetLocation.UnderHeading -> when {
-            targetHeadingMissing -> Triple("not found", c.red, c.redSoft)
-            bodyOnly -> Triple("under heading", c.accent, c.accentSoft)
-            location.appendLast -> Triple("last child", c.accent, c.accentSoft)
-            else -> Triple("first child", c.accent, c.accentSoft)
+            targetHeadingMissing -> Triple(R.string.capture_pill_not_found, c.red, c.redSoft)
+            bodyOnly -> Triple(R.string.capture_pill_under_heading, c.accent, c.accentSoft)
+            location.appendLast -> Triple(R.string.capture_pill_last_child, c.accent, c.accentSoft)
+            else -> Triple(R.string.capture_pill_first_child, c.accent, c.accentSoft)
         }
-        location is TargetLocation.TopOfFile -> Triple("top of file", c.accent, c.accentSoft)
-        else -> Triple("bottom of file", c.accent, c.accentSoft)
+        location is TargetLocation.TopOfFile -> Triple(R.string.capture_pill_top_of_file, c.accent, c.accentSoft)
+        else -> Triple(R.string.capture_pill_bottom_of_file, c.accent, c.accentSoft)
     }
     CaptureTargetBarFrame {
         // Middle-ellipsized so a long path keeps both the file and the target heading visible.
@@ -1453,7 +1462,7 @@ private fun CaptureTargetBar(
             modifier = Modifier.weight(1f).testTag("capture_target_path"),
         )
         Spacer(Modifier.width(8.dp))
-        Pill(pill, fg = pillFg, bg = pillBg)
+        Pill(stringResource(pill), fg = pillFg, bg = pillBg)
     }
 }
 
@@ -1538,8 +1547,8 @@ private fun DatetreeBreadcrumb(
             }
         }
         Spacer(Modifier.width(8.dp))
-        if (targetHeadingMissing) Pill("not found", fg = c.red, bg = c.redSoft)
-        else Pill("auto-created", fg = c.green, bg = c.greenSoft)
+        if (targetHeadingMissing) Pill(stringResource(R.string.capture_pill_not_found), fg = c.red, bg = c.redSoft)
+        else Pill(stringResource(R.string.capture_pill_auto_created), fg = c.green, bg = c.greenSoft)
     }
 }
 
@@ -1556,7 +1565,7 @@ private fun PromptDialog(
         containerColor = c.surface,
         title = {
             Text(
-                prompts.singleOrNull() ?: "Fill in",
+                prompts.singleOrNull() ?: stringResource(R.string.capture_prompt_fill_in),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.ink,
             )
         },
@@ -1579,11 +1588,11 @@ private fun PromptDialog(
         },
         confirmButton = {
             TextButton(onClick = { onDone(values) }) {
-                Text("Continue", color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.capture_prompt_continue), color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onCancel) { Text("Cancel", color = c.ink2) }
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
         },
     )
 }
@@ -1623,7 +1632,7 @@ private fun CaptureSaveButton(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            if (saving) "Saving…" else "Save",
+            stringResource(if (saving) R.string.capture_saving else R.string.action_save),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
             fontSize = (15f - 1.5f * t).sp, color = c.accentInk,
         )
@@ -1639,12 +1648,23 @@ private fun CaptureSaveButton(
 private class CaptureSavedEvent(val roamFilePath: String?)
 
 /** The discard checkbox's detail: the files, plus the `:ID:` and/or attachment tag added to [addedTo] on disk. */
-internal fun captureAttachmentsDetail(fileCount: Int, addedTo: String?, idAdded: Boolean, tagAdded: String?): String {
-    val files = when (fileCount) {
-        0 -> "The file still copying"
-        1 -> "1 file added in this capture"
-        else -> "$fileCount files added in this capture"
+internal fun captureAttachmentsDetail(
+    res: Resources,
+    fileCount: Int,
+    addedTo: String?,
+    idAdded: Boolean,
+    tagAdded: String?,
+): String {
+    val files = if (fileCount == 0) {
+        res.getString(R.string.capture_attach_still_copying)
+    } else {
+        res.getQuantityString(R.plurals.capture_attach_files_added, fileCount, fileCount)
     }
-    val marks = listOfNotNull(":ID:".takeIf { idAdded }, tagAdded?.let { ":$it: tag" }).joinToString(" and ")
-    return if (addedTo == null || marks.isEmpty()) files else "$files, and the $marks added to $addedTo"
+    val id = ":ID:".takeIf { idAdded } // i18n: org property name
+    val tag = tagAdded?.let { res.getString(R.string.capture_attach_mark_tag, ":$it:") }
+    val marks = when {
+        id != null && tag != null -> res.getString(R.string.capture_attach_marks_both, id, tag)
+        else -> id ?: tag
+    }
+    return if (addedTo == null || marks == null) files else res.getString(R.string.capture_attach_marks_added, files, marks, addedTo)
 }

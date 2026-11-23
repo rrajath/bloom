@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
+import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.attach.AttachMoveOutcome
 import com.rrajath.grove.attach.AttachOwner
@@ -34,6 +35,7 @@ import com.rrajath.grove.ui.editor.AddedHeadingMarks
 import com.rrajath.grove.ui.editor.AutoLinkSuggestion
 import com.rrajath.grove.ui.editor.DiskHeadingMarks
 import com.rrajath.grove.ui.editor.autoLinkIndex
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.ui.vault.NotebookItem
 import com.rrajath.grove.ui.vault.allFolderDirs
 import com.rrajath.grove.vault.TestVaultHook
@@ -59,7 +61,7 @@ sealed class SaveState {
     data object Idle : SaveState()
     data object Saving : SaveState()
     data class Saved(val filePath: String) : SaveState()
-    data class Failed(val message: String) : SaveState()
+    data class Failed(val message: UiText) : SaveState()
 }
 
 class CaptureViewModel(
@@ -183,7 +185,7 @@ class CaptureViewModel(
      */
     fun save(template: CaptureTemplate, entryText: String, context: CaptureContext, bodyOnly: Boolean = false) {
         if (entryText.isBlank()) {
-            _saveState.value = SaveState.Failed("Nothing to save")
+            _saveState.value = SaveState.Failed(UiText.res(R.string.capture_nothing_to_save))
             return
         }
         _saveState.value = SaveState.Saving
@@ -198,7 +200,7 @@ class CaptureViewModel(
                 sync.requestReindex(fileName, newText, "capture saved")
                 _saveState.value = SaveState.Saved(fileName)
             } catch (e: Exception) {
-                _saveState.value = SaveState.Failed(e.message ?: "Capture failed")
+                _saveState.value = SaveState.Failed(e.message?.let(UiText::raw) ?: UiText.res(R.string.capture_failed))
             }
         }
     }
@@ -437,7 +439,7 @@ class CaptureViewModel(
      */
     fun saveRoam(resolvedPath: String, fullDraftText: String, context: CaptureContext) {
         if (fullDraftText.isBlank()) {
-            _saveState.value = SaveState.Failed("Nothing to save")
+            _saveState.value = SaveState.Failed(UiText.res(R.string.capture_nothing_to_save))
             return
         }
         _saveState.value = SaveState.Saving
@@ -452,7 +454,7 @@ class CaptureViewModel(
                 sync.requestReindex(fileName, newText, "capture saved")
                 _saveState.value = SaveState.Saved(fileName)
             } catch (e: Exception) {
-                _saveState.value = SaveState.Failed(e.message ?: "Capture failed")
+                _saveState.value = SaveState.Failed(e.message?.let(UiText::raw) ?: UiText.res(R.string.capture_failed))
             }
         }
     }

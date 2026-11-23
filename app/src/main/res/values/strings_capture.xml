@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Capture: quick-add a note from a template (ui/capture/). A "capture template" says
+         which file a new note goes into, where in it, and what text it starts with. -->
+
+    <!-- Capture picker sheet (CapturePickerScreen.kt). -->
+    <string name="capture_picker_title">Capture to…</string>
+    <!-- Opens the list of capture templates in Settings. -->
+    <string name="capture_picker_manage">Manage</string>
+
+    <!-- Capture editor (CaptureEditorScreen.kt). -->
+    <!-- Toast when a capture link names a template that doesn't exist. %1$s = the name in the link. -->
+    <string name="capture_template_not_found">Couldn\'t find a capture template named \"%1$s\".</string>
+    <!-- Screen reader label of the grey save icon once everything is saved. -->
+    <string name="capture_saved">Saved</string>
+    <!-- Toast on tapping the save icon after an autosave. %1$s = time of the autosave. -->
+    <string name="capture_autosaved_at">The note auto saved at: %1$s</string>
+    <!-- Toasts after turning selected text into an org-roam link. %1$s = the note's title. -->
+    <string name="capture_roam_linked">Linked to existing roam node: %1$s</string>
+    <string name="capture_roam_created">A roam node with title \"%1$s\" has been created.</string>
+    <!-- Body of the "Discard note?" dialog (title shared with the editor). -->
+    <string name="capture_discard_body">Your changes will be lost.</string>
+    <!-- Shown when saving a capture whose heading line is still empty. -->
+    <string name="capture_add_heading_title">Add a heading</string>
+    <string name="capture_add_heading_body">Please give this note a heading before saving.</string>
+    <!-- Shown when saving a new org-roam note with an empty #+title. -->
+    <string name="capture_add_title_title">Add a title</string>
+    <string name="capture_add_title_body">Please give this note a title before saving.</string>
+    <!-- Grey stand-ins in the preview while the heading / title is still empty. -->
+    <string name="capture_no_heading_yet">(no heading yet)</string>
+    <string name="capture_no_title_yet">(no title yet)</string>
+    <!-- Warning under the target bar. %1$s = target file name. -->
+    <string name="capture_heading_missing">Heading not found in %1$s. Saving will fail until it exists.</string>
+    <!-- Small tag at the end of the target bar: where the note will be inserted. Keep short. -->
+    <string name="capture_pill_existing">existing</string>
+    <string name="capture_pill_new_file">new file</string>
+    <string name="capture_pill_not_found">not found</string>
+    <string name="capture_pill_under_heading">under heading</string>
+    <string name="capture_pill_last_child">last child</string>
+    <string name="capture_pill_first_child">first child</string>
+    <string name="capture_pill_top_of_file">top of file</string>
+    <string name="capture_pill_bottom_of_file">bottom of file</string>
+    <!-- The date-tree headings (year / month / day) will be created as needed. -->
+    <string name="capture_pill_auto_created">auto-created</string>
+    <!-- Dialog asking for %^{Prompt} values when a template has several prompts. -->
+    <string name="capture_prompt_fill_in">Fill in</string>
+    <string name="capture_prompt_continue">Continue</string>
+    <!-- Save button while the write is in progress. -->
+    <string name="capture_saving">Saving…</string>
+    <!-- Errors under the editor. -->
+    <string name="capture_nothing_to_save">Nothing to save</string>
+    <string name="capture_failed">Capture failed</string>
+
+    <!-- Discard dialog checkbox detail about attachments added during this capture. -->
+    <!-- No file has finished copying yet. -->
+    <string name="capture_attach_still_copying">The file still copying</string>
+    <plurals name="capture_attach_files_added">
+        <item quantity="one">%d file added in this capture</item>
+        <item quantity="other">%d files added in this capture</item>
+    </plurals>
+    <!-- %1$s = capture_attach_files_added or capture_attach_still_copying, %2$s = what was added (":ID:", a tag, or both), %3$s = heading title or file name. -->
+    <string name="capture_attach_marks_added">%1$s, and the %2$s added to %3$s</string>
+    <!-- %1$s = an org tag such as :ATTACH:. -->
+    <string name="capture_attach_mark_tag">%1$s tag</string>
+    <!-- Joins ":ID:" and the tag phrase. -->
+    <string name="capture_attach_marks_both">%1$s and %2$s</string>
+
+    <!-- Placeholder help dialog (PlaceholderHelp.kt). Each line explains a template placeholder such as %date. -->
+    <string name="placeholder_help_title">Placeholders</string>
+    <!-- Keep <date time>, [date time] and the brackets: they show the org timestamp shape. -->
+    <string name="placeholder_doc_active_datetime">Active datetime stamp: &lt;date time&gt;</string>
+    <string name="placeholder_doc_inactive_datetime">Inactive datetime stamp: [date time]</string>
+    <string name="placeholder_doc_active_date">Active date stamp: &lt;date&gt;</string>
+    <string name="placeholder_doc_inactive_date">Inactive date stamp: [date]</string>
+    <string name="placeholder_doc_iso_date">ISO date: YYYY-MM-DD</string>
+    <string name="placeholder_doc_time">Current time: HH:MM</string>
+    <string name="placeholder_doc_day">Day of week: Monday, …</string>
+    <string name="placeholder_doc_month">Month name: January, …</string>
+    <string name="placeholder_doc_year">4-digit year</string>
+    <string name="placeholder_doc_clipboard">Clipboard contents</string>
+    <!-- Text / link shared into the app from another app. -->
+    <string name="placeholder_doc_shared_text">Shared text</string>
+    <string name="placeholder_doc_shared_url">Shared URL</string>
+    <string name="placeholder_doc_cursor">Place cursor here</string>
+    <string name="placeholder_doc_prompt">Ask for user input</string>
+
+    <!-- Template editor (TemplateEditScreen.kt). -->
+    <string name="template_new_title">New template</string>
+    <string name="template_edit_title">Edit template</string>
+    <string name="template_field_name">Name</string>
+    <!-- Example template name. -->
+    <string name="template_name_placeholder">Meeting Note</string>
+    <string name="template_field_type">Type</string>
+    <!-- Template kinds: add an entry to an existing file, or create a new org-roam note file. -->
+    <string name="template_kind_plain">Add to a file</string>
+    <string name="template_kind_roam">New node file</string>
+    <string name="template_field_target_file">Target file</string>
+    <!-- Where in the target file the note goes. -->
+    <string name="template_field_insert_at">Insert at</string>
+    <string name="template_insert_top">Top of file</string>
+    <string name="template_insert_bottom">Bottom of file</string>
+    <string name="template_insert_under_heading">Under heading</string>
+    <!-- A date tree files entries under year / month / day headings. -->
+    <string name="template_insert_datetree">Date tree</string>
+    <!-- %1$s = target file name. -->
+    <string name="template_file_not_in_vault">%1$s isn\'t in your vault yet, so there are no headings to pick.</string>
+    <string name="template_heading_gone">This heading isn\'t in %1$s anymore. Choose another.</string>
+    <string name="template_heading_label">Heading</string>
+    <string name="template_choose_heading">Choose a heading</string>
+    <!-- The heading the date tree is placed inside. -->
+    <string name="template_inside_heading">Inside heading</string>
+    <string name="template_none_top_level">None (top level)</string>
+    <string name="template_datetree_top_level_help">Leave empty to put the date tree at the top level of the file.</string>
+    <string name="template_group_by">Group entries by</string>
+    <string name="template_group_day">Day</string>
+    <string name="template_group_week">Week</string>
+    <string name="template_group_month">Month</string>
+    <string name="template_preview">Preview</string>
+    <!-- Stand-in for the captured note in the date-tree preview. -->
+    <string name="template_datetree_preview_entry">your entry</string>
+    <string name="template_field_template">Template</string>
+    <!-- %1$s = comma-separated list of unknown placeholders, e.g. "%foo, %bar". -->
+    <plurals name="template_unsupported_placeholders">
+        <item quantity="one">Unsupported placeholder: %1$s</item>
+        <item quantity="other">Unsupported placeholders: %1$s</item>
+    </plurals>
+    <!-- Link that opens the placeholder help dialog. -->
+    <string name="template_placeholder_help_link">placeholder help</string>
+    <string name="template_field_directory">Directory</string>
+    <string name="template_field_filename_pattern">File name pattern</string>
+    <string name="template_field_new_file_template">New file template</string>
+    <!-- Keep ":ID:" as is (org property). -->
+    <string name="template_roam_id_auto">An :ID: property is added automatically at the top of the file. No need to add it here.</string>
+    <string name="template_roam_id_ignored">An ID is created automatically, so the :ID: in this template will be ignored.</string>
+    <string name="template_field_capture_link">Capture link</string>
+    <string name="template_capture_link_help">Jumps straight into this template\'s capture editor. Open it from a browser bookmark, a launcher shortcut app, or anywhere else that can open a link. Tap to copy it.</string>
+    <string name="template_capture_link_needs_name">Add a name above to generate this template\'s capture link.</string>
+    <!-- Label of the copied link on the clipboard (shown by some keyboards). -->
+    <string name="template_capture_link_clip_label">capture link</string>
+    <string name="template_pin_unsupported">Your launcher doesn\'t support adding shortcuts to the homescreen.</string>
+    <string name="template_add_to_homescreen">Add to Homescreen</string>
+    <!-- Heading picker sheet buttons and crumb. -->
+    <string name="template_use_this_heading">Use this heading</string>
+    <string name="template_use_top_level">Use top level</string>
+    <string name="template_crumb_pick_heading">pick a heading</string>
+    <!-- Hint in the icon color dialog: the tile shows the template name's first letter. -->
+    <string name="template_icon_hint">Letter follows the template name</string>
+</resources>

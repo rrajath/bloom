@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.TemplateKind
 import com.rrajath.grove.capture.TemplateValidator
@@ -86,13 +88,13 @@ fun CapturePickerSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Capture to…",
+                    stringResource(R.string.capture_picker_title),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 18.sp, color = c.ink,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    "Manage",
+                    stringResource(R.string.capture_picker_manage),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp, color = c.accent,
                     modifier = Modifier
