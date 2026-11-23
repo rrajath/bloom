@@ -38,6 +38,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgTags
@@ -62,6 +64,7 @@ import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.theme.priorityColor
 import com.rrajath.grove.ui.theme.prioritySoftColor
+import com.rrajath.grove.ui.util.forwardArrowGlyph
 
 /**
  * Note metadata sheet (PRD §5.2): state, priority, tags, SCHEDULED, DEADLINE.
@@ -110,8 +113,9 @@ fun MetadataSheet(
     targetLabel: String? = null,
 ) {
     val c = MaterialTheme.grove
+    val untitled = stringResource(R.string.metadata_untitled_heading)
     val header = targetLabel
-        ?: headline?.let { h -> orgInlinePlainText(h.title).trim().ifEmpty { "Untitled heading" } }
+        ?: headline?.let { h -> orgInlinePlainText(h.title).trim().ifEmpty { untitled } }
     val stars = if (targetLabel == null) headline?.let { "*".repeat(it.level.coerceAtLeast(1)) } else null
     var planningOpen by remember { mutableStateOf(false) }
     var noteDialogOpen by remember { mutableStateOf(false) }
@@ -166,7 +170,7 @@ fun MetadataSheet(
                 }
                 HorizontalDivider(color = c.line)
             }
-            SheetLabel("State")
+            SheetLabel(stringResource(R.string.metadata_section_state))
             // FlowRow, not Row: vaults can define arbitrarily many TODO keywords,
             // which must wrap onto more lines instead of squeezing each other.
             FlowRow(
@@ -175,7 +179,7 @@ fun MetadataSheet(
             ) {
                 val current = headline?.keyword
                 StateChip(
-                    label = "none",
+                    label = stringResource(R.string.metadata_none),
                     active = !stateMixed && current == null,
                     fg = c.ink2, bg = c.surface2,
                 ) { onChangeKeyword(null) }
@@ -192,14 +196,14 @@ fun MetadataSheet(
                 }
             }
 
-            SheetLabel("Priority")
+            SheetLabel(stringResource(R.string.metadata_section_priority))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 listOf<Char?>(null, 'A', 'B', 'C').forEach { p ->
                     StateChip(
-                        label = p?.let { "#$it" } ?: "none",
+                        label = p?.let { "#$it" } ?: stringResource(R.string.metadata_none),
                         active = !priorityMixed && headline?.priority == p,
                         fg = p?.let { c.priorityColor(it) } ?: c.ink2,
                         bg = p?.let { c.prioritySoftColor(it) } ?: c.surface2,
@@ -207,7 +211,7 @@ fun MetadataSheet(
                 }
             }
 
-            SheetLabel("Tags")
+            SheetLabel(stringResource(R.string.metadata_section_tags))
             val selectedTags = headline?.tags.orEmpty()
             var tagQuery by remember { mutableStateOf("") }
             var tagMenuOpen by remember { mutableStateOf(false) }
@@ -225,7 +229,7 @@ fun MetadataSheet(
                     onValueChange = { tagQuery = it; tagMenuOpen = true },
                     singleLine = true,
                     textStyle = androidx.compose.ui.text.TextStyle(fontFamily = PlexSans, fontSize = 14.sp, color = c.ink),
-                    placeholder = { Text("Search or create tag", fontFamily = PlexSans, color = c.ink3) },
+                    placeholder = { Text(stringResource(R.string.metadata_tag_search), fontFamily = PlexSans, color = c.ink3) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .onFocusChanged { if (it.isFocused) tagMenuOpen = true },
@@ -283,7 +287,7 @@ fun MetadataSheet(
                                     )
                                 } else {
                                     Text(
-                                        "Create tag “$tagQuery”",
+                                        stringResource(R.string.metadata_tag_create, tagQuery),
                                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.accent,
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -316,13 +320,13 @@ fun MetadataSheet(
                 Spacer(Modifier.height(8.dp))
                 TagsColonRow(tags = selectedTags, onRemove = { tag -> onSetTags(selectedTags - tag) })
                 Text(
-                    "tap an existing tag to remove it",
+                    stringResource(R.string.metadata_tag_remove_hint),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
 
-            SheetLabel("Dates")
+            SheetLabel(stringResource(R.string.metadata_section_dates))
             CombinedPlanningRow(
                 scheduled = headline?.planning?.scheduled,
                 deadline = headline?.planning?.deadline,
@@ -337,7 +341,7 @@ fun MetadataSheet(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    "+ Add note",
+                    stringResource(R.string.metadata_add_note),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp, color = c.accent,
                     modifier = Modifier
@@ -347,7 +351,7 @@ fun MetadataSheet(
                 )
                 if (showRefile) {
                     Text(
-                        "→ Refile",
+                        "${forwardArrowGlyph()} ${stringResource(R.string.metadata_refile)}",
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp, color = c.accent,
                         modifier = Modifier
@@ -358,7 +362,7 @@ fun MetadataSheet(
                 }
                 if (showFavorite) {
                     Text(
-                        if (isFavorite) "★ Unfavorite" else "★ Favorite",
+                        stringResource(if (isFavorite) R.string.metadata_unfavorite else R.string.metadata_favorite),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp, color = c.accent,
                         modifier = Modifier
@@ -369,7 +373,7 @@ fun MetadataSheet(
                 }
                 if (headline?.id == null) {
                     Text(
-                        "+ Generate org-id",
+                        stringResource(R.string.metadata_generate_id),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp, color = c.accent,
                         modifier = Modifier
@@ -517,13 +521,13 @@ private fun CombinedPlanningRow(
             .padding(horizontal = 10.dp, vertical = 9.dp),
     ) {
         if (scheduled == null && deadline == null && active.isEmpty() && mixed.isEmpty()) {
-            Text("set date…", fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink3)
+            Text(stringResource(R.string.metadata_set_date), fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink3)
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (scheduled == null && PlanningKind.SCHEDULED in mixed) MultipleLine("SCHEDULED", c.blue)
                 scheduled?.let {
                     Text(
-                        "SCHEDULED " + it.format(),
+                        "SCHEDULED " + it.format(), // i18n: org planning keyword
                         fontFamily = PlexMono, fontWeight = FontWeight.SemiBold,
                         fontSize = 12.5.sp, color = c.blue,
                     )
@@ -531,7 +535,7 @@ private fun CombinedPlanningRow(
                 if (deadline == null && PlanningKind.DEADLINE in mixed) MultipleLine("DEADLINE", c.red)
                 deadline?.let {
                     Text(
-                        "DEADLINE " + it.format(),
+                        "DEADLINE " + it.format(), // i18n: org planning keyword
                         fontFamily = PlexMono, fontWeight = FontWeight.SemiBold,
                         fontSize = 12.5.sp, color = c.red,
                     )
@@ -553,10 +557,11 @@ private fun CombinedPlanningRow(
 @Composable
 private fun MultipleLine(label: String, color: Color) {
     val c = MaterialTheme.grove
+    val multiple = stringResource(R.string.metadata_multiple)
     Text(
         buildAnnotatedString {
             withStyle(SpanStyle(color = color)) { append(label) }
-            withStyle(SpanStyle(color = c.ink3, fontWeight = FontWeight.Normal)) { append(" multiple") }
+            withStyle(SpanStyle(color = c.ink3, fontWeight = FontWeight.Normal)) { append(" $multiple") }
         },
         fontFamily = PlexMono, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
     )

@@ -43,6 +43,7 @@ import com.rrajath.grove.search.textTerms
 import com.rrajath.grove.ui.attach.PreviewChip
 import com.rrajath.grove.ui.attach.renderedWithChips
 import com.rrajath.grove.ui.vault.OutlineSnack
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.ui.vault.factory
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.vault.AutoArchive
@@ -286,7 +287,7 @@ class SearchViewModel(
     private var undoSnapshot: List<Pair<String, String>>? = null
 
     private fun showSnack(message: String) {
-        val s = OutlineSnack(message, ++eventId)
+        val s = OutlineSnack(UiText.raw(message), ++eventId)
         _snack.value = s
         viewModelScope.launch {
             delay(4200)

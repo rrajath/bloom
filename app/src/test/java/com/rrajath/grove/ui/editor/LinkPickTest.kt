@@ -21,7 +21,7 @@ class LinkPickTest {
         val doc = parse(":PROPERTIES:\n:ID: file-1\n:END:\n#+TITLE: Kyoto\n")
         val pick = resolveLinkPick("dailies/2026-09-24.org", doc, "trips/kyoto.org", null, null)
         assertEquals(
-            LinkPick.AskId(LinkIdChoice("[[id:file-1][Kyoto]]", "[[file:../trips/kyoto.org][Kyoto]]", "file")),
+            LinkPick.AskId(LinkIdChoice("[[id:file-1][Kyoto]]", "[[file:../trips/kyoto.org][Kyoto]]", LinkSubject.FILE)),
             pick,
         )
     }
@@ -48,7 +48,7 @@ class LinkPickTest {
         val heading = doc.headlines.single()
         val pick = resolveLinkPick("work.org", doc, "work.org", heading, null)
         assertEquals(
-            LinkPick.AskId(LinkIdChoice("[[id:h-1][Weekly Review]]", "[[*Weekly Review][Weekly Review]]", "heading")),
+            LinkPick.AskId(LinkIdChoice("[[id:h-1][Weekly Review]]", "[[*Weekly Review][Weekly Review]]", LinkSubject.HEADING)),
             pick,
         )
     }

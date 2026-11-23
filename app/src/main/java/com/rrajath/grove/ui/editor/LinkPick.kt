@@ -3,8 +3,10 @@ package com.rrajath.grove.ui.editor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.ui.theme.PlexSans
@@ -12,10 +14,12 @@ import com.rrajath.grove.ui.theme.grove
 
 /**
  * A picked link target that carries an ID: the "Use the …'s ID?" dialog lets the
- * user commit either [withId] (resilient) or [withPlain]. [subject] is `"file"`
- * or `"heading"` and drives the dialog copy.
+ * user commit either [withId] (resilient) or [withPlain]. [subject] drives the dialog copy.
  */
-internal data class LinkIdChoice(val withId: String, val withPlain: String, val subject: String)
+internal data class LinkIdChoice(val withId: String, val withPlain: String, val subject: LinkSubject)
+
+/** What an ID link would point at: a whole file or one heading. */
+internal enum class LinkSubject { FILE, HEADING }
 
 /** What a link-picker confirmation resolves to: a link ready to splice, or an ID choice to ask about. */
 internal sealed interface LinkPick {
@@ -53,7 +57,7 @@ internal fun resolveLinkPick(
             LinkIdChoice(
                 withId = formatHeadingLink(HeadingLinkTarget.ById(fileId), desc),
                 withPlain = formatFileLink(relPath, desc),
-                subject = "file",
+                subject = LinkSubject.FILE,
             ),
         )
     }
@@ -65,7 +69,7 @@ internal fun resolveLinkPick(
         LinkIdChoice(
             withId = formatHeadingLink(resilientHeadingTarget(heading.id, heading.customId, relPath), desc),
             withPlain = plain,
-            subject = "heading",
+            subject = LinkSubject.HEADING,
         ),
     )
 }
@@ -83,27 +87,35 @@ internal fun LinkIdChoiceDialog(
         containerColor = c.surface,
         title = {
             Text(
-                "Use the ${choice.subject}'s ID?",
+                stringResource(
+                    if (choice.subject == LinkSubject.FILE) R.string.editor_link_id_file_title
+                    else R.string.editor_link_id_heading_title,
+                ),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, color = c.ink,
             )
         },
         text = {
             Text(
-                "This ${choice.subject} has an ID. An ID link keeps working if it is later " +
-                    "renamed or moved to another file.",
+                stringResource(
+                    if (choice.subject == LinkSubject.FILE) R.string.editor_link_id_file_body
+                    else R.string.editor_link_id_heading_body,
+                ),
                 fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
             )
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = onUseId) {
-                Text("Use ID", color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.editor_link_use_id), color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = onUsePlain) {
                 Text(
-                    if (choice.subject == "file") "Use file link" else "Use heading name",
+                    stringResource(
+                        if (choice.subject == LinkSubject.FILE) R.string.editor_link_use_file_link
+                        else R.string.editor_link_use_heading_name,
+                    ),
                     color = c.ink2,
                 )
             }

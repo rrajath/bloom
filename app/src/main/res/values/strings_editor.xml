@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Editor (ui/editor/): note editor, region editor, metadata sheet, link picker. -->
+
+    <!-- Save icon in the editor's top bar, for screen readers: there are unsaved changes and a tap saves them. -->
+    <string name="editor_save_unsaved">Unsaved changes, tap to save</string>
+    <!-- Save icon, for screen readers: everything is saved. -->
+    <string name="editor_save_saved">Saved</string>
+    <!-- Toast on tapping the save icon when nothing changed. %1$s = time of the last save, e.g. 10:42. -->
+    <string name="editor_note_last_saved">The note was last saved at: %1$s</string>
+    <string name="editor_note_never_saved">This note hasn\'t been saved yet</string>
+
+    <!-- Toasts after the editor turns selected text into an org-roam link. %1$s = the roam node\'s title. -->
+    <string name="editor_roam_linked">Linked to existing roam node: %1$s</string>
+    <string name="editor_roam_created">A roam node with title \"%1$s\" has been created.</string>
+
+    <!-- Dialog before refiling (moving) the note being edited to another heading or file. -->
+    <string name="editor_refile_title">Refile this note?</string>
+    <string name="editor_refile_body">The note will be saved in its current state and refiled to the location you choose.</string>
+    <string name="editor_refile_continue">Continue</string>
+
+    <!-- Banner when the .org file was changed by another app (e.g. sync) while it was open in the editor. -->
+    <string name="editor_stale_file">File changed on disk while editing</string>
+    <!-- Banner button: save the editor\'s text over the changed file. -->
+    <string name="editor_stale_overwrite">Overwrite</string>
+    <!-- Banner button: drop the editor\'s text and load the changed file. -->
+    <string name="editor_stale_reload">Reload</string>
+
+    <!-- Leaving a new note whose heading is still empty. -->
+    <string name="editor_discard_blank_title">Discard note?</string>
+    <string name="editor_discard_blank_body">This note needs a heading before it can be saved. Leaving now will discard it, including any text you\'ve added.</string>
+    <string name="editor_keep_editing">Keep Editing</string>
+    <!-- Saving a note whose heading is empty. -->
+    <string name="editor_add_heading_title">Add a heading</string>
+    <string name="editor_add_heading_body">Please give this note a heading before saving.</string>
+    <!-- Leaving the editor with unsaved changes. -->
+    <string name="editor_unsaved_title">Save changes?</string>
+    <string name="editor_unsaved_note_body">This note has unsaved changes.</string>
+
+    <!-- Region editor (edits one part of a note on its own). Title bar labels, one per part. -->
+    <!-- The text of a file before its first heading. -->
+    <string name="editor_region_intro">Intro</string>
+    <!-- The #+TITLE:, #+FILETAGS: ... lines at the top of a file. -->
+    <string name="editor_region_preface">Preface</string>
+    <!-- A :PROPERTIES: drawer. -->
+    <string name="editor_region_properties">Properties</string>
+    <!-- A :LOGBOOK: drawer (state changes and notes). -->
+    <string name="editor_region_logbook">Logbook</string>
+    <!-- A #+BEGIN_x ... #+END_x block whose kind can\'t be read. -->
+    <string name="editor_region_block">Block</string>
+    <!-- Several #+KEYWORD: lines edited together. -->
+    <string name="editor_region_keywords">Keywords</string>
+    <!-- The whole .org file. -->
+    <string name="editor_region_file">File</string>
+
+    <!-- Region editor toasts on tapping the save icon when nothing changed, one per part. %1$s = time of the last save, e.g. 10:42. -->
+    <string name="editor_intro_last_saved">Intro last saved at: %1$s</string>
+    <string name="editor_preface_last_saved">Preface last saved at: %1$s</string>
+    <string name="editor_properties_last_saved">Properties last saved at: %1$s</string>
+    <string name="editor_logbook_last_saved">Logbook last saved at: %1$s</string>
+    <string name="editor_block_last_saved">Block last saved at: %1$s</string>
+    <string name="editor_file_last_saved">File last saved at: %1$s</string>
+    <string name="editor_intro_never_saved">This intro hasn\'t been saved yet</string>
+    <string name="editor_preface_never_saved">This preface hasn\'t been saved yet</string>
+    <string name="editor_properties_never_saved">These properties haven\'t been saved yet</string>
+    <string name="editor_logbook_never_saved">This logbook hasn\'t been saved yet</string>
+    <string name="editor_block_never_saved">This block hasn\'t been saved yet</string>
+    <string name="editor_file_never_saved">This file hasn\'t been saved yet</string>
+    <!-- Region editor: body of the "Save changes?" dialog, one per part. -->
+    <string name="editor_intro_unsaved">This intro has unsaved changes.</string>
+    <string name="editor_preface_unsaved">This preface has unsaved changes.</string>
+    <string name="editor_properties_unsaved">These properties have unsaved changes.</string>
+    <string name="editor_logbook_unsaved">This logbook has unsaved changes.</string>
+    <string name="editor_block_unsaved">This block has unsaved changes.</string>
+    <string name="editor_file_unsaved">This file has unsaved changes.</string>
+
+    <!-- Editor load errors, shown in place of the text. -->
+    <string name="editor_error_no_vault">No sync folder configured</string>
+    <!-- %1$s = file name, e.g. inbox.org. -->
+    <string name="editor_error_file_not_found">%1$s not found</string>
+    <string name="editor_error_note_not_found">Note not found</string>
+    <string name="editor_error_note_gone">This note is no longer here</string>
+    <string name="editor_error_no_preface">No preface here</string>
+    <string name="editor_error_no_file_drawer">No file property drawer here</string>
+    <string name="editor_error_drawer_gone">This drawer is no longer here</string>
+    <string name="editor_error_block_gone">This block is no longer here</string>
+
+    <!-- Link picker: snackbar when a search result\'s heading was deleted meanwhile. -->
+    <string name="editor_link_heading_gone">That heading no longer exists</string>
+    <!-- Link picker sheet title. -->
+    <string name="editor_link_title">Insert a link</string>
+    <!-- Link picker subtitle before a notebook is chosen. -->
+    <string name="editor_link_choose">Choose a notebook, or search files and headings</string>
+    <!-- Link picker subtitle at a notebook\'s top level. %1$s = notebook name without .org. -->
+    <string name="editor_link_top_level">%1$s › top level · or pick a heading</string>
+    <string name="editor_link_no_subheadings">No sub-headings here</string>
+    <string name="editor_link_to_file">Link to this file</string>
+    <string name="editor_link_to_heading">Link to this heading</string>
+    <!-- Dialog when the link target has an org ID: link by ID, or by file path / heading name. -->
+    <string name="editor_link_id_heading_title">Use the heading\'s ID?</string>
+    <string name="editor_link_id_file_title">Use the file\'s ID?</string>
+    <string name="editor_link_id_heading_body">This heading has an ID. An ID link keeps working if it is later renamed or moved to another file.</string>
+    <string name="editor_link_id_file_body">This file has an ID. An ID link keeps working if it is later renamed or moved to another file.</string>
+    <string name="editor_link_use_id">Use ID</string>
+    <string name="editor_link_use_file_link">Use file link</string>
+    <string name="editor_link_use_heading_name">Use heading name</string>
+
+    <!-- Suggestion chips shown while typing. Org-tempo shorthand (<q, <e, <s) or a drawer name. -->
+    <string name="editor_block_insert_quote">Insert quote?</string>
+    <string name="editor_block_insert_example">Insert example?</string>
+    <!-- "src" is the org source-code block, #+BEGIN_SRC. -->
+    <string name="editor_block_insert_src">Insert src?</string>
+    <string name="editor_block_insert_properties">Insert properties drawer?</string>
+    <string name="editor_block_insert_logbook">Insert logbook drawer?</string>
+    <!-- Roam suggestion strip, before the list of capture templates. -->
+    <string name="editor_roam_link_prompt">Link to the roam node?</string>
+    <string name="editor_roam_create_prompt">Create a roam node?</string>
+    <!-- Editor toolbar button, for screen readers: attach a file or photo. -->
+    <string name="editor_toolbar_attach">Attach</string>
+
+    <!-- Metadata sheet (a heading\'s state, priority, tags and dates). -->
+    <string name="metadata_untitled_heading">Untitled heading</string>
+    <!-- Section labels. -->
+    <string name="metadata_section_state">State</string>
+    <string name="metadata_section_priority">Priority</string>
+    <string name="metadata_section_tags">Tags</string>
+    <string name="metadata_section_dates">Dates</string>
+    <!-- Chip for no TODO state / no priority. -->
+    <string name="metadata_none">none</string>
+    <string name="metadata_tag_search">Search or create tag</string>
+    <!-- %1$s = the typed tag name. -->
+    <string name="metadata_tag_create">Create tag “%1$s”</string>
+    <string name="metadata_tag_remove_hint">tap an existing tag to remove it</string>
+    <!-- Actions under the dates. Keep the leading symbol. -->
+    <string name="metadata_add_note">+ Add note</string>
+    <string name="metadata_refile">Refile</string>
+    <string name="metadata_favorite">★ Favorite</string>
+    <string name="metadata_unfavorite">★ Unfavorite</string>
+    <!-- org-id is the org-mode ID property; keep the term. -->
+    <string name="metadata_generate_id">+ Generate org-id</string>
+    <!-- Placeholder when a heading has no dates. -->
+    <string name="metadata_set_date">set date…</string>
+    <!-- After SCHEDULED / DEADLINE when several headings are selected and their dates differ. -->
+    <string name="metadata_multiple">multiple</string>
+</resources>

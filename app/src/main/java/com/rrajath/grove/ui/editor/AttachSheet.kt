@@ -61,6 +61,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -123,8 +124,11 @@ fun BoxScope.AttachOverlays(controller: AttachController, bottomInset: Dp) {
         visible = mine != null && shownJob == mine.jobId,
         title = when {
             ui == null -> ""
-            ui.count > 1 -> "Copying ${ui.count} ${if (mine.kind == AttachKind.Files) "files" else "photos"}"
-            else -> "Copying ${ui.name}"
+            ui.count > 1 -> pluralStringResource(
+                if (mine.kind == AttachKind.Files) R.plurals.attach_copying_files else R.plurals.attach_copying_photos,
+                ui.count, ui.count,
+            )
+            else -> stringResource(R.string.attach_copying_one, ui.name)
         },
         subline = when {
             ui == null -> ""
@@ -250,7 +254,7 @@ internal fun AttachSheetContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Attach to", fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2)
+            Text(stringResource(R.string.attach_to), fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2)
             Text(
                 model.stars,
                 fontFamily = PlexMono, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.synStar,
@@ -275,14 +279,14 @@ internal fun AttachSheetContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SourcePill(
-                R.drawable.ic_attach_camera, "Camera", enabled = cameraAvailable,
-                disabledDescription = "Camera · No camera app found",
+                R.drawable.ic_attach_camera, stringResource(R.string.attach_source_camera), enabled = cameraAvailable,
+                disabledDescription = stringResource(R.string.attach_source_camera_unavailable),
                 modifier = Modifier.weight(1f).testTag("attach_camera"),
             ) { onPick(AttachKind.Camera) }
-            SourcePill(R.drawable.ic_attach_image, "Photos", modifier = Modifier.weight(1f).testTag("attach_photos")) {
+            SourcePill(R.drawable.ic_attach_image, stringResource(R.string.attach_source_photos), modifier = Modifier.weight(1f).testTag("attach_photos")) {
                 onPick(AttachKind.Photos)
             }
-            SourcePill(R.drawable.ic_attach_folder, "Files", modifier = Modifier.weight(1f).testTag("attach_files")) {
+            SourcePill(R.drawable.ic_attach_folder, stringResource(R.string.attach_source_files), modifier = Modifier.weight(1f).testTag("attach_files")) {
                 onPick(AttachKind.Files)
             }
         }
@@ -428,18 +432,18 @@ private fun AttachmentRow(
         }
         RowIconButton(
             R.drawable.ic_attach_insert_link, 17.dp, c.accent, c.surface3, c.accent,
-            "Insert link at cursor", "attach_insert_$name", onInsert,
+            stringResource(R.string.attach_row_insert_link), "attach_insert_$name", onInsert,
             hint = stringResource(R.string.attach_action_insert_link), onHint = onHint,
         )
         RowIconButton(
             R.drawable.ic_attach_open_with, 16.dp, c.ink2, c.surface3, c.ink2,
-            "Open with…", "attach_open_$name", onOpen,
+            stringResource(R.string.attach_row_open_with), "attach_open_$name", onOpen,
             hint = stringResource(R.string.attach_action_open_with), onHint = onHint,
         )
         if (onDelete != null) {
             RowIconButton(
                 R.drawable.ic_attach_delete, 16.dp, c.ink3, c.redSoft, c.red,
-                "Delete", "attach_delete_$name", onDelete,
+                stringResource(R.string.action_delete), "attach_delete_$name", onDelete,
                 hint = stringResource(R.string.attach_action_delete), onHint = onHint,
             )
         }
@@ -554,25 +558,24 @@ internal fun DeleteAttachmentDialog(name: String, fileOwner: Boolean, onCancel: 
         shape = RoundedCornerShape(24.dp),
         title = {
             Text(
-                "Delete $name?",
+                stringResource(R.string.attach_delete_title, name),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = c.ink,
             )
         },
         text = {
             Text(
-                "The file is removed from this ${if (fileOwner) "file" else "heading"}'s attachment folder. " +
-                    "Links to it stay in your notes and will show as missing.",
+                stringResource(if (fileOwner) R.string.attach_delete_body_file else R.string.attach_delete_body_heading),
                 fontFamily = PlexSans, fontSize = 14.sp, lineHeight = 1.5.em, color = c.ink2,
             )
         },
         dismissButton = {
             TextButton(onClick = onCancel) {
-                Text("Cancel", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.accent)
+                Text(stringResource(R.string.action_cancel), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.accent)
             }
         },
         confirmButton = {
             TextButton(onClick = onConfirm, modifier = Modifier.testTag("attach_delete_confirm")) {
-                Text("Delete", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.red)
+                Text(stringResource(R.string.action_delete), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.red)
             }
         },
     )

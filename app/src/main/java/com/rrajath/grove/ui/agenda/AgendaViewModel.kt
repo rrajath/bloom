@@ -26,6 +26,7 @@ import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.ui.vault.OutlineSnack
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.ui.vault.factory
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.vault.AutoArchive
@@ -730,7 +731,7 @@ class AgendaViewModel(
     }
 
     private fun showSnack(message: String) {
-        val s = OutlineSnack(message, ++eventId)
+        val s = OutlineSnack(UiText.raw(message), ++eventId)
         _snack.value = s
         viewModelScope.launch {
             delay(4200)

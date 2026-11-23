@@ -1,6 +1,7 @@
 package com.rrajath.grove.ui.editor
 
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,8 +50,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -62,6 +65,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
@@ -81,6 +85,8 @@ import com.rrajath.grove.ui.theme.ContentFontScale
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.asString
+import com.rrajath.grove.ui.util.backArrowGlyph
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.compactFileLabel
 import java.time.LocalTime
@@ -127,35 +133,61 @@ fun EditIntroScreen(
     highlightCurrentLine = highlightCurrentLine, viewModel = viewModel,
 )
 
-/** One-word label for [region], used in this screen's title bar, save toast and leave dialog. */
-private fun regionLabel(region: EditRegion): String = when (region) {
-    EditRegion.INTRO -> "Intro"
-    EditRegion.PREFACE -> "Preface"
-    EditRegion.FILE_PROPERTIES, EditRegion.HEADING_PROPERTIES -> "Properties"
-    EditRegion.HEADING_LOGBOOK -> "Logbook"
-    EditRegion.BLOCK -> "Block"
-    EditRegion.WHOLE_FILE -> "File"
+/**
+ * The strings for one kind of region: its title bar label, the save-icon toasts and
+ * the leave dialog's body. Whole sentences per kind, so translations can agree in
+ * gender and number instead of slotting a noun into a shared sentence.
+ */
+private enum class RegionStrings(
+    @StringRes val title: Int,
+    @StringRes val lastSaved: Int,
+    @StringRes val neverSaved: Int,
+    @StringRes val unsaved: Int,
+) {
+    INTRO(R.string.editor_region_intro, R.string.editor_intro_last_saved, R.string.editor_intro_never_saved, R.string.editor_intro_unsaved),
+    PREFACE(R.string.editor_region_preface, R.string.editor_preface_last_saved, R.string.editor_preface_never_saved, R.string.editor_preface_unsaved),
+    PROPERTIES(R.string.editor_region_properties, R.string.editor_properties_last_saved, R.string.editor_properties_never_saved, R.string.editor_properties_unsaved),
+    LOGBOOK(R.string.editor_region_logbook, R.string.editor_logbook_last_saved, R.string.editor_logbook_never_saved, R.string.editor_logbook_unsaved),
+    BLOCK(R.string.editor_region_block, R.string.editor_block_last_saved, R.string.editor_block_never_saved, R.string.editor_block_unsaved),
+    FILE(R.string.editor_region_file, R.string.editor_file_last_saved, R.string.editor_file_never_saved, R.string.editor_file_unsaved),
+}
+
+private fun regionStrings(region: EditRegion): RegionStrings = when (region) {
+    EditRegion.INTRO -> RegionStrings.INTRO
+    EditRegion.PREFACE -> RegionStrings.PREFACE
+    EditRegion.FILE_PROPERTIES, EditRegion.HEADING_PROPERTIES -> RegionStrings.PROPERTIES
+    EditRegion.HEADING_LOGBOOK -> RegionStrings.LOGBOOK
+    EditRegion.BLOCK -> RegionStrings.BLOCK
+    EditRegion.WHOLE_FILE -> RegionStrings.FILE
+}
+
+/** A block's title bar label, read from its buffer (see [blockTitleFromBuffer]). */
+private sealed interface BlockTitle {
+    /** The org block kind or keyword name, title-cased ("Quote", "Src", "Caption"). Org syntax, not translated. */
+    data class Named(val name: String) : BlockTitle
+    data object Keywords : BlockTitle
+    data object Unknown : BlockTitle
 }
 
 /**
- * Title-cased block kind for this screen's title bar. Pulled from the buffer's
- * `#+BEGIN_x` line (e.g. "Quote", "Src"); for a standalone `#+KEYWORD:` run it is
- * "Keywords" (several lines) or the keyword's own name ("Caption"). "Block" as a
- * last resort.
+ * Block kind for this screen's title bar. Pulled from the buffer's `#+BEGIN_x` line
+ * (e.g. "Quote", "Src"); for a standalone `#+KEYWORD:` run it is [BlockTitle.Keywords]
+ * (several lines) or the keyword's own name ("Caption"). [BlockTitle.Unknown] ("Block")
+ * as a last resort.
  */
-private fun blockLabelFromBuffer(buffer: String): String {
+private fun blockTitleFromBuffer(buffer: String): BlockTitle {
     val lines = buffer.lineSequence().toList()
     val begin = lines.firstOrNull { Regex("""^\s*#\+(?i:BEGIN_)\S+""").containsMatchIn(it) }
     if (begin != null) {
-        val kind = Regex("""^\s*#\+(?i:BEGIN_)(\S+)""").find(begin)?.groupValues?.get(1) ?: return "Block"
-        return kind.lowercase().replaceFirstChar { it.uppercase() }
+        val kind = Regex("""^\s*#\+(?i:BEGIN_)(\S+)""").find(begin)?.groupValues?.get(1) ?: return BlockTitle.Unknown
+        return BlockTitle.Named(kind.lowercase().replaceFirstChar { it.uppercase() })
     }
     val keyword = Regex("""^\s*#\+(?!(?i:BEGIN_|END_))([A-Za-z][\w-]*):""")
     val names = lines.mapNotNull { keyword.find(it)?.groupValues?.get(1) }
     return when {
-        names.isEmpty() -> "Block"
-        names.size == 1 -> names[0].lowercase().replaceFirstChar { it.uppercase() }
-        else -> "Keywords"
+        names.isEmpty() -> BlockTitle.Unknown
+        names.size == 1 -> BlockTitle.Named(names[0].lowercase().replaceFirstChar { it.uppercase() })
+        else -> BlockTitle.Keywords
     }
 }
 
@@ -210,9 +242,19 @@ fun EditRegionScreen(
 ) {
     val c = MaterialTheme.grove
     val context = LocalContext.current
+    val resources = LocalResources.current
     val clipboard = LocalClipboard.current
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val label = if (region == EditRegion.BLOCK) blockLabelFromBuffer(state.buffer) else regionLabel(region)
+    val strings = regionStrings(region)
+    val label = if (region == EditRegion.BLOCK) {
+        when (val t = blockTitleFromBuffer(state.buffer)) {
+            is BlockTitle.Named -> t.name
+            BlockTitle.Keywords -> stringResource(R.string.editor_region_keywords)
+            BlockTitle.Unknown -> stringResource(strings.title)
+        }
+    } else {
+        stringResource(strings.title)
+    }
     val textState = rememberTextFieldState()
     var confirmLeave by remember { mutableStateOf(false) }
     // Set when a Backlinks tap needs to navigate away from a dirty
@@ -358,11 +400,11 @@ fun EditRegionScreen(
         topBar = {
             GroveTopBar(
                 leading = {
-                    IconGlyph("←", onClick = ::leave)
+                    IconGlyph(backArrowGlyph(), onClick = ::leave)
                     if (state.dirty || lastAutoSavedAt != null) {
                         Icon(
                             Icons.Outlined.Save,
-                            contentDescription = if (state.dirty) "Unsaved changes, tap to save" else "Saved",
+                            contentDescription = stringResource(if (state.dirty) R.string.editor_save_unsaved else R.string.editor_save_saved),
                             tint = if (state.dirty) c.green else c.ink3,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
@@ -371,8 +413,8 @@ fun EditRegionScreen(
                                         viewModel.save()
                                     } else {
                                         val message = lastAutoSavedAt?.let {
-                                            "$label last saved at: ${AutoSaveTimestamp.format(it)}"
-                                        } ?: "This ${label.lowercase()} hasn't been saved yet"
+                                            resources.getString(strings.lastSaved, AutoSaveTimestamp.format(it))
+                                        } ?: resources.getString(strings.neverSaved)
                                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                                     }
                                 }
@@ -435,7 +477,7 @@ fun EditRegionScreen(
         ) {
             state.error?.let { error ->
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(error, fontFamily = PlexSans, color = c.ink2)
+                    Text(error.asString(), fontFamily = PlexSans, color = c.ink2)
                 }
                 return@Column
             }
@@ -484,14 +526,14 @@ fun EditRegionScreen(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Save changes?",
+                    stringResource(R.string.editor_unsaved_title),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    "This ${label.lowercase()} has unsaved changes.",
+                    stringResource(strings.unsaved),
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
@@ -500,7 +542,7 @@ fun EditRegionScreen(
                     confirmLeave = false
                     val target = pendingOpenNote.also { pendingOpenNote = null }
                     viewModel.save(onSaved = { if (target != null) onOpenNote(target) else onBack() })
-                }) { Text("Save", color = c.accent, fontWeight = FontWeight.SemiBold) }
+                }) { Text(stringResource(R.string.action_save), color = c.accent, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = {
@@ -513,7 +555,7 @@ fun EditRegionScreen(
                         viewModel.reset()
                         if (target != null) onOpenNote(target) else onBack()
                     }
-                }) { Text("Discard", color = c.red) }
+                }) { Text(stringResource(R.string.action_discard), color = c.red) }
             },
         )
     }
@@ -606,6 +648,7 @@ internal fun WholeFileEditorBody(
 ) {
     val c = MaterialTheme.grove
     val context = LocalContext.current
+    val resources = LocalResources.current
     val keyboard = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
     val scrollButtonThresholdPx = with(LocalDensity.current) { (13.5f * 1.85f * 5).sp.toPx() }
@@ -752,9 +795,10 @@ internal fun WholeFileEditorBody(
                                 selection = TextRange(lo + linkText.length)
                             }
                             val message = when (result) {
-                                is RoamNodeResult.Linked -> "Linked to existing roam node: ${result.title}"
+                                is RoamNodeResult.Linked ->
+                                    resources.getString(R.string.editor_roam_linked, result.title)
                                 is RoamNodeResult.Created ->
-                                    "A roam node with title \"${result.title}\" has been created."
+                                    resources.getString(R.string.editor_roam_created, result.title)
                             }
                             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
@@ -814,12 +858,12 @@ private fun StaleFileBanner(onOverwrite: () -> Unit, onReload: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "File changed on disk while editing",
+            stringResource(R.string.editor_stale_file),
             fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink,
             modifier = Modifier.weight(1f),
         )
         Text(
-            "Overwrite",
+            stringResource(R.string.editor_stale_overwrite),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
             color = c.red,
             modifier = Modifier
@@ -828,7 +872,7 @@ private fun StaleFileBanner(onOverwrite: () -> Unit, onReload: () -> Unit) {
                 .padding(6.dp),
         )
         Text(
-            "Reload",
+            stringResource(R.string.editor_stale_reload),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
             color = c.accent,
             modifier = Modifier

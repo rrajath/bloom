@@ -9,8 +9,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.ui.components.monogramPalette
 import com.rrajath.grove.ui.components.nameHashPaletteKey
@@ -44,7 +46,7 @@ fun RoamNodeSuggestionStrip(
     ) {
         item {
             Text(
-                if (matchesExistingNode) "Link to the roam node?" else "Create a roam node?",
+                stringResource(if (matchesExistingNode) R.string.editor_roam_link_prompt else R.string.editor_roam_create_prompt),
                 fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink2,
                 modifier = Modifier.padding(end = 2.dp),
             )

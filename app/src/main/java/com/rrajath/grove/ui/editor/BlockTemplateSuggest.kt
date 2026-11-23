@@ -1,18 +1,20 @@
 package com.rrajath.grove.ui.editor
 
+import androidx.annotation.StringRes
 import androidx.compose.ui.text.TextRange
+import com.rrajath.grove.R
 
 /**
  * Org snippets offered as a suggestion chip when their shorthand is typed (all
  * case-insensitive): the blocks `<q` quote, `<e` example, `<s` src (after Emacs
  * org-tempo), and the drawers `:PRO…` properties and `:LOG…` logbook.
  */
-enum class BlockTemplate(val keyword: String, val label: String) {
-    QUOTE("QUOTE", "quote"),
-    EXAMPLE("EXAMPLE", "example"),
-    SRC("SRC", "src"),
-    PROPERTIES("PROPERTIES", "properties drawer"),
-    LOGBOOK("LOGBOOK", "logbook drawer");
+enum class BlockTemplate(val keyword: String, @StringRes val insertPrompt: Int) {
+    QUOTE("QUOTE", R.string.editor_block_insert_quote),
+    EXAMPLE("EXAMPLE", R.string.editor_block_insert_example),
+    SRC("SRC", R.string.editor_block_insert_src),
+    PROPERTIES("PROPERTIES", R.string.editor_block_insert_properties),
+    LOGBOOK("LOGBOOK", R.string.editor_block_insert_logbook);
 
     val isDrawer: Boolean get() = this == PROPERTIES || this == LOGBOOK
 

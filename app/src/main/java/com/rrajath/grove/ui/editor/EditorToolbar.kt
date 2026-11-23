@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -117,7 +118,7 @@ fun EditorToolbar(
             NewDotBadge(NewAnchors.EDITOR_ATTACH, ringColor = c.surface) {
                 ToolButton(
                     icon = R.drawable.ic_attach_file, color = c.ink, iconSize = 22.dp,
-                    contentDescription = "Attach",
+                    contentDescription = stringResource(R.string.editor_toolbar_attach),
                     modifier = fixed.testTag("editor_attach"),
                     onClick = onAttach,
                 )

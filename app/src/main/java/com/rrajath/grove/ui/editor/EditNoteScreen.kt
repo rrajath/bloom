@@ -38,6 +38,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
 import com.rrajath.grove.org.LineEditing
@@ -92,6 +95,8 @@ import com.rrajath.grove.ui.theme.ContentFontScale
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.asString
+import com.rrajath.grove.ui.util.backArrowGlyph
 import com.rrajath.grove.ui.vault.DocumentUiState
 import com.rrajath.grove.ui.vault.DocumentViewModel
 import com.rrajath.grove.ui.vault.NoteRef
@@ -142,6 +147,7 @@ fun EditNoteScreen(
 ) {
     val c = MaterialTheme.grove
     val context = LocalContext.current
+    val resources = LocalResources.current
     val clipboard = LocalClipboard.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snack by viewModel.snack.collectAsStateWithLifecycle()
@@ -426,13 +432,13 @@ fun EditNoteScreen(
         topBar = {
             GroveTopBar(
                 leading = {
-                    IconGlyph("←", onClick = ::leave)
+                    IconGlyph(backArrowGlyph(), onClick = ::leave)
                     // Shown once the note has either been edited or saved at least
                     // once; a freshly opened, never-touched note shows nothing.
                     if (state.dirty || lastAutoSavedAt != null) {
                         Icon(
                             Icons.Outlined.Save,
-                            contentDescription = if (state.dirty) "Unsaved changes, tap to save" else "Saved",
+                            contentDescription = stringResource(if (state.dirty) R.string.editor_save_unsaved else R.string.editor_save_saved),
                             // Green means there are unsaved changes and a tap saves
                             // immediately; grey means the buffer matches what's on
                             // disk (and blinks right after a save); a tap then just
@@ -446,8 +452,8 @@ fun EditNoteScreen(
                                         trySave {}
                                     } else {
                                         val message = lastAutoSavedAt?.let {
-                                            "The note was last saved at: ${AutoSaveTimestamp.format(it)}"
-                                        } ?: "This note hasn't been saved yet"
+                                            resources.getString(R.string.editor_note_last_saved, AutoSaveTimestamp.format(it))
+                                        } ?: resources.getString(R.string.editor_note_never_saved)
                                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                                     }
                                 }
@@ -482,7 +488,7 @@ fun EditNoteScreen(
         ) {
             state.error?.let { error ->
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(error, fontFamily = PlexSans, color = c.ink2)
+                    Text(error.asString(), fontFamily = PlexSans, color = c.ink2)
                 }
                 return@Column
             }
@@ -626,9 +632,10 @@ fun EditNoteScreen(
                                             selection = TextRange(lo + linkText.length)
                                         }
                                         val message = when (result) {
-                                            is RoamNodeResult.Linked -> "Linked to existing roam node: ${result.title}"
+                                            is RoamNodeResult.Linked ->
+                                                resources.getString(R.string.editor_roam_linked, result.title)
                                             is RoamNodeResult.Created ->
-                                                "A roam node with title \"${result.title}\" has been created."
+                                                resources.getString(R.string.editor_roam_created, result.title)
                                         }
                                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                                     }
@@ -775,14 +782,14 @@ fun EditNoteScreen(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Refile this note?",
+                    stringResource(R.string.editor_refile_title),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    "The note will be saved in its current state and refiled to the location you choose.",
+                    stringResource(R.string.editor_refile_body),
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
@@ -794,11 +801,11 @@ fun EditNoteScreen(
                         refileTarget = s.fileName to s.lineIndex
                         refileViewModel.load(s.fileName)
                     }
-                }) { Text("Continue", color = c.accent, fontWeight = FontWeight.SemiBold) }
+                }) { Text(stringResource(R.string.editor_refile_continue), color = c.accent, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmRefile = false }) {
-                    Text("Cancel", color = c.ink2)
+                    Text(stringResource(R.string.action_cancel), color = c.ink2)
                 }
             },
         )
@@ -890,12 +897,12 @@ private fun StaleFileBanner(onOverwrite: () -> Unit, onReload: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "File changed on disk while editing",
+            stringResource(R.string.editor_stale_file),
             fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink,
             modifier = Modifier.weight(1f),
         )
         Text(
-            "Overwrite",
+            stringResource(R.string.editor_stale_overwrite),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
             color = c.red,
             modifier = Modifier
@@ -904,7 +911,7 @@ private fun StaleFileBanner(onOverwrite: () -> Unit, onReload: () -> Unit) {
                 .padding(6.dp),
         )
         Text(
-            "Reload",
+            stringResource(R.string.editor_stale_reload),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
             color = c.accent,
             modifier = Modifier
@@ -931,25 +938,25 @@ fun DiscardBlankHeadingDialog(
         containerColor = c.surface,
         title = {
             Text(
-                "Discard note?",
+                stringResource(R.string.editor_discard_blank_title),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, color = c.ink,
             )
         },
         text = {
             Text(
-                "This note needs a heading before it can be saved. Leaving now will discard it, including any text you've added.",
+                stringResource(R.string.editor_discard_blank_body),
                 fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
             )
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = onDiscard) {
-                Text("Discard", color = c.red)
+                Text(stringResource(R.string.action_discard), color = c.red)
             }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = onKeepEditing) {
-                Text("Keep Editing", color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.editor_keep_editing), color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
     )
@@ -967,20 +974,20 @@ fun EmptyHeadingAlertDialog(onDismiss: () -> Unit) {
         containerColor = c.surface,
         title = {
             Text(
-                "Add a heading",
+                stringResource(R.string.editor_add_heading_title),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, color = c.ink,
             )
         },
         text = {
             Text(
-                "Please give this note a heading before saving.",
+                stringResource(R.string.editor_add_heading_body),
                 fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
             )
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("OK", color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.action_ok), color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
     )
@@ -996,7 +1003,7 @@ fun UnsavedNoteDialog(
     onSave: () -> Unit,
     onDiscard: () -> Unit,
     onDismiss: () -> Unit,
-    message: String = "This note has unsaved changes.",
+    message: String = stringResource(R.string.editor_unsaved_note_body),
 ) {
     val c = MaterialTheme.grove
     androidx.compose.material3.AlertDialog(
@@ -1004,7 +1011,7 @@ fun UnsavedNoteDialog(
         containerColor = c.surface,
         title = {
             Text(
-                "Save changes?",
+                stringResource(R.string.editor_unsaved_title),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, color = c.ink,
             )
@@ -1017,12 +1024,12 @@ fun UnsavedNoteDialog(
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = onSave) {
-                Text("Save", color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.action_save), color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = onDiscard) {
-                Text("Discard", color = c.red)
+                Text(stringResource(R.string.action_discard), color = c.red)
             }
         },
     )

@@ -140,7 +140,7 @@ class NoHardcodedUiStringsTest {
         private val nonUiContext = Regex(
             """\bLog\.[a-z]\(|\bRegex\(|toRegex\(|\b(require|requireNotNull|check|checkNotNull|error|assert)\(|""" +
                 """\bthrow\b|Exception\(|testTag\(|PreferencesKey\(|@Query\(|putExtra\(|getStringExtra\(|""" +
-                """\bprintln\(|\bTrace\.|traceSection\(|beginSection\(|\blog\(|requestSync\(|syncNow\(|clearAndResync\(""",
+                """\bprintln\(|\bTrace\.|traceSection\(|beginSection\(|\blog\(|requestSync\(|requestReindex\(|syncNow\(|clearAndResync\(""",
         )
 
         private val template = Regex("""\$\{[^}]*}|\$[A-Za-z_][A-Za-z0-9_]*""")

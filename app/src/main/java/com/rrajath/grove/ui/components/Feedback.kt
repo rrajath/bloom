@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.asString
 import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.vault.OutlineToast
 
@@ -83,7 +85,7 @@ fun GroveUndoSnackbar(
     modifier: Modifier = Modifier,
 ) {
     val c = MaterialTheme.grove
-    var lastMessage by remember { mutableStateOf("") }
+    var lastMessage by remember { mutableStateOf<UiText>(UiText.raw("")) }
     snack?.let { lastMessage = it.message }
     AnimatedVisibility(
         visible = snack != null,
@@ -105,7 +107,7 @@ fun GroveUndoSnackbar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                lastMessage,
+                lastMessage.asString(),
                 fontFamily = PlexSans, fontSize = 13.5.sp, color = c.bg,
                 modifier = Modifier.weight(1f),
             )

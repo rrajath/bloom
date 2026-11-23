@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.editor
 
+import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachDirMoves
 import com.rrajath.grove.attach.AttachFileContext
@@ -33,6 +34,7 @@ import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.settings.SettingsSource
 import com.rrajath.grove.sync.SyncTrigger
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.ui.vault.LinkedReferencesResult
 import com.rrajath.grove.ui.vault.NoteRef
@@ -107,7 +109,7 @@ data class EditorUiState(
     val loadedRevision: String? = null,
     val keywords: OrgKeywords = OrgKeywords.DEFAULT,
     val dirty: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     /** File changed on disk since load; offer overwrite (Force Save). */
     val staleFile: Boolean = false,
     val allTags: ImmutableList<String> = persistentListOf(),
@@ -231,7 +233,7 @@ class EditorViewModel(
         }
     }
 
-    private fun showSnack(message: String) {
+    private fun showSnack(message: UiText) {
         val s = OutlineSnack(message, ++eventId)
         _snack.value = s
         viewModelScope.launch {
@@ -275,11 +277,11 @@ class EditorViewModel(
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             val vault = vaultFlow.value ?: run {
-                _state.value = EditorUiState(loading = false, error = "No sync folder configured")
+                _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_no_vault))
                 return@launch
             }
             val doc = vault.open(ref.fileName) ?: run {
-                _state.value = EditorUiState(loading = false, error = "${ref.fileName} not found")
+                _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_file_not_found, ref.fileName))
                 return@launch
             }
             // Resolve by customId first (survives an external edit shifting ref.lineIndex);
@@ -287,7 +289,7 @@ class EditorViewModel(
             // stale snapshot — every later lookup in this session (save, delete, keyword
             // change) keys off state.lineIndex, so this is where drift gets healed.
             val headline = doc.headlineFor(ref) ?: run {
-                _state.value = EditorUiState(loading = false, error = "Note not found")
+                _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_note_not_found))
                 return@launch
             }
             val tags = database.indexDao().allTagStrings()
@@ -325,48 +327,48 @@ class EditorViewModel(
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             val vault = vaultFlow.value ?: run {
-                _state.value = EditorUiState(loading = false, error = "No sync folder configured")
+                _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_no_vault))
                 return@launch
             }
             val doc = vault.open(fileName) ?: run {
-                _state.value = EditorUiState(loading = false, error = "$fileName not found")
+                _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_file_not_found, fileName))
                 return@launch
             }
             var lineIndex = 0
             val (buffer, range) = when (region) {
                 EditRegion.INTRO -> {
                     val r = OrgMutations.introRange(doc) ?: run {
-                        _state.value = EditorUiState(loading = false, error = "This note is no longer here")
+                        _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_note_gone))
                         return@launch
                     }
                     OrgMutations.regionText(doc, r) to r
                 }
                 EditRegion.PREFACE -> {
                     val r = OrgMutations.prefaceRange(doc) ?: run {
-                        _state.value = EditorUiState(loading = false, error = "No preface here")
+                        _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_no_preface))
                         return@launch
                     }
                     OrgMutations.regionText(doc, r) to r
                 }
                 EditRegion.FILE_PROPERTIES -> {
                     val r = OrgMutations.fileDrawerRange(doc) ?: run {
-                        _state.value = EditorUiState(loading = false, error = "No file property drawer here")
+                        _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_no_file_drawer))
                         return@launch
                     }
                     OrgMutations.regionText(doc, r) to r
                 }
                 EditRegion.HEADING_PROPERTIES, EditRegion.HEADING_LOGBOOK -> {
                     val ref = noteId?.let { NoteRef.decode(it) } ?: run {
-                        _state.value = EditorUiState(loading = false, error = "Note not found")
+                        _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_note_not_found))
                         return@launch
                     }
                     val headline = doc.headlineFor(ref) ?: run {
-                        _state.value = EditorUiState(loading = false, error = "Note not found")
+                        _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_note_not_found))
                         return@launch
                     }
                     val marker = if (region == EditRegion.HEADING_LOGBOOK) ":LOGBOOK:" else ":PROPERTIES:"
                     val r = OrgMutations.headingDrawerRange(doc, headline, marker) ?: run {
-                        _state.value = EditorUiState(loading = false, error = "This drawer is no longer here")
+                        _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_drawer_gone))
                         return@launch
                     }
                     lineIndex = headline.lineIndex
@@ -374,7 +376,7 @@ class EditorViewModel(
                 }
                 EditRegion.BLOCK -> {
                     val r = OrgMutations.blockRange(doc, blockLine) ?: run {
-                        _state.value = EditorUiState(loading = false, error = "This block is no longer here")
+                        _state.value = EditorUiState(loading = false, error = UiText.res(R.string.editor_error_block_gone))
                         return@launch
                     }
                     OrgMutations.regionText(doc, r) to r
@@ -564,7 +566,7 @@ class EditorViewModel(
                             buffer = s.buffer,
                             ownedSpan = s.ownedSpan,
                         )
-                        showSnack(markedDoneMessage(next, LocalDate.now()))
+                        showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
                     }
                 }
                 is StateChangeResult.Archived -> {
@@ -606,7 +608,7 @@ class EditorViewModel(
                             bufferRevision = it.bufferRevision + 1,
                         )
                     }
-                    showSnack("Marked done. Refiled to ${result.label}")
+                    showSnack(UiText.res(R.string.snack_marked_done_refiled, result.label))
                 }
             }
         }
@@ -1067,7 +1069,7 @@ class EditorViewModel(
     fun linkPickerPickNotebook(fileName: String) {
         viewModelScope.launch {
             val doc = vaultFlow.value?.open(fileName) ?: run {
-                showSnack("Couldn't open ${fileName.removeSuffix(".org")}")
+                showSnack(UiText.res(R.string.location_open_failed, fileName.removeSuffix(".org")))
                 return@launch
             }
             _linkPicker.update {
@@ -1105,7 +1107,7 @@ class EditorViewModel(
         val cur = _linkPicker.value
         val doc = cur?.takeIf { it.pickedFile == item.fileName }?.pickedDoc ?: vault.open(item.fileName)
         if (doc == null) {
-            showSnack("Couldn't open ${item.fileName.removeSuffix(".org")}")
+            showSnack(UiText.res(R.string.location_open_failed, item.fileName.removeSuffix(".org")))
             return LinkPickerSearchOutcome.Failed
         }
         return when (item) {
@@ -1117,7 +1119,7 @@ class EditorViewModel(
             }
             is LinkHeadingHit -> {
                 val heading = doc.headlineAtLine(item.lineIndex) ?: run {
-                    showSnack("That heading no longer exists")
+                    showSnack(UiText.res(R.string.editor_link_heading_gone))
                     return LinkPickerSearchOutcome.Failed
                 }
                 if (doc.hasDescendants(heading)) {

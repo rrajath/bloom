@@ -31,9 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.ui.components.PickerRow
@@ -44,7 +46,8 @@ import com.rrajath.grove.ui.components.pickerSearchResults
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.countLabel
 import com.rrajath.grove.ui.vault.headlineAtLine
 import kotlinx.coroutines.launch
 
@@ -79,8 +82,9 @@ fun LinkPickerSheet(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     val crumb = when {
-        doc == null -> "Choose a notebook, or search files and headings"
-        state.path.isEmpty() -> "${state.pickedFile?.removeSuffix(".org")} › top level · or pick a heading"
+        doc == null -> stringResource(R.string.editor_link_choose)
+        state.path.isEmpty() ->
+            stringResource(R.string.editor_link_top_level, state.pickedFile?.removeSuffix(".org").orEmpty())
         else -> (listOf(state.pickedFile?.removeSuffix(".org")) +
             state.path.map { doc.headlineAtLine(it)?.title ?: "?" })
             .joinToString(" › ")
@@ -120,13 +124,13 @@ fun LinkPickerSheet(
                             .clickable(onClick = onBack),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("←", fontFamily = PlexSans, fontSize = 16.sp, color = c.ink)
+                        Text(backArrowGlyph(), fontFamily = PlexSans, fontSize = 16.sp, color = c.ink)
                     }
                     Spacer(Modifier.width(10.dp))
                 }
                 Column {
                     Text(
-                        "Insert a link",
+                        stringResource(R.string.editor_link_title),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 16.sp, color = c.ink,
                     )
@@ -158,7 +162,7 @@ fun LinkPickerSheet(
                         PickerRow(
                             icon = notebookIcon(),
                             title = nb.fileName.removeSuffix(".org"),
-                            meta = pluralCount(nb.noteCount, "heading"),
+                            meta = countLabel(R.plurals.count_headings, nb.noteCount),
                             onClick = { onPickNotebook(nb.fileName) },
                         )
                     }
@@ -169,7 +173,7 @@ fun LinkPickerSheet(
                     if (rows.isEmpty()) {
                         item {
                             Text(
-                                "No sub-headings here",
+                                stringResource(R.string.editor_link_no_subheadings),
                                 fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3,
                                 modifier = Modifier.padding(vertical = 12.dp),
                             )
@@ -179,7 +183,7 @@ fun LinkPickerSheet(
                         PickerRow(
                             asterisk = true,
                             title = h.title,
-                            meta = doc.directChildren(h).size.takeIf { it > 0 }?.let { pluralCount(it, "heading") },
+                            meta = doc.directChildren(h).size.takeIf { it > 0 }?.let { countLabel(R.plurals.count_headings, it) },
                             onClick = { selectBrowseHeading(h) },
                         )
                     }
@@ -201,13 +205,15 @@ fun LinkPickerSheet(
                         .padding(horizontal = 18.dp, vertical = 12.dp),
                 ) {
                     Text(
-                        "Cancel",
+                        stringResource(R.string.action_cancel),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp, color = c.ink2,
                     )
                 }
                 val enabled = state.pickedFile != null
-                val label = if (state.path.isEmpty() && doc != null) "Link to this file" else "Link to this heading"
+                val label = stringResource(
+                    if (state.path.isEmpty() && doc != null) R.string.editor_link_to_file else R.string.editor_link_to_heading,
+                )
                 Box(
                     Modifier
                         .weight(1f)

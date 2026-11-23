@@ -44,6 +44,11 @@
     <!-- Reorder an item in a list (long-press menu). -->
     <string name="action_move_up">Move up</string>
     <string name="action_move_down">Move down</string>
+    <!-- Dialog buttons. -->
+    <string name="action_save">Save</string>
+    <!-- Throw away unsaved changes or an unsaved note. -->
+    <string name="action_discard">Discard</string>
+    <string name="action_ok">OK</string>
 
     <!-- The Read / Edit switch at the top of a note (ui/components/Common.kt ReadEditToggle). -->
     <string name="mode_read">Read</string>
@@ -57,4 +62,7 @@
     <!-- Location picker (refile, archive, capture targets). %1$s = notebook name without .org. -->
     <string name="location_open_failed">Couldn\'t open %1$s</string>
     <string name="location_notebook_exists">A notebook with that name already exists</string>
+
+    <!-- Snackbar after marking a heading done moved it to its archive location. %1$s = where it went (notebook and heading). -->
+    <string name="snack_marked_done_refiled">Marked done. Refiled to %1$s</string>
 </resources>

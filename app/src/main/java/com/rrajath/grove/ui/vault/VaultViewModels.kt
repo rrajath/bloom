@@ -56,6 +56,7 @@ import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.sync.SyncState
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.editor.LinkSearchItem
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.ui.util.pluralCount
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.Notebook
@@ -765,7 +766,7 @@ sealed class DocumentUiState {
 data class OutlineToast(val message: String, val id: Long)
 
 /** Undoable-operation snackbar (design spec: ~4.2s with an UNDO action). */
-data class OutlineSnack(val message: String, val id: Long)
+data class OutlineSnack(val message: UiText, val id: Long)
 
 /**
  * One-shot signal that marking the heading at [lineIndex] done advanced its
@@ -905,7 +906,7 @@ class DocumentViewModel(
     }
 
     private fun showSnack(message: String) {
-        val s = OutlineSnack(message, ++eventId)
+        val s = OutlineSnack(UiText.raw(message), ++eventId)
         _snack.value = s
         viewModelScope.launch {
             delay(UNDO_WINDOW_MS)

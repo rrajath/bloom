@@ -48,4 +48,36 @@
     <string name="attach_dir_broken">Image link broken. Couldn\'t find :ID: or :DIR: property</string>
     <!-- Title of the attachment-folder notice dialog. -->
     <string name="attach_dir_notice_title">Attachments</string>
+    <!-- Progress snackbar while files are copied into the attachment folder. %1$d = how many. -->
+    <plurals name="attach_copying_files">
+        <item quantity="one">Copying %1$d file</item>
+        <item quantity="other">Copying %1$d files</item>
+    </plurals>
+    <plurals name="attach_copying_photos">
+        <item quantity="one">Copying %1$d photo</item>
+        <item quantity="other">Copying %1$d photos</item>
+    </plurals>
+    <!-- Progress snackbar for one file. %1$s = file name. -->
+    <string name="attach_copying_one">Copying %1$s</string>
+    <!-- Attach sheet header, followed by the heading (or file) files will attach to. -->
+    <string name="attach_to">Attach to</string>
+    <!-- Source buttons: take a photo, pick from the photo library, pick any file. -->
+    <string name="attach_source_camera">Camera</string>
+    <string name="attach_source_photos">Photos</string>
+    <string name="attach_source_files">Files</string>
+    <!-- Screen reader text for the Camera button when it is disabled. -->
+    <string name="attach_source_camera_unavailable">Camera · No camera app found</string>
+    <!-- Screen reader labels for an attachment row\'s icon buttons. -->
+    <string name="attach_row_insert_link">Insert link at cursor</string>
+    <string name="attach_row_open_with">Open with…</string>
+    <!-- Delete-attachment dialog. %1$s = file name. -->
+    <string name="attach_delete_title">Delete %1$s?</string>
+    <string name="attach_delete_body_heading">The file is removed from this heading\'s attachment folder. Links to it stay in your notes and will show as missing.</string>
+    <string name="attach_delete_body_file">The file is removed from this file\'s attachment folder. Links to it stay in your notes and will show as missing.</string>
+    <!-- Toasts. %1$s = file name. -->
+    <string name="attach_failed_write">Couldn\'t attach %1$s: couldn\'t write to vault</string>
+    <string name="attach_kept_heading_missing">Attached files kept, but the heading was not found</string>
+    <string name="attach_file_not_found">File not found: %1$s</string>
+    <string name="attach_deleted">Deleted %1$s</string>
+    <string name="attach_delete_failed">Couldn\'t delete %1$s</string>
 </resources>

@@ -15,6 +15,7 @@ import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.ui.util.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -271,7 +272,7 @@ class SearchViewModelIntegrationTest {
         advanceTimeBy(1000)
 
         assertTrue(store.read("projects.org").contains("DONE Tag the release"))
-        assertEquals("Marked done", vm.snack.value?.message)
+        assertEquals(UiText.raw("Marked done"), vm.snack.value?.message)
         vm.undo()
         advanceUntilIdle()
         assertFalse(store.read("projects.org").contains("DONE Tag the release"))

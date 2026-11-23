@@ -574,7 +574,7 @@ class AttachController internal constructor(
         val dir = withContext(Dispatchers.IO) { AttachDirResolver(AttachmentFiles(store), attachConfig()).writeDir(orgFile, writeOwner) }
         if (dir == null) {
             cameraFile?.delete()
-            showToast("Couldn't attach ${sources.first().displayName}: couldn't write to vault")
+            showToast(context.getString(R.string.attach_failed_write, sources.first().displayName))
             return
         }
         val request = AttachRequest(
@@ -627,7 +627,7 @@ class AttachController internal constructor(
                     done.request.owner, done.request.newId, r.names, done.request.autoTag,
                 )
                 if (edit == null) {
-                    showToast("Attached files kept, but the heading was not found")
+                    showToast(context.getString(R.string.attach_kept_heading_missing))
                     return
                 }
                 // One edit, so editor undo treats the ID + links as a single step.
@@ -748,7 +748,7 @@ class AttachController internal constructor(
         scope.launch {
             when (AttachmentIntents.open(context, store, file.name)) {
                 AttachmentIntents.Result.NoHandler -> showToast(AttachmentIntents.NO_HANDLER_MESSAGE)
-                AttachmentIntents.Result.Missing -> showToast("File not found: ${file.name.substringAfterLast('/')}")
+                AttachmentIntents.Result.Missing -> showToast(context.getString(R.string.attach_file_not_found, file.name.substringAfterLast('/')))
                 AttachmentIntents.Result.Launched -> Unit
             }
         }
@@ -767,7 +767,7 @@ class AttachController internal constructor(
                 if (deleted && model.dir != null) files.pruneEmpty(model.dir, orgFile.substringBeforeLast('/', ""))
                 deleted
             }
-            showToast(if (ok) "Deleted $name" else "Couldn't delete $name")
+            showToast(context.getString(if (ok) R.string.attach_deleted else R.string.attach_delete_failed, name))
             invalidate()
             sheet?.let { load(it.scope) }
         }
