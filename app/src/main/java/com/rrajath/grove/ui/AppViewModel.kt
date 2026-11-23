@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui
 
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -187,7 +188,7 @@ class AppViewModel(
 
     fun setSyncAppIconWithTheme(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setSyncAppIconWithTheme(enabled)
-        if (enabled) toast("Restart the app for the icon change to take effect")
+        if (enabled) toast(R.string.settings_app_icon_restart)
     }
 
     fun setAppFontSize(fontSize: FontSizePreference) =
@@ -295,10 +296,7 @@ class AppViewModel(
         _exactAlarmPrompt.value = false
         viewModelScope.launch {
             settingsRepository.markExactAlarmPromptHandled()
-            toast(
-                "You can turn this on later in Settings › Reminders › Exact timing.",
-                android.widget.Toast.LENGTH_LONG,
-            )
+            toast(R.string.settings_exact_alarm_later_hint, duration = android.widget.Toast.LENGTH_LONG)
         }
     }
 
@@ -410,6 +408,12 @@ class AppViewModel(
         android.widget.Toast.makeText(app, message, duration).show()
     }
 
+    private suspend fun toast(
+        @StringRes id: Int,
+        vararg args: Any,
+        duration: Int = android.widget.Toast.LENGTH_SHORT,
+    ) = toast(app.getString(id, *args), duration)
+
     fun setOutlineToggle(toggle: OutlineToggle, enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setOutlineToggle(toggle, enabled) }
 
@@ -501,7 +505,7 @@ class AppViewModel(
         if (_locationPicker.value == null) return false
         val doc = vaultFlow.value?.open(item.fileName)
         if (doc == null) {
-            toast("Couldn't open ${item.fileName.removeSuffix(".org")}")
+            toast(R.string.location_open_failed, item.fileName.removeSuffix(".org"))
             return false
         }
         val picker = _locationPicker.value ?: return false
@@ -518,7 +522,7 @@ class AppViewModel(
         viewModelScope.launch {
             val doc = vaultFlow.value?.open(fileName)
             if (doc == null) {
-                toast("Couldn't open ${fileName.removeSuffix(".org")}")
+                toast(R.string.location_open_failed, fileName.removeSuffix(".org"))
                 return@launch
             }
             _locationPicker.value =
@@ -537,7 +541,7 @@ class AppViewModel(
         val fileName = if (trimmed.endsWith(".org")) trimmed else "$trimmed.org"
         viewModelScope.launch {
             if (!vault.createNotebook(fileName)) {
-                toast("A notebook with that name already exists")
+                toast(R.string.location_notebook_exists)
                 return@launch
             }
             sync.requestSync("notebook created")
@@ -643,7 +647,7 @@ class AppViewModel(
                 } ?: error("no output stream")
             }.isSuccess
         }
-        toast(if (ok) "Settings exported" else "Couldn't write settings file")
+        toast(if (ok) R.string.settings_backup_exported else R.string.settings_backup_write_failed)
     }
 
     /**
@@ -662,18 +666,18 @@ class AppViewModel(
             }.getOrNull()
         }
         if (text == null) {
-            toast("Couldn't read settings file")
+            toast(R.string.settings_backup_read_failed)
             return@launch
         }
         val current = settingsRepository.settings.first()
         val backup = runCatching { SettingsSerialization.parse(text, current) }.getOrNull()
         if (backup == null) {
-            toast("Not a valid ${app.getString(R.string.app_name)} settings file")
+            toast(R.string.settings_backup_invalid_file, app.getString(R.string.app_name))
             return@launch
         }
         if (backup.sections() == listOf(BackupSection.SETTINGS)) {
             settingsRepository.applyImported(backup.settings)
-            toast("Settings imported")
+            toast(R.string.settings_backup_settings_imported)
         } else {
             _pendingImport.value = backup
         }
@@ -687,7 +691,7 @@ class AppViewModel(
         if (BackupSection.CAPTURE_TEMPLATES in sections) backup.captureTemplates?.let { templatesRepository.save(it) }
         if (BackupSection.FAVORITES in sections) backup.favorites?.let { favoritesRepository.replaceAll(it) }
         if (BackupSection.SAVED_SEARCHES in sections) backup.savedSearches?.let { searchRepository.replaceAll(it) }
-        toast("Backup imported")
+        toast(R.string.settings_backup_imported)
     }
 
     fun cancelImport() {

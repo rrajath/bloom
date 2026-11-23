@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.Alignment
@@ -182,20 +183,23 @@ fun ReadEditToggle(
     isEditing: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
-) = SegmentedControlImpl(
-    options = listOf("Read", "Edit"),
-    selectedIndex = if (isEditing) 1 else 0,
-    onSelect = {},
-    modifier = modifier
-        .padding(end = 8.dp)
-        .width(IntrinsicSize.Min)
-        .testTag("read_edit_toggle")
-        .semantics(mergeDescendants = true) {
-            stateDescription = if (isEditing) "Edit mode" else "Read mode"
-        },
-    optionIcons = listOf(Icons.Outlined.Visibility, Icons.Outlined.Edit),
-    onControlClick = onToggle,
-)
+) {
+    val editState = stringResource(if (isEditing) R.string.mode_edit_state else R.string.mode_read_state)
+    SegmentedControlImpl(
+        options = listOf(stringResource(R.string.mode_read), stringResource(R.string.mode_edit)),
+        selectedIndex = if (isEditing) 1 else 0,
+        onSelect = {},
+        modifier = modifier
+            .padding(end = 8.dp)
+            .width(IntrinsicSize.Min)
+            .testTag("read_edit_toggle")
+            .semantics(mergeDescendants = true) {
+                stateDescription = editState
+            },
+        optionIcons = listOf(Icons.Outlined.Visibility, Icons.Outlined.Edit),
+        onControlClick = onToggle,
+    )
+}
 
 /** [onControlClick] non-null makes the whole control one click target instead of per-segment ones. */
 @Composable
@@ -315,6 +319,7 @@ private data class ThemeSwatch(
  * uses its surface color rather than its bg for legibility. Ordered light themes first (alphabetical
  * by label), then dark themes (alphabetical by label): Settings § Appearance.
  */
+// i18n-begin: theme names are proper nouns, never translated
 private val ThemeSwatches = listOf(
     // Light
     ThemeSwatch(ThemePreference.ASHROSE, "Ash Rose", Color(0xFFFAF6F6), Color(0xFF241F21), listOf(Color(0xFF7D5560), Color(0xFF526B54), Color(0xFF4D6478))),
@@ -339,6 +344,7 @@ private val ThemeSwatches = listOf(
     ThemeSwatch(ThemePreference.TOKYONIGHT, "Tokyo Night", Color(0xFF1A1B26), Color(0xFFC0CAF5), listOf(Color(0xFF7AA2F7), Color(0xFFBB9AF7), Color(0xFF7DCFFF))),
     ThemeSwatch(ThemePreference.WISTERIA, "Wisteria", Color(0xFF131019), Color(0xFFE6E2EC), listOf(Color(0xFFA99BC4), Color(0xFF8FA6C6), Color(0xFF8BA88F))),
 )
+// i18n-end
 
 /**
  * Theme picker as a collapsed trigger + inline expanding list, per the Settings
@@ -440,7 +446,7 @@ fun ThemePairPicker(
             for (isDark in listOf(false, true)) {
                 ThemePairTile(
                     swatch = ThemeSwatches.first { it.pref == if (isDark) dark else light },
-                    label = if (isDark) "Dark" else "Light",
+                    label = stringResource(if (isDark) R.string.settings_theme_tile_dark else R.string.settings_theme_tile_light),
                     icon = if (isDark) Icons.Filled.DarkMode else Icons.Outlined.LightMode,
                     inUse = isDark == systemIsDark,
                     open = openDark == isDark,
@@ -515,7 +521,7 @@ private fun ThemePairTile(
             )
             if (inUse) {
                 Text(
-                    "In use",
+                    stringResource(R.string.settings_theme_in_use),
                     color = c.accent,
                     fontFamily = PlexSans,
                     fontWeight = FontWeight.SemiBold,
@@ -728,7 +734,7 @@ fun EditorMenuFab(onClick: () -> Unit, modifier: Modifier = Modifier, compact: B
             )
             .clip(shape)
             .background(c.accent)
-            .clickable(onClickLabel = "Open metadata", onClick = onClick),
+            .clickable(onClickLabel = stringResource(R.string.metadata_fab_open), onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text("☰", fontFamily = PlexSans, fontSize = (20f - 4f * t).sp, color = c.accentInk)

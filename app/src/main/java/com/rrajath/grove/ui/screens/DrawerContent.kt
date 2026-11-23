@@ -18,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.core.os.ConfigurationCompat
 import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -114,10 +116,10 @@ fun GroveDrawerContent(
         ) {
             Spacer(Modifier.height(8.dp))
 
-            DrawerItem(icon = searchIcon(), label = "Search", active = false) { onNavigate(Routes.search()) }
-            DrawerItem(icon = notebookIcon(), label = "Notebooks", active = currentRoute == Routes.NOTEBOOKS) { onNavigate(Routes.NOTEBOOKS) }
+            DrawerItem(icon = searchIcon(), label = stringResource(R.string.nav_search), active = false) { onNavigate(Routes.search()) }
+            DrawerItem(icon = notebookIcon(), label = stringResource(R.string.nav_notebooks), active = currentRoute == Routes.NOTEBOOKS) { onNavigate(Routes.NOTEBOOKS) }
 
-            SectionLabel("SEARCHES")
+            SectionLabel(stringResource(R.string.nav_section_searches))
             savedSearches.forEachIndexed { index, search ->
                 Box {
                     DrawerItem(
@@ -138,7 +140,7 @@ fun GroveDrawerContent(
             }
 
             if (favorites.isNotEmpty()) {
-                SectionLabel("FAVORITES")
+                SectionLabel(stringResource(R.string.nav_section_favorites))
                 favorites.forEachIndexed { index, fav ->
                     Box {
                         DrawerItem(
@@ -163,10 +165,10 @@ fun GroveDrawerContent(
             if (roamFeaturesEnabled) {
                 DailiesDrawerRow(todayShortLabel = todayShortLabel) { onNavigate(Routes.dailies()) }
             }
-            DrawerItem(icon = agendaIcon(), label = "Agenda", active = false) { onNavigate(Routes.AGENDA) }
+            DrawerItem(icon = agendaIcon(), label = stringResource(R.string.nav_agenda), active = false) { onNavigate(Routes.AGENDA) }
             DrawerItem(
                 icon = settingsIcon(),
-                label = "Settings",
+                label = stringResource(R.string.nav_settings),
                 active = false,
                 badge = { NewDot(NewAnchors.DRAWER_SETTINGS) },
             ) { onNavigate(Routes.SETTINGS) }
@@ -176,7 +178,7 @@ fun GroveDrawerContent(
 
     renameSearchTarget?.let { target ->
         RenameDialog(
-            title = "Rename search",
+            title = stringResource(R.string.nav_rename_search_title),
             initialName = target.name,
             onConfirm = { onRenameSavedSearch(target.id, it); renameSearchTarget = null },
             onDismiss = { renameSearchTarget = null },
@@ -185,7 +187,7 @@ fun GroveDrawerContent(
 
     renameFavoriteTarget?.let { target ->
         RenameDialog(
-            title = "Rename favorite",
+            title = stringResource(R.string.nav_rename_favorite_title),
             initialName = target.title,
             onConfirm = { onRenameFavorite(target, it); renameFavoriteTarget = null },
             onDismiss = { renameFavoriteTarget = null },
@@ -209,21 +211,21 @@ private fun DrawerActionMenu(
     // Inset to match DrawerItem's 12dp horizontal padding, so the menu isn't flush with the screen edge.
     GroveDropdownMenu(expanded = expanded, onDismissRequest = onDismissRequest, offset = DpOffset(12.dp, 0.dp)) {
         DropdownMenuItem(
-            text = { Text("Move up", fontFamily = PlexSans, color = if (canMoveUp) c.ink else c.ink3) },
+            text = { Text(stringResource(R.string.action_move_up), fontFamily = PlexSans, color = if (canMoveUp) c.ink else c.ink3) },
             enabled = canMoveUp,
             onClick = { onDismissRequest(); onMoveUp() },
         )
         DropdownMenuItem(
-            text = { Text("Move down", fontFamily = PlexSans, color = if (canMoveDown) c.ink else c.ink3) },
+            text = { Text(stringResource(R.string.action_move_down), fontFamily = PlexSans, color = if (canMoveDown) c.ink else c.ink3) },
             enabled = canMoveDown,
             onClick = { onDismissRequest(); onMoveDown() },
         )
         DropdownMenuItem(
-            text = { Text("Rename", fontFamily = PlexSans, color = c.ink) },
+            text = { Text(stringResource(R.string.action_rename), fontFamily = PlexSans, color = c.ink) },
             onClick = { onDismissRequest(); onRename() },
         )
         DropdownMenuItem(
-            text = { Text("Delete", fontFamily = PlexSans, color = c.red) },
+            text = { Text(stringResource(R.string.action_delete), fontFamily = PlexSans, color = c.red) },
             onClick = { onDismissRequest(); onDelete() },
         )
     }
@@ -241,25 +243,27 @@ private fun RenameDialog(title: String, initialName: String, onConfirm: (String)
             OutlinedTextField(
                 value = name, onValueChange = { name = it },
                 singleLine = true,
-                placeholder = { Text("Name", fontFamily = PlexSans, color = c.ink3) },
+                placeholder = { Text(stringResource(R.string.nav_rename_name_hint), fontFamily = PlexSans, color = c.ink3) },
                 textStyle = TextStyle(fontFamily = PlexSans, color = c.ink),
             )
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
-                Text("Rename", color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.action_rename), color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = c.ink2) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
         },
     )
 }
 
 @Composable
 private fun SectionLabel(text: String) {
+    // Stored in normal case; capitalized here with the UI language's rules (Turkish i, German ß).
+    val locale = ConfigurationCompat.getLocales(LocalConfiguration.current)[0] ?: java.util.Locale.ROOT
     Text(
-        text,
+        text.uppercase(locale),
         fontFamily = PlexSans,
         fontWeight = FontWeight.SemiBold,
         fontSize = 11.sp,
@@ -295,7 +299,7 @@ private fun DailiesDrawerRow(todayShortLabel: String, onClick: () -> Unit) {
                 modifier = Modifier.size(24.dp),
             )
         }
-        Text("Dailies", fontFamily = PlexSans, fontSize = 14.5.sp, color = c.ink, modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.nav_dailies), fontFamily = PlexSans, fontSize = 14.5.sp, color = c.ink, modifier = Modifier.weight(1f))
         if (todayShortLabel.isNotBlank()) {
             Text(todayShortLabel, fontFamily = PlexMono, fontSize = 12.sp, color = c.ink3)
         }

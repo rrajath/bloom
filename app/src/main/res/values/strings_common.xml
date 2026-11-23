@@ -37,4 +37,24 @@
         <item quantity="one">%d attachment folder</item>
         <item quantity="other">%d attachment folders</item>
     </plurals>
+
+    <!-- Shared actions. Reuse a key only where the meaning and grammar match. -->
+    <string name="action_rename">Rename</string>
+    <string name="action_delete">Delete</string>
+    <!-- Reorder an item in a list (long-press menu). -->
+    <string name="action_move_up">Move up</string>
+    <string name="action_move_down">Move down</string>
+
+    <!-- The Read / Edit switch at the top of a note (ui/components/Common.kt ReadEditToggle). -->
+    <string name="mode_read">Read</string>
+    <string name="mode_edit">Edit</string>
+    <!-- Screen reader state of the Read / Edit switch. -->
+    <string name="mode_read_state">Read mode</string>
+    <string name="mode_edit_state">Edit mode</string>
+    <!-- Screen reader action for the round button that opens a note's metadata (dates, tags, properties). -->
+    <string name="metadata_fab_open">Open metadata</string>
+
+    <!-- Location picker (refile, archive, capture targets). %1$s = notebook name without .org. -->
+    <string name="location_open_failed">Couldn\'t open %1$s</string>
+    <string name="location_notebook_exists">A notebook with that name already exists</string>
 </resources>

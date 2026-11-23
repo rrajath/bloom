@@ -35,4 +35,33 @@
     <string name="settings_week_start_system_with_day">System default (%1$s)</string>
     <string name="settings_week_start_sunday">Sunday</string>
     <string name="settings_week_start_monday">Monday</string>
+
+    <!-- Settings > Appearance theme picker (ui/components/Common.kt). The two tiles pick the
+         theme used in light mode and in dark mode. -->
+    <string name="settings_theme_tile_light">Light</string>
+    <string name="settings_theme_tile_dark">Dark</string>
+    <!-- Badge on the tile whose mode the phone is in right now. -->
+    <string name="settings_theme_in_use">In use</string>
+    <string name="settings_app_icon_restart">Restart the app for the icon change to take effect</string>
+    <!-- After "Not now" on the exact-alarm prompt. Names the screen path in Settings. -->
+    <string name="settings_exact_alarm_later_hint">You can turn this on later in Settings › Reminders › Exact timing.</string>
+
+    <!-- Settings > Backup, export and import results. -->
+    <string name="settings_backup_exported">Settings exported</string>
+    <string name="settings_backup_write_failed">Couldn\'t write settings file</string>
+    <string name="settings_backup_read_failed">Couldn\'t read settings file</string>
+    <!-- %1$s = the app name. -->
+    <string name="settings_backup_invalid_file">Not a valid %1$s settings file</string>
+    <string name="settings_backup_settings_imported">Settings imported</string>
+    <string name="settings_backup_imported">Backup imported</string>
+
+    <!-- Location pickers opened from Settings: header and confirm buttons. -->
+    <string name="settings_archive_picker_title">Set archive location</string>
+    <string name="settings_archive_picker_confirm">Set as archive location</string>
+    <string name="settings_quick_add_picker_title">Set quick add target</string>
+    <string name="settings_quick_add_picker_confirm_heading">Add tasks under this heading</string>
+    <string name="settings_quick_add_picker_confirm_file">Add tasks to this file</string>
+    <string name="settings_share_picker_title">Set shared content target</string>
+    <string name="settings_share_picker_confirm_heading">Share under this heading</string>
+    <string name="settings_share_picker_confirm_file">Share to this file</string>
 </resources>

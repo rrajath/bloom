@@ -16,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -214,12 +215,14 @@ private fun externalOrgFileName(context: android.content.Context, uri: android.n
  * Human-readable form of the persisted SAF tree URI for the drawer header,
  * e.g. "primary:Documents/org" → "~/Documents/org".
  */
+@Composable
 private fun vaultDisplayPath(treeUri: String?): String {
-    if (treeUri == null) return "no folder selected"
+    if (treeUri == null) return stringResource(R.string.nav_vault_no_folder)
+    val storageRoot = stringResource(R.string.nav_vault_storage_root)
     val docId = runCatching {
         android.provider.DocumentsContract.getTreeDocumentId(treeUri.toUri())
     }.getOrNull() ?: return treeUri
-    val path = docId.substringAfter(':', docId).ifEmpty { "(storage root)" }
+    val path = docId.substringAfter(':', docId).ifEmpty { storageRoot }
     return if (docId.startsWith("primary:")) "~/$path" else path
 }
 
@@ -323,9 +326,9 @@ private fun GroveNavigation(
                     android.widget.Toast.makeText(
                         app,
                         if (requestedName != null) {
-                            "\"$requestedName\" isn't in your ${app.getString(R.string.app_name)} vault folder."
+                            app.getString(R.string.nav_open_file_not_in_vault, requestedName, app.getString(R.string.app_name))
                         } else {
-                            "Couldn't open that file in ${app.getString(R.string.app_name)}."
+                            app.getString(R.string.nav_open_file_failed, app.getString(R.string.app_name))
                         },
                         android.widget.Toast.LENGTH_LONG,
                     ).show()
@@ -570,7 +573,7 @@ private fun GroveNavigation(
                 androidx.activity.compose.BackHandler(enabled = mode == "read" && hasPendingEdit) { leaveRead() }
                 if (confirmLeavePending) {
                     UnsavedNoteDialog(
-                        message = "This file has unsaved changes.",
+                        message = stringResource(R.string.nav_whole_file_unsaved),
                         onSave = {
                             confirmLeavePending = false
                             editorViewModel.save { pendingExit() }
@@ -1082,8 +1085,8 @@ private fun GroveNavigation(
                         onArchive = {},
                         onPickLastUsed = {},
                         onSelectSearchResult = viewModel::locationSelectSearchResult,
-                        headerTitle = "Set archive location",
-                        confirmLabel = "Set as archive location",
+                        headerTitle = stringResource(R.string.settings_archive_picker_title),
+                        confirmLabel = stringResource(R.string.settings_archive_picker_confirm),
                         onCreateFile = viewModel::locationCreateFile,
                     )
                 }
@@ -1124,9 +1127,9 @@ private fun GroveNavigation(
                         onArchive = {},
                         onPickLastUsed = {},
                         onSelectSearchResult = viewModel::locationSelectSearchResult,
-                        headerTitle = "Set quick add target",
-                        confirmLabel = "Add tasks under this heading",
-                        topLevelConfirmLabel = "Add tasks to this file",
+                        headerTitle = stringResource(R.string.settings_quick_add_picker_title),
+                        confirmLabel = stringResource(R.string.settings_quick_add_picker_confirm_heading),
+                        topLevelConfirmLabel = stringResource(R.string.settings_quick_add_picker_confirm_file),
                         onCreateFile = viewModel::locationCreateFile,
                     )
                 }
@@ -1164,9 +1167,9 @@ private fun GroveNavigation(
                         onArchive = {},
                         onPickLastUsed = {},
                         onSelectSearchResult = viewModel::locationSelectSearchResult,
-                        headerTitle = "Set shared content target",
-                        confirmLabel = "Share under this heading",
-                        topLevelConfirmLabel = "Share to this file",
+                        headerTitle = stringResource(R.string.settings_share_picker_title),
+                        confirmLabel = stringResource(R.string.settings_share_picker_confirm_heading),
+                        topLevelConfirmLabel = stringResource(R.string.settings_share_picker_confirm_file),
                         onCreateFile = viewModel::locationCreateFile,
                     )
                 }
@@ -1242,8 +1245,11 @@ private fun GroveNavigation(
         val captureSavedSnack by viewModel.captureSavedSnack.collectAsStateWithLifecycle()
         GroveActionSnackbar(
             visible = captureSavedSnack != null,
-            message = "Saved \"${captureSavedSnack?.filePath?.substringAfterLast('/').orEmpty()}\"",
-            actionLabel = "Visit file",
+            message = stringResource(
+                R.string.nav_capture_saved_file,
+                captureSavedSnack?.filePath?.substringAfterLast('/').orEmpty(),
+            ),
+            actionLabel = stringResource(R.string.nav_capture_visit_file),
             onAction = {
                 val path = captureSavedSnack?.filePath ?: return@GroveActionSnackbar
                 viewModel.dismissCaptureSavedSnack()
