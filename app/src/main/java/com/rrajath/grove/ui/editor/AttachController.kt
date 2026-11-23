@@ -59,6 +59,7 @@ import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.data.IndexedAttachOwner
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.settings.AttachAutoTag
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.ui.vault.OutlineToast
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
@@ -240,7 +241,7 @@ class AttachController internal constructor(
     }
 
     fun showToast(message: String) {
-        toast = OutlineToast(message, ++toastId)
+        toast = OutlineToast(UiText.raw(message), ++toastId)
     }
 
     internal fun clearToast(id: Long) {

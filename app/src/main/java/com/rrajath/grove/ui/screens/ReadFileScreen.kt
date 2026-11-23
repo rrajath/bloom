@@ -72,6 +72,7 @@ import com.rrajath.grove.ui.vault.DocumentUiState
 import com.rrajath.grove.ui.vault.DocumentViewModel
 import com.rrajath.grove.ui.vault.PendingEdit
 import com.rrajath.grove.ui.vault.NoteRef
+import com.rrajath.grove.ui.util.asString
 
 /**
  * Read view for a whole `.org` file as one note: the file-level property drawer,
@@ -236,7 +237,7 @@ fun ReadFileScreen(
                     Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(s.message, fontFamily = PlexSans, color = c.ink2)
+                    Text(s.message.asString(), fontFamily = PlexSans, color = c.ink2)
                 }
 
                 is DocumentUiState.Loaded -> {

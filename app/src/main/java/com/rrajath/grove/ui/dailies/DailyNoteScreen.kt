@@ -90,6 +90,7 @@ import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.PendingEdit
 import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
+import com.rrajath.grove.ui.util.asString
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -436,7 +437,7 @@ fun DailyNoteScreen(
                     // until this day's arrives, rather than the wrong day's content.
                     when (val s = docState.takeUnless { it is DocumentUiState.Loaded && it.fileName != n.fileName }) {
                         is DocumentUiState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                            Text(s.message, fontFamily = PlexSans, color = c.ink2)
+                            Text(s.message.asString(), fontFamily = PlexSans, color = c.ink2)
                         }
                         is DocumentUiState.Loaded -> {
                             ContentFontScale(readModeFontSize) {

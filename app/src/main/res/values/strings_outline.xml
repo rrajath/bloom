@@ -120,4 +120,149 @@
     <string name="read_copy_link">Copy link</string>
     <string name="read_share_link">Share link</string>
     <string name="read_file_empty">This file is empty. Double-tap to start writing.</string>
+
+    <!-- Outline and read-mode messages from the document ViewModel (ui/vault/VaultViewModels.kt). -->
+    <!-- Shown when a note's file can't be shown. -->
+    <string name="document_no_vault">No sync folder configured</string>
+    <!-- %1$s = file name, e.g. inbox.org. -->
+    <string name="document_not_found">%1$s not found</string>
+    <string name="document_open_failed">Could not open %1$s</string>
+    <!-- Tapping a link failed. %1$s = the link target as written in the note. -->
+    <string name="link_open_failed">Couldn\'t open %1$s</string>
+    <!-- %1$s = the link target or attachment file name that matched nothing. -->
+    <string name="link_not_found">Couldn\'t find “%1$s”</string>
+    <!-- The selected headings were cleared because their file changed on disk. -->
+    <string name="outline_selection_cleared">Selection cleared: the file was synced or changed elsewhere</string>
+    <string name="outline_edit_stale">The file changed, so that edit wasn\'t applied. Try again</string>
+    <!-- After the UNDO action. -->
+    <string name="outline_undone">Undone</string>
+    <!-- Editing metadata on text before the first heading first inserts an empty heading above it. -->
+    <string name="outline_intro_heading_added">Added a blank heading for this content</string>
+
+    <!-- Snackbars after reordering or deleting headings ("notes" = headings with their content).
+         _n: every selected heading moved; _partial: %1$d of the %2$d selected moved. -->
+    <string name="outline_moved_up">Moved up</string>
+    <plurals name="outline_moved_up_n">
+        <item quantity="one">Moved up %d note</item>
+        <item quantity="other">Moved up %d notes</item>
+    </plurals>
+    <plurals name="outline_moved_up_partial">
+        <item quantity="one">Moved up %1$d of %2$d note</item>
+        <item quantity="other">Moved up %1$d of %2$d notes</item>
+    </plurals>
+    <string name="outline_moved_down">Moved down</string>
+    <plurals name="outline_moved_down_n">
+        <item quantity="one">Moved down %d note</item>
+        <item quantity="other">Moved down %d notes</item>
+    </plurals>
+    <plurals name="outline_moved_down_partial">
+        <item quantity="one">Moved down %1$d of %2$d note</item>
+        <item quantity="other">Moved down %1$d of %2$d notes</item>
+    </plurals>
+    <!-- Promote = move a heading one level up (fewer stars). -->
+    <string name="outline_promoted">Promoted</string>
+    <plurals name="outline_promoted_n">
+        <item quantity="one">Promoted %d note</item>
+        <item quantity="other">Promoted %d notes</item>
+    </plurals>
+    <plurals name="outline_promoted_partial">
+        <item quantity="one">Promoted %1$d of %2$d note</item>
+        <item quantity="other">Promoted %1$d of %2$d notes</item>
+    </plurals>
+    <!-- Demote = move a heading one level down (more stars). -->
+    <string name="outline_demoted">Demoted</string>
+    <plurals name="outline_demoted_n">
+        <item quantity="one">Demoted %d note</item>
+        <item quantity="other">Demoted %d notes</item>
+    </plurals>
+    <plurals name="outline_demoted_partial">
+        <item quantity="one">Demoted %1$d of %2$d note</item>
+        <item quantity="other">Demoted %1$d of %2$d notes</item>
+    </plurals>
+    <string name="outline_note_deleted">Note deleted</string>
+    <plurals name="outline_deleted_n">
+        <item quantity="one">Deleted %d note</item>
+        <item quantity="other">Deleted %d notes</item>
+    </plurals>
+    <plurals name="outline_deleted_partial">
+        <item quantity="one">Deleted %1$d of %2$d note</item>
+        <item quantity="other">Deleted %1$d of %2$d notes</item>
+    </plurals>
+    <!-- Toasts when a reorder can't happen. -->
+    <string name="outline_move_blocked">Can\'t move further</string>
+    <string name="outline_promote_blocked">Already top level</string>
+    <string name="outline_demote_blocked_one">Can\'t demote: there\'s no heading above it to go under</string>
+    <string name="outline_demote_blocked_many">Can\'t demote: there\'s no heading above them to go under</string>
+
+    <!-- Toasts after setting a heading's dates. %1$s = a short date, e.g. "Mon, Nov 23". -->
+    <string name="planning_toast_scheduled">Scheduled · %1$s</string>
+    <string name="planning_toast_deadline">Deadline · %1$s</string>
+    <!-- An event = an active timestamp in the heading's body. -->
+    <string name="planning_toast_event">Event · %1$s</string>
+    <!-- %2$d = how many more event dates the heading has. -->
+    <string name="planning_toast_event_more">Event · %1$s +%2$d</string>
+    <string name="planning_toast_scheduled_cleared">Scheduled cleared</string>
+    <string name="planning_toast_deadline_cleared">Deadline cleared</string>
+    <string name="planning_toast_cleared">Planning cleared</string>
+
+    <!-- Snackbars after editing several selected headings at once. -->
+    <!-- %1$s = new TODO state or metadata_toast_none; %2$d = headings changed. -->
+    <plurals name="outline_bulk_state">
+        <item quantity="one">State → %1$s on %2$d note</item>
+        <item quantity="other">State → %1$s on %2$d notes</item>
+    </plurals>
+    <!-- Some headings were also moved to their archive. %1$s = outline_bulk_state; %2$d = how many moved; %3$s = where. -->
+    <plurals name="outline_bulk_state_refiled_to">
+        <item quantity="one">%1$s. Refiled %2$d to %3$s</item>
+        <item quantity="other">%1$s. Refiled %2$d to %3$s</item>
+    </plurals>
+    <!-- Same, when they went to several places. -->
+    <plurals name="outline_bulk_state_refiled">
+        <item quantity="one">%1$s. Refiled %2$d</item>
+        <item quantity="other">%1$s. Refiled %2$d</item>
+    </plurals>
+    <!-- %1$s = new priority (#A...) or metadata_toast_none. -->
+    <plurals name="outline_bulk_priority">
+        <item quantity="one">Priority → %1$s on %2$d note</item>
+        <item quantity="other">Priority → %1$s on %2$d notes</item>
+    </plurals>
+    <plurals name="outline_bulk_tags">
+        <item quantity="one">Tags updated on %d note</item>
+        <item quantity="other">Tags updated on %d notes</item>
+    </plurals>
+    <plurals name="outline_bulk_dates">
+        <item quantity="one">Dates set on %d note</item>
+        <item quantity="other">Dates set on %d notes</item>
+    </plurals>
+    <!-- A LOGBOOK note was added to each heading. -->
+    <plurals name="outline_bulk_note_added">
+        <item quantity="one">Note added to %d note</item>
+        <item quantity="other">Note added to %d notes</item>
+    </plurals>
+    <!-- Keep "org-id" as is. -->
+    <plurals name="outline_bulk_org_id">
+        <item quantity="one">org-id generated for %d note</item>
+        <item quantity="other">org-id generated for %d notes</item>
+    </plurals>
+
+    <!-- Refile and archive messages. -->
+    <string name="refile_dest_heading_missing">Couldn\'t find the destination heading</string>
+    <string name="refile_into_own_subtree">Can\'t refile into its own subtree</string>
+    <!-- %1$s = destination notebook (and heading). -->
+    <string name="refile_snack_refiled_to">Refiled to %1$s</string>
+    <string name="refile_snack_archived_to">Archived to %1$s</string>
+    <plurals name="refile_snack_refiled_n_to">
+        <item quantity="one">Refiled %1$d note to %2$s</item>
+        <item quantity="other">Refiled %1$d notes to %2$s</item>
+    </plurals>
+    <plurals name="refile_snack_archived_n_to">
+        <item quantity="one">Archived %1$d note to %2$s</item>
+        <item quantity="other">Archived %1$d notes to %2$s</item>
+    </plurals>
+    <!-- %1$s = notebook name, %2$s = heading title or refile_top_level. "›" separates notebook and heading. -->
+    <string name="refile_snack_refiled_under">Refiled to %1$s › %2$s</string>
+    <plurals name="refile_snack_refiled_n_under">
+        <item quantity="one">Refiled %1$d note to %2$s › %3$s</item>
+        <item quantity="other">Refiled %1$d notes to %2$s › %3$s</item>
+    </plurals>
 </resources>

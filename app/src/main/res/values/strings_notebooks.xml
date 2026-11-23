@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notebooks screen (ui/screens/NotebooksScreen.kt). A notebook is one .org file;
+         folders are directories inside the notes folder. -->
+
+    <!-- Top bar button that opens or closes every folder in the tree (screen reader). -->
+    <string name="notebooks_expand_all">Expand all folders</string>
+    <string name="notebooks_collapse_all">Collapse all folders</string>
+
+    <!-- Empty states. "The bar below" is the floating Search / Capture / New notebook dock. -->
+    <string name="notebooks_empty_title">No .org files here yet</string>
+    <string name="notebooks_empty_body">Capture a note or make a notebook from the bar below</string>
+    <string name="notebooks_folder_empty">Nothing in this folder yet</string>
+
+    <!-- Shown before a notes folder is picked. Syncthing is a file sync app; keep its name. -->
+    <string name="notebooks_no_vault_title">Choose your org folder</string>
+    <string name="notebooks_no_vault_body">Pick the folder Syncthing shares with your laptop</string>
+    <string name="notebooks_no_vault_button">Choose folder</string>
+
+    <!-- New notebook dialog title and dock button (screen reader). -->
+    <string name="notebooks_new_notebook">New notebook</string>
+    <!-- Under the new notebook dialog title. %1$s = the folder it is created in, e.g. "work/". -->
+    <string name="notebooks_new_in_folder">in %1$s</string>
+    <!-- Rename dialog title. %1$s = current notebook or folder name. -->
+    <string name="notebooks_rename_title">Rename %1$s</string>
+    <string name="notebooks_folder_name_placeholder">folder name</string>
+    <!-- Big button in the bottom dock: write a new note. -->
+    <string name="notebooks_dock_capture">Capture</string>
+
+    <!-- Change icon color dialog hints: what the icon's letter or color is based on. -->
+    <string name="notebooks_color_hint_file_name">Letter follows the file name</string>
+    <!-- The notebook's #+TITLE. -->
+    <string name="notebooks_color_hint_title">Letter follows the title</string>
+    <string name="notebooks_color_hint_folder">Color follows the folder name</string>
+
+    <!-- Long-press menu on a notebook or folder. -->
+    <string name="notebooks_menu_pin">Pin to top</string>
+    <string name="notebooks_menu_unpin">Unpin</string>
+    <string name="notebooks_menu_move">Move to folder</string>
+    <string name="notebooks_menu_icon_color">Change icon color</string>
+    <!-- Re-read the file from disk, dropping the cached copy. -->
+    <string name="notebooks_menu_force_reload">Force reload</string>
+    <string name="notebooks_menu_resolve_conflict">Resolve conflict</string>
+    <!-- Small tag on a notebook that has a sync conflict. Keep it short. -->
+    <string name="notebooks_conflict_pill">Conflict</string>
+    <!-- Warning icon on a folder (screen reader). -->
+    <string name="notebooks_folder_has_conflict">Contains a sync conflict</string>
+
+    <!-- Delete dialogs. %1$s = notebook or folder name. -->
+    <string name="notebooks_delete_title">Delete %1$s?</string>
+    <!-- The words drawn in red inside the delete dialog texts below. Must appear exactly
+         as written in those texts, or the red emphasis is dropped. -->
+    <string name="notebooks_delete_emphasis">permanently delete</string>
+    <!-- Deleting a folder; %d = notebooks inside it, counting sub-folders. -->
+    <plurals name="notebooks_delete_folder_body">
+        <item quantity="one">This will permanently delete %d notebook and cannot be undone. Are you sure?</item>
+        <item quantity="other">This will permanently delete %d notebooks and cannot be undone. Are you sure?</item>
+    </plurals>
+    <string name="notebooks_delete_folder_attachments">Attachments in this folder are deleted too.</string>
+    <!-- Deleting a notebook; %d = notes (headings) in it. -->
+    <plurals name="notebooks_delete_body">
+        <item quantity="one">This will permanently delete %d note and cannot be undone. Are you sure?</item>
+        <item quantity="other">This will permanently delete %d notes and cannot be undone. Are you sure?</item>
+    </plurals>
+    <!-- Same, before the notebook's notes have been counted. -->
+    <string name="notebooks_delete_body_unindexed">This will permanently delete this notebook and cannot be undone. Are you sure?</string>
+
+    <!-- Sync status icon in the top bar: screen reader labels, and the toast shown on tap. -->
+    <string name="notebooks_sync_issue">Sync issue</string>
+    <!-- %1$s = the error message from the sync engine. -->
+    <string name="notebooks_sync_issue_detail">Sync issue: %1$s</string>
+    <string name="notebooks_sync_checking">Checking sync</string>
+    <string name="notebooks_sync_checking_detail">Checking for changes…</string>
+    <string name="notebooks_sync_pulling">Syncing</string>
+    <!-- %1$s = file being read. -->
+    <string name="notebooks_sync_pulling_detail">Syncing %1$s…</string>
+    <string name="notebooks_sync_conflicts">Sync conflicts</string>
+    <string name="notebooks_synced">Synced</string>
+    <plurals name="notebooks_synced_minutes_ago">
+        <item quantity="one">Synced %d minute ago</item>
+        <item quantity="other">Synced %d minutes ago</item>
+    </plurals>
+    <string name="notebooks_not_synced_yet">Not synced yet</string>
+    <!-- Joined to the synced text with " · ". -->
+    <plurals name="notebooks_conflict_files">
+        <item quantity="one">%d file has a conflict</item>
+        <item quantity="other">%d files have conflicts</item>
+    </plurals>
+
+    <!-- Move to folder sheet. %1$s = notebook name. -->
+    <string name="notebooks_move_title">Move %1$s</string>
+    <!-- %1$s = the notebook's current folder (or the notes folder's name). -->
+    <string name="notebooks_move_currently_in">Currently in %1$s</string>
+    <string name="notebooks_move_no_subfolders">No sub-folders here</string>
+    <string name="notebooks_move_new_folder">New folder here</string>
+    <string name="notebooks_move_create_here">Create and move here</string>
+    <!-- %1$s = the folder picked in the sheet. -->
+    <string name="notebooks_move_confirm">Move to %1$s</string>
+
+    <!-- Toasts from notebook and folder edits (ui/vault/VaultViewModels.kt). -->
+    <string name="notebooks_folder_exists">A folder with that name already exists</string>
+    <!-- %1$s = notebook file name, %2$s = the attachment folder, e.g. "data/". -->
+    <string name="notebooks_moved_attachments_stayed">Moved %1$s. Attachments stayed in %2$s</string>
+    <string name="notebooks_deleted_with_attachments">Deleted %1$s and its attachments</string>
+    <string name="notebooks_deleted_attachments_kept">Deleted %1$s. Attachments kept in %2$s</string>
+    <!-- %1$s = notebook file name, %2$d = attachment folders that couldn't be removed. -->
+    <plurals name="notebooks_deleted_attachments_failed">
+        <item quantity="one">Deleted %1$s; %2$d attachment folder couldn\'t be deleted</item>
+        <item quantity="other">Deleted %1$s; %2$d attachment folders couldn\'t be deleted</item>
+    </plurals>
+    <plurals name="notebooks_folder_renamed_attachments_failed">
+        <item quantity="one">Renamed folder; %d attachment folder couldn\'t be moved</item>
+        <item quantity="other">Renamed folder; %d attachment folders couldn\'t be moved</item>
+    </plurals>
+</resources>

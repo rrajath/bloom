@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.vault
 
+import com.rrajath.grove.testing.support.english
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
@@ -135,7 +136,7 @@ class DocumentViewModelAttachmentLinkTest {
         vm.openOrgLink(target, "notes.org", onOpenNote = { error("navigated") }, onOpenOutline = { error("navigated") })
         advanceUntilIdle()
         job.cancel()
-        return toasts.mapNotNull { it?.message }
+        return toasts.mapNotNull { it?.message?.english() }
     }
 
     private fun startedViewIntent(): Intent {

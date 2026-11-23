@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.editor
 
+import com.rrajath.grove.testing.support.english
 import android.net.Uri
 import android.os.Looper
 import androidx.compose.foundation.text.input.TextFieldState
@@ -114,7 +115,7 @@ class AttachControllerRobolectricTest {
         assertTrue("copied to $copied", copied.isFile)
         assertEquals("PDF bytes", copied.readText())
         assertTrue(textState.text.toString(), textState.text.contains("Tiny soba place.\n[[attachment:receipt.pdf]]"))
-        assertEquals("Attached to Lunch", controller.toast?.message)
+        assertEquals("Attached to Lunch", controller.toast?.message?.english())
     }
 
     @Test
@@ -331,7 +332,7 @@ class AttachControllerRobolectricTest {
         settleUntil { textState.text.contains("[[attachment:b.jpg]]") }
         assertTrue(File(vaultDir, "data/AB/12345/a.jpg").isFile)
         assertTrue(textState.text.toString(), textState.text.contains(":END:\n[[attachment:a.jpg]]\n[[attachment:b.jpg]]\nbody"))
-        assertEquals("2 photos attached to Lunch", controller.toast?.message)
+        assertEquals("2 photos attached to Lunch", controller.toast?.message?.english())
     }
 
     // ---- Scopes, paging and cross-owner links ----
@@ -466,7 +467,7 @@ class AttachControllerRobolectricTest {
 
         assertTrue(textState.text.toString(), textState.text.contains("a body[[file:data/BB/0002/photo.jpg]]\n"))
         assertNull(c.sheet)
-        assertEquals(context.getString(R.string.attach_linked_from, "photo.jpg", "B"), c.toast?.message)
+        assertEquals(context.getString(R.string.attach_linked_from, "photo.jpg", "B"), c.toast?.message?.english())
     }
 
     @Test
@@ -486,7 +487,7 @@ class AttachControllerRobolectricTest {
         settleUntil { c.sheet?.rows != null }
         composeRule.runOnIdle { c.insertExisting(rows[1]) }
         assertTrue(textState.text.toString(), textState.text.contains("[[attachment:photo.jpg]]"))
-        assertEquals(context.getString(R.string.attach_linked, "photo.jpg"), c.toast?.message)
+        assertEquals(context.getString(R.string.attach_linked, "photo.jpg"), c.toast?.message?.english())
     }
 
     @Test
@@ -500,7 +501,7 @@ class AttachControllerRobolectricTest {
 
         assertEquals(twoHeadings, textState.text.toString())
         assertNotNull("sheet stays open", c.sheet)
-        assertEquals(context.getString(R.string.attach_link_bracket_refused), c.toast?.message)
+        assertEquals(context.getString(R.string.attach_link_bracket_refused), c.toast?.message?.english())
     }
 
     @Test
@@ -562,7 +563,7 @@ class AttachControllerRobolectricTest {
         composeRule.runOnIdle { c.insertExisting(c.sheet!!.visibleRows.single()) }
 
         assertEquals(twoHeadings, textState.text.toString())
-        assertEquals(context.getString(R.string.attach_link_colons_refused), c.toast?.message)
+        assertEquals(context.getString(R.string.attach_link_colons_refused), c.toast?.message?.english())
     }
 
     @Test
@@ -714,7 +715,7 @@ class AttachControllerRobolectricTest {
         val rel = "data/${id.take(2)}/${id.drop(2)}/receipt.pdf"
         assertTrue("copied", File(vaultDir, "inbox/$rel").isFile)
         assertEquals("just a thought\n[[file:$rel]]", textState.text.toString())
-        assertEquals("Attached to capture.org", c.toast?.message)
+        assertEquals("Attached to capture.org", c.toast?.message?.english())
 
         // Discard with "Also delete attachments": the session's files go.
         assertEquals(listOf("inbox/$rel"), c.addedFiles)

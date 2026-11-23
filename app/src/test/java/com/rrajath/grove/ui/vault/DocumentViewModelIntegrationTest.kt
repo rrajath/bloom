@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.vault
 
+import com.rrajath.grove.testing.support.english
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.GroveApplication
@@ -161,7 +162,7 @@ class DocumentViewModelIntegrationTest {
     fun `load of an unknown file surfaces a not-found error`() = runTest {
         val vm = loaded("does-not-exist.org")
         val state = vm.state.value as DocumentUiState.Error
-        assertTrue(state.message.contains("does-not-exist.org"))
+        assertTrue(state.message.english().contains("does-not-exist.org"))
     }
 
     @Test
@@ -318,7 +319,7 @@ class DocumentViewModelIntegrationTest {
         advanceUntilIdle()
 
         assertTrue(spy.notes.isEmpty() && spy.outlines.isEmpty())
-        assertTrue(toasts.any { it?.message?.contains("denote:19990101T000000") == true })
+        assertTrue(toasts.any { it?.message?.english()?.contains("denote:19990101T000000") == true })
     }
 
     @Test
@@ -346,7 +347,7 @@ class DocumentViewModelIntegrationTest {
         advanceUntilIdle()
 
         assertTrue(spy.notes.isEmpty() && spy.outlines.isEmpty())
-        assertTrue(toasts.any { it?.message?.contains("Couldn't find") == true })
+        assertTrue(toasts.any { it?.message?.english()?.contains("Couldn't find") == true })
     }
 
     // --- structural outline edits + undo -------------------------------
@@ -375,7 +376,7 @@ class DocumentViewModelIntegrationTest {
         advanceUntilIdle()
 
         assertEquals(before, store.read("projects.org"))
-        assertTrue(toasts.any { it?.message == "Can't move further" })
+        assertTrue(toasts.any { it?.message?.english() == "Can't move further" })
     }
 
     @Test
@@ -389,7 +390,7 @@ class DocumentViewModelIntegrationTest {
         advanceUntilIdle()
 
         assertEquals(before, store.read("projects.org"))
-        assertTrue(toasts.any { it?.message == "Already top level" })
+        assertTrue(toasts.any { it?.message?.english() == "Already top level" })
     }
 
     @Test
@@ -516,7 +517,7 @@ class DocumentViewModelIntegrationTest {
 
         val after = OrgParser.parse(store.read("projects.org"))
         assertTrue(after.headlines.none { it.priority == 'A' })
-        assertTrue(toasts.any { it?.message?.startsWith("The file changed") == true })
+        assertTrue(toasts.any { it?.message?.english()?.startsWith("The file changed") == true })
     }
 
     @Test
@@ -537,7 +538,7 @@ class DocumentViewModelIntegrationTest {
         advanceUntilIdle()
 
         assertTrue(vm.selectedLines.value.isEmpty())
-        assertTrue(toasts.any { it?.message?.startsWith("Selection cleared") == true })
+        assertTrue(toasts.any { it?.message?.english()?.startsWith("Selection cleared") == true })
     }
 
     @Test

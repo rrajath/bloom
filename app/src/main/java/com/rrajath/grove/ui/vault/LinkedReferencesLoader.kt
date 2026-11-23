@@ -36,7 +36,7 @@ internal suspend fun IndexDao.notesWithBodyText(text: String): List<NoteEntity> 
         notesMatching(
             rawQuery(
                 "SELECT * FROM notes WHERE (fileName, lineIndex) IN " +
-                    "(SELECT fileName, lineIndex FROM ${NotesFts.TABLE} WHERE ${NotesFts.TABLE} MATCH ?)",
+                    "(SELECT fileName, lineIndex FROM ${NotesFts.TABLE} WHERE ${NotesFts.TABLE} MATCH ?)", // i18n: SQL
                 listOf(match),
             ),
         )

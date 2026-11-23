@@ -74,6 +74,7 @@ import com.rrajath.grove.ui.theme.LocalGroveColors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.ui.vault.OutlineToast
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -236,7 +237,7 @@ fun AttachmentViewer(
         tapped = true
     }
     fun showToast(message: String) {
-        val t = OutlineToast(message, System.nanoTime())
+        val t = OutlineToast(UiText.raw(message), System.nanoTime())
         toast = t
         scope.launch {
             delay(TOAST_MILLIS)

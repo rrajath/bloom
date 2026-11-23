@@ -159,6 +159,7 @@ import com.rrajath.grove.ui.vault.bulkMetadataSummary
 import com.rrajath.grove.ui.vault.breadcrumbFileLabel
 import com.rrajath.grove.ui.vault.fitsWholeFileView
 import com.rrajath.grove.ui.vault.headlineAtLine
+import com.rrajath.grove.ui.util.asString
 
 data class OutlineDisplayFlags(
     val tags: Boolean = true,
@@ -619,7 +620,7 @@ fun OutlineScreen(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(s.message, fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2)
+                Text(s.message.asString(), fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2)
             }
 
             is DocumentUiState.Loaded -> {

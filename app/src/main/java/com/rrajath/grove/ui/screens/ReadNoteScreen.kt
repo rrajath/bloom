@@ -152,6 +152,7 @@ import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.PendingEdit
 import com.rrajath.grove.ui.vault.compactFileLabel
 import com.rrajath.grove.ui.vault.headlineFor
+import com.rrajath.grove.ui.util.asString
 
 /**
  * Read mode per design spec §5: rendered note (own body + subtree).
@@ -347,7 +348,7 @@ fun ReadNoteScreen(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(s.message, fontFamily = PlexSans, color = c.ink2)
+                Text(s.message.asString(), fontFamily = PlexSans, color = c.ink2)
             }
 
             is DocumentUiState.Loaded -> {

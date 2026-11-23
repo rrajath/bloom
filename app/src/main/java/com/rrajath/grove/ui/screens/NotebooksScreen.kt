@@ -56,6 +56,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import com.rrajath.grove.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -81,13 +83,14 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -114,7 +117,9 @@ import com.rrajath.grove.ui.newbadge.NewDotBadge
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.countLabel
+import com.rrajath.grove.ui.util.resolve
 import com.rrajath.grove.ui.vault.FOLDER_DRILL_THRESHOLD
 import com.rrajath.grove.ui.vault.FolderNode
 import com.rrajath.grove.ui.vault.NotebookItem
@@ -191,9 +196,9 @@ fun NotebooksScreen(
                     folderRenameTarget = null
                 }
                 is NotebookEditEvent.NameTaken ->
-                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, event.message.resolve(context), Toast.LENGTH_SHORT).show()
                 is NotebookEditEvent.Message ->
-                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, event.message.resolve(context), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -217,7 +222,7 @@ fun NotebooksScreen(
             val currentDrill = drillDir
             if (loadedState != null && currentDrill != null) {
                 GroveTopBar(
-                    leading = { IconGlyph("←", onClick = { drillUp() }) },
+                    leading = { IconGlyph(backArrowGlyph(), onClick = { drillUp() }) },
                     title = {
                         Text(
                             currentDrill.substringAfterLast('/'),
@@ -228,7 +233,7 @@ fun NotebooksScreen(
                     },
                     subtitle = {
                         Breadcrumb(
-                            vaultName = loadedState.vaultDisplayName,
+                            vaultName = loadedState.vaultDisplayName.ifEmpty { stringResource(R.string.nav_notebooks) },
                             dir = currentDrill,
                             onExit = { drillDir = null },
                             onNavigate = { drillDir = it },
@@ -244,7 +249,7 @@ fun NotebooksScreen(
                     },
                     title = {
                         Text(
-                            "Notebooks",
+                            stringResource(R.string.nav_notebooks),
                             style = MaterialTheme.typography.titleLarge,
                             color = c.ink,
                             modifier = Modifier.padding(start = 4.dp),
@@ -268,9 +273,9 @@ fun NotebooksScreen(
                                         if (loadedState.allFoldersCollapsed) Icons.Default.UnfoldMore
                                         else Icons.Default.UnfoldLess,
                                         contentDescription = if (loadedState.allFoldersCollapsed) {
-                                            "Expand all folders"
+                                            stringResource(R.string.notebooks_expand_all)
                                         } else {
-                                            "Collapse all folders"
+                                            stringResource(R.string.notebooks_collapse_all)
                                         },
                                         onClick = {
                                             viewModel.setAllFoldersExpanded(loadedState.allFoldersCollapsed)
@@ -385,7 +390,7 @@ fun NotebooksScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             if (s.notebooks.isEmpty()) {
-                                CenterMessage("✦", "No .org files here yet", "Capture a note or make a notebook from the bar below")
+                                CenterMessage("✦", stringResource(R.string.notebooks_empty_title), stringResource(R.string.notebooks_empty_body))
                             } else {
                                 val listState = rememberLazyListState()
                                 Box(Modifier.fillMaxSize()) {
@@ -431,7 +436,7 @@ fun NotebooksScreen(
                             )
                         }
                         if (level.childFolders.isEmpty() && level.files.isEmpty()) {
-                            CenterMessage("✦", "Nothing in this folder yet")
+                            CenterMessage("✦", stringResource(R.string.notebooks_folder_empty))
                         } else {
                             val listState = rememberLazyListState()
                             Box(Modifier.fillMaxSize()) {
@@ -467,7 +472,7 @@ fun NotebooksScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             if (s.notebooks.isEmpty()) {
-                                CenterMessage("✦", "No .org files here yet", "Capture a note or make a notebook from the bar below")
+                                CenterMessage("✦", stringResource(R.string.notebooks_empty_title), stringResource(R.string.notebooks_empty_body))
                             } else {
                                 val listState = rememberLazyListState()
                                 // Each top-level folder + its visible descendants is one list
@@ -616,14 +621,14 @@ fun NotebooksScreen(
 
     createInDir?.let { dir ->
         NameDialog(
-            title = "New notebook",
+            title = stringResource(R.string.notebooks_new_notebook),
             initial = "",
-            confirmLabel = "Create",
-            contextLabel = if (dir.isNotEmpty()) "in $dir/" else null,
-            placeholder = "ideas",
+            confirmLabel = stringResource(R.string.action_create),
+            contextLabel = if (dir.isNotEmpty()) stringResource(R.string.notebooks_new_in_folder, "$dir/") else null,
+            placeholder = stringResource(R.string.refile_new_file_placeholder),
             filenameSuffix = ".org",
             validate = FilenameValidation::errorForNewNotebook,
-            helperText = "Use a slash to nest it in folders, e.g. work/ideas",
+            helperText = stringResource(R.string.refile_new_file_helper),
             onDismiss = { createInDir = null },
             // Closed by the editEvents collector: on success, or left open with a
             // toast when the name already exists.
@@ -640,7 +645,7 @@ fun NotebooksScreen(
                 displayName = nb.displayName,
                 currentDir = nb.dir,
                 notebooks = loaded.notebooks,
-                vaultName = loaded.vaultDisplayName,
+                vaultName = loaded.vaultDisplayName.ifEmpty { stringResource(R.string.nav_notebooks) },
                 onConfirm = { newDir ->
                     if (newDir.trim('/') == nb.dir.trim('/')) {
                         viewModel.moveNotebook(target, newDir)
@@ -682,9 +687,9 @@ fun NotebooksScreen(
     }
     renameTarget?.let { target ->
         NameDialog(
-            title = "Rename $target",
+            title = stringResource(R.string.notebooks_rename_title, target),
             initial = target.substringAfterLast('/'),
-            confirmLabel = "Rename",
+            confirmLabel = stringResource(R.string.action_rename),
             filenameSuffix = ".org",
             validate = FilenameValidation::errorForRenameNotebook,
             onDismiss = { renameTarget = null },
@@ -701,9 +706,9 @@ fun NotebooksScreen(
             ChangeIconColorDialog(
                 name = notebook.displayName,
                 hint = if (notebook.displayName == notebook.fileName.substringAfterLast('/')) {
-                    "Letter follows the file name"
+                    stringResource(R.string.notebooks_color_hint_file_name)
                 } else {
-                    "Letter follows the title"
+                    stringResource(R.string.notebooks_color_hint_title)
                 },
                 letter = monogramLetter(notebook.displayName),
                 currentColorKey = notebook.color ?: nameHashPaletteKey(notebook.fileName),
@@ -714,10 +719,10 @@ fun NotebooksScreen(
     }
     folderRenameTarget?.let { dir ->
         NameDialog(
-            title = "Rename ${dir.substringAfterLast('/')}",
+            title = stringResource(R.string.notebooks_rename_title, dir.substringAfterLast('/')),
             initial = dir.substringAfterLast('/'),
-            confirmLabel = "Rename",
-            placeholder = "folder name",
+            confirmLabel = stringResource(R.string.action_rename),
+            placeholder = stringResource(R.string.notebooks_folder_name_placeholder),
             onDismiss = { folderRenameTarget = null },
             // Closed by the editEvents collector (see the create dialog).
             onConfirm = { name -> viewModel.renameFolder(dir, name) },
@@ -727,7 +732,7 @@ fun NotebooksScreen(
         val loaded = state as? NotebooksUiState.Loaded
         ChangeIconColorDialog(
             name = dir.substringAfterLast('/'),
-            hint = "Color follows the folder name",
+            hint = stringResource(R.string.notebooks_color_hint_folder),
             letter = "▪",
             glyph = "▪",
             currentColorKey = loaded?.folderColors?.get(dir) ?: nameHashPaletteKey(dir),
@@ -755,21 +760,19 @@ fun NotebooksScreen(
                 containerColor = c.surface,
                 title = {
                     Text(
-                        "Delete ${node.name}?",
+                        stringResource(R.string.notebooks_delete_title, node.name),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.ink,
                     )
                 },
                 text = {
-                    val subject = if (count == 1) "1 notebook" else "$count notebooks"
+                    val body = pluralStringResource(R.plurals.notebooks_delete_folder_body, count, count)
+                    val attachmentsNote = stringResource(R.string.notebooks_delete_folder_attachments)
                     Text(
-                        buildAnnotatedString {
-                            append("This will ")
-                            withStyle(SpanStyle(color = c.red, fontWeight = FontWeight.Bold)) {
-                                append("permanently delete")
-                            }
-                            append(" $subject and cannot be undone. Are you sure?")
-                            if (hasAttachments) append(" Attachments in this folder are deleted too.")
-                        },
+                        emphasized(
+                            if (hasAttachments) "$body $attachmentsNote" else body,
+                            stringResource(R.string.notebooks_delete_emphasis),
+                            SpanStyle(color = c.red, fontWeight = FontWeight.Bold),
+                        ),
                         fontFamily = PlexSans, fontSize = 13.sp, color = c.ink2,
                     )
                 },
@@ -779,11 +782,11 @@ fun NotebooksScreen(
                             viewModel.deleteFolder(dir)
                             folderDeleteTarget = null
                         },
-                    ) { Text("Delete", color = c.red, fontWeight = FontWeight.SemiBold) }
+                    ) { Text(stringResource(R.string.action_delete), color = c.red, fontWeight = FontWeight.SemiBold) }
                 },
                 dismissButton = {
                     TextButton(onClick = { folderDeleteTarget = null }) {
-                        Text("Cancel", color = c.ink2)
+                        Text(stringResource(R.string.action_cancel), color = c.ink2)
                     }
                 },
             )
@@ -814,7 +817,7 @@ fun NotebooksScreen(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Delete ${target.substringAfterLast('/').removeSuffix(".org")}?",
+                    stringResource(R.string.notebooks_delete_title, target.substringAfterLast('/').removeSuffix(".org")),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.ink,
                 )
             },
@@ -822,19 +825,13 @@ fun NotebooksScreen(
                 // Note count from the row, when the notebook has been indexed;
                 // otherwise fall back to naming the notebook itself.
                 val count = nb?.takeIf { it.isIndexed }?.noteCount
-                val subject = when {
-                    count == null -> "this notebook"
-                    count == 1 -> "1 note"
-                    else -> "$count notes"
-                }
                 Text(
-                    buildAnnotatedString {
-                        append("This will ")
-                        withStyle(SpanStyle(color = c.red, fontWeight = FontWeight.Bold)) {
-                            append("permanently delete")
-                        }
-                        append(" $subject and cannot be undone. Are you sure?")
-                    },
+                    emphasized(
+                        if (count == null) stringResource(R.string.notebooks_delete_body_unindexed)
+                        else pluralStringResource(R.plurals.notebooks_delete_body, count, count),
+                        stringResource(R.string.notebooks_delete_emphasis),
+                        SpanStyle(color = c.red, fontWeight = FontWeight.Bold),
+                    ),
                     fontFamily = PlexSans, fontSize = 13.sp, color = c.ink2,
                 )
             },
@@ -844,11 +841,11 @@ fun NotebooksScreen(
                         viewModel.deleteNotebook(target)
                         notebookDeleteTarget = null
                     },
-                ) { Text("Delete", color = c.red, fontWeight = FontWeight.SemiBold) }
+                ) { Text(stringResource(R.string.action_delete), color = c.red, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = {
                 TextButton(onClick = { notebookDeleteTarget = null }) {
-                    Text("Cancel", color = c.ink2)
+                    Text(stringResource(R.string.action_cancel), color = c.ink2)
                 }
             },
         )
@@ -867,21 +864,22 @@ private fun SyncStatusIcon(state: NotebooksUiState.Loaded, context: android.cont
     // Only re-scan for conflicts when the notebooks list itself changes, not on every
     // sync-state tick (this icon is in the always-visible top bar).
     val conflictCount = remember(state.notebooks) { state.notebooks.count { it.hasConflict } }
+    val resources = LocalResources.current
     when (val sync = state.syncState) {
         is SyncState.Error -> {
             IconButton(
                 onClick = {
-                    Toast.makeText(context, "Sync issue: ${sync.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, resources.getString(R.string.notebooks_sync_issue_detail, sync.message), Toast.LENGTH_SHORT).show()
                 },
             ) {
-                Icon(Icons.Default.Warning, contentDescription = "Sync issue", tint = c.amber)
+                Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.notebooks_sync_issue), tint = c.amber)
             }
         }
         is SyncState.Checking -> {
             IconButton(
-                onClick = { Toast.makeText(context, "Checking for changes…", Toast.LENGTH_SHORT).show() },
+                onClick = { Toast.makeText(context, resources.getString(R.string.notebooks_sync_checking_detail), Toast.LENGTH_SHORT).show() },
             ) {
-                Icon(Icons.Default.Sync, contentDescription = "Checking sync", tint = c.ink2)
+                Icon(Icons.Default.Sync, contentDescription = stringResource(R.string.notebooks_sync_checking), tint = c.ink2)
             }
         }
         is SyncState.Pulling -> {
@@ -889,36 +887,37 @@ private fun SyncStatusIcon(state: NotebooksUiState.Loaded, context: android.cont
                 onClick = {
                     Toast.makeText(
                         context,
-                        "Syncing ${sync.fileName.substringAfterLast('/')}…",
+                        resources.getString(R.string.notebooks_sync_pulling_detail, sync.fileName.substringAfterLast('/')),
                         Toast.LENGTH_SHORT,
                     ).show()
                 },
             ) {
-                Icon(Icons.Default.Sync, contentDescription = "Syncing", tint = c.ink2)
+                Icon(Icons.Default.Sync, contentDescription = stringResource(R.string.notebooks_sync_pulling), tint = c.ink2)
             }
         }
         else -> {
             val minutes = state.lastSyncAt
                 ?.let { ((System.currentTimeMillis() - it) / 60_000L).coerceAtLeast(0) }
-            val syncedMessage = if (minutes != null) "Synced $minutes minutes ago" else "Not synced yet"
+            val syncedMessage = if (minutes != null) {
+                pluralStringResource(R.plurals.notebooks_synced_minutes_ago, minutes.toInt(), minutes)
+            } else {
+                stringResource(R.string.notebooks_not_synced_yet)
+            }
             if (conflictCount > 0) {
                 IconButton(
                     onClick = {
-                        val conflictMessage = if (conflictCount == 1) {
-                            "1 file has a conflict"
-                        } else {
-                            "$conflictCount files have conflicts"
-                        }
+                        val conflictMessage =
+                            resources.getQuantityString(R.plurals.notebooks_conflict_files, conflictCount, conflictCount)
                         Toast.makeText(context, "$syncedMessage · $conflictMessage", Toast.LENGTH_SHORT).show()
                     },
                 ) {
-                    Icon(Icons.Default.Warning, contentDescription = "Sync conflicts", tint = c.amber)
+                    Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.notebooks_sync_conflicts), tint = c.amber)
                 }
             } else {
                 IconButton(
                     onClick = { Toast.makeText(context, syncedMessage, Toast.LENGTH_SHORT).show() },
                 ) {
-                    SyncedCheckIcon(contentDescription = "Synced")
+                    SyncedCheckIcon(contentDescription = stringResource(R.string.notebooks_synced))
                 }
             }
         }
@@ -1077,10 +1076,10 @@ private fun FolderRow(
                 )
                 Text(
                     buildString {
-                        append(pluralCount(node.recursiveOrgCount, "file"))
+                        append(countLabel(R.plurals.count_files, node.recursiveOrgCount))
                         if (node.directFolderCount > 0) {
                             append(" / ")
-                            append(pluralCount(node.directFolderCount, "folder"))
+                            append(countLabel(R.plurals.count_folders, node.directFolderCount))
                         }
                     },
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
@@ -1098,7 +1097,7 @@ private fun FolderRow(
             if (node.hasConflictDescendant) {
                 Icon(
                     Icons.Default.Warning,
-                    contentDescription = "Contains a sync conflict",
+                    contentDescription = stringResource(R.string.notebooks_folder_has_conflict),
                     tint = c.amber,
                     modifier = Modifier.size(16.dp),
                 )
@@ -1137,26 +1136,26 @@ private fun FolderRow(
         ) {
             if (node.isPinned) {
                 DropdownMenuItem(
-                    text = { Text("Unpin", fontFamily = PlexSans, color = c.ink) },
+                    text = { Text(stringResource(R.string.notebooks_menu_unpin), fontFamily = PlexSans, color = c.ink) },
                     onClick = { menuOpen = false; onUnpin() },
                 )
                 PinMoveItems(pinIndex, pinCount, onMovePin, onDone = { menuOpen = false })
             } else {
                 DropdownMenuItem(
-                    text = { Text("Pin to top", fontFamily = PlexSans, color = c.ink) },
+                    text = { Text(stringResource(R.string.notebooks_menu_pin), fontFamily = PlexSans, color = c.ink) },
                     onClick = { menuOpen = false; onPin() },
                 )
             }
             DropdownMenuItem(
-                text = { Text("Rename", fontFamily = PlexSans, color = c.ink) },
+                text = { Text(stringResource(R.string.action_rename), fontFamily = PlexSans, color = c.ink) },
                 onClick = { menuOpen = false; onRename() },
             )
             DropdownMenuItem(
-                text = { Text("Change icon color", fontFamily = PlexSans, color = c.ink) },
+                text = { Text(stringResource(R.string.notebooks_menu_icon_color), fontFamily = PlexSans, color = c.ink) },
                 onClick = { menuOpen = false; onChangeColor() },
             )
             DropdownMenuItem(
-                text = { Text("Delete", fontFamily = PlexSans, color = c.red) },
+                text = { Text(stringResource(R.string.action_delete), fontFamily = PlexSans, color = c.red) },
                 onClick = { menuOpen = false; onDelete() },
             )
         }
@@ -1172,12 +1171,12 @@ private fun PinMoveItems(pinIndex: Int, pinCount: Int, onMovePin: (delta: Int) -
     val canMoveUp = pinIndex > 0
     val canMoveDown = pinIndex < pinCount - 1
     DropdownMenuItem(
-        text = { Text("Move up", fontFamily = PlexSans, color = if (canMoveUp) c.ink else c.ink3) },
+        text = { Text(stringResource(R.string.action_move_up), fontFamily = PlexSans, color = if (canMoveUp) c.ink else c.ink3) },
         enabled = canMoveUp,
         onClick = { onDone(); onMovePin(-1) },
     )
     DropdownMenuItem(
-        text = { Text("Move down", fontFamily = PlexSans, color = if (canMoveDown) c.ink else c.ink3) },
+        text = { Text(stringResource(R.string.action_move_down), fontFamily = PlexSans, color = if (canMoveDown) c.ink else c.ink3) },
         enabled = canMoveDown,
         onClick = { onDone(); onMovePin(1) },
     )
@@ -1249,7 +1248,7 @@ private fun FileRow(
                 // fills in the count; avoids a "0 notes" flash before the jump.
                 Text(
                     if (notebook.isIndexed) {
-                        "${pluralCount(notebook.noteCount, "note")} · $ago"
+                        "${countLabel(R.plurals.count_notes, notebook.noteCount)} · $ago"
                     } else {
                         "$ago"
                     },
@@ -1265,7 +1264,7 @@ private fun FileRow(
                 )
             }
             if (notebook.hasConflict) {
-                Pill("Conflict", fg = c.amber, bg = c.amberSoft, onClick = onOpenConflict)
+                Pill(stringResource(R.string.notebooks_conflict_pill), fg = c.amber, bg = c.amberSoft, onClick = onOpenConflict)
             }
         }
         GroveDropdownMenu(
@@ -1274,40 +1273,40 @@ private fun FileRow(
         ) {
             if (notebook.isPinned) {
                 DropdownMenuItem(
-                    text = { Text("Unpin", fontFamily = PlexSans, color = c.ink) },
+                    text = { Text(stringResource(R.string.notebooks_menu_unpin), fontFamily = PlexSans, color = c.ink) },
                     onClick = { menuOpen = false; onUnpin() },
                 )
                 PinMoveItems(pinIndex, pinCount, onMovePin, onDone = { menuOpen = false })
             } else {
                 DropdownMenuItem(
-                    text = { Text("Pin to top", fontFamily = PlexSans, color = c.ink) },
+                    text = { Text(stringResource(R.string.notebooks_menu_pin), fontFamily = PlexSans, color = c.ink) },
                     onClick = { menuOpen = false; onPin() },
                 )
             }
             DropdownMenuItem(
-                text = { Text("Rename", fontFamily = PlexSans, color = c.ink) },
+                text = { Text(stringResource(R.string.action_rename), fontFamily = PlexSans, color = c.ink) },
                 onClick = { menuOpen = false; onRename() },
             )
             DropdownMenuItem(
-                text = { Text("Move to folder", fontFamily = PlexSans, color = c.ink) },
+                text = { Text(stringResource(R.string.notebooks_menu_move), fontFamily = PlexSans, color = c.ink) },
                 onClick = { menuOpen = false; onMove() },
             )
             DropdownMenuItem(
-                text = { Text("Change icon color", fontFamily = PlexSans, color = c.ink) },
+                text = { Text(stringResource(R.string.notebooks_menu_icon_color), fontFamily = PlexSans, color = c.ink) },
                 onClick = { menuOpen = false; onChangeIcon() },
             )
             DropdownMenuItem(
-                text = { Text("Force reload", fontFamily = PlexSans, color = c.ink) },
+                text = { Text(stringResource(R.string.notebooks_menu_force_reload), fontFamily = PlexSans, color = c.ink) },
                 onClick = { menuOpen = false; onForceReload() },
             )
             if (notebook.hasConflict) {
                 DropdownMenuItem(
-                    text = { Text("Resolve conflict", fontFamily = PlexSans, color = c.amber) },
+                    text = { Text(stringResource(R.string.notebooks_menu_resolve_conflict), fontFamily = PlexSans, color = c.amber) },
                     onClick = { menuOpen = false; onOpenConflict() },
                 )
             }
             DropdownMenuItem(
-                text = { Text("Delete", fontFamily = PlexSans, color = c.red) },
+                text = { Text(stringResource(R.string.action_delete), fontFamily = PlexSans, color = c.red) },
                 onClick = { menuOpen = false; onDelete() },
             )
         }
@@ -1326,12 +1325,12 @@ private fun NoVaultState(onChooseFolder: () -> Unit) {
             Text("✦", fontFamily = PlexMono, fontSize = 28.sp, color = c.ink3)
             Spacer(Modifier.height(10.dp))
             Text(
-                "Choose your org folder",
+                stringResource(R.string.notebooks_no_vault_title),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp, color = c.ink2,
             )
             Text(
-                "Pick the folder Syncthing shares with your laptop",
+                stringResource(R.string.notebooks_no_vault_body),
                 fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3,
             )
             Spacer(Modifier.height(16.dp))
@@ -1343,7 +1342,7 @@ private fun NoVaultState(onChooseFolder: () -> Unit) {
                     .padding(horizontal = 22.dp, vertical = 13.dp),
             ) {
                 Text(
-                    "Choose folder",
+                    stringResource(R.string.notebooks_no_vault_button),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp, color = c.accentInk,
                 )
@@ -1403,13 +1402,13 @@ private fun MoveToFolderSheet(
     ) {
         Column(Modifier.padding(horizontal = 14.dp)) {
             Text(
-                "Move $displayName",
+                stringResource(R.string.notebooks_move_title, displayName),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, color = c.ink,
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                "Currently in ${currentDir.ifEmpty { vaultName }}",
+                stringResource(R.string.notebooks_move_currently_in, currentDir.ifEmpty { vaultName }),
                 fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
             )
             Spacer(Modifier.height(10.dp))
@@ -1427,7 +1426,7 @@ private fun MoveToFolderSheet(
                 if (childFolders.isEmpty()) {
                     item {
                         Text(
-                            "No sub-folders here",
+                            stringResource(R.string.notebooks_move_no_subfolders),
                             fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3,
                             modifier = Modifier.padding(vertical = 12.dp),
                         )
@@ -1465,14 +1464,14 @@ private fun MoveToFolderSheet(
                     value = newFolder,
                     onValueChange = { newFolder = it },
                     singleLine = true,
-                    placeholder = { Text("folder name", fontFamily = PlexMono, color = c.ink3) },
+                    placeholder = { Text(stringResource(R.string.notebooks_folder_name_placeholder), fontFamily = PlexMono, color = c.ink3) },
                     textStyle = TextStyle(fontFamily = PlexMono, color = c.ink),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
                 val newDir = vaultPath(pickerDir, newFolder.trim().trim('/'))
                 MoveConfirmButton(
-                    label = "Create and move here",
+                    label = stringResource(R.string.notebooks_move_create_here),
                     enabled = newFolder.isNotBlank() && newDir != currentDir,
                     onClick = { onConfirm(newDir) },
                     modifier = Modifier.fillMaxWidth(),
@@ -1488,7 +1487,7 @@ private fun MoveToFolderSheet(
                     Text("＋", fontFamily = PlexMono, fontSize = 15.sp, color = c.accent)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "New folder here",
+                        stringResource(R.string.notebooks_move_new_folder),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp, color = c.accent,
                     )
@@ -1510,13 +1509,13 @@ private fun MoveToFolderSheet(
                         .padding(horizontal = 18.dp, vertical = 12.dp),
                 ) {
                     Text(
-                        "Cancel",
+                        stringResource(R.string.action_cancel),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp, color = c.ink2,
                     )
                 }
                 MoveConfirmButton(
-                    label = "Move to ${pickerDir.ifEmpty { vaultName }}",
+                    label = stringResource(R.string.notebooks_move_confirm, pickerDir.ifEmpty { vaultName }),
                     enabled = pickerDir != currentDir && !creatingFolder,
                     onClick = { onConfirm(pickerDir) },
                     modifier = Modifier.weight(1f),
@@ -1613,7 +1612,7 @@ private fun NotebooksDock(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            DockIconButton(searchIcon(), "Search", onSearch)
+            DockIconButton(searchIcon(), stringResource(R.string.nav_search), onSearch)
             // requiredHeight ignores the 48dp content slot so the pill grows to
             // 72dp and, centred, overhangs the capsule by ~6dp top and bottom.
             Row(
@@ -1630,12 +1629,12 @@ private fun NotebooksDock(
                 Text("+", fontFamily = PlexSans, fontSize = 22.sp, color = c.accentInk)
                 Spacer(Modifier.width(9.dp))
                 Text(
-                    "Capture",
+                    stringResource(R.string.notebooks_dock_capture),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp, color = c.accentInk,
                 )
             }
-            DockIconButton(notebookIcon(), "New notebook", onNewNotebook)
+            DockIconButton(notebookIcon(), stringResource(R.string.notebooks_new_notebook), onNewNotebook)
         }
     }
 }
@@ -1698,4 +1697,15 @@ internal fun IconGlyph(icon: androidx.compose.ui.graphics.vector.ImageVector, co
             modifier = Modifier.size(22.dp),
         )
     }
+}
+
+/**
+ * [text] with the first occurrence of [phrase] drawn in [style] (the red
+ * "permanently delete" in the delete dialogs). A translation that doesn't
+ * contain [phrase] verbatim just loses the emphasis.
+ */
+private fun emphasized(text: String, phrase: String, style: SpanStyle): AnnotatedString = buildAnnotatedString {
+    append(text)
+    val start = if (phrase.isEmpty()) -1 else text.indexOf(phrase)
+    if (start >= 0) addStyle(style, start, start + phrase.length)
 }

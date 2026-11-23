@@ -50,7 +50,7 @@ import com.rrajath.grove.ui.vault.OutlineToast
 fun GroveToast(toast: OutlineToast?, modifier: Modifier = Modifier) {
     val c = MaterialTheme.grove
     // Keep the last message so the exit animation doesn't show an empty pill.
-    var lastMessage by remember { mutableStateOf("") }
+    var lastMessage by remember { mutableStateOf<UiText>(UiText.raw("")) }
     toast?.let { lastMessage = it.message }
     AnimatedVisibility(
         visible = toast != null,
@@ -66,7 +66,7 @@ fun GroveToast(toast: OutlineToast?, modifier: Modifier = Modifier) {
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             Text(
-                lastMessage,
+                lastMessage.asString(),
                 fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                 fontSize = 13.sp, color = c.bg,
             )

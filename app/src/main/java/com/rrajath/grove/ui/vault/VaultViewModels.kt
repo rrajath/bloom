@@ -2,6 +2,8 @@ package com.rrajath.grove.ui.vault
 
 import android.content.Intent
 import android.provider.DocumentsContract
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -57,7 +59,6 @@ import com.rrajath.grove.sync.SyncState
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.editor.LinkSearchItem
 import com.rrajath.grove.ui.util.UiText
-import com.rrajath.grove.ui.util.pluralCount
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.Notebook
 import com.rrajath.grove.vault.StateChangeResult
@@ -103,17 +104,17 @@ import java.time.LocalDateTime
 /**
  * The vault folder's own name, from its SAF tree URI — e.g. a URI whose tree
  * document id is `primary:Documents/org` yields `org`. Used as the breadcrumb
- * root in the drill-down view; falls back to "Notebooks" when there's no vault
- * or the id can't be read.
+ * root in the drill-down view; falls back to "" when there's no vault
+ * or the id can't be read. Empty means "no name": the screen shows the
+ * translated "Notebooks" instead.
  */
 private fun vaultDisplayName(treeUri: String?): String {
-    if (treeUri.isNullOrEmpty()) return "Notebooks"
+    if (treeUri.isNullOrEmpty()) return ""
     return runCatching {
         DocumentsContract.getTreeDocumentId(treeUri.toUri())
             .substringAfterLast('/')
             .substringAfterLast(':')
-            .ifEmpty { "Notebooks" }
-    }.getOrDefault("Notebooks")
+    }.getOrDefault("")
 }
 
 data class NotebookItem(
@@ -180,8 +181,8 @@ sealed class NotebooksUiState {
         val hasFolders: Boolean = false,
         /** True when no folder is expanded (picks the expand-all vs collapse-all icon). */
         val allFoldersCollapsed: Boolean = true,
-        /** The vault folder's own display name — the breadcrumb root in the drill-down view (1b). */
-        val vaultDisplayName: String = "Notebooks",
+        /** The vault folder's own display name — the breadcrumb root in the drill-down view (1b); "" = unknown. */
+        val vaultDisplayName: String = "",
         val syncState: SyncState = SyncState.Idle,
         val lastSyncAt: Long? = null,
         /** Reminders waiting on POST_NOTIFICATIONS/exact-alarm access (permission banner). */
@@ -214,9 +215,9 @@ sealed interface NotebookEditEvent {
     /** The create/rename went through; the screen dismisses the open name dialog. */
     data object Succeeded : NotebookEditEvent
     /** [message] names the collision; the screen toasts it and leaves the dialog open. */
-    data class NameTaken(val message: String) : NotebookEditEvent
+    data class NameTaken(val message: UiText) : NotebookEditEvent
     /** A one-off outcome to toast (attachment moves and deletes). */
-    data class Message(val message: String) : NotebookEditEvent
+    data class Message(val message: UiText) : NotebookEditEvent
 }
 
 class NotebooksViewModel(
@@ -506,7 +507,7 @@ class NotebooksViewModel(
                 sync.requestSync("notebook created")
             } else {
                 _editEvents.emit(
-                    NotebookEditEvent.NameTaken("A notebook with that name already exists")
+                    NotebookEditEvent.NameTaken(UiText.res(R.string.location_notebook_exists))
                 )
             }
         }
@@ -536,9 +537,9 @@ class NotebooksViewModel(
                         val result = withContext(dispatchers.io) {
                             lifecycle.moveNotebookAttachments(path, newPath, inventory)
                         }
-                        notebookMoveMessage(leaf, newDir.trim('/'), result)
+                        UiText.raw(notebookMoveMessage(leaf, newDir.trim('/'), result))
                     } else {
-                        "Moved $leaf. Attachments stayed in ${attachDirLabel(path, lifecycle.config)}"
+                        UiText.res(R.string.notebooks_moved_attachments_stayed, leaf, attachDirLabel(path, lifecycle.config))
                     }
                     _editEvents.emit(NotebookEditEvent.Message(message))
                 }
@@ -590,7 +591,7 @@ class NotebooksViewModel(
                 _editEvents.emit(NotebookEditEvent.Succeeded)
             } else {
                 _editEvents.emit(
-                    NotebookEditEvent.NameTaken("A notebook with that name already exists")
+                    NotebookEditEvent.NameTaken(UiText.res(R.string.location_notebook_exists))
                 )
             }
             sync.requestSync("notebook renamed")
@@ -614,12 +615,12 @@ class NotebooksViewModel(
                             lifecycle.deleteDirs(name, inventory) { id -> lifecycle.heldInDir(name, id) }
                         }
                         if (result.failed > 0) {
-                            "Deleted $leaf; ${pluralCount(result.failed, "attachment folder")} couldn't be deleted"
+                            UiText.plural(R.plurals.notebooks_deleted_attachments_failed, result.failed, leaf, result.failed)
                         } else {
-                            "Deleted $leaf and its attachments"
+                            UiText.res(R.string.notebooks_deleted_with_attachments, leaf)
                         }
                     } else {
-                        "Deleted $leaf. Attachments kept in ${attachDirLabel(name, lifecycle.config)}"
+                        UiText.res(R.string.notebooks_deleted_attachments_kept, leaf, attachDirLabel(name, lifecycle.config))
                     }
                     _editEvents.emit(NotebookEditEvent.Message(message))
                 }
@@ -689,7 +690,7 @@ class NotebooksViewModel(
                     if (result == null || result.failed > 0) {
                         _editEvents.emit(
                             NotebookEditEvent.Message(
-                                "Renamed folder; ${pluralCount(result?.failed ?: 1, "attachment folder")} couldn't be moved"
+                                (result?.failed ?: 1).let { UiText.plural(R.plurals.notebooks_folder_renamed_attachments_failed, it) }
                             )
                         )
                     }
@@ -701,7 +702,7 @@ class NotebooksViewModel(
                 sync.requestSync("folder renamed")
             } else {
                 _editEvents.emit(
-                    NotebookEditEvent.NameTaken("A folder with that name already exists")
+                    NotebookEditEvent.NameTaken(UiText.res(R.string.notebooks_folder_exists))
                 )
             }
         }
@@ -759,11 +760,11 @@ sealed class DocumentUiState {
          */
         val lineRemap: ((Int) -> Int?)? = null,
     ) : DocumentUiState()
-    data class Error(val message: String) : DocumentUiState()
+    data class Error(val message: UiText) : DocumentUiState()
 }
 
 /** Transient bottom-center pill message (design spec: ~1.9s). */
-data class OutlineToast(val message: String, val id: Long)
+data class OutlineToast(val message: UiText, val id: Long)
 
 /** Undoable-operation snackbar (design spec: ~4.2s with an UNDO action). */
 data class OutlineSnack(val message: UiText, val id: Long)
@@ -896,7 +897,10 @@ class DocumentViewModel(
 
     private var eventId = 0L
 
-    fun showToast(message: String) {
+    /** Toast text that isn't ours to translate, or already resolved by the screen. */
+    fun showToast(message: String) = showToast(UiText.raw(message))
+
+    fun showToast(message: UiText) {
         val t = OutlineToast(message, ++eventId)
         _toast.value = t
         viewModelScope.launch {
@@ -905,8 +909,8 @@ class DocumentViewModel(
         }
     }
 
-    private fun showSnack(message: String) {
-        val s = OutlineSnack(UiText.raw(message), ++eventId)
+    private fun showSnack(message: UiText) {
+        val s = OutlineSnack(message, ++eventId)
         _snack.value = s
         viewModelScope.launch {
             delay(UNDO_WINDOW_MS)
@@ -1023,7 +1027,7 @@ class DocumentViewModel(
         val current = _state.value as? DocumentUiState.Loaded ?: return
         if (current.fileName != fileName || current.document.text == incoming.text) return
         _selectedLines.value = emptySet()
-        showToast("Selection cleared: the file was synced or changed elsewhere")
+        showToast(UiText.res(R.string.outline_selection_cleared))
     }
 
     fun load(fileName: String) {
@@ -1032,13 +1036,13 @@ class DocumentViewModel(
         viewModelScope.launch { editLock.withLock {
             val vault = vaultFlow.value
             if (vault == null) {
-                _state.value = DocumentUiState.Error("No sync folder configured")
+                _state.value = DocumentUiState.Error(UiText.res(R.string.document_no_vault))
                 return@withLock
             }
             _state.value = try {
                 val doc = vault.open(fileName)
                 if (doc == null) {
-                    DocumentUiState.Error("$fileName not found")
+                    DocumentUiState.Error(UiText.res(R.string.document_not_found, fileName))
                 } else {
                     val spliced = withPending(fileName, doc)
                     val current = _state.value
@@ -1050,7 +1054,7 @@ class DocumentViewModel(
                     }
                 }
             } catch (e: Exception) {
-                DocumentUiState.Error(e.message ?: "Could not open $fileName")
+                DocumentUiState.Error(e.message?.let(UiText::raw) ?: UiText.res(R.string.document_open_failed, fileName))
             }
         } }
         viewModelScope.launch {
@@ -1105,14 +1109,14 @@ class DocumentViewModel(
                         Intent(Intent.ACTION_VIEW, resolution.uri.toUri())
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     )
-                }.onFailure { showToast("Couldn't open $rawTarget") }
+                }.onFailure { showToast(UiText.res(R.string.link_open_failed, rawTarget)) }
                 is LinkResolution.NotFound ->
-                    showToast(attachment?.let { missingAttachmentMessage(it.fileName) } ?: "Couldn't find “${resolution.label}”")
+                    showToast(missingAttachmentMessage(attachment?.fileName ?: resolution.label))
             }
         }
     }
 
-    private fun missingAttachmentMessage(name: String) = "Couldn't find “$name”"
+    private fun missingAttachmentMessage(name: String) = UiText.res(R.string.link_not_found, name)
 
     /**
      * Opens the file [attachment] points at with the "Open with" chooser (until
@@ -1328,7 +1332,7 @@ class DocumentViewModel(
                     if (live == null || live.fileName != asked.fileName) return@withLock
                     val path = if (followLines) pathBetween(asked.document, live.document) else emptyList()
                     if (path == null) {
-                        showToast("The file changed, so that edit wasn't applied. Try again")
+                        showToast(UiText.res(R.string.outline_edit_stale))
                         return@withLock
                     }
                     Mutation(live, path).block()
@@ -1425,7 +1429,7 @@ class DocumentViewModel(
                 }
                 publish(loaded.fileName, loaded.document, doc)
             }
-            showToast("Undone")
+            showToast(UiText.res(R.string.outline_undone))
         }
     }
 
@@ -1476,7 +1480,7 @@ class DocumentViewModel(
             val existing = favoritesRepository.favorites.first().firstOrNull { it.matches(headline) }
             if (existing != null) {
                 favoritesRepository.removeFavorite(existing.fileName, existing.lineIndex, existing.customId)
-                showToast("Removed favorite")
+                showToast(UiText.res(R.string.outline_favorite_removed))
             } else {
                 ensureStableId(headline) { customId ->
                     viewModelScope.launch {
@@ -1484,7 +1488,7 @@ class DocumentViewModel(
                             FavoriteNote(fileName, headline.lineIndex, headline.title, customId),
                         )
                     }
-                    showToast("★ Added to favorites")
+                    showToast(UiText.res(R.string.outline_favorite_added))
                 }
             }
         }
@@ -1505,11 +1509,11 @@ class DocumentViewModel(
                 .firstOrNull { it.fileName == fileName && it.lineIndex == INTRO_LINE_INDEX }
             if (existing != null) {
                 favoritesRepository.removeFavorite(fileName, INTRO_LINE_INDEX, null)
-                showToast("Removed favorite")
+                showToast(UiText.res(R.string.outline_favorite_removed))
             } else {
                 val title = doc.introTitle.ifBlank { fileName.removeSuffix(".org") }
                 favoritesRepository.addFavorite(FavoriteNote(fileName, INTRO_LINE_INDEX, title, null))
-                showToast("★ Added to favorites")
+                showToast(UiText.res(R.string.outline_favorite_added))
             }
         }
     }
@@ -1539,7 +1543,7 @@ class DocumentViewModel(
             undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
             publish(loaded.fileName, loaded.document, finalDoc)
             saveDoc(loaded.fileName, finalText, "intro promoted to heading", finalDoc)
-            showSnack("Added a blank heading for this content")
+            showSnack(UiText.res(R.string.outline_intro_heading_added))
             if (describe.isNotEmpty()) showToast(describe)
             _introPromotedLine.value = newLine
         }
@@ -1554,9 +1558,7 @@ class DocumentViewModel(
     private fun applyStructure(
         lines: Set<Int>,
         op: OrgMutations.StructureOp,
-        verb: String,
-        blockedToast: String,
-        singleMessage: String = verb,
+        text: StructureText,
         afterUndoWindow: (suspend (fileName: String) -> Unit)? = null,
     ) {
         vaultFlow.value ?: return
@@ -1566,7 +1568,7 @@ class DocumentViewModel(
                 OrgMutations.applyToEach(loaded.document, lines, op)
             }
             if (result == null) {
-                showToast(blockedToast)
+                text.blocked?.let(::showToast)
                 return@mutate
             }
             if (op == OrgMutations.StructureOp.DELETE) {
@@ -1590,9 +1592,9 @@ class DocumentViewModel(
             saveDoc(loaded.fileName, result.text, "outline edit", result.doc)
             showSnack(
                 when {
-                    result.attempted == 1 -> singleMessage
-                    result.applied == result.attempted -> "$verb ${result.applied} notes"
-                    else -> "$verb ${result.applied} of ${result.attempted} notes"
+                    result.attempted == 1 -> UiText.res(text.single)
+                    result.applied == result.attempted -> UiText.plural(text.all, result.applied)
+                    else -> UiText.plural(text.partial, result.attempted, result.applied, result.attempted)
                 }
             )
         }
@@ -1604,20 +1606,49 @@ class DocumentViewModel(
     fun demote(headline: OrgHeadline) = demote(setOf(headline.lineIndex))
     fun deleteNote(headline: OrgHeadline) = deleteNotes(setOf(headline.lineIndex))
 
-    fun moveUp(lines: Set<Int>) =
-        applyStructure(lines, OrgMutations.StructureOp.MOVE_UP, "Moved up", "Can't move further")
+    /**
+     * The messages of one [applyStructure] command: [single] when one heading
+     * moved, [all] (count = moved) when every selected one did, [partial]
+     * (count = selected; args moved, selected) otherwise, and [blocked] when
+     * none could (null = no toast).
+     */
+    private class StructureText(
+        @StringRes val single: Int,
+        @PluralsRes val all: Int,
+        @PluralsRes val partial: Int,
+        val blocked: UiText?,
+    )
 
-    fun moveDown(lines: Set<Int>) =
-        applyStructure(lines, OrgMutations.StructureOp.MOVE_DOWN, "Moved down", "Can't move further")
+    fun moveUp(lines: Set<Int>) = applyStructure(
+        lines, OrgMutations.StructureOp.MOVE_UP,
+        StructureText(
+            R.string.outline_moved_up, R.plurals.outline_moved_up_n, R.plurals.outline_moved_up_partial,
+            UiText.res(R.string.outline_move_blocked),
+        ),
+    )
 
-    fun promote(lines: Set<Int>) =
-        applyStructure(lines, OrgMutations.StructureOp.PROMOTE, "Promoted", "Already top level")
+    fun moveDown(lines: Set<Int>) = applyStructure(
+        lines, OrgMutations.StructureOp.MOVE_DOWN,
+        StructureText(
+            R.string.outline_moved_down, R.plurals.outline_moved_down_n, R.plurals.outline_moved_down_partial,
+            UiText.res(R.string.outline_move_blocked),
+        ),
+    )
+
+    fun promote(lines: Set<Int>) = applyStructure(
+        lines, OrgMutations.StructureOp.PROMOTE,
+        StructureText(
+            R.string.outline_promoted, R.plurals.outline_promoted_n, R.plurals.outline_promoted_partial,
+            UiText.res(R.string.outline_promote_blocked),
+        ),
+    )
 
     fun demote(lines: Set<Int>) = applyStructure(
-        lines,
-        OrgMutations.StructureOp.DEMOTE,
-        "Demoted",
-        "Can't demote: there's no heading above ${if (lines.size > 1) "them" else "it"} to go under",
+        lines, OrgMutations.StructureOp.DEMOTE,
+        StructureText(
+            R.string.outline_demoted, R.plurals.outline_demoted_n, R.plurals.outline_demoted_partial,
+            UiText.res(if (lines.size > 1) R.string.outline_demote_blocked_many else R.string.outline_demote_blocked_one),
+        ),
     )
 
     /**
@@ -1640,7 +1671,11 @@ class DocumentViewModel(
                 }
             }
         applyStructure(
-            lines, OrgMutations.StructureOp.DELETE, "Deleted", "", singleMessage = "Note deleted",
+            lines, OrgMutations.StructureOp.DELETE,
+            StructureText(
+                R.string.outline_note_deleted, R.plurals.outline_deleted_n, R.plurals.outline_deleted_partial,
+                blocked = null,
+            ),
             afterUndoWindow = work,
         )
     }
@@ -1764,9 +1799,9 @@ class DocumentViewModel(
                     val next = after?.let { nextRepeatOccurrence(headline, it) }
                     if (next != null) {
                         undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
-                        showSnack(markedDoneMessage(next, LocalDate.now()))
+                        showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
                     } else {
-                        showToast("State → ${keyword ?: "none"}")
+                        showToast(UiText.res(R.string.metadata_toast_state, keyword ?: UiText.res(R.string.metadata_toast_none)))
                     }
                 }
                 is StateChangeResult.Archived -> {
@@ -1790,7 +1825,7 @@ class DocumentViewModel(
                             "Archived",
                         )
                     }
-                    showSnack("Marked done. Refiled to ${result.label}")
+                    showSnack(UiText.res(R.string.snack_marked_done_refiled, result.label))
                 }
             }
         }
@@ -1824,10 +1859,14 @@ class DocumentViewModel(
     }
 
     fun setScheduled(headline: OrgHeadline, ts: OrgTimestamp?) =
-        setPlanning(headline, "Scheduled", ts) { d, h -> OrgMutations.setScheduled(d, h, ts) }
+        setPlanning(headline, R.string.planning_toast_scheduled, R.string.planning_toast_scheduled_cleared, ts) { d, h ->
+            OrgMutations.setScheduled(d, h, ts)
+        }
 
     fun setDeadline(headline: OrgHeadline, ts: OrgTimestamp?) =
-        setPlanning(headline, "Deadline", ts) { d, h -> OrgMutations.setDeadline(d, h, ts) }
+        setPlanning(headline, R.string.planning_toast_deadline, R.string.planning_toast_deadline_cleared, ts) { d, h ->
+            OrgMutations.setDeadline(d, h, ts)
+        }
 
     /** Read mode's metadata sheet: priority/tag chips write straight to disk. */
     fun setPriority(headline: OrgHeadline, priority: Char?) {
@@ -1840,7 +1879,7 @@ class DocumentViewModel(
             }
             publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "priority set", newDoc)
-            showToast("Priority → ${priority?.let { "#$it" } ?: "none"}")
+            showToast(UiText.res(R.string.metadata_toast_priority, priority?.let { "#$it" } ?: UiText.res(R.string.metadata_toast_none)))
         }
     }
 
@@ -1880,19 +1919,25 @@ class DocumentViewModel(
             saveDoc(loaded.fileName, newText, "planning edit", newDoc)
             val fmt = LocalDates.formatter("EEEMMMd", "EEE, MMM d")
             val parts = listOfNotNull(
-                scheduled?.let { "Scheduled · ${it.date.format(fmt)}" },
-                deadline?.let { "Deadline · ${it.date.format(fmt)}" },
+                scheduled?.let { app.getString(R.string.planning_toast_scheduled, it.date.format(fmt)) },
+                deadline?.let { app.getString(R.string.planning_toast_deadline, it.date.format(fmt)) },
                 active.firstOrNull()?.let {
-                    "Event · ${it.date.format(fmt)}" + if (active.size > 1) " +${active.size - 1}" else ""
+                    if (active.size > 1) app.getString(R.string.planning_toast_event_more, it.date.format(fmt), active.size - 1)
+                    else app.getString(R.string.planning_toast_event, it.date.format(fmt))
                 },
             )
-            showToast(if (parts.isEmpty()) "Planning cleared" else parts.joinToString("  ·  "))
+            showToast(
+                if (parts.isEmpty()) UiText.res(R.string.planning_toast_cleared)
+                else UiText.raw(parts.joinToString("  ·  ")) // the parts are already translated
+            )
         }
     }
 
+    /** [setLabel] takes the formatted date; [clearedLabel] is shown when [ts] is null. */
     private fun setPlanning(
         headline: OrgHeadline,
-        label: String,
+        @StringRes setLabel: Int,
+        @StringRes clearedLabel: Int,
         ts: OrgTimestamp?,
         block: (OrgDocument, OrgHeadline) -> String,
     ) {
@@ -1906,8 +1951,8 @@ class DocumentViewModel(
             publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "planning edit", newDoc)
             showToast(
-                if (ts == null) "$label cleared"
-                else "$label · ${LocalDates.format(ts.date, "EEEMMMd", "EEE, MMM d")}"
+                if (ts == null) UiText.res(clearedLabel)
+                else UiText.res(setLabel, LocalDates.format(ts.date, "EEEMMMd", "EEE, MMM d"))
             )
         }
     }
@@ -1923,7 +1968,7 @@ class DocumentViewModel(
             }
             publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "org-id generated", newDoc)
-            showToast("org-id generated")
+            showToast(UiText.res(R.string.metadata_toast_org_id_generated))
         }
     }
 
@@ -1945,7 +1990,7 @@ class DocumentViewModel(
             }
             publish(loaded.fileName, loaded.document, newDoc)
             saveDoc(loaded.fileName, newText, "note added", newDoc)
-            showToast("Note added")
+            showToast(UiText.res(R.string.metadata_toast_note_added))
         }
     }
 
@@ -1990,34 +2035,43 @@ class DocumentViewModel(
                     result.destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
                 "Archived",
             )
-            val stateMessage = "State → ${keyword ?: "none"} on ${pluralCount(result.changed, "note")}"
+            val stateMessage = UiText.plural(
+                R.plurals.outline_bulk_state, result.changed,
+                keyword ?: UiText.res(R.string.metadata_toast_none), result.changed,
+            )
             val destinations = result.archivedTo.distinct()
+            val refiled = result.archivedTo.size
             showSnack(
                 when {
                     destinations.isEmpty() -> stateMessage
                     destinations.size == 1 ->
-                        "$stateMessage. Refiled ${result.archivedTo.size} to ${destinations.single()}"
-                    else -> "$stateMessage. Refiled ${result.archivedTo.size}"
+                        UiText.plural(R.plurals.outline_bulk_state_refiled_to, refiled, stateMessage, refiled, destinations.single())
+                    else -> UiText.plural(R.plurals.outline_bulk_state_refiled, refiled, stateMessage, refiled)
                 }
             )
         }
     }
 
     fun setPriorityEach(lines: Set<Int>, priority: Char?) =
-        editEach(lines, "priority set", { "Priority → ${priority?.let { "#$it" } ?: "none"} on ${pluralCount(it, "note")}" }) { d, h ->
+        // i18n: sync-log reason
+        editEach(lines, "priority set", {
+            UiText.plural(R.plurals.outline_bulk_priority, it, priority?.let { p -> "#$p" } ?: UiText.res(R.string.metadata_toast_none), it)
+        }) { d, h ->
             if (h.priority == priority) null else OrgMutations.setPriority(d, h, priority)
         }
 
     /** Adds [add] to and removes [remove] from each heading's own tags, leaving its other tags alone. */
     fun editTagsEach(lines: Set<Int>, add: Collection<String>, remove: Collection<String>) =
-        editEach(lines, "tags set", { "Tags updated on ${pluralCount(it, "note")}" }) { d, h ->
+        // i18n: sync-log reason
+        editEach(lines, "tags set", { UiText.plural(R.plurals.outline_bulk_tags, it) }) { d, h ->
             val tags = (h.tags - remove.toSet() + add).distinct()
             if (tags == h.tags) null else OrgMutations.setTags(d, h, tags)
         }
 
     fun setPlanningEach(lines: Set<Int>, edit: BulkPlanningEdit) {
         if (edit.isEmpty) return
-        editEach(lines, "planning edit", { "Dates set on ${pluralCount(it, "note")}" }) { d, h ->
+        // i18n: sync-log reason
+        editEach(lines, "planning edit", { UiText.plural(R.plurals.outline_bulk_dates, it) }) { d, h ->
             val (scheduled, deadline, active) = edit.applyTo(h)
             OrgMutations.setPlanningAndActiveTimestamps(d, h, scheduled, deadline, active)
         }
@@ -2027,14 +2081,16 @@ class DocumentViewModel(
         if (note.isBlank()) return
         val now = LocalDateTime.now()
         val stamp = OrgTimestamp(now.toLocalDate(), time = now.toLocalTime().withSecond(0).withNano(0), active = false)
-        editEach(lines, "note added", { "Note added to ${pluralCount(it, "note")}" }) { d, h ->
+        // i18n: sync-log reason
+        editEach(lines, "note added", { UiText.plural(R.plurals.outline_bulk_note_added, it) }) { d, h ->
             OrgMutations.appendLogbookNote(d, h, note.trim(), stamp)
         }
     }
 
     /** A fresh `:ID:` for each heading that has none yet. */
     fun generateIdEach(lines: Set<Int>) =
-        editEach(lines, "org-id generated", { "org-id generated for ${pluralCount(it, "note")}" }) { d, h ->
+        // i18n: sync-log reason
+        editEach(lines, "org-id generated", { UiText.plural(R.plurals.outline_bulk_org_id, it) }) { d, h ->
             if (h.id != null) null else OrgMutations.upsertProperty(d, h, "ID", newOrgId())
         }
 
@@ -2046,7 +2102,7 @@ class DocumentViewModel(
     private fun editEach(
         lines: Set<Int>,
         syncReason: String,
-        message: (Int) -> String,
+        message: (Int) -> UiText,
         edit: (OrgDocument, OrgHeadline) -> String?,
     ) {
         vaultFlow.value ?: return
@@ -2121,7 +2177,7 @@ class DocumentViewModel(
         val sameFile = item.fileName == loaded.fileName
         val doc = if (sameFile) loaded.document else vaultFlow.value?.open(item.fileName)
         if (doc == null) {
-            showToast("Couldn't open ${item.fileName.removeSuffix(".org")}")
+            showToast(UiText.res(R.string.location_open_failed, item.fileName.removeSuffix(".org")))
             return false
         }
         // Re-read after the open: the sheet may have been dismissed, or its
@@ -2143,7 +2199,7 @@ class DocumentViewModel(
             val doc = if (fileName == loaded.fileName) loaded.document
             else vaultFlow.value?.open(fileName)
             if (doc == null) {
-                showToast("Couldn't open ${fileName.removeSuffix(".org")}")
+                showToast(UiText.res(R.string.location_open_failed, fileName.removeSuffix(".org")))
                 return@launch
             }
             _refile.value = _refile.value?.copy(pickedFile = fileName, pickedDoc = doc, path = persistentListOf())
@@ -2191,7 +2247,7 @@ class DocumentViewModel(
             _refile.value = null
             refileEachToResolvedTarget(
                 vault, picker.sourceLines, target,
-                verb = "Archived", syncReason = "archive", createFileIfMissing = true,
+                archive = true, syncReason = "archive", createFileIfMissing = true,
                 archivedAt = LocalDateTime.now(),
             )
             return
@@ -2203,7 +2259,7 @@ class DocumentViewModel(
             val sourceEnd = loaded.document.subtreeEndLine(source)
             refileToResolvedTarget(
                 loaded, vault, source, target,
-                verb = "Archived", syncReason = "archive", createFileIfMissing = true,
+                archive = true, syncReason = "archive", createFileIfMissing = true,
                 archivedAt = LocalDateTime.now(),
             )
             dropFavoritesInRange(loaded.document, loaded.fileName, source.lineIndex until sourceEnd)
@@ -2220,7 +2276,7 @@ class DocumentViewModel(
             _refile.value = null
             refileEachToResolvedTarget(
                 vault, picker.sourceLines, target,
-                verb = "Refiled", syncReason = "refile", createFileIfMissing = false,
+                archive = false, syncReason = "refile", createFileIfMissing = false,
             )
             return
         }
@@ -2231,7 +2287,7 @@ class DocumentViewModel(
             val sourceEnd = loaded.document.subtreeEndLine(source)
             refileToResolvedTarget(
                 loaded, vault, source, target,
-                verb = "Refiled", syncReason = "refile", createFileIfMissing = false,
+                archive = false, syncReason = "refile", createFileIfMissing = false,
             )
             dropFavoritesInRange(loaded.document, loaded.fileName, source.lineIndex until sourceEnd)
         }
@@ -2243,7 +2299,7 @@ class DocumentViewModel(
         vault: Vault,
         source: OrgHeadline,
         target: ArchiveTarget,
-        verb: String,
+        archive: Boolean,
         syncReason: String,
         createFileIfMissing: Boolean,
         archivedAt: LocalDateTime? = null,
@@ -2252,7 +2308,7 @@ class DocumentViewModel(
             vault, loaded.document, loaded.fileName, source, target, createFileIfMissing, archivedAt,
         )
         if (write == null) {
-            showToast("Couldn't open ${target.fileName.removeSuffix(".org")}")
+            showToast(UiText.res(R.string.location_open_failed, target.fileName.removeSuffix(".org")))
             return
         }
         undoSnapshot = UndoSnapshot(
@@ -2276,10 +2332,10 @@ class DocumentViewModel(
                     FileRewrite(loaded.fileName, loaded.document.text, write.sourceText),
                     FileRewrite(write.destFile, write.destTextBefore, write.destText),
                 ),
-                verb,
+                if (archive) "Archived" else "Refiled",
             )
         }
-        showSnack("$verb to ${write.label}")
+        showSnack(UiText.res(if (archive) R.string.refile_snack_archived_to else R.string.refile_snack_refiled_to, write.label))
     }
 
     /** [refileToResolvedTarget] for several headlines, all to [target], as one undo step. */
@@ -2287,7 +2343,7 @@ class DocumentViewModel(
         vault: Vault,
         lines: List<Int>,
         target: ArchiveTarget,
-        verb: String,
+        archive: Boolean,
         syncReason: String,
         createFileIfMissing: Boolean,
         archivedAt: LocalDateTime? = null,
@@ -2298,12 +2354,16 @@ class DocumentViewModel(
                 vault, loaded.document, loaded.fileName, lines.map { it to target }, createFileIfMissing, archivedAt,
             )
             if (result.labels.isEmpty()) {
-                showToast("Couldn't open ${target.fileName.removeSuffix(".org")}")
+                showToast(UiText.res(R.string.location_open_failed, target.fileName.removeSuffix(".org")))
                 return@mutate
             }
             commitBulkRefile(
                 loaded, vault, lines, result.sourceText, result.sourceDoc, result.destWrites, syncReason,
-                "$verb ${pluralCount(result.labels.size, "note")} to ${result.labels.first()}",
+                UiText.plural(
+                    if (archive) R.plurals.refile_snack_archived_n_to else R.plurals.refile_snack_refiled_n_to,
+                    result.labels.size, result.labels.size, result.labels.first(),
+                ),
+                attachVerb = if (archive) "Archived" else "Refiled",
             )
         }
     }
@@ -2316,7 +2376,7 @@ class DocumentViewModel(
             val roots = OrgMutations.selectedRoots(loaded.document, lines)
             val destLabel = destFile.removeSuffix(".org")
             if (destFile == loaded.fileName) {
-                val targetLine = targetLine?.let { line(it) ?: return@mutate showToast("Couldn't find the destination heading") }
+                val targetLine = targetLine?.let { line(it) ?: return@mutate showToast(UiText.res(R.string.refile_dest_heading_missing)) }
                 val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
                 // Each root keeps an inherited :DIR: its attachments use, if the new place would resolve another.
                 val pins = roots.map { DirPin.of(loaded.document, loaded.fileName, it) }
@@ -2326,17 +2386,17 @@ class DocumentViewModel(
                     }
                 }
                 if (newDoc == null) {
-                    showToast("Can't refile into its own subtree")
+                    showToast(UiText.res(R.string.refile_into_own_subtree))
                     return@mutate
                 }
                 commitBulkRefile(
                     loaded, vault, roots.map { it.lineIndex }, newDoc.text, newDoc, emptyList(), "refile",
-                    "Refiled ${pluralCount(roots.size, "note")} to $destLabel › ${targetTitle ?: "top level"}",
+                    refiledUnder(roots.size, destLabel, targetTitle),
                 )
             } else {
                 val destDoc = vault.open(destFile)
                 if (destDoc == null) {
-                    showToast("Couldn't open $destLabel")
+                    showToast(UiText.res(R.string.location_open_failed, destLabel))
                     return@mutate
                 }
                 val target = targetLine?.let { destDoc.headlineAtLine(it) }
@@ -2347,14 +2407,14 @@ class DocumentViewModel(
                     OrgMutations.insertEach(destDoc, targetLine, subtrees)?.let { lifted.doc to it }
                 }
                 if (result == null) {
-                    showToast("Couldn't find the destination heading")
+                    showToast(UiText.res(R.string.refile_dest_heading_missing))
                     return@mutate
                 }
                 val (newSourceDoc, newDestDoc) = result
                 commitBulkRefile(
                     loaded, vault, roots.map { it.lineIndex }, newSourceDoc.text, newSourceDoc,
                     listOf(Triple(destFile, destDoc.text, newDestDoc.text)), "refile",
-                    "Refiled ${pluralCount(roots.size, "note")} to $destLabel › ${target?.title ?: "top level"}",
+                    refiledUnder(roots.size, destLabel, target?.title),
                 )
             }
             rememberRefileTarget(destFile, headingPath)
@@ -2373,7 +2433,8 @@ class DocumentViewModel(
         sourceDoc: OrgDocument,
         destWrites: List<Triple<String, String, String>>,
         syncReason: String,
-        message: String,
+        message: UiText,
+        attachVerb: String = "Refiled",
     ) {
         undoSnapshot = UndoSnapshot(
             listOf(loaded.fileName to loaded.document.text) + destWrites.map { (file, before, _) -> file to before }
@@ -2388,13 +2449,20 @@ class DocumentViewModel(
         followAttachments(
             listOf(FileRewrite(loaded.fileName, loaded.document.text, sourceText)) +
                 destWrites.map { (file, before, after) -> FileRewrite(file, before, after) },
-            message.substringBefore(' '),
+            attachVerb,
         )
         showSnack(message)
         val doc = loaded.document
         lines.mapNotNull(doc::headlineAtLine).forEach { h ->
             dropFavoritesInRange(doc, loaded.fileName, h.lineIndex until doc.subtreeEndLine(h))
         }
+    }
+
+    /** "Refiled to inbox › Projects" (one heading) or "Refiled 3 notes to …"; a null [title] is the top level. */
+    private fun refiledUnder(count: Int, destLabel: String, title: String?): UiText {
+        val under = title ?: UiText.res(R.string.refile_top_level)
+        return if (count == 1) UiText.res(R.string.refile_snack_refiled_under, destLabel, under)
+        else UiText.plural(R.plurals.refile_snack_refiled_n_under, count, count, destLabel, under)
     }
 
     private fun rememberRefileTarget(fileName: String, headingPath: List<String>) {
@@ -2410,7 +2478,7 @@ class DocumentViewModel(
             val sourceEnd = loaded.document.subtreeEndLine(source)
             val destLabel = destFile.removeSuffix(".org")
             if (destFile == loaded.fileName) {
-                val targetLine = targetLine?.let { line(it) ?: return@mutate showToast("Couldn't find the destination heading") }
+                val targetLine = targetLine?.let { line(it) ?: return@mutate showToast(UiText.res(R.string.refile_dest_heading_missing)) }
                 val targetTitle = targetLine?.let { loaded.document.headlineAtLine(it)?.title }
                 val result = withContext(dispatchers.default) {
                     val pin = DirPin.of(loaded.document, loaded.fileName, source)
@@ -2419,19 +2487,19 @@ class DocumentViewModel(
                     }?.let { (text, _) -> text to OrgParser.parse(text, loaded.document.keywords) }
                 }
                 if (result == null) {
-                    showToast("Can't refile into its own subtree")
+                    showToast(UiText.res(R.string.refile_into_own_subtree))
                     return@mutate
                 }
                 undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
                 _selectedLines.value = emptySet()
                 publish(loaded.fileName, loaded.document, result.second)
                 saveDoc(loaded.fileName, result.first, "refile", result.second)
-                showSnack("Refiled to $destLabel › ${targetTitle ?: "top level"}")
+                showSnack(refiledUnder(1, destLabel, targetTitle))
                 rememberRefileTarget(destFile, headingPath)
             } else {
                 val destDoc = vault.open(destFile)
                 if (destDoc == null) {
-                    showToast("Couldn't open $destLabel")
+                    showToast(UiText.res(R.string.location_open_failed, destLabel))
                     return@mutate
                 }
                 val target = targetLine?.let { destDoc.headlineAtLine(it) }
@@ -2459,7 +2527,7 @@ class DocumentViewModel(
                     ),
                     "Refiled",
                 )
-                showSnack("Refiled to $destLabel › ${target?.title ?: "top level"}")
+                showSnack(refiledUnder(1, destLabel, target?.title))
                 rememberRefileTarget(destFile, headingPath)
             }
             dropFavoritesInRange(loaded.document, loaded.fileName, source.lineIndex until sourceEnd)
