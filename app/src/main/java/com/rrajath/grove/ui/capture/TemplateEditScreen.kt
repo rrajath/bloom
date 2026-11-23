@@ -99,6 +99,7 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.resolveFor
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.asString
 import com.rrajath.grove.ui.util.backArrowGlyph
 import com.rrajath.grove.ui.vault.RefileUiState
 import com.rrajath.grove.ui.vault.fileHeadingSearchIndex
@@ -487,7 +488,7 @@ fun TemplateEditScreen(
                     isError = filenamePatternError != null,
                     supportingText = {
                         if (filenamePatternError != null) {
-                            Text(filenamePatternError, color = c.red, fontFamily = PlexSans, fontSize = 12.sp)
+                            Text(filenamePatternError.asString(), color = c.red, fontFamily = PlexSans, fontSize = 12.sp)
                         }
                     },
                     textStyle = TextStyle(fontFamily = PlexMono),

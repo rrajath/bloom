@@ -50,6 +50,7 @@ import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.UiText
 
 /**
  * Settings § Attachments (preview), prototype 1o:
@@ -207,7 +208,7 @@ fun SettingsAttachmentsScreen(
             initial = settings.attachFolder,
             confirmLabel = "Save",
             placeholder = AttachFolder.DEFAULT,
-            validate = AttachFolder::error,
+            validate = { AttachFolder.error(it)?.let(UiText::raw) },
             helperText = "Relative to each note's folder. Files already in data/ keep opening.",
             onDismiss = { editingFolder = false },
             onConfirm = { raw ->
@@ -223,7 +224,7 @@ fun SettingsAttachmentsScreen(
             initial = settings.attachAutoTag,
             confirmLabel = "Save",
             placeholder = null,
-            validate = AttachAutoTag::error,
+            validate = { AttachAutoTag.error(it)?.let(UiText::raw) },
             helperText = "Without colons. Leave empty to add no tag.",
             allowBlank = true,
             onDismiss = { editingTag = false },

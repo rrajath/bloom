@@ -37,6 +37,7 @@ import com.rrajath.grove.ui.components.nameHashPaletteKey
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.asString
 
 /** Capture template picker bottom sheet (design spec §7). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,7 +142,7 @@ private fun TemplateRow(template: CaptureTemplate, onClick: () -> Unit) {
                     val stem = "${template.filenamePattern}.org"
                     if (template.roamDirectory.isBlank()) stem else "${template.roamDirectory}/$stem"
                 } else {
-                    "${template.targetFile} · ${template.location.describe()}"
+                    "${template.targetFile} · ${template.location.describe().asString()}"
                 },
                 fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink2,
             )

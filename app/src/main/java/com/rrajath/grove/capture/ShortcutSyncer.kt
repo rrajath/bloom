@@ -11,6 +11,7 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.net.toUri
+import com.rrajath.grove.R
 import com.rrajath.grove.icon.AppIconManager
 import com.rrajath.grove.settings.ThemePreference
 import com.rrajath.grove.ui.components.monogramLetter
@@ -88,7 +89,7 @@ object ShortcutSyncer {
             .setClassName(context.packageName, "com.rrajath.grove.MainActivity")
         return ShortcutInfoCompat.Builder(context, template.id)
             .setShortLabel(template.name)
-            .setLongLabel("New ${template.name}")
+            .setLongLabel(context.getString(R.string.capture_shortcut_long_label, template.name))
             .setIcon(IconCompat.createWithBitmap(glyphBitmap(monogramLetter(template.name), bg, fg)))
             .setIntent(intent)
             .setActivity(ownerAlias)

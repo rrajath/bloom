@@ -76,8 +76,8 @@ class FilenameValidationTest {
 
     @Test
     fun `error messages are distinct per failure kind`() {
-        assertEquals("Enter a filename", error(""))
-        assertEquals("Filename must end in .org", error("inbox"))
+        assertEquals(FilenameValidation.ENTER_FILENAME, error(""))
+        assertEquals(FilenameValidation.MUST_END_ORG, error("inbox"))
     }
 
     // --- errorForNewNotebook: .org optional, but bad paths still rejected ---
@@ -86,13 +86,13 @@ class FilenameValidationTest {
 
     @Test
     fun `rename notebook rejects slashes and delegates the rest`() {
-        val msg = "Names can't contain /. Use Move to change folders."
+        val msg = FilenameValidation.RENAME_NO_SLASH
         assertEquals(msg, FilenameValidation.errorForRenameNotebook("Folder/image-test"))
         assertEquals(msg, FilenameValidation.errorForRenameNotebook("/x"))
         assertNotNull(FilenameValidation.errorForRenameNotebook("a\\b"))
         assertNull(FilenameValidation.errorForRenameNotebook("image-test"))
         assertNull(FilenameValidation.errorForRenameNotebook("image-test.org"))
-        assertEquals("Enter a name", FilenameValidation.errorForRenameNotebook(" "))
+        assertEquals(FilenameValidation.ENTER_NAME, FilenameValidation.errorForRenameNotebook(" "))
     }
 
     @Test
@@ -112,15 +112,15 @@ class FilenameValidationTest {
 
     @Test
     fun `new notebook name rejects a trailing slash`() {
-        assertEquals("Not a valid path", newNb("foo/"))
-        assertEquals("Not a valid path", newNb("foo/bar/"))
+        assertEquals(FilenameValidation.INVALID_PATH, newNb("foo/"))
+        assertEquals(FilenameValidation.INVALID_PATH, newNb("foo/bar/"))
     }
 
     @Test
     fun `new notebook name rejects blank, malformed paths and reserved chars`() {
-        assertEquals("Enter a name", newNb(""))
-        assertEquals("Enter a name", newNb("   "))
-        assertEquals("Enter a name", newNb(".org"))
+        assertEquals(FilenameValidation.ENTER_NAME, newNb(""))
+        assertEquals(FilenameValidation.ENTER_NAME, newNb("   "))
+        assertEquals(FilenameValidation.ENTER_NAME, newNb(".org"))
         assertNotNull(newNb("/inbox"))
         assertNotNull(newNb("sub//inbox"))
         assertNotNull(newNb("sub/../inbox"))
@@ -149,8 +149,8 @@ class FilenameValidationTest {
 
     @Test
     fun `directory rejects a leading or trailing slash`() {
-        assertEquals("Not a valid path", dir("/notes"))
-        assertEquals("Not a valid path", dir("notes/"))
+        assertEquals(FilenameValidation.INVALID_PATH, dir("/notes"))
+        assertEquals(FilenameValidation.INVALID_PATH, dir("notes/"))
     }
 
     @Test

@@ -1,3 +1,4 @@
+// i18n: HTTP headers and interstitial-title patterns, not UI text
 package com.rrajath.grove.capture
 
 import android.annotation.SuppressLint

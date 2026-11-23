@@ -1,5 +1,8 @@
 package com.rrajath.grove.capture
 
+import android.content.Context
+import com.rrajath.grove.R
+import com.rrajath.grove.ui.util.UiText
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -72,11 +75,14 @@ sealed class TargetLocation {
 
     val isDatetree: Boolean get() = this is Datetree
 
-    fun describe(): String = when (this) {
-        is TopOfFile -> "top of file"
-        is BottomOfFile -> "bottom of file"
-        is UnderHeading -> "under " + (headingLabel ?: "heading")
-        is Datetree -> path.lastOrNull()?.let { "datetree in $it" } ?: "datetree"
+    /** Short "where it goes" label for template lists, e.g. "under Projects". */
+    fun describe(): UiText = when (this) {
+        is TopOfFile -> UiText.res(R.string.capture_location_top)
+        is BottomOfFile -> UiText.res(R.string.capture_location_bottom)
+        is UnderHeading -> headingLabel?.let { UiText.res(R.string.capture_location_under, it) }
+            ?: UiText.res(R.string.capture_location_under_heading)
+        is Datetree -> path.lastOrNull()?.let { UiText.res(R.string.capture_location_datetree_in, it) }
+            ?: UiText.res(R.string.capture_location_datetree)
     }
 }
 
@@ -183,8 +189,13 @@ object TemplateSerializer {
     private data class TemplateListSurrogate(val templates: List<CaptureTemplate>)
 }
 
-/** Built-in defaults (PRD §7.5); editable/deletable like any other template. */
+/**
+ * Built-in defaults (PRD §7.5); editable/deletable like any other template.
+ * [all] carries the English names; the app shows [localized], which names them in the
+ * UI language until the first save writes the list (with those names) to disk.
+ */
 object DefaultTemplates {
+    // i18n-begin: English fallback names; localized() is what users see
     val all: List<CaptureTemplate> = listOf(
         CaptureTemplate(
             id = "builtin-journal",
@@ -212,4 +223,14 @@ object DefaultTemplates {
             template = "* TODO %^{Title}\n%cursor",
         ),
     )
+    // i18n-end
+
+    private val NAME_RES = mapOf(
+        "builtin-journal" to R.string.capture_default_journal,
+        "builtin-quick-note" to R.string.capture_default_quick_note,
+    )
+
+    /** [all] with names in [context]'s language. The TODO template keeps its keyword name. */
+    fun localized(context: Context): List<CaptureTemplate> =
+        all.map { t -> NAME_RES[t.id]?.let { t.copy(name = context.getString(it)) } ?: t }
 }

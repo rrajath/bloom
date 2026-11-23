@@ -145,4 +145,46 @@
     <string name="template_crumb_pick_heading">pick a heading</string>
     <!-- Hint in the icon color dialog: the tile shows the template name's first letter. -->
     <string name="template_icon_hint">Letter follows the template name</string>
+
+    <!-- Capture logic (capture/). -->
+    <!-- Seeded capture template names (the TODO template keeps its keyword name). -->
+    <string name="capture_default_journal">Journal Entry</string>
+    <string name="capture_default_quick_note">Quick Note</string>
+    <!-- Where a template puts the note, after the file name in template lists ("inbox.org · bottom of file"). -->
+    <string name="capture_location_top">top of file</string>
+    <string name="capture_location_bottom">bottom of file</string>
+    <!-- %1$s = heading title, or "#id" for a heading picked by ID. -->
+    <string name="capture_location_under">under %1$s</string>
+    <string name="capture_location_under_heading">under heading</string>
+    <!-- A date tree (year / month / day headings). %1$s = heading the tree sits in. -->
+    <string name="capture_location_datetree_in">datetree in %1$s</string>
+    <string name="capture_location_datetree">datetree</string>
+    <!-- Capture save errors when the template's target heading is missing. Keep ID and CUSTOM_ID as is (org properties). -->
+    <string name="capture_target_no_id">No heading with ID or CUSTOM_ID \"%1$s\"</string>
+    <!-- %1$s = heading path, e.g. "Work / Meetings". -->
+    <string name="capture_target_no_path">No heading at \"%1$s\"</string>
+    <string name="capture_target_no_title">No heading titled \"%1$s\"</string>
+    <!-- Long label of a template's home-screen shortcut. %1$s = template name. -->
+    <string name="capture_shortcut_long_label">New %1$s</string>
+
+    <!-- Toasts after sharing text or a link into the app (Settings > Sharing target). -->
+    <!-- %1$s = app name. -->
+    <string name="share_no_vault">Set a sync folder before sharing to %1$s</string>
+    <!-- %1$s = notebook name, or notebook › heading path. -->
+    <string name="share_saved_to">Saved to %1$s</string>
+    <!-- %1$s = missing heading title, %2$s = notebook name. -->
+    <string name="share_heading_not_found">Heading \"%1$s\" not found. Saved to %2$s</string>
+
+    <!-- File and folder name errors under name fields (capture targets, new/rename notebook, Roam directory). -->
+    <string name="filename_error_enter_filename">Enter a filename</string>
+    <string name="filename_error_enter_name">Enter a name</string>
+    <string name="filename_error_invalid_path">Not a valid path</string>
+    <!-- Keep the list of characters exactly. -->
+    <string name="filename_error_illegal_chars">Can\'t contain \\ : * ? \" &lt; &gt; |</string>
+    <string name="filename_error_must_end_org">Filename must end in .org</string>
+    <!-- "Move" is the notebook menu action that changes a notebook's folder. -->
+    <string name="filename_error_rename_no_slash">Names can\'t contain /. Use Move to change folders.</string>
+    <!-- File name pattern of a Roam template (%&lt;%Y-%m-%d&gt; style tokens). -->
+    <string name="filename_error_enter_pattern">Enter a file name pattern</string>
+    <string name="filename_error_pattern_illegal_chars">Can\'t contain \\ / : * ? \" &lt; &gt; |</string>
 </resources>

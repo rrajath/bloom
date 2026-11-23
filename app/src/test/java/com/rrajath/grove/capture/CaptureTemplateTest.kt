@@ -1,5 +1,7 @@
 package com.rrajath.grove.capture
 
+import com.rrajath.grove.R
+import com.rrajath.grove.ui.util.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -127,12 +129,12 @@ class CaptureTemplateTest {
 
     @Test
     fun `location descriptions for the picker`() {
-        assertEquals("bottom of file", TargetLocation.BottomOfFile.describe())
-        assertEquals("datetree", TargetLocation.Datetree().describe())
-        assertEquals("under #x", TargetLocation.UnderHeading(customId = "x").describe())
-        assertEquals("under #y", TargetLocation.UnderHeading(customId = "x", id = "y").describe())
-        assertEquals("under Projects", TargetLocation.UnderHeading(title = "Projects").describe())
-        assertEquals("under Tasks", TargetLocation.UnderHeading(id = "x", path = listOf("Work", "Tasks")).describe())
-        assertEquals("datetree in Meetings", TargetLocation.Datetree(path = listOf("Work", "Meetings")).describe())
+        assertEquals(UiText.res(R.string.capture_location_bottom), TargetLocation.BottomOfFile.describe())
+        assertEquals(UiText.res(R.string.capture_location_datetree), TargetLocation.Datetree().describe())
+        assertEquals(UiText.res(R.string.capture_location_under, "#x"), TargetLocation.UnderHeading(customId = "x").describe())
+        assertEquals(UiText.res(R.string.capture_location_under, "#y"), TargetLocation.UnderHeading(customId = "x", id = "y").describe())
+        assertEquals(UiText.res(R.string.capture_location_under, "Projects"), TargetLocation.UnderHeading(title = "Projects").describe())
+        assertEquals(UiText.res(R.string.capture_location_under, "Tasks"), TargetLocation.UnderHeading(id = "x", path = listOf("Work", "Tasks")).describe())
+        assertEquals(UiText.res(R.string.capture_location_datetree_in, "Meetings"), TargetLocation.Datetree(path = listOf("Work", "Meetings")).describe())
     }
 }

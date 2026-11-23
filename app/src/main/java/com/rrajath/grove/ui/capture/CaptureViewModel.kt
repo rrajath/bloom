@@ -200,7 +200,7 @@ class CaptureViewModel(
                 sync.requestReindex(fileName, newText, "capture saved")
                 _saveState.value = SaveState.Saved(fileName)
             } catch (e: Exception) {
-                _saveState.value = SaveState.Failed(e.message?.let(UiText::raw) ?: UiText.res(R.string.capture_failed))
+                _saveState.value = SaveState.Failed(failureText(e))
             }
         }
     }
@@ -454,7 +454,7 @@ class CaptureViewModel(
                 sync.requestReindex(fileName, newText, "capture saved")
                 _saveState.value = SaveState.Saved(fileName)
             } catch (e: Exception) {
-                _saveState.value = SaveState.Failed(e.message?.let(UiText::raw) ?: UiText.res(R.string.capture_failed))
+                _saveState.value = SaveState.Failed(failureText(e))
             }
         }
     }
@@ -737,3 +737,9 @@ private fun withoutIdIn(doc: OrgDocument, range: IntRange, id: String): String? 
     val drop = if (othersLeft) idLine..idLine else range
     return lines.filterIndexed { i, _ -> i !in drop }.joinToString("\n")
 }
+
+/** A save failure as shown under the capture editor: a known reason, else the exception's own message. */
+internal fun failureText(e: Exception): UiText =
+    (e as? CaptureInserter.CaptureTargetNotFound)?.text
+        ?: e.message?.let(UiText::raw)
+        ?: UiText.res(R.string.capture_failed)

@@ -56,7 +56,7 @@ object ShareIntake {
     suspend fun consumeShare(app: GroveApplication, payload: SharedPayload) {
         val settings = app.settingsRepository.settings.first()
         if (settings.vaultTreeUri == null) {
-            toast(app, "Set a sync folder before sharing to ${app.getString(R.string.app_name)}")
+            toast(app, app.getString(R.string.share_no_vault, app.getString(R.string.app_name)))
             return
         }
         // On a cold start the vault may still be initializing; await it.
@@ -72,7 +72,7 @@ object ShareIntake {
         if (vault.open(fileName) == null) vault.createNotebook(fileName)
         val doc = vault.open(fileName)
         if (doc == null) {
-            toast(app, "Couldn't open $fileName")
+            toast(app, app.getString(R.string.location_open_failed, fileName))
             return
         }
         val headingPath = settings.shareTargetHeadingPath.split('/').filter { it.isNotEmpty() }
@@ -93,9 +93,10 @@ object ShareIntake {
         toast(
             app,
             when {
-                headingPath.isEmpty() -> "Saved to $fileLabel"
-                placed.headingFound -> "Saved to " + (listOf(fileLabel) + headingPath).joinToString(" › ")
-                else -> "Heading \"${headingPath.last()}\" not found. Saved to $fileLabel"
+                headingPath.isEmpty() -> app.getString(R.string.share_saved_to, fileLabel)
+                placed.headingFound ->
+                    app.getString(R.string.share_saved_to, (listOf(fileLabel) + headingPath).joinToString(" › "))
+                else -> app.getString(R.string.share_heading_not_found, headingPath.last(), fileLabel)
             },
         )
     }

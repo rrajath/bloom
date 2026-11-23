@@ -1,3 +1,4 @@
+// i18n: Emacs org-capture :target syntax, shown verbatim to org users; never translated
 package com.rrajath.grove.capture
 
 /**

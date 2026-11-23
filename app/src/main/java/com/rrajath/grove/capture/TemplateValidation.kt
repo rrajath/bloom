@@ -1,13 +1,15 @@
 package com.rrajath.grove.capture
 
+import com.rrajath.grove.ui.util.UiText
+
 /** Validation state for one [CaptureTemplate]: target-filename + placeholder checks. */
 data class TemplateIssues(
     /** [CaptureTemplate.targetFile] error (PLAIN kind only; always null for ROAM_NODE). */
-    val filenameError: String? = null,
+    val filenameError: UiText? = null,
     /** [CaptureTemplate.roamDirectory] error (ROAM_NODE kind only). */
-    val directoryError: String? = null,
+    val directoryError: UiText? = null,
     /** [CaptureTemplate.filenamePattern] error (ROAM_NODE kind only). */
-    val filenamePatternError: String? = null,
+    val filenamePatternError: UiText? = null,
     /** Distinct unsupported `%...` tokens found in the template body. */
     val invalidPlaceholders: List<String>,
 ) {

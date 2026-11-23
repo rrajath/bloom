@@ -1,6 +1,8 @@
 package com.rrajath.grove.capture
 
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgParser
+import com.rrajath.grove.ui.util.UiText
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -149,12 +151,12 @@ object FilenamePattern {
      * literal text contains no filesystem-illegal characters; otherwise a
      * user-facing reason. A blank (or all-whitespace) pattern is rejected.
      */
-    fun errorFor(pattern: String): String? {
+    fun errorFor(pattern: String): UiText? {
         val trimmed = pattern.trim()
-        if (trimmed.isEmpty()) return "Enter a file name pattern"
+        if (trimmed.isEmpty()) return UiText.res(R.string.filename_error_enter_pattern)
 
         val literal = STRFTIME_BLOCK.replace(trimmed, "").replace(SLUG_TOKEN, "")
-        if (ILLEGAL_LITERAL_CHARS.containsMatchIn(literal)) return "Can't contain \\ / : * ? \" < > |"
+        if (ILLEGAL_LITERAL_CHARS.containsMatchIn(literal)) return UiText.res(R.string.filename_error_pattern_illegal_chars)
         return null
     }
 }

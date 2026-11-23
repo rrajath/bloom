@@ -54,6 +54,7 @@ import com.rrajath.grove.ui.screens.IconGlyph
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.asString
 
 /**
  * Shared chrome for every settings sub-page (Settings §11 split into one page
@@ -301,7 +302,7 @@ internal fun TemplateSettingsRow(
                     val stem = "${template.filenamePattern}.org"
                     if (template.roamDirectory.isBlank()) stem else "${template.roamDirectory}/$stem"
                 } else {
-                    "${template.targetFile} · ${template.location.describe()}"
+                    "${template.targetFile} · ${template.location.describe().asString()}"
                 },
                 fontFamily = PlexMono, fontSize = 12.sp, color = c.ink2,
             )

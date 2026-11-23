@@ -28,6 +28,7 @@ import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.asString
 import com.rrajath.grove.ui.vault.WHOLE_FILE_LINE_LIMIT
 import kotlinx.coroutines.delay
 
@@ -166,7 +167,7 @@ fun SettingsRoamScreen(
                         isError = patternError != null,
                         supportingText = {
                             if (patternError != null) {
-                                Text(patternError, color = c.red, fontFamily = PlexSans, fontSize = 12.sp)
+                                Text(patternError.asString(), color = c.red, fontFamily = PlexSans, fontSize = 12.sp)
                             }
                         },
                         textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.rrajath.grove.ui.theme.PlexMono),

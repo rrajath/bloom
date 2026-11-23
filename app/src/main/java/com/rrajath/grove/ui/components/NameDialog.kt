@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.asString
 
 /**
  * Single-field name dialog: notebook and folder names on the Notebooks
@@ -38,7 +40,7 @@ internal fun NameDialog(
     placeholder: String? = "notebook.org",
     // Returns a user-facing reason the name is invalid, or null when it's fine.
     // When set, the confirm button stays disabled until the name validates.
-    validate: ((String) -> String?)? = null,
+    validate: ((String) -> UiText?)? = null,
     // Persistent hint under the field, shown while there's no validation error.
     helperText: String? = null,
     // A fixed extension (e.g. ".org") shown as a non-editable suffix inside the
@@ -87,7 +89,7 @@ internal fun NameDialog(
                 // 16dp; this keeps the hint flush with the field's start edge.
                 if (error != null || helperText != null) {
                     Text(
-                        error ?: helperText!!,
+                        error?.asString() ?: helperText!!,
                         fontFamily = PlexSans, fontSize = 12.sp,
                         color = if (error != null) c.red else c.ink3,
                         modifier = Modifier.padding(top = 4.dp),

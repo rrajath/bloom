@@ -1,10 +1,12 @@
 package com.rrajath.grove.capture
 
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.orgLocale
+import com.rrajath.grove.ui.util.UiText
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.time.temporal.IsoFields
@@ -49,10 +51,10 @@ object CaptureInserter {
                 val doc = OrgParser.parse(docText, keywords)
                 val target = findTarget(doc, location)
                     ?: throw CaptureTargetNotFound(
-                        location.headingKey?.let { "No heading with ID or CUSTOM_ID \"$it\"" }
+                        location.headingKey?.let { UiText.res(R.string.capture_target_no_id, it) }
                             ?: location.path.takeIf { it.isNotEmpty() }
-                                ?.let { "No heading at \"${it.joinToString(" / ")}\"" }
-                            ?: "No heading titled \"${location.title}\""
+                                ?.let { UiText.res(R.string.capture_target_no_path, it.joinToString(" / ")) }
+                            ?: UiText.res(R.string.capture_target_no_title, location.title.orEmpty())
                     )
                 if (bodyOnly) {
                     // Body text must sit above the target's first child heading,
@@ -69,8 +71,8 @@ object CaptureInserter {
                 val parent = if (location.hasHeading) {
                     findTarget(OrgParser.parse(docText, keywords), location)
                         ?: throw CaptureTargetNotFound(
-                            location.id?.let { "No heading with ID or CUSTOM_ID \"$it\"" }
-                                ?: "No heading at \"${location.path.joinToString(" / ")}\""
+                            location.id?.let { UiText.res(R.string.capture_target_no_id, it) }
+                                ?: UiText.res(R.string.capture_target_no_path, location.path.joinToString(" / "))
                         )
                 } else null
                 insertDatetree(docText, entry, today, keywords, parent, location.treeType)
@@ -78,7 +80,8 @@ object CaptureInserter {
         }
     }
 
-    class CaptureTargetNotFound(message: String) : Exception(message)
+    /** The template's target heading is missing; [text] is the user-facing reason. */
+    class CaptureTargetNotFound(val text: UiText) : Exception(text.toString())
 
     /**
      * Inserts [entry] as the last child of the heading at [headingPath] (exact

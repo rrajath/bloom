@@ -37,6 +37,7 @@ import com.rrajath.grove.capture.FilenameValidation
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.asString
 
 /**
  * An `.org` filename field with an inline autocomplete list of existing vault notebooks and
@@ -89,7 +90,7 @@ fun NotebookFileField(
             isError = error != null,
             supportingText = {
                 if (error != null) {
-                    Text(error, color = c.red, fontFamily = PlexSans, fontSize = 12.sp)
+                    Text(error.asString(), color = c.red, fontFamily = PlexSans, fontSize = 12.sp)
                 }
             },
             textStyle = TextStyle(fontFamily = PlexMono),
