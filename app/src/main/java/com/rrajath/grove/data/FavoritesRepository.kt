@@ -13,9 +13,11 @@ import kotlinx.coroutines.flow.map
 private val Context.favoritesDataStore: DataStore<Preferences> by preferencesDataStore(name = "favorites")
 private val FAVORITES_KEY = stringPreferencesKey("favorites_json")
 
-class FavoritesRepository(private val context: Context) {
+class FavoritesRepository(private val store: DataStore<Preferences>) {
 
-    val favorites: Flow<List<FavoriteNote>> = context.favoritesDataStore.data.map { prefs ->
+    constructor(context: Context) : this(context.favoritesDataStore)
+
+    val favorites: Flow<List<FavoriteNote>> = store.data.map { prefs ->
         prefs[FAVORITES_KEY]?.let { FavoriteNoteSerializer.decode(it) } ?: emptyList()
     }
 
@@ -31,24 +33,24 @@ class FavoritesRepository(private val context: Context) {
     suspend fun addFavorite(note: FavoriteNote) {
         val current = favorites.first()
         if (current.any { matches(it, note.fileName, note.lineIndex, note.customId) }) return
-        context.favoritesDataStore.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(current + note) }
+        store.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(current + note) }
     }
 
     suspend fun removeFavorite(fileName: String, lineIndex: Int, customId: String? = null) {
         val updated = favorites.first().filterNot { matches(it, fileName, lineIndex, customId) }
-        context.favoritesDataStore.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(updated) }
+        store.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(updated) }
     }
 
     suspend fun renameFavorite(fileName: String, lineIndex: Int, title: String, customId: String? = null) {
         val updated = favorites.first().map {
             if (matches(it, fileName, lineIndex, customId)) it.copy(title = title) else it
         }
-        context.favoritesDataStore.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(updated) }
+        store.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(updated) }
     }
 
     /** Replaces every favorite with [list], in order (settings backup import). */
     suspend fun replaceAll(list: List<FavoriteNote>) {
-        context.favoritesDataStore.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(list) }
+        store.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(list) }
     }
 
     /** Keeps favorites in [oldPath] pointing at the file after it is renamed or moved to [newPath]. */
@@ -67,7 +69,7 @@ class FavoritesRepository(private val context: Context) {
 
     /** Read-modify-write inside one DataStore transaction; skips the write when [transform] changes nothing. */
     private suspend fun rewrite(transform: suspend (List<FavoriteNote>) -> List<FavoriteNote>) {
-        context.favoritesDataStore.edit { prefs ->
+        store.edit { prefs ->
             val current = prefs[FAVORITES_KEY]?.let { FavoriteNoteSerializer.decode(it) } ?: emptyList()
             val updated = transform(current)
             if (updated !== current) prefs[FAVORITES_KEY] = FavoriteNoteSerializer.encode(updated)
@@ -81,6 +83,6 @@ class FavoritesRepository(private val context: Context) {
         val to = from + delta
         if (from < 0 || to < 0 || to >= current.size) return
         current.add(to, current.removeAt(from))
-        context.favoritesDataStore.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(current) }
+        store.edit { it[FAVORITES_KEY] = FavoriteNoteSerializer.encode(current) }
     }
 }

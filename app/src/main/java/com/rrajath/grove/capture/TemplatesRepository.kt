@@ -15,14 +15,16 @@ private val Context.templatesDataStore: DataStore<Preferences> by preferencesDat
 private val KEY = stringPreferencesKey("templates_json")
 
 /** Capture templates persisted as JSON; defaults seeded until first save. */
-class TemplatesRepository(private val context: Context) {
+class TemplatesRepository(private val store: DataStore<Preferences>) {
 
-    val templates: Flow<List<CaptureTemplate>> = context.templatesDataStore.data.map { prefs ->
+    constructor(context: Context) : this(context.templatesDataStore)
+
+    val templates: Flow<List<CaptureTemplate>> = store.data.map { prefs ->
         prefs[KEY]?.let { TemplateSerializer.decode(it) } ?: DefaultTemplates.all
     }
 
     suspend fun save(list: List<CaptureTemplate>) {
-        context.templatesDataStore.edit { it[KEY] = TemplateSerializer.encode(list) }
+        store.edit { it[KEY] = TemplateSerializer.encode(list) }
     }
 
     suspend fun upsert(template: CaptureTemplate) {

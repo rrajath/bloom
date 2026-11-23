@@ -60,6 +60,9 @@ re-uploads the APKs to the existing release instead of failing.
 ### Changed
 - Settings › Agenda › Start of week now names your region's first weekday in your device language.
 
+### Fixed
+- Saving a capture template no longer risks being lost when the editor closes before the write finishes.
+
 ## [1.16.0] - 2026-11-18
 
 ### Added

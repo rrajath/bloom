@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -653,13 +654,16 @@ class TemplatesViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun upsert(template: CaptureTemplate) =
-        viewModelScope.launch { templatesRepository.upsert(template) }
+    // The editor pops right after Save, clearing this ViewModel; NonCancellable lets the
+    // DataStore write finish instead of being dropped mid-flight.
+    fun upsert(template: CaptureTemplate) = persist { templatesRepository.upsert(template) }
 
-    fun delete(id: String) = viewModelScope.launch { templatesRepository.delete(id) }
+    fun delete(id: String) = persist { templatesRepository.delete(id) }
 
-    fun move(id: String, delta: Int) =
-        viewModelScope.launch { templatesRepository.move(id, delta) }
+    fun move(id: String, delta: Int) = persist { templatesRepository.move(id, delta) }
+
+    private fun persist(write: suspend () -> Unit) =
+        viewModelScope.launch { withContext(NonCancellable) { write() } }
 
     fun newId(): String = TemplatesRepository.newId()
 

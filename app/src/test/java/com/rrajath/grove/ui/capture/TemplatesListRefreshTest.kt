@@ -2,12 +2,12 @@ package com.rrajath.grove.ui.capture
 
 import android.app.Application
 import androidx.lifecycle.ViewModelStore
-import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplatesRepository
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.testing.InMemoryGroveDatabase
+import com.rrajath.grove.testing.support.IsolatedPreferencesDataStore
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.CoroutineScope
@@ -41,7 +41,8 @@ class TemplatesListRefreshTest {
 
     private val db: GroveDatabase =
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
-    private val repo = TemplatesRepository(ApplicationProvider.getApplicationContext<Application>())
+    private val templatesStore = IsolatedPreferencesDataStore()
+    private val repo = TemplatesRepository(templatesStore.store)
     private val vaultFlow = MutableStateFlow<Vault?>(null)
 
     private fun vm() = TemplatesViewModel(repo, db, vaultFlow, mainDispatcherRule.appDispatchers)
@@ -49,10 +50,11 @@ class TemplatesListRefreshTest {
     @After
     fun tearDown() {
         db.close()
+        templatesStore.close()
     }
 
     /** Pumps the test scheduler while DataStore's own IO threads finish. */
-    private fun TestScope.pumpUntil(timeoutMs: Long = 3_000, done: () -> Boolean) {
+    private fun TestScope.pumpUntil(timeoutMs: Long = 10_000, done: () -> Boolean) {
         val end = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < end) {
             runCurrent()

@@ -14,6 +14,7 @@ import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.testing.TestVaultSeeder
+import com.rrajath.grove.testing.support.IsolatedPreferencesDataStore
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.CoroutineScope
@@ -72,7 +73,8 @@ class NotebooksViewModelIntegrationTest {
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
     private val repoScope = CoroutineScope(mainDispatcherRule.dispatcher)
     private val settingsRepository = SettingsRepository(app, repoScope)
-    private val favoritesRepository = FavoritesRepository(app)
+    private val favoritesStore = IsolatedPreferencesDataStore()
+    private val favoritesRepository = FavoritesRepository(favoritesStore.store)
 
     private val liveVms = mutableListOf<NotebooksViewModel>()
 
@@ -87,11 +89,8 @@ class NotebooksViewModelIntegrationTest {
 
     private suspend fun favoriteFiles(): List<String> = favoritesRepository.favorites.first().map { it.fileName }
 
-    /** Replace whatever favorites a previous test left in the process-wide DataStore with [favs]. */
+    /** Seed this test's own (initially empty) favorites store with [favs]. */
     private suspend fun TestScope.seedFavorites(vararg favs: FavoriteNote) {
-        favoritesRepository.favorites.first().forEach {
-            favoritesRepository.removeFavorite(it.fileName, it.lineIndex, it.customId)
-        }
         favs.forEach { favoritesRepository.addFavorite(it) }
         settleUntil { favoriteFiles() == favs.map { it.fileName } }
     }
@@ -127,6 +126,7 @@ class NotebooksViewModelIntegrationTest {
     fun tearDown() {
         liveVms.forEach { it.viewModelScope.cancel() }
         repoScope.cancel()
+        favoritesStore.close()
         db.close()
     }
 
