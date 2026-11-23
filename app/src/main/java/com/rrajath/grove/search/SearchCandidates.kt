@@ -6,7 +6,7 @@ import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.data.NoteEntity
 import com.rrajath.grove.data.rawQuery
 
-private const val TAG = "SearchCandidates"
+private const val TAG = "SearchCandidates" // i18n: log tag
 
 /**
  * Loads only the rows a search could possibly match: the FTS5 index supplies

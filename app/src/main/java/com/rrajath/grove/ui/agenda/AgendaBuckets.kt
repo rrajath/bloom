@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.agenda
 
+import com.rrajath.grove.R
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.org.cookieDays
@@ -47,8 +49,8 @@ import kotlin.math.abs
  */
 internal object AgendaBuckets {
 
-    /** One "Group by" section, still in [NoteMeta] terms. */
-    data class Bucket(val key: String, val notes: List<NoteMeta>)
+    /** One "Group by" section, still in [NoteMeta] terms. [key] is stable (list keys); [label] is shown. */
+    data class Bucket(val key: String, val label: UiText, val notes: List<NoteMeta>)
 
     /** The day a heading lands on: its SCHEDULED date, else its DEADLINE. */
     fun whenDate(m: NoteMeta): LocalDate? = m.scheduledDate ?: m.deadlineDate
@@ -177,28 +179,33 @@ internal object AgendaBuckets {
         AgendaGrouping.DATE ->
             if (isTodayTab) {
                 if (list.isEmpty()) emptyList()
-                else listOf(Bucket("Scheduled today", list.sortedWith(BY_TIME)))
+                else listOf(Bucket(SCHEDULED_TODAY_KEY, UiText.res(R.string.agenda_section_scheduled_today), list.sortedWith(BY_TIME)))
             } else {
                 list.mapNotNull { whenDate(it) }.distinct().sorted().map { day ->
-                    Bucket(dayLabel(day, today), onDay(list, day).sortedWith(BY_TIME))
+                    Bucket(day.toString(), dayLabel(day, today), onDay(list, day).sortedWith(BY_TIME))
                 }
             }
 
         AgendaGrouping.PRIORITY ->
-            PRIORITY_BUCKETS.mapNotNull { (key, label) ->
+            PRIORITY_KEYS.mapNotNull { key ->
                 val notes = list.filter { it.priority == key }
-                if (notes.isEmpty()) null else Bucket(label, notes.sortedWith(BY_TIME))
+                val label = if (key == null) UiText.res(R.string.agenda_section_no_priority)
+                else UiText.res(R.string.agenda_section_priority, key)
+                if (notes.isEmpty()) null else Bucket("priority-$key", label, notes.sortedWith(BY_TIME))
             }
 
         AgendaGrouping.TAG -> {
             val keys = LinkedHashSet<String>()
             list.forEach { keys += tagsOf(it) }
-            keys.map { tag -> Bucket(":$tag:", list.filter { tag in tagsOf(it) }.sortedWith(BY_PRIORITY)) }
+            keys.map { tag ->
+                val label = if (tag == UNTAGGED) UiText.res(R.string.agenda_section_untagged) else UiText.raw(":$tag:")
+                Bucket("tag-$tag", label, list.filter { tag in tagsOf(it) }.sortedWith(BY_PRIORITY))
+            }
         }
 
         AgendaGrouping.FILE ->
             list.map { it.fileName }.distinct().map { file ->
-                Bucket(file, list.filter { it.fileName == file }.sortedWith(BY_PRIORITY))
+                Bucket("file-$file", UiText.raw(file), list.filter { it.fileName == file }.sortedWith(BY_PRIORITY))
             }
     }
 
@@ -206,14 +213,19 @@ internal object AgendaBuckets {
     fun tagsOf(m: NoteMeta): List<String> = m.tags.ifEmpty { listOf(UNTAGGED) }
 
     /** "Today" / "Tomorrow" / "Yesterday" / "Friday" / "Friday, Aug 14" past a week out. */
-    fun dayLabel(date: LocalDate, today: LocalDate): String {
+    fun dayLabel(date: LocalDate, today: LocalDate): UiText {
         val n = ChronoUnit.DAYS.between(today, date)
-        if (n == 0L) return "Today"
-        if (n == 1L) return "Tomorrow"
-        if (n == -1L) return "Yesterday"
-        return if (abs(n) > 6) LocalDates.format(date, "EEEEMMMd", "EEEE, MMM d")
-        else date.dayOfWeek.getDisplayName(TextStyle.FULL, orgLocale())
+        if (n == 0L) return UiText.res(R.string.agenda_day_today)
+        if (n == 1L) return UiText.res(R.string.agenda_day_tomorrow)
+        if (n == -1L) return UiText.res(R.string.agenda_day_yesterday)
+        return UiText.raw(
+            if (abs(n) > 6) LocalDates.format(date, "EEEEMMMd", "EEEE, MMM d")
+            else date.dayOfWeek.getDisplayName(TextStyle.FULL, orgLocale()),
+        )
     }
+
+    /** True when [dayLabel] already names the date itself (a day more than a week away). */
+    fun dayLabelHasDate(date: LocalDate, today: LocalDate): Boolean = abs(ChronoUnit.DAYS.between(today, date)) > 6
 
     /** Time on whichever timestamp [whenDate] chose; untimed rows sort last. */
     private fun timeOf(m: NoteMeta): LocalTime =
@@ -234,10 +246,8 @@ internal object AgendaBuckets {
 
     private const val UNTAGGED = "untagged"
 
-    private val PRIORITY_BUCKETS = listOf(
-        "A" to "Priority A",
-        "B" to "Priority B",
-        "C" to "Priority C",
-        null to "No priority",
-    )
+    /** Stable key of the Today tab's single date bucket. */
+    const val SCHEDULED_TODAY_KEY = "scheduled-today"
+
+    private val PRIORITY_KEYS = listOf("A", "B", "C", null)
 }

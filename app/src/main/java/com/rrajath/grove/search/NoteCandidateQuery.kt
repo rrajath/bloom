@@ -1,3 +1,4 @@
+// i18n: SQL predicates, never translated
 package com.rrajath.grove.search
 
 import com.rrajath.grove.data.NotesFts

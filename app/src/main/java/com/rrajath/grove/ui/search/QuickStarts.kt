@@ -62,7 +62,7 @@ object QuickStarts {
     fun builtInQuery(card: Card, activeStates: List<String>): String =
         builtInFilters(card, activeStates)?.let { FilterExpression.of(it) }
             ?: if (activeStates.isEmpty()) {
-                "s.overdue OR d.overdue"
+                "s.overdue OR d.overdue" // i18n: query syntax
             } else {
                 activeStates.flatMap { kw -> listOf("i.$kw s.overdue", "i.$kw d.overdue") }.joinToString(" OR ")
             }

@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.agenda
 
+import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.FileRewrite
 import com.rrajath.grove.attach.rewritesFor
@@ -67,7 +68,11 @@ enum class AgendaMetaIcon { NONE, CALENDAR, EVENT_DOT }
 
 /** One entry in a row's mono meta strip: the date, a `⚑` deadline, an event day, a time range, `↻` repeater, tags, or the file. */
 @Immutable
-data class AgendaMeta(val text: String, val tone: AgendaMetaTone, val icon: AgendaMetaIcon = AgendaMetaIcon.NONE)
+data class AgendaMeta(val text: UiText, val tone: AgendaMetaTone, val icon: AgendaMetaIcon = AgendaMetaIcon.NONE) {
+    /** Text that is data, not copy: a time range, tags, a file name, a repeater. */
+    constructor(raw: String, tone: AgendaMetaTone, icon: AgendaMetaIcon = AgendaMetaIcon.NONE) :
+        this(UiText.raw(raw), tone, icon)
+}
 
 @Immutable
 data class AgendaRow(
@@ -137,9 +142,9 @@ val AgendaRow.repeaterKind: PlanningKind?
  */
 val AgendaRow.hasDoneAffordance: Boolean get() = keyword != null || repeaterKind != null
 
-/** One "Group by" bucket: an uppercase key, its count, and its rows. */
+/** One "Group by" bucket: a stable [key] (list keys), the [label] shown uppercased, its count, and its rows. */
 @Immutable
-data class AgendaGroup(val key: String, val count: Int, val rows: ImmutableList<AgendaRow>)
+data class AgendaGroup(val key: String, val label: UiText, val count: Int, val rows: ImmutableList<AgendaRow>)
 
 /** The Today/Upcoming segmented control. Navigational, so it is not persisted. */
 enum class AgendaTab { TODAY, UPCOMING }
@@ -382,6 +387,7 @@ class AgendaViewModel(
             listOf(
                 AgendaGroup(
                     DUE_SOON_KEY,
+                    UiText.res(R.string.agenda_section_due_soon),
                     dueSoonItems.size,
                     dueSoonItems.map { row(it, today, showDate = false, p = p, placement = RowPlacement.DueSoon) }
                         .toImmutableList(),
@@ -395,7 +401,7 @@ class AgendaViewModel(
         } else {
             AgendaBuckets.group(list, today, grouping, isTodayTab)
                 .map { b ->
-                    AgendaGroup(b.key, b.notes.size, b.notes.map { row(it, today, showDate, p) }.toImmutableList())
+                    AgendaGroup(b.key, b.label, b.notes.size, b.notes.map { row(it, today, showDate, p) }.toImmutableList())
                 }
         }
 
@@ -457,7 +463,7 @@ class AgendaViewModel(
         windowDays: Int,
         p: GroveSettings,
     ): List<AgendaGroup> {
-        fun bucket(key: String, day: LocalDate, entries: List<DayEntry>): AgendaGroup {
+        fun bucket(key: String, label: UiText, day: LocalDate, entries: List<DayEntry>): AgendaGroup {
             val sorted = entries.sortedWith(
                 compareBy<DayEntry> { it.sortTime() }.thenBy { it.meta.title.lowercase() },
             )
@@ -469,7 +475,7 @@ class AgendaViewModel(
                         row(e.meta, today, showDate = false, p = p, placement = RowPlacement.Repeat(e.kind, e.ts))
                 }
             }
-            return AgendaGroup(key, rows.size, rows.toImmutableList())
+            return AgendaGroup(key, label, rows.size, rows.toImmutableList())
         }
 
         /** Drops event occurrences whose heading is already planned for this same day. */
@@ -484,7 +490,9 @@ class AgendaViewModel(
         if (isTodayTab) {
             val events = eventsNotAlreadyPlanned(AgendaBuckets.activeEventsOn(visible, today), planned)
             val entries = planned.map { DayEntry.Planned(it) } + events.map { DayEntry.Event(it.first, it.second) }
-            return if (entries.isEmpty()) emptyList() else listOf(bucket("Scheduled today", today, entries))
+            return if (entries.isEmpty()) emptyList() else listOf(
+                bucket(AgendaBuckets.SCHEDULED_TODAY_KEY, UiText.res(R.string.agenda_section_scheduled_today), today, entries),
+            )
         }
 
         val horizon = today.plusDays((windowDays - 1).coerceAtLeast(0).toLong())
@@ -505,7 +513,7 @@ class AgendaViewModel(
             val entries = plannedByDay[day].orEmpty().map { DayEntry.Planned(it) } +
                 repeatsByDay[day].orEmpty().map { DayEntry.Repeat(it.meta, it.kind, it.ts) } +
                 eventsByDay[day].orEmpty().map { DayEntry.Event(it.first, it.second) }
-            bucket(AgendaBuckets.dayLabel(day, today), day, entries)
+            bucket(day.toString(), AgendaBuckets.dayLabel(day, today), day, entries)
         }
     }
 
@@ -566,7 +574,7 @@ class AgendaViewModel(
                 undoSnapshot = listOf(FileSnapshot(fileName, doc.text))
                 vault.save(fileName, newText)
                 sync.requestReindex(fileName, newText, "agenda toggle done")
-                showSnack("Reopened")
+                showSnack(UiText.res(R.string.agenda_snack_reopened))
                 return@launch
             }
             val doneKeyword = doc.keywords.done.firstOrNull() ?: return@launch
@@ -580,7 +588,7 @@ class AgendaViewModel(
                     sync.requestReindex(fileName, result.text, "agenda toggle done")
                     val next = result.doc.headlines.firstOrNull { it.lineIndex == lineIndex }
                         ?.let { nextRepeatOccurrence(headline, it) }
-                    showSnack(markedDoneMessage(next, LocalDate.now()))
+                    showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
                 }
                 is StateChangeResult.Archived -> {
                     undoSnapshot = if (result.sourceFile == result.destFile) {
@@ -601,7 +609,7 @@ class AgendaViewModel(
                             "Archived",
                         )
                     }
-                    showSnack("Marked done. Refiled to ${result.label}")
+                    showSnack(UiText.res(R.string.snack_marked_done_refiled, result.label))
                 }
             }
         }
@@ -635,7 +643,7 @@ class AgendaViewModel(
             val next = OrgParser.parse(newText, doc.keywords).headlines
                 .firstOrNull { it.lineIndex == row.lineIndex }
                 ?.let { nextRepeatOccurrence(headline, it) }
-            showSnack(markedDoneMessage(next, LocalDate.now()))
+            showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
         }
     }
 
@@ -657,7 +665,7 @@ class AgendaViewModel(
             }
             vault.save(fileName, newText)
             sync.requestReindex(fileName, newText, "agenda note added")
-            showSnack("Note added")
+            showSnack(UiText.res(R.string.agenda_snack_note_added))
         }
     }
 
@@ -710,7 +718,7 @@ class AgendaViewModel(
             undoSnapshot = snapshots
             overdueOpen = false
             recompute()
-            showSnack("Moved $moved to today")
+            showSnack(UiText.plural(R.plurals.agenda_snack_moved_to_today, moved))
         }
     }
 
@@ -730,8 +738,8 @@ class AgendaViewModel(
         }
     }
 
-    private fun showSnack(message: String) {
-        val s = OutlineSnack(UiText.raw(message), ++eventId)
+    private fun showSnack(message: UiText) {
+        val s = OutlineSnack(message, ++eventId)
         _snack.value = s
         viewModelScope.launch {
             delay(4200)
@@ -748,7 +756,7 @@ class AgendaViewModel(
         }
 
         /** Today's prewarned-deadline section, shown above the day's own rows. */
-        const val DUE_SOON_KEY = "Due soon"
+        const val DUE_SOON_KEY = "due-soon"
 
         private const val INITIAL_WINDOW_DAYS = 14
         private const val PAGE_SIZE = 14
@@ -776,6 +784,9 @@ class AgendaViewModel(
          * [scheduledTs]/[deadlineTs] on the row still carry the heading's real
          * planning so swipe-to-schedule prefills correctly.
          */
+        /** A deadline chip: the `⚑` flag before [text]. */
+        private fun flagged(text: UiText): UiText = UiText.res(R.string.agenda_meta_flagged, text)
+
         internal fun row(
             m: NoteMeta,
             today: LocalDate,
@@ -858,11 +869,11 @@ class AgendaViewModel(
                             if (showDate || p.agendaShowTimestamps) {
                                 val label = AgendaBuckets.dayLabel(placement.ts.date, today)
                                 add(
-                                    if (isDeadline) AgendaMeta("⚑ $label", AgendaMetaTone.DANGER)
+                                    if (isDeadline) AgendaMeta(flagged(label), AgendaMetaTone.DANGER)
                                     else AgendaMeta(label, AgendaMetaTone.NORMAL, icon = AgendaMetaIcon.CALENDAR),
                                 )
                             } else if (isDeadline) {
-                                add(AgendaMeta("⚑ due", AgendaMetaTone.DANGER))
+                                add(AgendaMeta(flagged(UiText.res(R.string.agenda_meta_due)), AgendaMetaTone.DANGER))
                             }
                             addTimeRange(placement.ts)
                             placement.ts.repeater?.let { add(AgendaMeta("↻ $it", AgendaMetaTone.MUTED)) }
@@ -871,7 +882,9 @@ class AgendaViewModel(
                         RowPlacement.DueSoon -> {
                             val dl = deadlineTs ?: return@buildList
                             val left = ChronoUnit.DAYS.between(today, dl.date)
-                            add(AgendaMeta("⚑ ${dl.date.format(AgendaBuckets.SHORT_DATE)} · in ${left}d", AgendaMetaTone.DANGER))
+                            val inDays = UiText.plural(R.plurals.agenda_meta_in_days, left.toInt())
+                            val text = UiText.res(R.string.agenda_meta_due_soon, dl.date.format(AgendaBuckets.SHORT_DATE), inDays)
+                            add(AgendaMeta(flagged(text), AgendaMetaTone.DANGER))
                             addTimeRange(dl)
                             dl.repeater?.let { add(AgendaMeta("↻ $it", AgendaMetaTone.MUTED)) }
                         }
@@ -906,9 +919,13 @@ class AgendaViewModel(
                 // but never for a deadline-only row, whose "⚑ due" already covers it.
                 if ((showDate || (p.agendaShowTimestamps && scheduledTs != null)) && anchorDate != null) {
                     val late = ChronoUnit.DAYS.between(anchorDate, today)
-                    val text = (if (deadlineOnly) "⚑ " else "") +
-                        if (overdue) "${anchorDate.format(AgendaBuckets.SHORT_DATE)} · ${late}d late"
-                        else AgendaBuckets.dayLabel(anchorDate, today)
+                    val dateText = if (overdue) {
+                        val lateText = UiText.plural(R.plurals.agenda_meta_days_late, late.toInt())
+                        UiText.res(R.string.agenda_meta_late, anchorDate.format(AgendaBuckets.SHORT_DATE), lateText)
+                    } else {
+                        AgendaBuckets.dayLabel(anchorDate, today)
+                    }
+                    val text = if (deadlineOnly) flagged(dateText) else dateText
                     // Only a plain scheduled date (not overdue, not deadline-only)
                     // gets the calendar-icon treatment; overdue/deadline chips stay
                     // plain red text, unchanged.
@@ -920,7 +937,7 @@ class AgendaViewModel(
                         ),
                     )
                 } else if (deadlineOnly) {
-                    add(AgendaMeta("⚑ due", AgendaMetaTone.DANGER))
+                    add(AgendaMeta(flagged(UiText.res(R.string.agenda_meta_due)), AgendaMetaTone.DANGER))
                 }
                 anchor?.time?.let { start ->
                     val range = start.format(CLOCK) + (anchor.endTime?.let { "–${it.format(CLOCK)}" } ?: "")

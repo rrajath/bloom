@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.agenda
 
+import com.rrajath.grove.testing.support.english
+
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
@@ -72,7 +74,7 @@ class AgendaViewModelRowTest {
         val row = AgendaViewModel.row(meta, today, showDate = false, p = GroveSettings())
 
         val tagChip = row.meta.single { it.tone == AgendaMetaTone.TAG }
-        assertEquals(":service:maintenance:", tagChip.text)
+        assertEquals(":service:maintenance:", tagChip.text.english())
     }
 
     @Test
@@ -87,7 +89,7 @@ class AgendaViewModelRowTest {
         val row = AgendaViewModel.row(meta, today, showDate = false, p = GroveSettings())
 
         val tagChip = row.meta.single { it.tone == AgendaMetaTone.TAG }
-        assertEquals(":urgent:", tagChip.text)
+        assertEquals(":urgent:", tagChip.text.english())
     }
 
     @Test
@@ -101,7 +103,7 @@ class AgendaViewModelRowTest {
         )
 
         assertEquals(ts, row.activeTs)
-        assertTrue(row.meta.any { it.text == "09:00–17:00" })
+        assertTrue(row.meta.any { it.text.english() == "09:00–17:00" })
         // Events never carry overdue / deadline styling.
         assertTrue(row.meta.none { it.tone == AgendaMetaTone.DANGER })
         assertNull(row.scheduledTs)
@@ -121,7 +123,7 @@ class AgendaViewModelRowTest {
 
         // No day section (eventDay null): the row carries the day itself.
         val loose = AgendaViewModel.row(meta, today, showDate = false, p = GroveSettings(), activeTs = ts)
-        assertEquals("Friday", loose.meta.single { it.tone == AgendaMetaTone.EVENT }.text)
+        assertEquals("Friday", loose.meta.single { it.tone == AgendaMetaTone.EVENT }.text.english())
     }
 
     @Test
@@ -137,7 +139,7 @@ class AgendaViewModelRowTest {
             activeTs = ts, eventDay = todayInRange,
         )
 
-        assertEquals("Today", row.meta.single { it.tone == AgendaMetaTone.EVENT }.text)
+        assertEquals("Today", row.meta.single { it.tone == AgendaMetaTone.EVENT }.text.english())
     }
 
     @Test
@@ -238,7 +240,7 @@ class AgendaViewModelRowTest {
         val row = AgendaViewModel.row(meta, today, showDate = false, p = GroveSettings(agendaShowTimestamps = true))
 
         val chip = row.meta.single { it.tone == AgendaMetaTone.NORMAL }
-        assertEquals("Today", chip.text)
+        assertEquals("Today", chip.text.english())
         assertEquals(AgendaMetaIcon.CALENDAR, chip.icon)
     }
 
@@ -252,10 +254,10 @@ class AgendaViewModelRowTest {
         val row = AgendaViewModel.row(meta, today, showDate = false, p = GroveSettings(agendaShowTimestamps = true))
 
         val scheduledChip = row.meta.single { it.tone == AgendaMetaTone.NORMAL }
-        assertEquals("Today", scheduledChip.text)
+        assertEquals("Today", scheduledChip.text.english())
         assertEquals(AgendaMetaIcon.CALENDAR, scheduledChip.icon)
         val deadlineChip = row.meta.single { it.tone == AgendaMetaTone.DANGER }
-        assertTrue(deadlineChip.text.startsWith("⚑"))
+        assertTrue(deadlineChip.text.english().startsWith("⚑"))
         assertEquals(AgendaMetaIcon.NONE, deadlineChip.icon)
     }
 
@@ -266,7 +268,7 @@ class AgendaViewModelRowTest {
         val row = AgendaViewModel.row(meta, today, showDate = false, p = GroveSettings(agendaShowTimestamps = true))
 
         val chip = row.meta.single { it.tone == AgendaMetaTone.DANGER }
-        assertEquals("⚑ due", chip.text)
+        assertEquals("⚑ due", chip.text.english())
         assertEquals(AgendaMetaIcon.NONE, chip.icon)
     }
 
@@ -281,7 +283,7 @@ class AgendaViewModelRowTest {
         )
 
         val chip = row.meta.single { it.tone == AgendaMetaTone.EVENT }
-        assertEquals("Friday", chip.text)
+        assertEquals("Friday", chip.text.english())
         assertEquals(AgendaMetaIcon.EVENT_DOT, chip.icon)
     }
 

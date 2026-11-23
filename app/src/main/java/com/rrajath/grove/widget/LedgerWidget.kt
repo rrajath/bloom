@@ -1,5 +1,8 @@
 package com.rrajath.grove.widget
 
+import androidx.glance.LocalContext
+import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.resolve
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -689,7 +692,7 @@ private fun LedgerRow(context: Context, colors: GroveColors, row: AgendaRow, fon
                 // the case that actually runs out of room — drop the filename onto
                 // its own line instead; everything else stays inline.
                 val fileChip = row.meta.lastOrNull()
-                    ?.takeIf { it.tone == AgendaMetaTone.MUTED && it.text == LedgerBuckets.contractFileName(row.fileName) }
+                    ?.takeIf { it.tone == AgendaMetaTone.MUTED && it.text == UiText.raw(LedgerBuckets.contractFileName(row.fileName)) }
                 val splitFile = fileChip != null && row.meta.any { it.tone == AgendaMetaTone.TAG }
                 val inlineMeta = if (splitFile) row.meta.dropLast(1) else row.meta
                 MetaLine(colors, inlineMeta, GlanceModifier.padding(top = 3.dp), fontScale)
@@ -732,7 +735,7 @@ private fun MetaLine(colors: GroveColors, meta: List<AgendaMeta>, modifier: Glan
 @Composable
 private fun MetaChip(colors: GroveColors, meta: AgendaMeta, fontScale: Float) {
     Text(
-        meta.text,
+        meta.text.resolve(LocalContext.current),
         // Never let a chip wrap mid-word; when the strip is tight it truncates instead.
         maxLines = 1,
         style = TextStyle(color = ColorProvider(colors.metaColor(meta.tone)), fontSize = sp(10.5f, fontScale), fontFamily = FontFamily.Monospace),

@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.search
 
+import com.rrajath.grove.ui.util.UiText
+
 import kotlinx.collections.immutable.toImmutableList
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -22,7 +24,7 @@ class DayRowKeysTest {
         deadlineTs = null,
     )
 
-    private fun day(vararg rows: SearchResult) = SearchDayGroup("2026-10-30", "Today", rows.toList().toImmutableList())
+    private fun day(vararg rows: SearchResult) = SearchDayGroup("2026-10-30", UiText.raw("Today"), rows.toList().toImmutableList())
 
     @Test
     fun `a row keeps its key when an earlier row is inserted`() {

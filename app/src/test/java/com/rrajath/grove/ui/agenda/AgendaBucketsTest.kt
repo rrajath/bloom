@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.agenda
 
+import com.rrajath.grove.testing.support.english
+
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.settings.AgendaGrouping
 import com.rrajath.grove.settings.AgendaStateFilter
@@ -195,7 +197,7 @@ class AgendaBucketsTest {
             listOf(noTime, at9, at14), today, AgendaGrouping.DATE, isTodayTab = true,
         )
         assertEquals(1, groups.size)
-        assertEquals("Scheduled today", groups[0].key)
+        assertEquals("Scheduled today", groups[0].label.english())
         assertEquals(listOf("Bravo", "Charlie", "Alpha"), groups[0].notes.map { it.title })
     }
 
@@ -207,7 +209,7 @@ class AgendaBucketsTest {
         val groups = AgendaBuckets.group(
             listOf(friday, thursday), today, AgendaGrouping.DATE, isTodayTab = false,
         )
-        assertEquals(listOf("Tomorrow", "Friday"), groups.map { it.key })
+        assertEquals(listOf("Tomorrow", "Friday"), groups.map { it.label.english() })
     }
 
     @Test
@@ -221,7 +223,7 @@ class AgendaBucketsTest {
             listOf(a, bLate, bEarly, none), today, AgendaGrouping.PRIORITY, isTodayTab = true,
         )
         // No heading has priority C, so that bucket never appears.
-        assertEquals(listOf("Priority A", "Priority B", "No priority"), groups.map { it.key })
+        assertEquals(listOf("Priority A", "Priority B", "No priority"), groups.map { it.label.english() })
         assertEquals(listOf("Charlie", "Bravo"), groups[1].notes.map { it.title })
     }
 
@@ -233,7 +235,7 @@ class AgendaBucketsTest {
         val groups = AgendaBuckets.group(
             listOf(multi, bare), today, AgendaGrouping.TAG, isTodayTab = true,
         )
-        assertEquals(listOf(":work:", ":urgent:", ":untagged:"), groups.map { it.key })
+        assertEquals(listOf(":work:", ":urgent:", ":untagged:"), groups.map { it.label.english() })
         assertEquals(listOf("Multi"), groups[0].notes.map { it.title })
         assertEquals(listOf("Bare"), groups[2].notes.map { it.title })
     }
@@ -246,17 +248,17 @@ class AgendaBucketsTest {
         val groups = AgendaBuckets.group(
             listOf(work, home), today, AgendaGrouping.FILE, isTodayTab = true,
         )
-        assertEquals(listOf("work.org", "home.org"), groups.map { it.key })
+        assertEquals(listOf("work.org", "home.org"), groups.map { it.label.english() })
     }
 
     // --- day labels ---
 
     @Test
     fun `day labels are relative near today and dated past a week out`() {
-        assertEquals("Today", AgendaBuckets.dayLabel(today, today))
-        assertEquals("Tomorrow", AgendaBuckets.dayLabel(today.plusDays(1), today))
-        assertEquals("Yesterday", AgendaBuckets.dayLabel(today.minusDays(1), today))
-        assertEquals("Sunday", AgendaBuckets.dayLabel(today.plusDays(4), today))
-        assertEquals("Friday, Jun 20", AgendaBuckets.dayLabel(today.plusDays(9), today))
+        assertEquals("Today", AgendaBuckets.dayLabel(today, today).english())
+        assertEquals("Tomorrow", AgendaBuckets.dayLabel(today.plusDays(1), today).english())
+        assertEquals("Yesterday", AgendaBuckets.dayLabel(today.minusDays(1), today).english())
+        assertEquals("Sunday", AgendaBuckets.dayLabel(today.plusDays(4), today).english())
+        assertEquals("Friday, Jun 20", AgendaBuckets.dayLabel(today.plusDays(9), today).english())
     }
 }

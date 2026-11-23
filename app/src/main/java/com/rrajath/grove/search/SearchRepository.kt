@@ -25,7 +25,7 @@ class SearchRepository(private val context: Context) {
     /** Searches stored before the Orgzly date semantics are read through
      *  [QueryMigration] so they keep their meaning; the first write persists that. */
     val savedSearches: Flow<List<SavedSearch>> = context.searchDataStore.data.map { prefs ->
-        val stored = prefs[SAVED_KEY]?.let { SavedSearchSerializer.decode(it) } ?: return@map DefaultSavedSearches.all
+        val stored = prefs[SAVED_KEY]?.let { SavedSearchSerializer.decode(it) } ?: return@map DefaultSavedSearches.localized(context)
         if ((prefs[SYNTAX_KEY] ?: 1) >= CURRENT_SYNTAX) stored
         else stored.map { it.copy(query = QueryMigration.toV2(it.query)) }
     }

@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.search
 
+import com.rrajath.grove.R
+import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.org.occurrenceCovering
 import com.rrajath.grove.org.repeats
 import com.rrajath.grove.search.NoteMeta
@@ -32,7 +34,7 @@ internal object SearchAgenda {
     data class Day(
         /** [OVERDUE_KEY], or the ISO date: stable across recompositions. */
         val key: String,
-        val label: String,
+        val label: UiText,
         val entries: List<Entry>,
     )
 
@@ -67,7 +69,7 @@ internal object SearchAgenda {
             val sorted = overdue.sortedWith(
                 compareBy<Pair<LocalDate, Entry>> { it.first }.thenBy { it.second.note.title.lowercase() },
             )
-            out += Day(OVERDUE_KEY, "Overdue", sorted.map { it.second })
+            out += Day(OVERDUE_KEY, UiText.res(R.string.agenda_section_overdue), sorted.map { it.second })
         }
         byDay.forEach { (day, entries) ->
             out += Day(day.toString(), label(day, today), entries.sortedWith(BY_TIME))
@@ -83,9 +85,10 @@ internal object SearchAgenda {
     }
 
     /** Agenda's day label, with the date added to a near day so the header always names it. */
-    private fun label(day: LocalDate, today: LocalDate): String {
+    private fun label(day: LocalDate, today: LocalDate): UiText {
         val base = AgendaBuckets.dayLabel(day, today)
-        return if (base.contains(',')) base else "$base, ${day.format(AgendaBuckets.SHORT_DATE)}"
+        return if (AgendaBuckets.dayLabelHasDate(day, today)) base
+        else UiText.res(R.string.agenda_day_with_date, base, day.format(AgendaBuckets.SHORT_DATE))
     }
 
     /** Timed first by time (untimed sort as [LocalTime.MAX]), then by title. */

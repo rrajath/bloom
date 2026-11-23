@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.search
 
+import com.rrajath.grove.testing.support.english
+
 import com.rrajath.grove.search.NoteMeta
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -21,7 +23,7 @@ class SearchAgendaTest {
     )
 
     private fun layout(vararg notes: NoteMeta, days: Int = 7): List<Pair<String, List<String>>> =
-        SearchAgenda.build(notes.toList(), today, days).map { d -> d.label to d.entries.map { it.note.title } }
+        SearchAgenda.build(notes.toList(), today, days).map { d -> d.label.english() to d.entries.map { it.note.title } }
 
     @Test
     fun `overdue comes first, then each day in order, empty days left out`() {

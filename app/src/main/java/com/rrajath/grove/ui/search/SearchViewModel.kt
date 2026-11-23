@@ -234,7 +234,7 @@ data class FilenameMatch(
 data class SearchDayGroup(
     /** [SearchAgenda.OVERDUE_KEY] or the ISO date. */
     val key: String,
-    val label: String,
+    val label: UiText,
     val results: ImmutableList<SearchResult>,
 )
 
@@ -286,8 +286,8 @@ class SearchViewModel(
     private var eventId = 0L
     private var undoSnapshot: List<Pair<String, String>>? = null
 
-    private fun showSnack(message: String) {
-        val s = OutlineSnack(UiText.raw(message), ++eventId)
+    private fun showSnack(message: UiText) {
+        val s = OutlineSnack(message, ++eventId)
         _snack.value = s
         viewModelScope.launch {
             delay(4200)
@@ -397,14 +397,14 @@ class SearchViewModel(
     /** Star-button dropdown: saves the current query under [name], updating an
      *  existing saved search in place (by exact case-insensitive name match)
      *  rather than creating a duplicate, so "overwrite" behaves like the
-     *  confirmation dialog implies. A Quick Start card's label (see
-     *  [QuickStartOverrides]) instead updates that card's own reserved
-     *  override row, so overwriting it changes what the card itself runs. */
-    fun saveOrOverwriteSearch(name: String) {
+     *  confirmation dialog implies. A Quick Start card ([quickStartId], one of
+     *  [QuickStartOverrides.ids]) instead updates that card's own reserved
+     *  override row, so overwriting it changes what the card itself runs. The
+     *  card is picked by id, never by its (translated) label. */
+    fun saveOrOverwriteSearch(name: String, quickStartId: String? = null) {
         val query = _state.value.query
         val trimmedName = name.trim()
         if (query.isBlank() || trimmedName.isBlank()) return
-        val quickStartId = QuickStartOverrides.idForName(trimmedName)
         viewModelScope.launch {
             if (quickStartId != null) {
                 searchRepository.setQuickStartOverride(quickStartId, trimmedName, query.trim())
@@ -480,7 +480,7 @@ class SearchViewModel(
                     ?.let { nextRepeatOccurrence(headline, it) }
                 if (next != null || announceDone) {
                     undoSnapshot = listOf(fileName to doc.text)
-                    showSnack(markedDoneMessage(next, LocalDate.now()))
+                    showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
                 }
             }
             is StateChangeResult.Archived -> {
@@ -502,7 +502,7 @@ class SearchViewModel(
                         "Archived",
                     )
                 }
-                showSnack("Marked done. Refiled to ${result.label}")
+                showSnack(UiText.res(R.string.snack_marked_done_refiled, result.label))
             }
         }
     }

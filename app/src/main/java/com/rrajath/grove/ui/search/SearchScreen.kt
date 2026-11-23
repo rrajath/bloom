@@ -2,6 +2,10 @@ package com.rrajath.grove.ui.search
 
 import androidx.compose.ui.res.pluralStringResource
 import com.rrajath.grove.R
+import androidx.annotation.StringRes
+import com.rrajath.grove.ui.util.asString
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.uppercaseForUi
 import com.rrajath.grove.ui.attach.PreviewChip
 import com.rrajath.grove.ui.attach.rememberPreviewChipText
 import androidx.activity.compose.BackHandler
@@ -135,9 +139,6 @@ private val OPERATOR_CHIPS = listOf(
     "id.ID",
 )
 
-/** Quick-start card labels (see [BlankState]), included in the star button's
- *  searchable dropdown alongside actual saved searches. */
-private val QUICK_START_NAMES = listOf("Overdue", "Today", "Open tasks", "Unscheduled")
 
 /** Full-text + faceted search, results grouped by file (design spec §9
  *  "Search B: panel"). Finding a specific note; for upcoming/overdue browsing
@@ -222,7 +223,7 @@ fun SearchScreen(
                 Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconGlyph("←", onClick = handleBack)
+                IconGlyph(backArrowGlyph(), onClick = handleBack)
                 Row(
                     Modifier
                         .weight(1f)
@@ -281,8 +282,11 @@ fun SearchScreen(
             ) {
                 if (!state.isBlank) {
                     Text(
-                        "${state.resultCount} ${if (state.resultCount == 1) "result" else "results"} · " +
-                            "${state.notebookCount} ${if (state.notebookCount == 1) "notebook" else "notebooks"}",
+                        stringResource(
+                            R.string.search_result_summary,
+                            pluralStringResource(R.plurals.search_result_count, state.resultCount, state.resultCount),
+                            pluralStringResource(R.plurals.search_notebook_count, state.notebookCount, state.notebookCount),
+                        ),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.weight(1f),
                     )
@@ -403,25 +407,33 @@ fun SearchScreen(
     }
 }
 
+/** One entry in the star button's dropdown: a saved search, or a Quick Start card ([quickStartId] set). */
+private data class SaveTarget(val name: String, val quickStartId: String? = null)
+
 /**
  * Star button's searchable dropdown: types continuously filter the combined
  * list of saved searches and quick-start card labels; picking one asks to
- * overwrite it, typing a name not in the list saves it as new.
+ * overwrite it, typing a name not in the list saves it as new. A Quick Start
+ * card is overwritten by its id, so its translated label never has to match.
  */
 @Composable
 private fun SaveSearchDropdown(
     savedSearches: List<SavedSearch>,
     onDismiss: () -> Unit,
-    onSaveOrOverwrite: (String) -> Unit,
+    onSaveOrOverwrite: (name: String, quickStartId: String?) -> Unit,
 ) {
     val c = MaterialTheme.grove
     var typed by remember { mutableStateOf("") }
-    var confirmTarget by remember { mutableStateOf<String?>(null) }
-    val allNames = remember(savedSearches) { (QUICK_START_NAMES + savedSearches.map { it.name }).distinct() }
-    val filtered = remember(typed, allNames) {
-        if (typed.isBlank()) allNames else allNames.filter { it.contains(typed, ignoreCase = true) }
+    var confirmTarget by remember { mutableStateOf<SaveTarget?>(null) }
+    val cardTargets = QuickStarts.Card.entries.map { SaveTarget(stringResource(it.labelRes), it.id) }
+    val allTargets = remember(savedSearches, cardTargets) {
+        val saved = savedSearches.filterNot { it.id in QuickStartOverrides.ids }.map { SaveTarget(it.name) }
+        (cardTargets + saved).distinctBy { it.name.lowercase() }
     }
-    val exactMatch = allNames.any { it.equals(typed, ignoreCase = true) }
+    val filtered = remember(typed, allTargets) {
+        if (typed.isBlank()) allTargets else allTargets.filter { it.name.contains(typed, ignoreCase = true) }
+    }
+    val exactMatch = allTargets.any { it.name.equals(typed, ignoreCase = true) }
 
     GroveDropdownMenu(expanded = true, onDismissRequest = onDismiss) {
         Column(Modifier.width(230.dp).padding(horizontal = 12.dp, vertical = 6.dp)) {
@@ -429,33 +441,33 @@ private fun SaveSearchDropdown(
                 value = typed,
                 onValueChange = { typed = it },
                 singleLine = true,
-                placeholder = { Text("Name this search", fontFamily = PlexSans, color = c.ink3, fontSize = 13.sp) },
+                placeholder = { Text(stringResource(R.string.search_save_name_hint), fontFamily = PlexSans, color = c.ink3, fontSize = 13.sp) },
                 textStyle = TextStyle(fontFamily = PlexSans, fontSize = 13.sp, color = c.ink),
                 modifier = Modifier.fillMaxWidth(),
             )
             if (typed.isNotBlank() && !exactMatch) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Save as “$typed”",
+                    stringResource(R.string.search_save_as, typed),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.accent,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { onSaveOrOverwrite(typed); onDismiss() }
+                        .clickable { onSaveOrOverwrite(typed, null); onDismiss() }
                         .padding(horizontal = 8.dp, vertical = 9.dp),
                 )
             }
             if (filtered.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 HorizontalDivider(color = c.line)
-                filtered.forEach { name ->
+                filtered.forEach { target ->
                     Text(
-                        name,
+                        target.name,
                         fontFamily = PlexSans, fontSize = 13.sp, color = c.ink,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { confirmTarget = name }
+                            .clickable { confirmTarget = target }
                             .padding(horizontal = 8.dp, vertical = 9.dp),
                     )
                 }
@@ -463,24 +475,24 @@ private fun SaveSearchDropdown(
         }
     }
 
-    confirmTarget?.let { name ->
+    confirmTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { confirmTarget = null },
             containerColor = c.surface,
-            title = { Text("Overwrite “$name”?", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.ink) },
+            title = { Text(stringResource(R.string.search_overwrite_title, target.name), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.ink) },
             text = {
                 Text(
-                    "This replaces its saved query with the current search.",
+                    stringResource(R.string.search_overwrite_body),
                     fontFamily = PlexSans, fontSize = 13.sp, color = c.ink2,
                 )
             },
             confirmButton = {
-                TextButton(onClick = { onSaveOrOverwrite(name); confirmTarget = null; onDismiss() }) {
-                    Text("Overwrite", color = c.accent, fontWeight = FontWeight.SemiBold)
+                TextButton(onClick = { onSaveOrOverwrite(target.name, target.quickStartId); confirmTarget = null; onDismiss() }) {
+                    Text(stringResource(R.string.search_overwrite_confirm), color = c.accent, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmTarget = null }) { Text("Cancel", color = c.ink2) }
+                TextButton(onClick = { confirmTarget = null }) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
             },
         )
     }
@@ -497,7 +509,7 @@ private fun AdvancedToggle(active: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         Text(
-            "⚑ Advanced",
+            "⚑ " + stringResource(R.string.search_advanced),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
             color = if (active) c.accentInk else c.ink2,
         )
@@ -505,25 +517,34 @@ private fun AdvancedToggle(active: Boolean, onClick: () -> Unit) {
 }
 
 /** One line per operator, shown from the (i) button (see [AdvancedPanel]). */
-private val OPERATOR_LEGEND = listOf(
-    "space / AND" to "AND: every term must match",
-    "OR" to "either side can match (binds looser than AND); any case",
-    "( … )" to "group terms; nest as deep as needed",
-    ". prefix" to "NOT: excludes rather than requires; .( … ) negates a group",
-    "\"…\"" to "quote a value or phrase: b.\"My Notebook\", \"phone call\"",
-    "o.PROP" to "sort by PROP (b, t, s, d, e, c, cr, p, st); .o.PROP reverses",
-    "t.TAG / tn.TAG" to "tag anywhere in the heading / on this heading only",
-    "i.STATE" to "TODO keyword (i.none = no keyword)",
-    "it.TYPE" to "keyword type: it.todo, it.done, it.none",
-    "b.NOTEBOOK" to "restrict to one notebook",
-    "id.PREFIX" to "ID or CUSTOM_ID starts with PREFIX (id.none = neither)",
-    "p. / ps." to "priority (p. counts the default priority) / set on the heading",
-    "s./d./cr.DAY" to "on or before DAY: today, tom, 3d, -1w, 1y… (s.today includes overdue)",
-    "c./e.DAY" to "closed / event on DAY (a. = e.)",
-    "X.OP.DAY" to "compare: eq, ne, lt, le, gt, ge (s.eq.today, c.ge.-1w)",
-    "now / Nh" to "a moment, times compared too: e.ge.now, d.2h, c.ge.-3h",
-    "overdue / none" to "before today / no such date (s.overdue, d.none)",
+private class OperatorHelp(
+    /** Query syntax, shown as typed; null when the token itself has words to translate ([tokenRes]). */
+    val token: String?,
+    @StringRes val desc: Int,
+    @StringRes val tokenRes: Int? = null,
 )
+
+// i18n-begin: operator tokens are query syntax
+private val OPERATOR_LEGEND = listOf(
+    OperatorHelp(null, R.string.search_op_and, tokenRes = R.string.search_op_and_token),
+    OperatorHelp("OR", R.string.search_op_or),
+    OperatorHelp("( … )", R.string.search_op_group),
+    OperatorHelp(". prefix", R.string.search_op_not),
+    OperatorHelp("\"…\"", R.string.search_op_quote),
+    OperatorHelp("o.PROP", R.string.search_op_sort),
+    OperatorHelp("t.TAG / tn.TAG", R.string.search_op_tag),
+    OperatorHelp("i.STATE", R.string.search_op_state),
+    OperatorHelp("it.TYPE", R.string.search_op_state_type),
+    OperatorHelp("b.NOTEBOOK", R.string.search_op_notebook),
+    OperatorHelp("id.PREFIX", R.string.search_op_id),
+    OperatorHelp("p. / ps.", R.string.search_op_priority),
+    OperatorHelp("s./d./cr.DAY", R.string.search_op_day),
+    OperatorHelp("c./e.DAY", R.string.search_op_closed_event),
+    OperatorHelp("X.OP.DAY", R.string.search_op_compare),
+    OperatorHelp("now / Nh", R.string.search_op_moment),
+    OperatorHelp("overdue / none", R.string.search_op_overdue_none),
+)
+// i18n-end
 
 @Composable
 private fun AdvancedPanel(onChipTap: (String) -> Unit) {
@@ -545,7 +566,7 @@ private fun AdvancedPanel(onChipTap: (String) -> Unit) {
         // of pushing the label down.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Operators", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                stringResource(R.string.search_operators), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 11.5.sp, lineHeight = 11.5.sp, color = c.ink2,
                 style = TextStyle(
                     lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
@@ -567,7 +588,9 @@ private fun AdvancedPanel(onChipTap: (String) -> Unit) {
                 )
                 GroveDropdownMenu(expanded = legendOpen, onDismissRequest = { legendOpen = false }) {
                     Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                        OPERATOR_LEGEND.forEach { (token, desc) ->
+                        OPERATOR_LEGEND.forEach { op ->
+                            val token = op.token ?: stringResource(op.tokenRes!!)
+                            val desc = stringResource(op.desc)
                             Text(
                                 buildAnnotatedString {
                                     withStyle(SpanStyle(fontFamily = PlexMono, fontWeight = FontWeight.SemiBold, color = c.ink)) {
@@ -627,7 +650,7 @@ private fun FiltersBar(activeCount: Int, onClick: () -> Unit) {
             ) {
                 Icon(Icons.Default.FilterList, contentDescription = null, tint = c.accentInk, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(9.dp))
-                Text("Filters", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = c.accentInk)
+                Text(stringResource(R.string.search_filters_title), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = c.accentInk)
                 if (activeCount > 0) {
                     Spacer(Modifier.width(8.dp))
                     Box(
@@ -656,9 +679,9 @@ private fun NoResultsState(onOpenFilters: () -> Unit) {
             .testTag("search_empty"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Nothing matches", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink)
+        Text(stringResource(R.string.search_no_results_title), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink)
         Text(
-            "Loosen a section in Filters.",
+            stringResource(R.string.search_no_results_body),
             fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 7.dp),
         )
@@ -670,7 +693,7 @@ private fun NoResultsState(onOpenFilters: () -> Unit) {
                 .clickable(onClick = onOpenFilters)
                 .padding(horizontal = 17.dp, vertical = 10.dp),
         ) {
-            Text("Open filters", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.ink)
+            Text(stringResource(R.string.search_open_filters), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.ink)
         }
     }
 }
@@ -713,20 +736,20 @@ private fun BlankState(
     val cards = listOf(
         QuickCard(
             Icons.Filled.PriorityHigh, stringResource(QuickStarts.Card.OVERDUE.labelRes),
-            "${quickCounts.overdue} past their date", c.red, c.redSoft,
+            pluralStringResource(R.plurals.search_quick_overdue_meta, quickCounts.overdue, quickCounts.overdue), c.red, c.redSoft,
         ) { open(QuickStarts.Card.OVERDUE) },
         QuickCard(
             Icons.Filled.Schedule, stringResource(QuickStarts.Card.TODAY.labelRes),
-            "${quickCounts.today} scheduled or due", c.amber, c.amberSoft,
+            pluralStringResource(R.plurals.search_quick_today_meta, quickCounts.today, quickCounts.today), c.amber, c.amberSoft,
         ) { open(QuickStarts.Card.TODAY) },
         QuickCard(
             Icons.Filled.CheckBoxOutlineBlank, stringResource(QuickStarts.Card.OPEN_TASKS.labelRes),
-            "${quickCounts.openTasks} ${if (quickCounts.openTasks == 1) "TODO item" else "TODO items"}",
+            pluralStringResource(R.plurals.search_quick_open_meta, quickCounts.openTasks, quickCounts.openTasks),
             c.blue, c.blueSoft,
         ) { open(QuickStarts.Card.OPEN_TASKS) },
         QuickCard(
             Icons.Filled.EventBusy, stringResource(QuickStarts.Card.UNSCHEDULED.labelRes),
-            "${quickCounts.unscheduled} without a date",
+            pluralStringResource(R.plurals.search_quick_unscheduled_meta, quickCounts.unscheduled, quickCounts.unscheduled),
             c.synTag, c.accentSoft,
         ) { open(QuickStarts.Card.UNSCHEDULED) },
     )
@@ -737,7 +760,7 @@ private fun BlankState(
     var renameTarget by remember { mutableStateOf<SavedSearch?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 4.dp)) {
         Text(
-            "QUICK START",
+            stringResource(R.string.search_section_quick_start).uppercaseForUi(),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 0.07.em, color = c.ink3,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
         )
@@ -753,7 +776,7 @@ private fun BlankState(
 
         if (listedSavedSearches.isNotEmpty()) {
             Text(
-                "SAVED SEARCHES",
+                stringResource(R.string.search_section_saved).uppercaseForUi(),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 0.07.em, color = c.ink3,
                 modifier = Modifier.padding(top = 18.dp, bottom = 6.dp),
             )
@@ -788,11 +811,11 @@ private fun BlankState(
                         onDismissRequest = { menuTarget = null },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Rename", fontFamily = PlexSans, color = c.ink) },
+                            text = { Text(stringResource(R.string.action_rename), fontFamily = PlexSans, color = c.ink) },
                             onClick = { menuTarget = null; renameTarget = saved },
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete", fontFamily = PlexSans, color = c.red) },
+                            text = { Text(stringResource(R.string.action_delete), fontFamily = PlexSans, color = c.red) },
                             onClick = { menuTarget = null; onDeleteSaved(saved.id) },
                         )
                     }
@@ -808,13 +831,13 @@ private fun BlankState(
             onDismissRequest = { renameTarget = null },
             containerColor = c.surface,
             title = {
-                Text("Rename search", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.ink)
+                Text(stringResource(R.string.search_rename_title), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.ink)
             },
             text = {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     singleLine = true,
-                    placeholder = { Text("Name", fontFamily = PlexSans, color = c.ink3) },
+                    placeholder = { Text(stringResource(R.string.search_rename_hint), fontFamily = PlexSans, color = c.ink3) },
                     textStyle = TextStyle(fontFamily = PlexSans, color = c.ink),
                 )
             },
@@ -825,10 +848,10 @@ private fun BlankState(
                         renameTarget = null
                     },
                     enabled = name.isNotBlank(),
-                ) { Text("Rename", color = c.accent, fontWeight = FontWeight.SemiBold) }
+                ) { Text(stringResource(R.string.action_rename), color = c.accent, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = c.ink2) }
+                TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
             },
         )
     }
@@ -966,20 +989,20 @@ private fun ResultSwipeRow(
     val bookIcon = notebookIcon()
     val canMarkDone = result.keyword != null && !result.isDone
     val forceClose by remember { derivedStateOf { !isOpen() } }
-    val state = SwipeAction("⟳", "State", c.amber, c.amberSoft) { actions.onOpenStatePicker(result) }
-    val done = SwipeAction(label = "Done", fg = c.green, bg = c.greenSoft, icon = Icons.Default.Check) {
+    val state = SwipeAction("⟳", stringResource(R.string.search_swipe_state), c.amber, c.amberSoft) { actions.onOpenStatePicker(result) }
+    val done = SwipeAction(label = stringResource(R.string.swipe_done), fg = c.green, bg = c.greenSoft, icon = Icons.Default.Check) {
         actions.onMarkDone(result)
     }
     SwipeCommitRow(
         leftAction = if (canMarkDone) done else state,
         leftSecondaryAction = if (canMarkDone) state else null,
         rightAction = SwipeAction(
-            label = "Schedule",
+            label = stringResource(R.string.search_swipe_schedule),
             fg = c.blue,
             bg = c.blueSoft,
             icon = Icons.Outlined.CalendarMonth,
         ) { actions.onOpenSchedulePicker(result) },
-        rightSecondaryAction = SwipeAction(label = "Reveal", fg = c.accent, bg = c.accentSoft, icon = bookIcon) {
+        rightSecondaryAction = SwipeAction(label = stringResource(R.string.swipe_reveal), fg = c.accent, bg = c.accentSoft, icon = bookIcon) {
             actions.onShowInNotebook(ref)
         },
         forceClose = forceClose,
@@ -1015,7 +1038,7 @@ private fun DayResultsList(
         days.forEach { day ->
             val rowKeys = dayRowKeys(day)
             item(key = "day-${day.key}", contentType = "dayHeader") {
-                Box(Modifier.padding(top = 10.dp)) { GroupHeader(day.label, day.results.size) }
+                Box(Modifier.padding(top = 10.dp)) { GroupHeader(day.label.asString(), day.results.size) }
             }
             itemsIndexed(
                 day.results,
@@ -1069,9 +1092,8 @@ private fun FileGroupHeader(
         Column(Modifier.weight(1f)) {
             val folder = fileName.substringBeforeLast('/', missingDelimiterValue = "")
             val label = when {
-                count == 0 && isNameMatch -> "file match"
-                count == 1 -> "1 match"
-                else -> "$count matches"
+                count == 0 && isNameMatch -> stringResource(R.string.search_file_match)
+                else -> pluralStringResource(R.plurals.search_match_count, count, count)
             }
             Text(
                 fileName.substringAfterLast('/'),
@@ -1126,7 +1148,7 @@ private fun FileMatchRow(
                     color = c.ink,
                 )
                 Text(
-                    if (nameMatch != null) "Notebook name match" else "Notebook-level match",
+                    stringResource(if (nameMatch != null) R.string.search_notebook_name_match else R.string.search_notebook_level_match),
                     fontFamily = PlexSans,
                     fontSize = 11.5.sp,
                     color = c.ink3,

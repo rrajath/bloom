@@ -1,5 +1,7 @@
 package com.rrajath.grove.widget
 
+import com.rrajath.grove.testing.support.english
+
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.agenda.AgendaMetaTone
@@ -208,12 +210,12 @@ class LedgerBucketsTest {
         )
         val row = LedgerBuckets.build(listOf(note), today, windowDays = 14, settings = allOn).first().rows.first()
         assertEquals("A", row.priority)
-        assertTrue(row.meta.any { it.text == "W/P/notes.org" })
+        assertTrue(row.meta.any { it.text.english() == "W/P/notes.org" })
 
         val allOff = settings.copy(agendaWidgetShowTags = false, agendaWidgetShowFileName = false, agendaWidgetShowPriority = false)
         val rowOff = LedgerBuckets.build(listOf(note), today, windowDays = 14, settings = allOff).first().rows.first()
         assertEquals(null, rowOff.priority)
-        assertTrue(rowOff.meta.none { it.text.contains("notes.org") })
+        assertTrue(rowOff.meta.none { it.text.english().contains("notes.org") })
     }
 
     @Test

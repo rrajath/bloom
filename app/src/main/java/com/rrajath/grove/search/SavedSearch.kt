@@ -1,5 +1,7 @@
 package com.rrajath.grove.search
 
+import android.content.Context
+import com.rrajath.grove.R
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -23,13 +25,28 @@ object SavedSearchSerializer {
     private data class Wrapper(val searches: List<SavedSearch>)
 }
 
-/** PRD §5.5 default saved searches. */
+/**
+ * PRD §5.5 default saved searches. [all] keeps the English names (tests, and the
+ * ids and queries never change); [localized] is what a fresh install shows, named
+ * in the UI language until the first write persists them.
+ */
 object DefaultSavedSearches {
+    // i18n-begin: English reference copy; the app shows localized()
     val all = listOf(
         SavedSearch("builtin-scheduled-today", "Scheduled Today", "s.eq.today"),
         SavedSearch("builtin-all-todo", "All TODO", "i.todo"),
         SavedSearch("builtin-this-week", "This Week", "s.7d"),
     )
+    // i18n-end
+
+    private val nameRes = mapOf(
+        "builtin-scheduled-today" to R.string.search_default_scheduled_today,
+        "builtin-all-todo" to R.string.search_default_all_todo,
+        "builtin-this-week" to R.string.search_default_this_week,
+    )
+
+    fun localized(context: Context): List<SavedSearch> =
+        all.map { s -> nameRes[s.id]?.let { s.copy(name = context.getString(it)) } ?: s }
 }
 
 /**
@@ -48,14 +65,4 @@ object QuickStartOverrides {
     const val UNSCHEDULED_ID = "quickstart-unscheduled"
 
     val ids = setOf(OVERDUE_ID, TODAY_ID, OPEN_TASKS_ID, UNSCHEDULED_ID)
-
-    private val idsByName = mapOf(
-        "Overdue" to OVERDUE_ID,
-        "Today" to TODAY_ID,
-        "Open tasks" to OPEN_TASKS_ID,
-        "Unscheduled" to UNSCHEDULED_ID,
-    )
-
-    /** Reserved id for a Quick Start card's exact label, or null if [name] isn't one. */
-    fun idForName(name: String): String? = idsByName[name]
 }

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Saved searches created on first run (drawer shortcuts). "TODO" is the org-mode keyword. -->
+    <string name="search_default_scheduled_today">Scheduled Today</string>
+    <string name="search_default_all_todo">All TODO</string>
+    <string name="search_default_this_week">This Week</string>
+
+    <!-- Result summary under the search field. Example: "12 results · 3 notebooks". -->
+    <string name="search_result_summary">%1$s · %2$s</string>
+    <plurals name="search_result_count">
+        <item quantity="one">%d result</item>
+        <item quantity="other">%d results</item>
+    </plurals>
+    <plurals name="search_notebook_count">
+        <item quantity="one">%d notebook</item>
+        <item quantity="other">%d notebooks</item>
+    </plurals>
+
+    <!-- Star button dropdown: save the current query as a named search. -->
+    <string name="search_save_name_hint">Name this search</string>
+    <!-- %1$s is the name the user typed. -->
+    <string name="search_save_as">Save as “%1$s”</string>
+    <!-- Confirm replacing a saved search. %1$s is its name. -->
+    <string name="search_overwrite_title">Overwrite “%1$s”?</string>
+    <string name="search_overwrite_body">This replaces its saved query with the current search.</string>
+    <string name="search_overwrite_confirm">Overwrite</string>
+
+    <!-- Toggle for the query-operator panel (the ⚑ glyph is added in code). -->
+    <string name="search_advanced">Advanced</string>
+    <!-- Header of the query-operator panel. -->
+    <string name="search_operators">Operators</string>
+
+    <!-- Operator help list. The operator itself is shown before each line and is not translated.
+         Keep the query syntax in these lines (b.\"My Notebook\", s.today, i.none, AND, OR...) as is. -->
+    <!-- "space" means a blank between two search terms; AND is query syntax. -->
+    <string name="search_op_and_token">space / AND</string>
+    <string name="search_op_and">AND: every term must match</string>
+    <string name="search_op_or">either side can match (binds looser than AND); any case</string>
+    <string name="search_op_group">group terms; nest as deep as needed</string>
+    <string name="search_op_not">NOT: excludes rather than requires; .( … ) negates a group</string>
+    <string name="search_op_quote">quote a value or phrase: b.\"My Notebook\", \"phone call\"</string>
+    <string name="search_op_sort">sort by PROP (b, t, s, d, e, c, cr, p, st); .o.PROP reverses</string>
+    <string name="search_op_tag">tag anywhere in the heading / on this heading only</string>
+    <string name="search_op_state">TODO keyword (i.none = no keyword)</string>
+    <string name="search_op_state_type">keyword type: it.todo, it.done, it.none</string>
+    <string name="search_op_notebook">restrict to one notebook</string>
+    <string name="search_op_id">ID or CUSTOM_ID starts with PREFIX (id.none = neither)</string>
+    <string name="search_op_priority">priority (p. counts the default priority) / set on the heading</string>
+    <string name="search_op_day">on or before DAY: today, tom, 3d, -1w, 1y… (s.today includes overdue)</string>
+    <string name="search_op_closed_event">closed / event on DAY (a. = e.)</string>
+    <string name="search_op_compare">compare: eq, ne, lt, le, gt, ge (s.eq.today, c.ge.-1w)</string>
+    <string name="search_op_moment">a moment, times compared too: e.ge.now, d.2h, c.ge.-3h</string>
+    <string name="search_op_overdue_none">before today / no such date (s.overdue, d.none)</string>
+
+    <!-- No results for the current query and filters. -->
+    <string name="search_no_results_title">Nothing matches</string>
+    <string name="search_no_results_body">Loosen a section in Filters.</string>
+    <string name="search_open_filters">Open filters</string>
+
+    <!-- Blank search screen. Section headers are shown in uppercase. -->
+    <string name="search_section_quick_start">Quick start</string>
+    <string name="search_section_saved">Saved searches</string>
+    <!-- Quick Start card subtitles: how many items each card finds. -->
+    <plurals name="search_quick_overdue_meta">
+        <item quantity="one">%d past its date</item>
+        <item quantity="other">%d past their date</item>
+    </plurals>
+    <plurals name="search_quick_today_meta">
+        <item quantity="one">%d scheduled or due</item>
+        <item quantity="other">%d scheduled or due</item>
+    </plurals>
+    <!-- "TODO" is the org-mode keyword. -->
+    <plurals name="search_quick_open_meta">
+        <item quantity="one">%d TODO item</item>
+        <item quantity="other">%d TODO items</item>
+    </plurals>
+    <plurals name="search_quick_unscheduled_meta">
+        <item quantity="one">%d without a date</item>
+        <item quantity="other">%d without a date</item>
+    </plurals>
+
+    <!-- Rename a saved search. -->
+    <string name="search_rename_title">Rename search</string>
+    <string name="search_rename_hint">Name</string>
+
+    <!-- Search result swipe cells. Keep short. -->
+    <!-- Pick a TODO state for the heading. -->
+    <string name="search_swipe_state">State</string>
+    <!-- Set the heading's SCHEDULED date. -->
+    <string name="search_swipe_schedule">Schedule</string>
+
+    <!-- Result group header under a notebook's name. -->
+    <!-- The notebook's file name matched, but none of its headings did. -->
+    <string name="search_file_match">file match</string>
+    <plurals name="search_match_count">
+        <item quantity="one">%d match</item>
+        <item quantity="other">%d matches</item>
+    </plurals>
+    <!-- A notebook result: its name matched the query. -->
+    <string name="search_notebook_name_match">Notebook name match</string>
+    <!-- A notebook result: it matched a filter (such as its file tags), not its name. -->
+    <string name="search_notebook_level_match">Notebook-level match</string>
+</resources>

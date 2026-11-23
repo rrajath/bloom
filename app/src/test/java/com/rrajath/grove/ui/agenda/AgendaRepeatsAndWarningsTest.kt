@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.agenda
 
+import com.rrajath.grove.testing.support.english
+
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.org.cookieDays
@@ -200,7 +202,7 @@ class AgendaRepeatsAndWarningsTest {
     fun `a due soon row says when the deadline falls and how far off`() {
         val m = note("D1", deadline = "<2026-11-09 Mon 17:00>")
         val row = AgendaViewModel.row(m, today, showDate = false, p = GroveSettings(), placement = RowPlacement.DueSoon)
-        assertEquals(listOf("⚑ Nov 9 · in 5d", "17:00"), row.meta.map { it.text })
+        assertEquals(listOf("⚑ Nov 9 · in 5d", "17:00"), row.meta.map { it.text.english() })
         assertEquals(AgendaMetaTone.DANGER, row.meta.first().tone)
     }
 
@@ -212,7 +214,7 @@ class AgendaRepeatsAndWarningsTest {
             m, today, showDate = false, p = GroveSettings(),
             placement = RowPlacement.Repeat(PlanningKind.DEADLINE, projected),
         )
-        assertEquals(listOf("⚑ due", "↻ +1w"), row.meta.map { it.text })
+        assertEquals(listOf("⚑ due", "↻ +1w"), row.meta.map { it.text.english() })
         assertEquals(PlanningKind.DEADLINE, row.repeaterKind)
         // The row still carries the stored stamp, so the Dates screen prefills the real date.
         assertEquals(LocalDate.of(2026, 10, 28), row.deadlineTs!!.date)
@@ -226,7 +228,7 @@ class AgendaRepeatsAndWarningsTest {
             m, today, showDate = false, p = GroveSettings(),
             placement = RowPlacement.Repeat(PlanningKind.SCHEDULED, projected),
         )
-        assertEquals(listOf("09:00", "↻ +1w"), row.meta.map { it.text })
+        assertEquals(listOf("09:00", "↻ +1w"), row.meta.map { it.text.english() })
         assertEquals(PlanningKind.SCHEDULED, row.previewKind)
     }
 }

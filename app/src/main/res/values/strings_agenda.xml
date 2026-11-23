@@ -15,4 +15,88 @@
     <string name="agenda_group_by_tag">Tag</string>
     <!-- Group by the .org file the item is in. -->
     <string name="agenda_group_by_file">File</string>
+    <!-- Agenda screen tabs. -->
+    <string name="agenda_tab_today">Today</string>
+    <string name="agenda_tab_upcoming">Upcoming</string>
+
+    <!-- Relative day names: agenda section headers and row date chips. Other days show the weekday name. -->
+    <string name="agenda_day_today">Today</string>
+    <string name="agenda_day_tomorrow">Tomorrow</string>
+    <string name="agenda_day_yesterday">Yesterday</string>
+    <!-- Search's agenda view section header: a near day's name, then its short date. Example: "Tomorrow, Jun 12". -->
+    <string name="agenda_day_with_date">%1$s, %2$s</string>
+
+    <!-- Agenda section headers (shown in uppercase). -->
+    <string name="agenda_section_scheduled_today">Scheduled today</string>
+    <!-- Deadlines coming up within their warning period, shown on the Today tab. -->
+    <string name="agenda_section_due_soon">Due soon</string>
+    <!-- Items whose date has passed. -->
+    <string name="agenda_section_overdue">Overdue</string>
+    <!-- "Group by: Priority" section for org priority A, B or C. %1$s is the letter. -->
+    <string name="agenda_section_priority">Priority %1$s</string>
+    <string name="agenda_section_no_priority">No priority</string>
+    <!-- "Group by: Tag" section for headings without tags. Tags are written :like-this: in org files. -->
+    <string name="agenda_section_untagged">:untagged:</string>
+
+    <!-- Agenda options panel (the ⇅ button). Labels are shown in uppercase. -->
+    <string name="agenda_lever_group_by">Group by</string>
+    <!-- Label above the chips that filter rows by TODO state. -->
+    <string name="agenda_lever_show">Show</string>
+    <!-- State filter chip: anything not done. -->
+    <string name="agenda_filter_open">Open</string>
+    <!-- State filter chip: every row, done ones included. -->
+    <string name="agenda_filter_everything">Everything</string>
+    <string name="agenda_toggle_tags">Tags on rows</string>
+    <string name="agenda_toggle_source_file">Source file on rows</string>
+    <string name="agenda_toggle_timestamps">Timestamp chips on rows</string>
+
+    <!-- Agenda with nothing to show. -->
+    <string name="agenda_empty_title">Nothing scheduled</string>
+    <string name="agenda_empty_today">Nothing on today\'s plate.</string>
+    <string name="agenda_empty_upcoming">Nothing coming up.</string>
+
+    <!-- Red card above the Today list. -->
+    <plurals name="agenda_overdue_count">
+        <item quantity="one">%d overdue</item>
+        <item quantity="other">%d overdue</item>
+    </plurals>
+    <!-- Button: reschedule every overdue item to today. -->
+    <string name="agenda_move_to_today">Move to today</string>
+
+    <!-- Agenda row swipe cells. The cells are narrow: keep these very short. -->
+    <!-- Add a note to the heading's logbook. -->
+    <string name="agenda_swipe_note">Note</string>
+    <!-- Short for "Schedule". -->
+    <string name="agenda_swipe_scheduled">Sched</string>
+    <!-- Short for "Deadline". -->
+    <string name="agenda_swipe_deadline">Deadl</string>
+
+    <!-- Agenda snackbars. -->
+    <!-- A done task was set back to an open state. -->
+    <string name="agenda_snack_reopened">Reopened</string>
+    <string name="agenda_snack_note_added">Note added</string>
+    <plurals name="agenda_snack_moved_to_today">
+        <item quantity="one">Moved %d item to today</item>
+        <item quantity="other">Moved %d items to today</item>
+    </plurals>
+
+    <!-- Agenda row chips. -->
+    <!-- A deadline chip: the flag glyph before the date or text. -->
+    <string name="agenda_meta_flagged" translatable="false">⚑ %1$s</string>
+    <!-- A deadline-only row: the deadline is its date. -->
+    <string name="agenda_meta_due">due</string>
+    <!-- Overdue row: %1$s is the short date, %2$s how late. Example: "Jun 9 · 2d late". -->
+    <string name="agenda_meta_late">%1$s · %2$s</string>
+    <!-- Days past the date, abbreviated. Example: "2d late". -->
+    <plurals name="agenda_meta_days_late">
+        <item quantity="one">%dd late</item>
+        <item quantity="other">%dd late</item>
+    </plurals>
+    <!-- Deadline coming up: %1$s is the short date, %2$s how far off. Example: "Jun 14 · in 3d". -->
+    <string name="agenda_meta_due_soon">%1$s · %2$s</string>
+    <!-- Days until the deadline, abbreviated. Example: "in 3d". -->
+    <plurals name="agenda_meta_in_days">
+        <item quantity="one">in %dd</item>
+        <item quantity="other">in %dd</item>
+    </plurals>
 </resources>

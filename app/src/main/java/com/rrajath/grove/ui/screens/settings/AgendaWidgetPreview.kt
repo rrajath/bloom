@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.screens.settings
 
+import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.asString
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -152,7 +154,7 @@ private fun PreviewRow(c: GroveColors, row: AgendaRow, scale: Float) {
                 // tags, the trailing filename chip drops to its own line instead of
                 // wrapping mid-word.
                 val fileChip = row.meta.lastOrNull()
-                    ?.takeIf { it.tone == AgendaMetaTone.MUTED && it.text == LedgerBuckets.contractFileName(row.fileName) }
+                    ?.takeIf { it.tone == AgendaMetaTone.MUTED && it.text == UiText.raw(LedgerBuckets.contractFileName(row.fileName)) }
                 val splitFile = fileChip != null && row.meta.any { it.tone == AgendaMetaTone.TAG }
                 val inlineMeta = if (splitFile) row.meta.dropLast(1) else row.meta
                 PreviewMetaLine(c, inlineMeta, scale, Modifier.padding(top = 3.dp))
@@ -173,7 +175,7 @@ private fun PreviewMetaLine(c: GroveColors, meta: List<AgendaMeta>, scale: Float
     Row(modifier) {
         meta.forEachIndexed { index, m ->
             if (index > 0) Spacer(Modifier.width(8.dp))
-            ScaledText(m.text, 10.5f, scale, FontWeight.Normal, c.metaColor(m.tone), PlexMono, maxLines = 1)
+            ScaledText(m.text.asString(), 10.5f, scale, FontWeight.Normal, c.metaColor(m.tone), PlexMono, maxLines = 1)
         }
     }
 }

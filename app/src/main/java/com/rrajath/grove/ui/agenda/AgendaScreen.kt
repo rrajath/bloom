@@ -54,6 +54,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
@@ -67,6 +68,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rrajath.grove.R
+import com.rrajath.grove.ui.util.asString
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.uppercaseForUi
+import androidx.compose.ui.res.pluralStringResource
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.settings.AgendaGrouping
@@ -285,7 +290,7 @@ private fun AgendaHeader(
             Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
-            Text("←", fontFamily = PlexSans, fontSize = 20.sp, color = c.ink)
+            Text(backArrowGlyph(), fontFamily = PlexSans, fontSize = 20.sp, color = c.ink)
         }
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
@@ -340,7 +345,10 @@ private fun AgendaTabs(
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        listOf(AgendaTab.TODAY to "Today", AgendaTab.UPCOMING to "Upcoming").forEach { (value, label) ->
+        listOf(
+            AgendaTab.TODAY to stringResource(R.string.agenda_tab_today),
+            AgendaTab.UPCOMING to stringResource(R.string.agenda_tab_upcoming),
+        ).forEach { (value, label) ->
             val active = value == tab
             Box(
                 Modifier
@@ -384,7 +392,7 @@ private fun LeversPanel(
             .border(1.dp, c.line, RoundedCornerShape(15.dp))
             .padding(start = 13.dp, top = 12.dp, end = 13.dp, bottom = 13.dp),
     ) {
-        LeverLabel("Group by")
+        LeverLabel(stringResource(R.string.agenda_lever_group_by))
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -394,27 +402,27 @@ private fun LeversPanel(
             }
         }
 
-        LeverLabel("Show", modifier = Modifier.padding(top = 14.dp))
+        LeverLabel(stringResource(R.string.agenda_lever_show), modifier = Modifier.padding(top = 14.dp))
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             // Open · <the vault's own todo-type keywords> · Everything
-            LeverChip("Open", active = state.stateFilter == AgendaStateFilter.Open) {
+            LeverChip(stringResource(R.string.agenda_filter_open), active = state.stateFilter == AgendaStateFilter.Open) {
                 onStateFilter(AgendaStateFilter.Open)
             }
             state.activeKeywords.forEach { keyword ->
                 val filter = AgendaStateFilter.Keyword(keyword)
                 LeverChip(keyword, active = state.stateFilter == filter) { onStateFilter(filter) }
             }
-            LeverChip("Everything", active = state.stateFilter == AgendaStateFilter.All) {
+            LeverChip(stringResource(R.string.agenda_filter_everything), active = state.stateFilter == AgendaStateFilter.All) {
                 onStateFilter(AgendaStateFilter.All)
             }
         }
 
-        LeverToggle("Tags on rows", state.showTags, Modifier.padding(top = 14.dp)) { onShowTags(!state.showTags) }
-        LeverToggle("Source file on rows", state.showFile, Modifier.padding(top = 11.dp)) { onShowFile(!state.showFile) }
-        LeverToggle("Timestamp chips on rows", state.showTimestamps, Modifier.padding(top = 11.dp)) {
+        LeverToggle(stringResource(R.string.agenda_toggle_tags), state.showTags, Modifier.padding(top = 14.dp)) { onShowTags(!state.showTags) }
+        LeverToggle(stringResource(R.string.agenda_toggle_source_file), state.showFile, Modifier.padding(top = 11.dp)) { onShowFile(!state.showFile) }
+        LeverToggle(stringResource(R.string.agenda_toggle_timestamps), state.showTimestamps, Modifier.padding(top = 11.dp)) {
             onShowTimestamps(!state.showTimestamps)
         }
     }
@@ -423,7 +431,7 @@ private fun LeversPanel(
 @Composable
 private fun LeverLabel(text: String, modifier: Modifier = Modifier) {
     Text(
-        text.uppercase(),
+        text.uppercaseForUi(),
         fontFamily = PlexSans, fontSize = 10.5.sp, letterSpacing = 0.74.sp,
         color = MaterialTheme.grove.ink3,
         modifier = modifier.padding(bottom = 8.dp),
@@ -496,6 +504,13 @@ private fun AgendaList(
     // recomposition.
     val icNote = ImageVector.vectorResource(id = R.drawable.ic_note)
     val icNotebook = notebookIcon()
+    val swipeLabels = AgendaSwipeLabels(
+        note = stringResource(R.string.agenda_swipe_note),
+        reveal = stringResource(R.string.swipe_reveal),
+        scheduled = stringResource(R.string.agenda_swipe_scheduled),
+        deadline = stringResource(R.string.agenda_swipe_deadline),
+        done = stringResource(R.string.swipe_done),
+    )
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -508,11 +523,13 @@ private fun AgendaList(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        "Nothing scheduled",
+                        stringResource(R.string.agenda_empty_title),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink,
                     )
                     Text(
-                        if (state.tab == AgendaTab.TODAY) "Nothing on today's plate." else "Nothing coming up.",
+                        stringResource(
+                            if (state.tab == AgendaTab.TODAY) R.string.agenda_empty_today else R.string.agenda_empty_upcoming,
+                        ),
                         fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2,
                         modifier = Modifier.padding(top = 7.dp),
                     )
@@ -533,7 +550,7 @@ private fun AgendaList(
         }
 
         state.groups.forEach { group ->
-            item("head-${group.key}") { GroupHeader(group.key, group.count) }
+            item("head-${group.key}") { GroupHeader(group.label.asString(), group.count) }
             items(group.rows, key = { "${group.key}-${it.fileName}@${it.lineIndex}-${it.activeTs}" }) { row ->
                 val rowKey = "${group.key}-${row.fileName}@${row.lineIndex}-${row.activeTs}"
                 // Add-note rides along beside whichever side is configured as Mark
@@ -541,11 +558,11 @@ private fun AgendaList(
                 // full swipe still commits the configured action. On an event (a
                 // heading with no TODO keyword) the Done side is dropped and that
                 // side offers Add-note alone instead.
-                val (leftPrimary, leftSecondary) = remember(row, state.swipeLeftAction, c) {
-                    agendaSwipeActions(state.swipeLeftAction, row, c, icNote, icNotebook, onOpenDatePicker, onToggleDone, onOpenNoteDialog, onShowInNotebook)
+                val (leftPrimary, leftSecondary) = remember(row, state.swipeLeftAction, c, swipeLabels) {
+                    agendaSwipeActions(state.swipeLeftAction, row, c, swipeLabels, icNote, icNotebook, onOpenDatePicker, onToggleDone, onOpenNoteDialog, onShowInNotebook)
                 }
-                val (rightPrimary, rightSecondary) = remember(row, state.swipeRightAction, c) {
-                    agendaSwipeActions(state.swipeRightAction, row, c, icNote, icNotebook, onOpenDatePicker, onToggleDone, onOpenNoteDialog, onShowInNotebook)
+                val (rightPrimary, rightSecondary) = remember(row, state.swipeRightAction, c, swipeLabels) {
+                    agendaSwipeActions(state.swipeRightAction, row, c, swipeLabels, icNote, icNotebook, onOpenDatePicker, onToggleDone, onOpenNoteDialog, onShowInNotebook)
                 }
                 // derivedStateOf: openRowKey changes on every open/close, but only the
                 // previously- and newly-open row's forceClose value actually flips.
@@ -571,17 +588,17 @@ private fun AgendaList(
     }
 }
 
-/** Uppercase bucket key, its mono count, and a hairline running to the right edge.
+/** Uppercased bucket label, its mono count, and a hairline running to the right edge.
  *  Also heads the day sections of Search's `ad.N` view. */
 @Composable
-internal fun GroupHeader(key: String, count: Int) {
+internal fun GroupHeader(label: String, count: Int) {
     val c = MaterialTheme.grove
     Row(
         Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            key.uppercase(),
+            label.uppercaseForUi(),
             fontFamily = PlexSans, fontWeight = FontWeight.Bold,
             fontSize = 11.sp, letterSpacing = 0.77.sp, color = c.ink2,
         )
@@ -618,7 +635,7 @@ private fun OverdueCard(
             Text(if (state.overdueOpen) "▾" else "▸", fontFamily = PlexSans, fontSize = 12.sp, color = c.red)
             Spacer(Modifier.width(9.dp))
             Text(
-                "${state.overdueCount} overdue",
+                pluralStringResource(R.plurals.agenda_overdue_count, state.overdueCount, state.overdueCount),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = c.ink,
                 modifier = Modifier.weight(1f),
             )
@@ -631,7 +648,7 @@ private fun OverdueCard(
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 Text(
-                    "Move to today",
+                    stringResource(R.string.agenda_move_to_today),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = c.red,
                 )
             }
@@ -704,7 +721,7 @@ private fun AgendaRowContent(row: AgendaRow, onToggleDone: () -> Unit) {
                 ) {
                     row.meta.forEach { meta ->
                         if (meta.icon == AgendaMetaIcon.NONE) {
-                            Text(meta.text, fontFamily = PlexMono, fontSize = 11.5.sp, color = c.metaColor(meta.tone))
+                            Text(meta.text.asString(), fontFamily = PlexMono, fontSize = 11.5.sp, color = c.metaColor(meta.tone))
                         } else {
                             MetaIconChip(meta)
                         }
@@ -750,7 +767,7 @@ private fun MetaIconChip(meta: AgendaMeta) {
             tint = tint,
             modifier = Modifier.size(if (meta.icon == AgendaMetaIcon.EVENT_DOT) 7.dp else 11.5.dp),
         )
-        Text(meta.text, fontFamily = PlexMono, fontSize = 11.5.sp, color = tint)
+        Text(meta.text.asString(), fontFamily = PlexMono, fontSize = 11.5.sp, color = tint)
     }
 }
 
@@ -846,10 +863,21 @@ internal fun GroveColors.metaColor(tone: AgendaMetaTone): Color = when (tone) {
  *   nothing to complete, so the Done cell is dropped and the side becomes a
  *   plain swipe-to-commit "Add note".
  */
+/** Swipe-cell labels, resolved once per composition so [agendaSwipeActions] can stay non-composable. */
+@Immutable
+private data class AgendaSwipeLabels(
+    val note: String,
+    val reveal: String,
+    val scheduled: String,
+    val deadline: String,
+    val done: String,
+)
+
 private fun agendaSwipeActions(
     kind: AgendaSwipeAction,
     row: AgendaRow,
     c: GroveColors,
+    labels: AgendaSwipeLabels,
     icNote: ImageVector,
     icNotebook: ImageVector,
     onOpenDatePicker: (AgendaRow, PlanningKind) -> Unit,
@@ -858,29 +886,29 @@ private fun agendaSwipeActions(
     onShowInNotebook: (NoteRef) -> Unit,
 ): Pair<SwipeAction?, SwipeAction?> {
     val note = SwipeAction(
-        label = "Note",
+        label = labels.note,
         fg = c.blue,
         bg = c.blueSoft,
         icon = icNote,
     ) { onOpenNoteDialog(row) }
     // Same cell as Search's Reveal: the heading in its notebook's outline.
-    val reveal = SwipeAction(label = "Reveal", fg = c.accent, bg = c.accentSoft, icon = icNotebook) {
+    val reveal = SwipeAction(label = labels.reveal, fg = c.accent, bg = c.accentSoft, icon = icNotebook) {
         onShowInNotebook(NoteRef(row.fileName, row.lineIndex))
     }
     return when (kind) {
         AgendaSwipeAction.SET_SCHEDULED ->
-            SwipeAction(label = "Sched", fg = c.blue, bg = c.blueSoft, icon = Icons.Outlined.CalendarMonth) {
+            SwipeAction(label = labels.scheduled, fg = c.blue, bg = c.blueSoft, icon = Icons.Outlined.CalendarMonth) {
                 onOpenDatePicker(row, PlanningKind.SCHEDULED)
             } to reveal
         AgendaSwipeAction.SET_DEADLINE ->
-            SwipeAction(label = "Deadl", fg = c.red, bg = c.redSoft, icon = Icons.Filled.Flag) {
+            SwipeAction(label = labels.deadline, fg = c.red, bg = c.redSoft, icon = Icons.Filled.Flag) {
                 onOpenDatePicker(row, PlanningKind.DEADLINE)
             } to reveal
         AgendaSwipeAction.MARK_DONE ->
             if (!row.hasDoneAffordance) {
                 note to null
             } else {
-                SwipeAction(label = "Done", fg = c.green, bg = c.greenSoft, icon = Icons.Default.Check) {
+                SwipeAction(label = labels.done, fg = c.green, bg = c.greenSoft, icon = Icons.Default.Check) {
                     onToggleDone(row)
                 } to note
             }

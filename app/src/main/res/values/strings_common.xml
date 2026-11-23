@@ -67,4 +67,9 @@
 
     <!-- Snackbar after marking a heading done moved it to its archive location. %1$s = where it went (notebook and heading). -->
     <string name="snack_marked_done_refiled">Marked done. Refiled to %1$s</string>
+    <!-- Swipe cells on Agenda and Search result rows. The cells are narrow: keep these short. -->
+    <!-- Mark the task done. -->
+    <string name="swipe_done">Done</string>
+    <!-- Open the heading in its notebook's outline. -->
+    <string name="swipe_reveal">Reveal</string>
 </resources>
