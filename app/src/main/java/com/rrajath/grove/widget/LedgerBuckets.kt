@@ -1,5 +1,6 @@
 package com.rrajath.grove.widget
 
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.search.NoteMeta
@@ -10,6 +11,7 @@ import com.rrajath.grove.ui.agenda.AgendaMetaTone
 import com.rrajath.grove.ui.agenda.AgendaRow
 import com.rrajath.grove.ui.agenda.AgendaViewModel
 import com.rrajath.grove.ui.agenda.RowPlacement
+import com.rrajath.grove.ui.util.UiText
 import kotlinx.collections.immutable.toImmutableList
 import java.time.LocalDate
 import java.time.LocalTime
@@ -25,8 +27,17 @@ import java.time.LocalTime
  */
 object LedgerBuckets {
 
-    /** One widget section: a header key/count and its already-sorted rows. */
-    data class Section(val key: String, val count: Int, val rows: List<AgendaRow>)
+    /**
+     * One widget section: its header label/count and its already-sorted rows.
+     * [day] is null for Overdue. [key] is stable and untranslated ("overdue" or
+     * the ISO date), so paging state and list item ids never depend on the language.
+     */
+    data class Section(val day: LocalDate?, val label: UiText, val count: Int, val rows: List<AgendaRow>) {
+        val key: String get() = day?.toString() ?: OVERDUE_KEY
+        val isOverdue: Boolean get() = day == null
+    }
+
+    private const val OVERDUE_KEY = "overdue"
 
     /** No-priority sort key, so unprioritised rows (and events) fall after A/B/C. */
     private const val NO_PRIORITY_SORT_KEY = "Z"
@@ -68,7 +79,8 @@ object LedgerBuckets {
         val plannable = notes.filterNot { AgendaBuckets.delayed(it, today) }
         val overdueNotes = AgendaBuckets.overdue(plannable, today)
         val overdueSection = if (overdueNotes.isEmpty()) null else Section(
-            key = "Overdue",
+            day = null,
+            label = UiText.res(R.string.agenda_section_overdue),
             count = overdueNotes.size,
             rows = overdueNotes.map { widgetRow(it, today, showDate = true, settings) },
         )
@@ -91,7 +103,8 @@ object LedgerBuckets {
                     ).sortedWith(BY_DAY)
                 if (entries.isEmpty()) return@mapNotNull null
                 Section(
-                    key = dayHeader(day, today),
+                    day = day,
+                    label = dayHeader(day, today),
                     count = entries.size,
                     rows = entries.map { e ->
                         when (e) {
@@ -172,12 +185,12 @@ object LedgerBuckets {
     }
 
     /** "Today · Aug 5" / "Tomorrow · Aug 6" / plain "Aug 7" past that. */
-    fun dayHeader(day: LocalDate, today: LocalDate): String {
+    fun dayHeader(day: LocalDate, today: LocalDate): UiText {
         val short = day.format(AgendaBuckets.SHORT_DATE)
         return when (day) {
-            today -> "Today · $short"
-            today.plusDays(1) -> "Tomorrow · $short"
-            else -> short
+            today -> UiText.res(R.string.widget_day_today, short)
+            today.plusDays(1) -> UiText.res(R.string.widget_day_tomorrow, short)
+            else -> UiText.raw(short)
         }
     }
 }

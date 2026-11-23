@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.glance.appwidget.updateAll
 import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureInserter
 import com.rrajath.grove.org.DateShorthandParser
 import com.rrajath.grove.org.OrgDocument
@@ -112,12 +115,13 @@ class WidgetQuickAddActivity : ComponentActivity() {
     }
 }
 
-private enum class QuickAddDate(val label: String, val shorthand: String?) {
-    TODAY("Today", "today"),
-    TOMORROW("Tomorrow", "tomorrow"),
-    WEEKEND("This weekend", "weekend"),
-    NEXT_WEEK("Next week", "next week"),
-    NONE("No date", null),
+/** [shorthand] is [DateShorthandParser] input, not UI text, so it stays English. */
+private enum class QuickAddDate(@StringRes val labelRes: Int, val shorthand: String?) {
+    TODAY(R.string.widget_quick_add_date_today, "today"),
+    TOMORROW(R.string.widget_quick_add_date_tomorrow, "tomorrow"),
+    WEEKEND(R.string.widget_quick_add_date_weekend, "weekend"),
+    NEXT_WEEK(R.string.widget_quick_add_date_next_week, "next week"), // i18n: parser shorthand
+    NONE(R.string.widget_quick_add_date_none, null),
 }
 
 private val PRIORITIES: List<Char?> = listOf(null, 'A', 'B', 'C')
@@ -159,7 +163,7 @@ private fun QuickAddSheet(onDismiss: () -> Unit) {
             ?.let { OrgTimestamp(it, active = true) }
     }
     val selectedDate = customDate ?: resolvedPresetDate
-    val dateChipLabel = customDate?.formatHuman() ?: dateOption?.label ?: QuickAddDate.NONE.label
+    val dateChipLabel = customDate?.formatHuman() ?: stringResource((dateOption ?: QuickAddDate.NONE).labelRes)
 
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -201,7 +205,7 @@ private fun QuickAddSheet(onDismiss: () -> Unit) {
                     cursorBrush = SolidColor(MaterialTheme.grove.accent),
                     decorationBox = { inner ->
                         if (text.isEmpty()) {
-                            Text("What needs doing?", color = MaterialTheme.grove.ink3, fontSize = 15.sp, fontFamily = PlexSans)
+                            Text(stringResource(R.string.widget_quick_add_placeholder), color = MaterialTheme.grove.ink3, fontSize = 15.sp, fontFamily = PlexSans)
                         }
                         inner()
                     },
@@ -221,19 +225,19 @@ private fun QuickAddSheet(onDismiss: () -> Unit) {
                     ) {
                         QuickAddDate.entries.forEach { preset ->
                             DropdownMenuItem(
-                                text = { Text(preset.label, fontFamily = PlexSans, color = MaterialTheme.grove.ink) },
+                                text = { Text(stringResource(preset.labelRes), fontFamily = PlexSans, color = MaterialTheme.grove.ink) },
                                 onClick = { dateOption = preset; customDate = null; dateMenuOpen = false },
                             )
                         }
                         HorizontalDivider(color = MaterialTheme.grove.line)
                         DropdownMenuItem(
-                            text = { Text("Custom date…", fontFamily = PlexSans, color = MaterialTheme.grove.accent) },
+                            text = { Text(stringResource(R.string.widget_quick_add_date_custom), fontFamily = PlexSans, color = MaterialTheme.grove.accent) },
                             onClick = { dateMenuOpen = false; customDateOpen = true },
                         )
                     }
                 }
                 Spacer(Modifier.width(7.dp))
-                ComposerChip(priority?.let { "#$it" } ?: "Priority", active = priority != null) {
+                ComposerChip(priority?.let { "#$it" } ?: stringResource(R.string.widget_quick_add_priority), active = priority != null) {
                     priority = PRIORITIES.next(priority)
                 }
                 Spacer(Modifier.width(7.dp))
@@ -265,10 +269,13 @@ private fun QuickAddSheet(onDismiss: () -> Unit) {
                                 // The toast waits for the write so a missing heading can be
                                 // reported; the app context outlives this finished activity.
                                 val message = if (headingFound) {
-                                    "Added to ${savedTarget.label}"
+                                    app.getString(R.string.widget_quick_add_added, savedTarget.label)
                                 } else {
-                                    "Heading \"${savedTarget.headingPath.last()}\" not found. " +
-                                        "Added to the bottom of ${savedTarget.fileName.removeSuffix(".org")}"
+                                    app.getString(
+                                        R.string.widget_quick_add_heading_missing,
+                                        savedTarget.headingPath.last(),
+                                        savedTarget.fileName.removeSuffix(".org"),
+                                    )
                                 }
                                 withContext(Dispatchers.Main) {
                                     Toast.makeText(app, message, if (headingFound) Toast.LENGTH_SHORT else Toast.LENGTH_LONG).show()
@@ -292,7 +299,7 @@ private fun QuickAddSheet(onDismiss: () -> Unit) {
 
     if (customDateOpen) {
         PlanningDatesScreen(
-            title = text.ifBlank { "New task" },
+            title = text.ifBlank { stringResource(R.string.widget_quick_add_new_task) },
             scheduled = selectedDate,
             deadline = null,
             active = emptyList(),

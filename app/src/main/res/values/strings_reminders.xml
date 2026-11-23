@@ -27,4 +27,30 @@
     <string name="reminders_event_starts_min_30">This event starts in 30 minutes</string>
     <string name="reminders_event_starts_hour_1">This event starts in 1 hour</string>
     <string name="reminders_event_starts_day_1">This event starts in 1 day</string>
+
+    <!-- Reminder notifications (reminders/ReminderNotification.kt). The channel name shows in
+         Android's notification settings for the app. -->
+    <string name="reminders_channel">Reminders</string>
+    <!-- Notification action buttons: mark the task done, or pick a new date. -->
+    <string name="reminders_action_complete">Complete</string>
+    <string name="reminders_action_reschedule">Reschedule</string>
+    <!-- Daily digest notification, bundling every task due or overdue today. -->
+    <plurals name="reminders_digest_title">
+        <item quantity="one">You have %1$d task due today</item>
+        <item quantity="other">You have %1$d tasks due today</item>
+    </plurals>
+    <string name="reminders_digest_text">Tap to see what\'s on your plate.</string>
+
+    <!-- Reschedule window opened from a reminder notification (ui/reminders/RescheduleActivity.kt). -->
+    <string name="reminders_task_gone">Task no longer exists</string>
+    <string name="reminders_rescheduled">Task rescheduled</string>
+    <!-- %1$s is the new date, e.g. "Mon, Aug 5" or "Mon, Aug 5 at 9:00 AM" (reminders_rescheduled_date_time). -->
+    <string name="reminders_rescheduled_to">Task rescheduled to %1$s</string>
+    <!-- %1$s is the date ("Mon, Aug 5"), %2$s the time ("9:00 AM"). -->
+    <string name="reminders_rescheduled_date_time">%1$s at %2$s</string>
+
+    <!-- One-time dialog asking for exact-alarm access (ui/reminders/ExactAlarmPromptDialog.kt). -->
+    <string name="reminders_exact_prompt_title">Get reminders on time</string>
+    <string name="reminders_exact_prompt_allow">Allow</string>
+    <string name="reminders_exact_prompt_not_now">Not now</string>
 </resources>

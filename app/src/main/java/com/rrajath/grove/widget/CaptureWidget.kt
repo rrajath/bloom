@@ -67,7 +67,7 @@ class CaptureWidget : GlanceAppWidget() {
                     )
                     Spacer(GlanceModifier.width(8.dp))
                     Text(
-                        "Capture",
+                        context.getString(R.string.widget_capture_label),
                         style = TextStyle(
                             color = markColor,
                             fontWeight = FontWeight.Medium,

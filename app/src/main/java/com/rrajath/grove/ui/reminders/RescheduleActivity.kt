@@ -3,6 +3,7 @@ package com.rrajath.grove.ui.reminders
 import android.text.format.DateFormat
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -14,8 +15,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgTimestamp
@@ -96,6 +99,7 @@ private data class Target(val fileName: String, val headline: OrgHeadline, val i
 @Composable
 private fun RescheduleFlow(reminderKey: String, onDone: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val app = context.applicationContext as GroveApplication
     var target by remember { mutableStateOf<Target?>(null) }
 
@@ -110,7 +114,7 @@ private fun RescheduleFlow(reminderKey: String, onDone: () -> Unit) {
         val doc = reminder?.let { vault.open(it.fileName) }
         val headline = doc?.let { ReminderKeys.findHeadline(it, reminder.headingPath, reminder.headingLevel) }
         if (reminder == null || headline == null) {
-            Toast.makeText(context, "Task no longer exists", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, resources.getString(R.string.reminders_task_gone), Toast.LENGTH_SHORT).show()
             onDone()
         } else {
             target = Target(
@@ -136,8 +140,14 @@ private fun RescheduleFlow(reminderKey: String, onDone: () -> Unit) {
             val reported = if (resolved.isDeadline) dead else sched
             Toast.makeText(
                 context,
-                if (reported == null) "Task rescheduled"
-                else "Task rescheduled to ${formatRescheduled(reported, DateFormat.is24HourFormat(context))}",
+                if (reported == null) {
+                    resources.getString(R.string.reminders_rescheduled)
+                } else {
+                    resources.getString(
+                        R.string.reminders_rescheduled_to,
+                        formatRescheduled(resources, reported, DateFormat.is24HourFormat(context)),
+                    )
+                },
                 Toast.LENGTH_SHORT,
             ).show()
             // Toasts are owned by the system, so this one outlives the window;
@@ -177,8 +187,12 @@ private suspend fun writePlanning(
 
 private val RESCHEDULED_DATE: DateTimeFormatter get() = LocalDates.formatter("EEEMMMd", "EEE, MMM d")
 
-/** "Task rescheduled to <date[, time]>": matches the app's "EEE, MMM d" convention. */
-private fun formatRescheduled(ts: OrgTimestamp, is24Hour: Boolean): String {
+/** "Task rescheduled to <date[ at time]>": matches the app's "EEE, MMM d" convention. */
+private fun formatRescheduled(resources: Resources, ts: OrgTimestamp, is24Hour: Boolean): String {
     val date = ts.date.format(RESCHEDULED_DATE)
-    return if (ts.time != null) "$date at ${ts.time.format(LocalDates.clock(is24Hour))}" else date
+    return if (ts.time != null) {
+        resources.getString(R.string.reminders_rescheduled_date_time, date, ts.time.format(LocalDates.clock(is24Hour)))
+    } else {
+        date
+    }
 }

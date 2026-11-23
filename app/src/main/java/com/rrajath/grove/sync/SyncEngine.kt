@@ -24,7 +24,8 @@ sealed class SyncState {
     data object Checking : SyncState()
     data class Pulling(val fileName: String, val index: Int, val total: Int) : SyncState()
     data class Done(val result: SyncResult) : SyncState()
-    data class Error(val message: String) : SyncState()
+    /** [message] is the failure's own text, or null when it had none (the UI then says "Sync failed"). */
+    data class Error(val message: String?) : SyncState()
 }
 
 data class SyncResult(
@@ -188,7 +189,7 @@ class SyncEngine(
             result
         } catch (e: Exception) {
             log("sync failed: ${e.message}")
-            _state.value = SyncState.Error(e.message ?: "Sync failed")
+            _state.value = SyncState.Error(e.message)
             null
         }
     }

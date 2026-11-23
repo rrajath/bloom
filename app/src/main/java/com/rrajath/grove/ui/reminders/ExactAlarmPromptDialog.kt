@@ -26,7 +26,7 @@ fun ExactAlarmPromptDialog(onAllow: () -> Unit, onNotNow: () -> Unit) {
         containerColor = c.surface,
         title = {
             Text(
-                "Get reminders on time",
+                stringResource(R.string.reminders_exact_prompt_title),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, color = c.ink,
             )
@@ -39,12 +39,12 @@ fun ExactAlarmPromptDialog(onAllow: () -> Unit, onNotNow: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onAllow) {
-                Text("Allow", fontFamily = PlexSans, color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.reminders_exact_prompt_allow), fontFamily = PlexSans, color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             TextButton(onClick = onNotNow) {
-                Text("Not now", fontFamily = PlexSans, color = c.ink2)
+                Text(stringResource(R.string.reminders_exact_prompt_not_now), fontFamily = PlexSans, color = c.ink2)
             }
         },
     )

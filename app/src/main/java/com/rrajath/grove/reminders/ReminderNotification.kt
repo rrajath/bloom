@@ -36,7 +36,7 @@ object ReminderNotification {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Reminders", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CHANNEL_ID, context.getString(R.string.reminders_channel), NotificationManager.IMPORTANCE_HIGH)
             )
         }
 
@@ -70,9 +70,9 @@ object ReminderNotification {
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
         if (isTask || reminder.hasRepeater) {
-            builder.addAction(0, "Complete", completeAction(context, reminder))
+            builder.addAction(0, context.getString(R.string.reminders_action_complete), completeAction(context, reminder))
         }
-        builder.addAction(0, "Reschedule", rescheduleAction(context, reminder))
+        builder.addAction(0, context.getString(R.string.reminders_action_reschedule), rescheduleAction(context, reminder))
         nm.notify(reminder.notificationId, builder.build())
     }
 
@@ -91,7 +91,7 @@ object ReminderNotification {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Reminders", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CHANNEL_ID, context.getString(R.string.reminders_channel), NotificationManager.IMPORTANCE_HIGH)
             )
         }
 
@@ -104,8 +104,8 @@ object ReminderNotification {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(NotificationAppearance.markColor(context))
-            .setContentTitle("You have $count ${if (count == 1) "task" else "tasks"} due today")
-            .setContentText("Tap to see what's on your plate.")
+            .setContentTitle(context.resources.getQuantityString(R.plurals.reminders_digest_title, count, count))
+            .setContentText(context.getString(R.string.reminders_digest_text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(contentIntent)

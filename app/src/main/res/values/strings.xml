@@ -1,7 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">Bloom</string>
-    <string name="widget_description">One-tap capture into your org notes</string>
-    <string name="ledger_widget_description">Agenda ledger: overdue and upcoming tasks grouped by day</string>
     <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
     <string name="exact_alarm_prompt_body">Android can delay %1$s\'s reminders by up to an hour unless %1$s is allowed to set alarms. On the next screen, turn on Alarms &amp; reminders for %1$s.</string>
     <!-- Warning for a vault folder that isn't on local storage (ui/vault/ProviderWarning.kt).
@@ -69,34 +67,12 @@
     <string name="picker_search_headings_header">HEADINGS</string>
     <string name="heading_id_tag">ID</string>
     <string name="refile_search_stale_heading">That heading no longer exists</string>
-    <!-- Agenda widget view picker (widget/LedgerWidget.kt, widget/WidgetViewPickerActivity.kt). -->
-    <string name="widget_view_agenda">Agenda</string>
-    <string name="widget_view_caret">▾</string>
-    <string name="widget_view_picker_title">Show in widget</string>
-    <string name="widget_view_change">Change widget view</string>
-    <string name="widget_view_current">Current view</string>
-    <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
-    <string name="widget_open_agenda">Open Agenda in %1$s</string>
-    <string name="widget_no_results">No results</string>
-    <!-- "+N more" (load the next page in the widget) and "view all" (open the app) are separate tap targets. -->
-    <string name="widget_load_more" tools:ignore="PluralsCandidate">+%1$d more</string>
-    <string name="widget_more_separator">·</string>
-    <string name="widget_view_all">view all</string>
-    <!-- View picker subtitle for the Agenda row; %1$d is Settings › Widget › Days ahead. -->
-    <plurals name="widget_view_agenda_window">
-        <item quantity="one">Overdue + next %1$d day</item>
-        <item quantity="other">Overdue + next %1$d days</item>
-    </plurals>
     <!-- Search's Quick Start cards (ui/search/QuickStarts.kt), also offered as Agenda widget views.
          Keep in step with QuickStartOverrides.idForName, which matches these exact names. -->
     <string name="quick_start_overdue">Overdue</string>
     <string name="quick_start_today">Today</string>
     <string name="quick_start_open_tasks">Open tasks</string>
     <string name="quick_start_unscheduled">Unscheduled</string>
-    <plurals name="widget_result_count">
-        <item quantity="one">%1$d result</item>
-        <item quantity="other">%1$d results</item>
-    </plurals>
     <!-- Attachments: chooser titles (attach/AttachmentIntents.kt). -->
     <string name="attach_open_with">Open with</string>
     <string name="attach_share">Share</string>

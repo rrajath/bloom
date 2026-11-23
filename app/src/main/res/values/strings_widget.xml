@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Home-screen widget picker descriptions (res/xml widget info). -->
+    <string name="widget_description">One-tap capture into your org notes</string>
+    <string name="ledger_widget_description">Agenda ledger: overdue and upcoming tasks grouped by day</string>
+
+    <!-- Capture widget (widget/CaptureWidget.kt): the label on the one-tap capture pill. -->
+    <string name="widget_capture_label">Capture</string>
+    <!-- Optional persistent capture notification (widget/CaptureNotification.kt). The channel name
+         shows in Android's notification settings for the app. -->
+    <string name="widget_capture_channel">Capture shortcut</string>
+    <string name="widget_capture_notification_text">Capture a note</string>
+
+    <!-- Agenda widget view picker (widget/LedgerWidget.kt, widget/WidgetViewPickerActivity.kt). -->
+    <string name="widget_view_agenda">Agenda</string>
+    <string name="widget_view_caret">▾</string>
+    <string name="widget_view_picker_title">Show in widget</string>
+    <string name="widget_view_change">Change widget view</string>
+    <string name="widget_view_current">Current view</string>
+    <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
+    <string name="widget_open_agenda">Open Agenda in %1$s</string>
+    <string name="widget_no_results">No results</string>
+    <!-- "+N more" (load the next page in the widget) and "view all" (open the app) are separate tap targets. -->
+    <string name="widget_load_more" tools:ignore="PluralsCandidate">+%1$d more</string>
+    <string name="widget_more_separator">·</string>
+    <string name="widget_view_all">view all</string>
+    <!-- View picker subtitle for the Agenda row; %1$d is Settings › Widget › Days ahead. -->
+    <plurals name="widget_view_agenda_window">
+        <item quantity="one">Overdue + next %1$d day</item>
+        <item quantity="other">Overdue + next %1$d days</item>
+    </plurals>
+    <plurals name="widget_result_count">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+
+    <!-- Agenda widget subtitle under the title, e.g. "3 today · 12 in 7 days": widget_agenda_subtitle
+         joins widget_agenda_today_count (%1$s) and widget_agenda_window_count (%2$s). -->
+    <string name="widget_agenda_subtitle">%1$s · %2$s</string>
+    <!-- %1$d is how many tasks and events are on today. -->
+    <plurals name="widget_agenda_today_count">
+        <item quantity="one">%1$d today</item>
+        <item quantity="other">%1$d today</item>
+    </plurals>
+    <!-- %1$d is how many items the widget shows in total, %2$d the number of days it covers
+         (Settings › Widget › Days ahead). The quantity follows %2$d. -->
+    <plurals name="widget_agenda_window_count">
+        <item quantity="one">%1$d in %2$d day</item>
+        <item quantity="other">%1$d in %2$d days</item>
+    </plurals>
+    <!-- Agenda widget day section headers, shown in capitals. %1$s is the short date, e.g. "Aug 5".
+         Later days show the date alone. -->
+    <string name="widget_day_today">Today · %1$s</string>
+    <string name="widget_day_tomorrow">Tomorrow · %1$s</string>
+
+    <!-- Quick add sheet, opened from the Agenda widget's + button (widget/WidgetQuickAddActivity.kt). -->
+    <string name="widget_quick_add_placeholder">What needs doing?</string>
+    <!-- Date presets in the quick add date menu: the task is scheduled on that day. -->
+    <string name="widget_quick_add_date_today">Today</string>
+    <string name="widget_quick_add_date_tomorrow">Tomorrow</string>
+    <string name="widget_quick_add_date_weekend">This weekend</string>
+    <string name="widget_quick_add_date_next_week">Next week</string>
+    <string name="widget_quick_add_date_none">No date</string>
+    <string name="widget_quick_add_date_custom">Custom date…</string>
+    <!-- Priority chip before a priority is picked; once picked it shows "#A", "#B" or "#C". -->
+    <string name="widget_quick_add_priority">Priority</string>
+    <!-- Title of the date picker when the task has no text yet. -->
+    <string name="widget_quick_add_new_task">New task</string>
+    <!-- Toast after adding. %1$s is the target, e.g. "tasks › Work › Inbox". -->
+    <string name="widget_quick_add_added">Added to %1$s</string>
+    <!-- Toast when the target heading is gone. %1$s is the heading title, %2$s the notebook name. -->
+    <string name="widget_quick_add_heading_missing">Heading \"%1$s\" not found. Added to the bottom of %2$s</string>
+</resources>

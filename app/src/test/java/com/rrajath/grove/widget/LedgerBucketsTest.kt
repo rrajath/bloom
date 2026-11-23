@@ -37,7 +37,18 @@ class LedgerBucketsTest {
         )
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
         // No section for every day in between that has nothing scheduled.
-        assertEquals(listOf("Today · Jun 11", "Jun 20"), sections.map { it.key })
+        assertEquals(listOf("Today · Jun 11", "Jun 20"), sections.map { it.label.english() })
+    }
+
+    @Test
+    fun `section keys are stable and untranslated`() {
+        val notes = listOf(
+            note("Ancient", scheduled = "<2025-01-01 Wed>"),
+            note("Today task", scheduled = "<2025-06-11 Wed>"),
+        )
+        val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
+        assertEquals(listOf("overdue", "2025-06-11"), sections.map { it.key })
+        assertEquals(listOf(true, false), sections.map { it.isOverdue })
     }
 
     @Test
@@ -47,7 +58,7 @@ class LedgerBucketsTest {
             note("Today task", scheduled = "<2025-06-11 Wed>"),
         )
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
-        assertEquals("Overdue", sections.first().key)
+        assertEquals("Overdue", sections.first().label.english())
         assertEquals(1, sections.first().count)
         assertEquals(listOf("Ancient"), sections.first().rows.map { it.title })
     }
@@ -56,7 +67,7 @@ class LedgerBucketsTest {
     fun `overdue header does not repeat the count in the label`() {
         val notes = listOf(note("Ancient", scheduled = "<2025-01-01 Wed>"))
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
-        assertEquals("Overdue", sections.first().key)
+        assertEquals("Overdue", sections.first().label.english())
     }
 
     @Test
@@ -90,7 +101,7 @@ class LedgerBucketsTest {
             note("T2", scheduled = "<2025-06-13 Fri>"),
         )
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
-        assertEquals(listOf("Today · Jun 11", "Tomorrow · Jun 12", "Jun 13"), sections.map { it.key })
+        assertEquals(listOf("Today · Jun 11", "Tomorrow · Jun 12", "Jun 13"), sections.map { it.label.english() })
     }
 
     @Test
@@ -115,7 +126,7 @@ class LedgerBucketsTest {
             note("Team offsite", keyword = null, active = "<2025-06-13 Fri>"),
         )
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
-        val friday = sections.single { it.key == "Jun 13" }
+        val friday = sections.single { it.label.english() == "Jun 13" }
         assertEquals(2, friday.count)
         val event = friday.rows.single { it.title == "Team offsite" }
         assertEquals(null, event.keyword)
@@ -127,7 +138,7 @@ class LedgerBucketsTest {
     fun `a day with only an event still renders`() {
         val notes = listOf(note("Team offsite", keyword = null, active = "<2025-06-13 Fri>"))
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
-        assertEquals(listOf("Jun 13"), sections.map { it.key })
+        assertEquals(listOf("Jun 13"), sections.map { it.label.english() })
         assertEquals(1, sections.single().count)
     }
 
@@ -137,7 +148,7 @@ class LedgerBucketsTest {
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
         assertEquals(
             listOf("Tomorrow · Jun 12", "Jun 13", "Jun 14"),
-            sections.filter { it.rows.any { r -> r.title == "Conference" } }.map { it.key },
+            sections.filter { it.rows.any { r -> r.title == "Conference" } }.map { it.label.english() },
         )
     }
 
@@ -148,7 +159,7 @@ class LedgerBucketsTest {
             note("Past party", keyword = null, active = "<2025-01-01 Wed>"),
         )
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
-        assertEquals("Overdue", sections.first().key)
+        assertEquals("Overdue", sections.first().label.english())
         assertEquals(listOf("Ancient task"), sections.first().rows.map { it.title })
     }
 
@@ -160,7 +171,7 @@ class LedgerBucketsTest {
             note("Late event", keyword = null, active = "<2025-06-13 Fri 18:00>"),
         )
         val rows = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
-            .single { it.key == "Jun 13" }.rows
+            .single { it.label.english() == "Jun 13" }.rows
         assertEquals(listOf("Priority task", "Early event", "Late event"), rows.map { it.title })
     }
 

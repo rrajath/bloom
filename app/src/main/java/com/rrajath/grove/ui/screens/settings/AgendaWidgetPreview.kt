@@ -22,11 +22,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.settings.GroveSettings
@@ -40,7 +43,9 @@ import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.uppercaseForUi
 import com.rrajath.grove.widget.LedgerBuckets
+import com.rrajath.grove.widget.agendaSubtitle
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -66,7 +71,8 @@ internal fun AgendaWidgetPreview(settings: GroveSettings, transparencyOverride: 
     // to disk on every tick, see SettingsWidgetScreen) still tracks live here.
     val backgroundColor = c.surface.copy(alpha = 1f - (transparencyOverride ?: settings.agendaWidgetTransparency))
     val totalCount = sections.sumOf { it.count }
-    val todayCount = sections.firstOrNull { it.key.startsWith("Today") }?.count ?: 0
+    val todayCount = sections.firstOrNull { it.day == today }?.count ?: 0
+    val resources = LocalResources.current
 
     Column(
         Modifier
@@ -82,8 +88,8 @@ internal fun AgendaWidgetPreview(settings: GroveSettings, transparencyOverride: 
             BrandMark(tileSize = 22.dp)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                ScaledText("Agenda", 13.5f, scale, FontWeight.Medium, c.ink, PlexSans)
-                ScaledText("$todayCount today · $totalCount in ${settings.agendaWidgetDaysAhead} days", 10.5f, scale, FontWeight.Normal, c.ink2, PlexMono)
+                ScaledText(stringResource(R.string.widget_view_agenda), 13.5f, scale, FontWeight.Medium, c.ink, PlexSans)
+                ScaledText(agendaSubtitle(resources, todayCount, totalCount, settings.agendaWidgetDaysAhead), 10.5f, scale, FontWeight.Normal, c.ink2, PlexMono)
             }
             Box(
                 Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(c.accent),
@@ -94,7 +100,7 @@ internal fun AgendaWidgetPreview(settings: GroveSettings, transparencyOverride: 
         }
         if (sections.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                ScaledText("Nothing scheduled", 12f, scale, FontWeight.Normal, c.ink3, PlexSans)
+                ScaledText(stringResource(R.string.agenda_empty_title), 12f, scale, FontWeight.Normal, c.ink3, PlexSans)
             }
         } else {
             Column(Modifier.padding(bottom = 10.dp)) {
@@ -109,12 +115,12 @@ internal fun AgendaWidgetPreview(settings: GroveSettings, transparencyOverride: 
 
 @Composable
 private fun PreviewSectionHeader(c: GroveColors, section: LedgerBuckets.Section, scale: Float) {
-    val isOverdue = section.key == "Overdue"
+    val isOverdue = section.isOverdue
     Row(
         Modifier.fillMaxWidth().padding(start = 13.dp, end = 13.dp, top = 9.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ScaledText(section.key.uppercase(), 10f, scale, FontWeight.Bold, if (isOverdue) c.red else c.ink2, PlexSans)
+        ScaledText(section.label.asString().uppercaseForUi(), 10f, scale, FontWeight.Bold, if (isOverdue) c.red else c.ink2, PlexSans)
         Spacer(Modifier.width(7.dp))
         ScaledText(section.count.toString(), 10f, scale, FontWeight.Normal, c.ink3, PlexMono)
         Spacer(Modifier.width(7.dp))

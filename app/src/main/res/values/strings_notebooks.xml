@@ -112,4 +112,15 @@
         <item quantity="one">Renamed folder; %d attachment folder couldn\'t be moved</item>
         <item quantity="other">Renamed folder; %d attachment folders couldn\'t be moved</item>
     </plurals>
+
+    <!-- Sync conflict notification (sync/SyncManager.kt). The channel name shows in Android's
+         notification settings for the app. -->
+    <string name="sync_conflict_channel">Sync conflicts</string>
+    <string name="sync_conflict_notification_title">Sync conflict</string>
+    <plurals name="sync_conflict_notification_text">
+        <item quantity="one">%1$d sync conflict found</item>
+        <item quantity="other">%1$d sync conflicts found</item>
+    </plurals>
+    <!-- Sync error with no details from the system; shown by the Notebooks sync warning icon. -->
+    <string name="sync_failed">Sync failed</string>
 </resources>

@@ -63,7 +63,7 @@ import com.rrajath.grove.ui.theme.grove
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private const val TAG = "GroveWidget"
+private const val TAG = "GroveWidget" // i18n: log tag
 
 /**
  * The Agenda widget's view picker, opened by tapping the widget's title: a small

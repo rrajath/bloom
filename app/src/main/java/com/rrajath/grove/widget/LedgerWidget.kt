@@ -114,7 +114,7 @@ import java.time.LocalDateTime
  * The initial values are read with `first()` so the very first frame after a cold
  * session start is already correct instead of flashing an empty ledger.
  */
-private const val TAG = "GroveWidget"
+private const val TAG = "GroveWidget" // i18n: log tag
 
 /*
  * Row caps (see [WidgetPaging]): each list shows [WidgetPaging.PAGE] rows, then
@@ -315,7 +315,7 @@ private fun AgendaView(
             emptyList()
         }
     }
-    val todayCount = sections.firstOrNull { it.key.startsWith("Today") }?.count ?: 0
+    val todayCount = sections.firstOrNull { it.day == today }?.count ?: 0
     val totalCount = sections.sumOf { it.count }
     val plans = WidgetPaging.plan(sections.map { it.key to it.rows.size }, pages)
     val context = chrome.context
@@ -325,15 +325,15 @@ private fun AgendaView(
     WidgetFrame(
         chrome,
         title = context.getString(R.string.widget_view_agenda),
-        subtitle = "$todayCount today · $totalCount in $windowDays days",
+        subtitle = agendaSubtitle(context.resources, todayCount, totalCount, windowDays),
     ) {
         if (sections.isEmpty()) {
-            EmptyBody(colors, "Nothing scheduled", fontScale)
+            EmptyBody(colors, context.getString(R.string.agenda_empty_title), fontScale)
         } else {
             LazyColumn(modifier = GlanceModifier.fillMaxSize().padding(bottom = 10.dp)) {
                 sections.zip(plans).forEach { (section, plan) ->
                     item(itemId = section.key.hashCode().toLong()) {
-                        SectionHeader(colors, section, fontScale)
+                        SectionHeader(context, colors, section, fontScale)
                     }
                     items(section.rows.take(plan.visible), itemId = { rowItemId(it.fileName, it.lineIndex) }) { row ->
                         LedgerRow(context, colors, row, fontScale)
@@ -498,15 +498,15 @@ private fun HeaderRow(chrome: WidgetChrome, title: String, subtitle: String) {
 }
 
 @Composable
-private fun SectionHeader(colors: GroveColors, section: LedgerBuckets.Section, fontScale: Float) {
-    val isOverdue = section.key == "Overdue"
+private fun SectionHeader(context: Context, colors: GroveColors, section: LedgerBuckets.Section, fontScale: Float) {
+    val isOverdue = section.isOverdue
     val labelColor = if (isOverdue) colors.red else colors.ink2
     Row(
         modifier = GlanceModifier.fillMaxWidth().padding(start = 13.dp, end = 13.dp, top = 9.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            section.key.uppercase(),
+            section.label.resolve(context).uppercaseForWidget(context.resources),
             style = TextStyle(color = ColorProvider(labelColor), fontSize = sp(10f, fontScale), fontWeight = FontWeight.Bold),
         )
         Spacer(modifier = GlanceModifier.width(7.dp))
@@ -787,8 +787,8 @@ class MarkDoneAction : ActionCallback {
             ?: return run {
                 Log.w(
                     TAG,
-                    "no headline at $fileName:$lineIndex (stale index?); " +
-                        "headline lines are ${doc.headlines.map { it.lineIndex }}",
+                    "no headline at $fileName:$lineIndex (stale index?); " + // i18n: log
+                        "headline lines are ${doc.headlines.map { it.lineIndex }}", // i18n: log
                 )
             }
         val keyword = headline.keyword

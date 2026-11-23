@@ -37,7 +37,7 @@ object CaptureNotification {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Capture shortcut", NotificationManager.IMPORTANCE_MIN)
+                NotificationChannel(CHANNEL_ID, context.getString(R.string.widget_capture_channel), NotificationManager.IMPORTANCE_MIN)
             )
         }
         val intent = Intent(Intent.ACTION_VIEW, DeepLinks.capture().toUri())
@@ -50,7 +50,7 @@ object CaptureNotification {
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(NotificationAppearance.markColor(context))
             .setContentTitle(context.getString(R.string.app_name))
-            .setContentText("Capture a note")
+            .setContentText(context.getString(R.string.widget_capture_notification_text))
             .setContentIntent(pending)
             .setOngoing(true)
             .setSilent(true)

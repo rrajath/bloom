@@ -869,7 +869,7 @@ private fun SyncStatusIcon(state: NotebooksUiState.Loaded, context: android.cont
         is SyncState.Error -> {
             IconButton(
                 onClick = {
-                    Toast.makeText(context, resources.getString(R.string.notebooks_sync_issue_detail, sync.message), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, resources.getString(R.string.notebooks_sync_issue_detail, sync.message ?: resources.getString(R.string.sync_failed)), Toast.LENGTH_SHORT).show()
                 },
             ) {
                 Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.notebooks_sync_issue), tint = c.amber)

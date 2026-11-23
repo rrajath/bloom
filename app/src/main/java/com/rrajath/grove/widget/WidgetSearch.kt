@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
-private const val TAG = "GroveWidget"
+private const val TAG = "GroveWidget" // i18n: log tag
 
 /**
  * The Agenda widget's saved-search view: the same query pipeline the Search

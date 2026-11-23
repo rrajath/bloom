@@ -15,6 +15,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.rrajath.grove.R
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.data.RoomNoteIndex
 import com.rrajath.grove.data.SyncLogEntity
@@ -335,7 +336,7 @@ class SyncManager(
         ) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Sync conflicts", NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel(CHANNEL_ID, context.getString(R.string.sync_conflict_channel), NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
@@ -344,10 +345,10 @@ class SyncManager(
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val n = names.size
-        val text = "$n sync conflict${if (n == 1) "" else "s"} found"
+        val text = context.resources.getQuantityString(R.plurals.sync_conflict_notification_text, n, n)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setContentTitle("Sync conflict")
+            .setContentTitle(context.getString(R.string.sync_conflict_notification_title))
             .setContentText(text)
             .setContentIntent(pending)
             .setAutoCancel(true)
