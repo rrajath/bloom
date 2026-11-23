@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -52,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.mutableStateOf
@@ -69,8 +71,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalClipboard
+import com.rrajath.grove.ui.util.backArrowGlyph
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
@@ -296,13 +300,13 @@ fun ReadNoteScreen(
         topBar = {
             GroveTopBar(
                 leading = {
-                    IconGlyph("←", onClick = onBack)
+                    IconGlyph(backArrowGlyph(), onClick = onBack)
                     // Mirrors the editor's save icon: green means what's rendered
                     // here is the editor's unsaved buffer, and a tap writes it.
                     if (pendingEdit != null) {
                         Icon(
                             Icons.Outlined.Save,
-                            contentDescription = "Unsaved changes, tap to save",
+                            contentDescription = stringResource(R.string.read_unsaved_save),
                             tint = c.green,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
@@ -392,7 +396,7 @@ fun ReadNoteScreen(
                     Box(
                         Modifier.fillMaxSize().padding(padding),
                         contentAlignment = Alignment.Center,
-                    ) { Text("Note not found", fontFamily = PlexSans, color = c.ink2) }
+                    ) { Text(stringResource(R.string.read_note_not_found), fontFamily = PlexSans, color = c.ink2) }
                 } else {
                     val listState = rememberLazyListState()
                     Box(Modifier.fillMaxSize().padding(padding)) {
@@ -488,19 +492,21 @@ fun ReadNoteScreen(
             // screen then re-opens the note at that heading. Refile is hidden —
             // there's nothing to move until the content has a heading.
             val now = { java.time.LocalDateTime.now() }
+            val resources = LocalResources.current
+            val none = stringResource(R.string.metadata_toast_none)
             MetadataSheet(
                 headline = null,
                 keywords = doc.keywords,
                 allTags = allTags,
                 onChangeKeyword = { kw ->
                     metadataOpen = false
-                    viewModel.withIntroHeading("State → ${kw ?: "none"}") { d, h ->
+                    viewModel.withIntroHeading(resources.getString(R.string.metadata_toast_state, kw ?: none)) { d, h ->
                         OrgMutations.changeKeyword(d, h, kw, d.keywords, now())
                     }
                 },
                 onSetPriority = { p ->
                     metadataOpen = false
-                    viewModel.withIntroHeading("Priority → ${p?.let { "#$it" } ?: "none"}") { d, h ->
+                    viewModel.withIntroHeading(resources.getString(R.string.metadata_toast_priority, p?.let { "#$it" } ?: none)) { d, h ->
                         OrgMutations.setPriority(d, h, p)
                     }
                 },
@@ -510,13 +516,13 @@ fun ReadNoteScreen(
                 },
                 onSetPlanningDates = { sched, dead, active ->
                     metadataOpen = false
-                    viewModel.withIntroHeading("Planning updated") { d, h ->
+                    viewModel.withIntroHeading(resources.getString(R.string.metadata_toast_planning_updated)) { d, h ->
                         OrgMutations.setPlanningAndActiveTimestamps(d, h, sched, dead, active)
                     }
                 },
                 onAddNote = { note ->
                     metadataOpen = false
-                    viewModel.withIntroHeading("Note added") { d, h ->
+                    viewModel.withIntroHeading(resources.getString(R.string.metadata_toast_note_added)) { d, h ->
                         OrgMutations.appendLogbookNote(
                             d, h, note.trim(),
                             OrgTimestamp(
@@ -529,7 +535,7 @@ fun ReadNoteScreen(
                 },
                 onGenerateId = {
                     metadataOpen = false
-                    viewModel.withIntroHeading("org-id generated") { d, h ->
+                    viewModel.withIntroHeading(resources.getString(R.string.metadata_toast_org_id_generated)) { d, h ->
                         OrgMutations.upsertProperty(d, h, "ID", newOrgId())
                     }
                 },
@@ -538,7 +544,7 @@ fun ReadNoteScreen(
                 showFavorite = true,
                 isFavorite = favorites.any { it.lineIndex == INTRO_LINE_INDEX },
                 onToggleFavorite = { viewModel.toggleIntroFavorite() },
-                targetLabel = "New heading above intro",
+                targetLabel = stringResource(R.string.read_intro_metadata_target),
                 onDismiss = { metadataOpen = false },
             )
         } else if (headline != null && doc != null) {
@@ -604,7 +610,7 @@ internal fun ReadModeBreadcrumb(
     ) {
         if (onOpenNotebooks != null) {
             Text(
-                "Notebooks",
+                stringResource(R.string.nav_notebooks),
                 fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink3,
                 maxLines = 1,
                 modifier = Modifier.clickable(onClick = onOpenNotebooks).testTag("breadcrumb_notebooks"),
@@ -1288,14 +1294,14 @@ internal fun LinkActionMenuItems(target: String, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     DropdownMenuItem(
-        text = { Text("Copy link", fontFamily = PlexSans, fontSize = 14.sp, color = c.ink) },
+        text = { Text(stringResource(R.string.read_copy_link), fontFamily = PlexSans, fontSize = 14.sp, color = c.ink) },
         onClick = {
             scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("link", target))) }
             onDismiss()
         },
     )
     DropdownMenuItem(
-        text = { Text("Share link", fontFamily = PlexSans, fontSize = 14.sp, color = c.ink) },
+        text = { Text(stringResource(R.string.read_share_link), fontFamily = PlexSans, fontSize = 14.sp, color = c.ink) },
         onClick = {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"

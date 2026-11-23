@@ -36,9 +36,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.FilenameValidation
 import com.rrajath.grove.org.ArchiveTarget
 import com.rrajath.grove.org.OrgDocument
@@ -54,7 +57,9 @@ import com.rrajath.grove.ui.editor.LinkSearchItem
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.countLabel
+import com.rrajath.grove.ui.util.forwardArrowGlyph
 import com.rrajath.grove.ui.vault.RefileUiState
 import com.rrajath.grove.ui.vault.filterRefileSearch
 import com.rrajath.grove.ui.vault.headlineAtLine
@@ -94,14 +99,14 @@ fun RefileSheet(
     onPickLastUsed: () -> Unit,
     /** Applies a tapped search hit to the picker state; true once it is the selected target. */
     onSelectSearchResult: suspend (LinkSearchItem) -> Boolean,
-    headerTitle: String = "Refile 1 note",
-    confirmLabel: String = "Refile here",
+    headerTitle: String = pluralStringResource(R.plurals.outline_refile_title, 1, 1),
+    confirmLabel: String = stringResource(R.string.refile_confirm),
     /** Shown in place of [confirmLabel] while sitting at a file's top level (no heading drilled into). */
     topLevelConfirmLabel: String? = null,
     /** False disables confirm at a file's top level, so a heading must be picked. */
     topLevelConfirmEnabled: Boolean = true,
     /** Crumb suffix after the file name while at its top level. */
-    topLevelCrumbHint: String = "top level · or pick a heading",
+    topLevelCrumbHint: String = stringResource(R.string.refile_crumb_top_level_or_pick),
     /** False hides the back button at a file's top level (a sheet scoped to one file). */
     showBackAtTopLevel: Boolean = true,
     searchPlaceholder: String? = null,
@@ -141,8 +146,9 @@ fun RefileSheet(
         scope.launch { if (onSelectSearchResult(item)) query = "" }
     }
 
+    val topLevel = stringResource(R.string.refile_top_level)
     val crumb = when {
-        doc == null -> "Choose a destination notebook"
+        doc == null -> stringResource(R.string.refile_choose_notebook)
         state.path.isEmpty() -> "${state.pickedFile?.removeSuffix(".org")} › $topLevelCrumbHint"
         else -> (listOf(state.pickedFile?.removeSuffix(".org")) +
                 state.path.map { doc.headlineAtLine(it)?.title ?: "?" })
@@ -156,11 +162,11 @@ fun RefileSheet(
     ) {
         Column(Modifier.padding(horizontal = 14.dp)) {
             state.archiveTarget?.let { target ->
-                ArchiveRow(sub = archiveCrumb(target), onClick = onArchive)
+                ArchiveRow(sub = archiveCrumb(target, topLevel), onClick = onArchive)
                 Spacer(Modifier.height(10.dp))
             }
             state.lastUsedTarget?.let { target ->
-                LastUsedRow(sub = archiveCrumb(target), onClick = onPickLastUsed)
+                LastUsedRow(sub = archiveCrumb(target, topLevel), onClick = onPickLastUsed)
                 Spacer(Modifier.height(10.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -173,7 +179,7 @@ fun RefileSheet(
                             .clickable(onClick = onBack),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("←", fontFamily = PlexSans, fontSize = 16.sp, color = c.ink)
+                        Text(backArrowGlyph(), fontFamily = PlexSans, fontSize = 16.sp, color = c.ink)
                     }
                     Spacer(Modifier.width(10.dp))
                 }
@@ -213,7 +219,7 @@ fun RefileSheet(
                         RefileRow(
                             icon = notebookIcon(),
                             label = nb.fileName.removeSuffix(".org"),
-                            sub = pluralCount(nb.noteCount, "heading"),
+                            sub = countLabel(R.plurals.count_headings, nb.noteCount),
                             onClick = { onPickNotebook(nb.fileName) },
                         )
                     }
@@ -225,7 +231,7 @@ fun RefileSheet(
                     if (rows.isEmpty()) {
                         item {
                             Text(
-                                "No sub-headings here",
+                                stringResource(R.string.refile_no_subheadings),
                                 fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3,
                                 modifier = Modifier.padding(vertical = 12.dp),
                             )
@@ -261,7 +267,7 @@ fun RefileSheet(
                         .padding(horizontal = 18.dp, vertical = 12.dp),
                 ) {
                     Text(
-                        "Cancel",
+                        stringResource(R.string.action_cancel),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp, color = c.ink2,
                     )
@@ -287,13 +293,13 @@ fun RefileSheet(
 
     if (naming && onCreateFile != null) {
         NameDialog(
-            title = "New file",
+            title = stringResource(R.string.refile_new_file_title),
             initial = "",
-            confirmLabel = "Create",
-            placeholder = "ideas",
+            confirmLabel = stringResource(R.string.action_create),
+            placeholder = stringResource(R.string.refile_new_file_placeholder),
             filenameSuffix = ".org",
             validate = FilenameValidation::errorForNewNotebook,
-            helperText = "Use a slash to nest it in folders, e.g. work/ideas",
+            helperText = stringResource(R.string.refile_new_file_helper),
             onDismiss = { naming = false },
             onConfirm = { name ->
                 naming = false
@@ -306,14 +312,16 @@ fun RefileSheet(
 // Notebook rows key on their file name, which always ends in .org, so this can't collide.
 private const val NEW_FILE_ROW_KEY = "new-file"
 
+@Composable
 private fun headingCountLabel(doc: OrgDocument, h: OrgHeadline): String? {
     val n = doc.directChildren(h).size
-    return if (n == 0) null else pluralCount(n, "heading")
+    return if (n == 0) null else countLabel(R.plurals.count_headings, n)
 }
 
-private fun archiveCrumb(target: ArchiveTarget): String {
+/** [topLevel] is the translated "top level" shown when the target has no heading path. */
+private fun archiveCrumb(target: ArchiveTarget, topLevel: String): String {
     val fileLabel = target.fileName.removeSuffix(".org")
-    return if (target.headingPath.isEmpty()) "$fileLabel › top level"
+    return if (target.headingPath.isEmpty()) "$fileLabel › $topLevel"
     else (listOf(fileLabel) + target.headingPath).joinToString(" › ")
 }
 
@@ -334,13 +342,13 @@ private fun ArchiveRow(sub: String, onClick: () -> Unit) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                "Archive",
+                stringResource(R.string.refile_archive),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp, color = c.ink,
             )
             Text(sub, fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2)
         }
-        Text("→", fontFamily = PlexSans, fontSize = 14.sp, color = c.accent)
+        Text(forwardArrowGlyph(), fontFamily = PlexSans, fontSize = 14.sp, color = c.accent)
     }
 }
 
@@ -365,7 +373,7 @@ private fun NewFileRow(onClick: () -> Unit) {
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            "New file…",
+            stringResource(R.string.refile_new_file_row),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp, color = c.ink,
         )
@@ -389,13 +397,13 @@ private fun LastUsedRow(sub: String, onClick: () -> Unit) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                "Last used location",
+                stringResource(R.string.refile_last_used),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp, color = c.ink,
             )
             Text(sub, fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2)
         }
-        Text("→", fontFamily = PlexSans, fontSize = 14.sp, color = c.accent)
+        Text(forwardArrowGlyph(), fontFamily = PlexSans, fontSize = 14.sp, color = c.accent)
     }
 }
 

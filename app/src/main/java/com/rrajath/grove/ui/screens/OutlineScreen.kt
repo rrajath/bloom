@@ -76,7 +76,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
@@ -104,6 +106,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.os.ConfigurationCompat
 import com.rrajath.grove.R
 import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.OrgDocument
@@ -144,7 +147,8 @@ import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.theme.priorityColor
 import com.rrajath.grove.ui.theme.starColor
 import com.rrajath.grove.ui.util.IntSetSaver
-import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.countLabel
 import com.rrajath.grove.ui.editor.MetadataSheet
 import com.rrajath.grove.ui.vault.BulkPlanningEdit
 import com.rrajath.grove.ui.vault.DocumentUiState
@@ -350,6 +354,19 @@ fun OutlineScreen(
     // one per row per recomposition (vectorResource can't be called inside remember{}
     // — it's itself a @Composable that memoizes on (theme, id)).
     val icNote = ImageVector.vectorResource(id = R.drawable.ic_note)
+    val swipeLabels = SwipeLabels(
+        state = stringResource(R.string.outline_swipe_state),
+        schedule = stringResource(R.string.outline_swipe_schedule),
+        note = stringResource(R.string.outline_swipe_note),
+        fav = stringResource(R.string.outline_swipe_fav),
+        unfav = stringResource(R.string.outline_swipe_unfav),
+        narrow = stringResource(R.string.outline_swipe_narrow),
+        above = stringResource(R.string.outline_swipe_above),
+        below = stringResource(R.string.outline_swipe_below),
+        sub = stringResource(R.string.outline_swipe_sub),
+        refile = stringResource(R.string.outline_swipe_refile),
+    )
+    val resources = LocalResources.current
     val favIconOutline = favoriteIcon()
     val favIconFilled = favoriteIconFilled()
     // O(1) favorite lookup per row instead of an O(favorites) `.any` scan per row per
@@ -363,12 +380,12 @@ fun OutlineScreen(
         if (isFavorite) {
             val existing = favorites.firstOrNull { it.matches(h) }
             onUnfavorite(notebookId, h.lineIndex, existing?.customId)
-            viewModel.showToast("Removed favorite")
+            viewModel.showToast(resources.getString(R.string.outline_favorite_removed))
         } else {
             viewModel.ensureStableId(h) { customId ->
                 onFavorite(notebookId, h.lineIndex, h.title, customId)
             }
-            viewModel.showToast("★ Added to favorites")
+            viewModel.showToast(resources.getString(R.string.outline_favorite_added))
         }
     }
 
@@ -396,16 +413,16 @@ fun OutlineScreen(
                                     .padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text("←", fontFamily = PlexMono, fontSize = 19.sp, color = c.ink)
+                                Text(backArrowGlyph(), fontFamily = PlexMono, fontSize = 19.sp, color = c.ink)
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    "widen",
+                                    stringResource(R.string.outline_widen),
                                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp, color = c.accent,
                                 )
                             }
                         } else {
-                            IconGlyph("←", onClick = onBack)
+                            IconGlyph(backArrowGlyph(), onClick = onBack)
                         }
                     },
                     title = {
@@ -418,7 +435,7 @@ fun OutlineScreen(
                             )
                             if (narrowTarget != null) {
                                 Text(
-                                    "narrowed to “${narrowTarget.title}”",
+                                    stringResource(R.string.outline_narrowed_to, narrowTarget.title),
                                     fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2,
                                     maxLines = 1,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -432,7 +449,7 @@ fun OutlineScreen(
                                             (if (it.document.hasIntro) 1 else 0)
                                     }
                                     Text(
-                                        pluralCount(noteCount, "note"),
+                                        countLabel(R.plurals.count_notes, noteCount),
                                         fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2,
                                     )
                                 }
@@ -463,7 +480,7 @@ fun OutlineScreen(
                                 ) {
                                     Icon(
                                         if (allCollapsed) Icons.Default.UnfoldMore else Icons.Default.UnfoldLess,
-                                        contentDescription = if (allCollapsed) "Expand all headings" else "Collapse all headings",
+                                        contentDescription = stringResource(if (allCollapsed) R.string.outline_expand_all else R.string.outline_collapse_all),
                                         tint = c.ink,
                                     )
                                 }
@@ -478,7 +495,7 @@ fun OutlineScreen(
                         ) {
                             Icon(
                                 searchIcon(),
-                                contentDescription = "Search in this notebook",
+                                contentDescription = stringResource(R.string.outline_search_in_notebook),
                                 tint = c.ink,
                             )
                         }
@@ -502,7 +519,7 @@ fun OutlineScreen(
                                         Column {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
-                                                    "View file",
+                                                    stringResource(R.string.outline_view_file),
                                                     fontFamily = PlexSans, fontSize = 14.sp,
                                                     color = if (fitsWhole) c.ink else c.ink3,
                                                 )
@@ -547,9 +564,9 @@ fun OutlineScreen(
                                         onClick = { onToggleDisplay(toggle, !value) },
                                     )
                                 }
-                                toggleItem("Show tags", displayFlags.tags, OutlineToggle.TAGS)
-                                toggleItem("Show timestamps", displayFlags.timestamps, OutlineToggle.TIMESTAMPS)
-                                toggleItem("Show keywords", displayFlags.keywords, OutlineToggle.KEYWORDS)
+                                toggleItem(stringResource(R.string.outline_show_tags), displayFlags.tags, OutlineToggle.TAGS)
+                                toggleItem(stringResource(R.string.outline_show_timestamps), displayFlags.timestamps, OutlineToggle.TIMESTAMPS)
+                                toggleItem(stringResource(R.string.outline_show_keywords), displayFlags.keywords, OutlineToggle.KEYWORDS)
                             }
                         }
                     },
@@ -609,7 +626,6 @@ fun OutlineScreen(
                 val doc = s.document
                 // Read by the long-lived double-tap gesture below, which must see the latest file.
                 val currentLineCount by rememberUpdatedState(doc.lines.size)
-                val resources = LocalContext.current.resources
                 // Every mutation produces a new document; snap any open panel shut.
                 LaunchedEffect(doc) { openRowLine = null }
                 val visible = remember(scopedHeadlines, collapsed) { visibleHeadlines(scopedHeadlines, collapsed) }
@@ -664,7 +680,7 @@ fun OutlineScreen(
                     }
                     if (pinnedHeader && showPreface && doc.preambleKeywords.isNotEmpty()) {
                         CollapsibleKvSection(
-                            label = "PREFACE",
+                            label = prefaceSectionLabel(),
                             entries = doc.preambleKeywords,
                             expanded = prefaceExpanded,
                             onToggle = { prefaceExpanded = !prefaceExpanded },
@@ -683,12 +699,12 @@ fun OutlineScreen(
                             BrandMarkGlyph(size = 28.dp, color = c.ink3)
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                "This notebook is empty",
+                                stringResource(R.string.outline_empty_title),
                                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                                 fontSize = 15.sp, color = c.ink2,
                             )
                             Text(
-                                "Tap + to write your first note",
+                                stringResource(R.string.outline_empty_hint),
                                 fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3,
                             )
                         }
@@ -738,7 +754,7 @@ fun OutlineScreen(
                         if (showPreface && doc.preambleKeywords.isNotEmpty()) {
                             item(key = "preface") {
                                 CollapsibleKvSection(
-                                    label = "PREFACE",
+                                    label = prefaceSectionLabel(),
                                     entries = doc.preambleKeywords,
                                     expanded = prefaceExpanded,
                                     onToggle = { prefaceExpanded = !prefaceExpanded },
@@ -762,13 +778,13 @@ fun OutlineScreen(
                             }
                             val toggleFavorite = { toggleFavoriteOf(h, isFavorite) }
                             // Right-swipe panel: state / schedule / note / favorite.
-                            val leftActions = remember(h.lineIndex, isFavorite, c) {
+                            val leftActions = remember(h.lineIndex, isFavorite, c, swipeLabels) {
                                 listOf(
-                                    SwipeAction("⟳", "State", c.amber, c.amberSoft) {
+                                    SwipeAction("⟳", swipeLabels.state, c.amber, c.amberSoft) {
                                         statePickerFor = h.lineIndex
                                     },
                                     SwipeAction(
-                                        label = "Schedule",
+                                        label = swipeLabels.schedule,
                                         fg = c.blue,
                                         bg = c.blueSoft,
                                         icon = Icons.Outlined.CalendarMonth,
@@ -778,7 +794,7 @@ fun OutlineScreen(
                                         datePickerFor = h.lineIndex to "scheduled"
                                     },
                                     SwipeAction(
-                                        label = "Note",
+                                        label = swipeLabels.note,
                                         fg = c.green,
                                         bg = c.greenSoft,
                                         icon = icNote,
@@ -788,7 +804,7 @@ fun OutlineScreen(
                                     SwipeAction(
                                         // Filled star + "Unfav" once the row is a
                                         // favorite, so the panel reflects current state.
-                                        label = if (isFavorite) "Unfav" else "Fav",
+                                        label = if (isFavorite) swipeLabels.unfav else swipeLabels.fav,
                                         fg = c.accent,
                                         bg = c.accentSoft,
                                         icon = if (isFavorite) favIconFilled else favIconOutline,
@@ -799,27 +815,27 @@ fun OutlineScreen(
                             // Left-swipe panel: narrow / insert above / below / sub-note / refile.
                             // Narrow is left out on the narrowed root, where it would reopen this view.
                             val isNarrowRoot = h.lineIndex == narrowTarget?.lineIndex
-                            val rightActions = remember(h.lineIndex, c, isNarrowRoot) {
+                            val rightActions = remember(h.lineIndex, c, isNarrowRoot, swipeLabels) {
                                 listOfNotNull(
-                                    if (isNarrowRoot) null else SwipeAction("→ ←", "Narrow", c.violet, c.violetSoft) {
+                                    if (isNarrowRoot) null else SwipeAction("→ ←", swipeLabels.narrow, c.violet, c.violetSoft) {
                                         onNarrow(h.lineIndex)
                                     },
-                                    SwipeAction("↑+", "Above", c.amber, c.amberSoft) {
+                                    SwipeAction("↑+", swipeLabels.above, c.amber, c.amberSoft) {
                                         viewModel.insertSiblingAbove(h) { line ->
                                             onCreateNote(NoteRef(notebookId, line))
                                         }
                                     },
-                                    SwipeAction("↓+", "Below", c.blue, c.blueSoft) {
+                                    SwipeAction("↓+", swipeLabels.below, c.blue, c.blueSoft) {
                                         viewModel.insertSiblingBelow(h) { line ->
                                             onCreateNote(NoteRef(notebookId, line))
                                         }
                                     },
-                                    SwipeAction("↳", "Sub", c.green, c.greenSoft) {
+                                    SwipeAction("↳", swipeLabels.sub, c.green, c.greenSoft) {
                                         viewModel.newChild(h) { line ->
                                             onCreateNote(NoteRef(notebookId, line))
                                         }
                                     },
-                                    SwipeAction("➜", "Refile", c.accent, c.accentSoft) {
+                                    SwipeAction("➜", swipeLabels.refile, c.accent, c.accentSoft) {
                                         viewModel.startRefile(h)
                                     },
                                 )
@@ -990,7 +1006,7 @@ fun OutlineScreen(
                                 },
                                 stateMixed = summary.stateMixed,
                                 priorityMixed = summary.priorityMixed,
-                                targetLabel = "${selected.size} headings",
+                                targetLabel = countLabel(R.plurals.count_headings, selected.size),
                                 onDismiss = { metadataOpen = false },
                             )
                         }
@@ -1000,7 +1016,7 @@ fun OutlineScreen(
                 refileState?.let { refile ->
                     RefileSheet(
                         state = refile,
-                        headerTitle = "Refile ${pluralCount(refile.sourceLines.size, "note")}",
+                        headerTitle = pluralStringResource(R.plurals.outline_refile_title, refile.sourceLines.size, refile.sourceLines.size),
                         currentFileName = notebookId,
                         currentDoc = doc,
                         onPickNotebook = viewModel::refilePickNotebook,
@@ -1032,6 +1048,30 @@ fun OutlineScreen(
     }
 }
 
+/** Swipe-panel action labels, resolved once per screen (the panels are built in `remember`). */
+private data class SwipeLabels(
+    val state: String,
+    val schedule: String,
+    val note: String,
+    val fav: String,
+    val unfav: String,
+    val narrow: String,
+    val above: String,
+    val below: String,
+    val sub: String,
+    val refile: String,
+)
+
+/**
+ * Header of the collapsible file-keyword (`#+KEY:`) box in the outline and the whole-file
+ * view. Stored in normal case, capitalized with the UI language's rules (Turkish i, German ß).
+ */
+@Composable
+internal fun prefaceSectionLabel(): String {
+    val locale = ConfigurationCompat.getLocales(LocalConfiguration.current)[0] ?: java.util.Locale.ROOT
+    return stringResource(R.string.outline_preface).uppercase(locale)
+}
+
 /** Swipe panel's "Note" action: free text logged into the headline's LOGBOOK drawer. */
 @Composable
 internal fun NoteDialog(title: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
@@ -1043,7 +1083,7 @@ internal fun NoteDialog(title: String, onDismiss: () -> Unit, onConfirm: (String
         title = {
             Column {
                 Text(
-                    "Add note",
+                    stringResource(R.string.outline_add_note_title),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
@@ -1060,7 +1100,7 @@ internal fun NoteDialog(title: String, onDismiss: () -> Unit, onConfirm: (String
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                placeholder = { Text("Note contents", fontFamily = PlexSans, color = c.ink3) },
+                placeholder = { Text(stringResource(R.string.outline_add_note_placeholder), fontFamily = PlexSans, color = c.ink3) },
                 textStyle = TextStyle(fontFamily = PlexSans, color = c.ink),
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Sentences,
@@ -1074,10 +1114,10 @@ internal fun NoteDialog(title: String, onDismiss: () -> Unit, onConfirm: (String
             TextButton(
                 onClick = { if (text.isNotBlank()) onConfirm(text) },
                 enabled = text.isNotBlank(),
-            ) { Text("Add", color = c.accent, fontWeight = FontWeight.SemiBold) }
+            ) { Text(stringResource(R.string.outline_add_note_confirm), color = c.accent, fontWeight = FontWeight.SemiBold) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = c.ink2) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
         },
     )
 }
@@ -1124,7 +1164,7 @@ private fun StructureCommandBar(
             }
             Spacer(Modifier.width(4.dp))
             Text(
-                "$selectedCount selected",
+                pluralStringResource(R.plurals.outline_selected_count, selectedCount, selectedCount),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp, color = c.accent,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -1132,13 +1172,13 @@ private fun StructureCommandBar(
             )
             // 6dp apart so neighbouring touch targets aren't flush.
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                CommandButton(Icons.Default.KeyboardArrowUp, "Move up", c.ink) { viewModel.moveUp(selected()) }
-                CommandButton(Icons.Default.KeyboardArrowDown, "Move down", c.ink) { viewModel.moveDown(selected()) }
-                CommandButton(Icons.AutoMirrored.Filled.FormatIndentDecrease, "Promote", c.ink) { viewModel.promote(selected()) }
-                CommandButton(Icons.AutoMirrored.Filled.FormatIndentIncrease, "Demote", c.ink) { viewModel.demote(selected()) }
+                CommandButton(Icons.Default.KeyboardArrowUp, stringResource(R.string.action_move_up), c.ink) { viewModel.moveUp(selected()) }
+                CommandButton(Icons.Default.KeyboardArrowDown, stringResource(R.string.action_move_down), c.ink) { viewModel.moveDown(selected()) }
+                CommandButton(Icons.AutoMirrored.Filled.FormatIndentDecrease, stringResource(R.string.outline_promote), c.ink) { viewModel.promote(selected()) }
+                CommandButton(Icons.AutoMirrored.Filled.FormatIndentIncrease, stringResource(R.string.outline_demote), c.ink) { viewModel.demote(selected()) }
                 // ☰, like read mode's metadata button: state, priority, tags, dates.
-                CommandButton(Icons.Default.Menu, "Metadata", c.ink, onClick = onMetadata)
-                CommandButton(Icons.Default.Delete, "Delete", c.red) {
+                CommandButton(Icons.Default.Menu, stringResource(R.string.outline_metadata), c.ink, onClick = onMetadata)
+                CommandButton(Icons.Default.Delete, stringResource(R.string.action_delete), c.red) {
                     scope.launch {
                         val lines = selected()
                         val inv = viewModel.headingDeleteAttachments(lines)
@@ -1176,15 +1216,20 @@ private fun StructureCommandBar(
             containerColor = c.surface,
             title = {
                 Text(
-                    if (selectedCount > 1) "Delete $selectedCount notes?" else "Delete this note?",
+                    if (selectedCount > 1) {
+                        pluralStringResource(R.plurals.outline_delete_many_title, selectedCount, selectedCount)
+                    } else {
+                        stringResource(R.string.outline_delete_one_title)
+                    },
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    if (selectedCount > 1) "This will delete the headings and everything under them."
-                    else "This will delete the heading and everything under it.",
+                    stringResource(
+                        if (selectedCount > 1) R.string.outline_delete_many_body else R.string.outline_delete_one_body,
+                    ),
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
@@ -1193,10 +1238,10 @@ private fun StructureCommandBar(
                     viewModel.deleteNotes(selected())
                     confirmDelete = false
                     onExit()
-                }) { Text("Delete", color = c.red, fontWeight = FontWeight.SemiBold) }
+                }) { Text(stringResource(R.string.action_delete), color = c.red, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel", color = c.ink2) }
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
             },
         )
     }

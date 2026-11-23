@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Outline: a notebook's list of headings (ui/screens/OutlineScreen.kt). -->
+
+    <!-- Toasts after tapping the star / Fav swipe action on a heading. -->
+    <string name="outline_favorite_removed">Removed favorite</string>
+    <string name="outline_favorite_added">★ Added to favorites</string>
+
+    <!-- Top bar while the outline is narrowed to one heading's subtree: tap to show the whole notebook again. -->
+    <string name="outline_widen">widen</string>
+    <!-- Subtitle under the notebook name while narrowed. %1$s = heading title. -->
+    <string name="outline_narrowed_to">narrowed to “%1$s”</string>
+    <!-- Screen reader labels for the top-bar buttons. -->
+    <string name="outline_expand_all">Expand all headings</string>
+    <string name="outline_collapse_all">Collapse all headings</string>
+    <string name="outline_search_in_notebook">Search in this notebook</string>
+
+    <!-- Overflow menu. "View file" opens the whole .org file as one note. -->
+    <string name="outline_view_file">View file</string>
+    <string name="outline_show_tags">Show tags</string>
+    <string name="outline_show_timestamps">Show timestamps</string>
+    <!-- Keywords are TODO states such as TODO and DONE. -->
+    <string name="outline_show_keywords">Show keywords</string>
+
+    <!-- Header of the collapsible box listing a file's #+KEY: lines (title, author...). Shown in capitals. -->
+    <string name="outline_preface">Preface</string>
+
+    <!-- Empty notebook. "+" is the round add button at the bottom. -->
+    <string name="outline_empty_title">This notebook is empty</string>
+    <string name="outline_empty_hint">Tap + to write your first note</string>
+
+    <!-- Swipe a heading to reveal these actions. Keep them very short (about 6 characters); they sit under an icon in a narrow button. -->
+    <!-- Change the heading's TODO state. -->
+    <string name="outline_swipe_state">State</string>
+    <string name="outline_swipe_schedule">Schedule</string>
+    <!-- Add a short logbook note to the heading. -->
+    <string name="outline_swipe_note">Note</string>
+    <!-- Add to / remove from favorites. -->
+    <string name="outline_swipe_fav">Fav</string>
+    <string name="outline_swipe_unfav">Unfav</string>
+    <!-- Show only this heading and its subtree. -->
+    <string name="outline_swipe_narrow">Narrow</string>
+    <!-- Insert a new heading above / below this one, or as its child (sub-heading). -->
+    <string name="outline_swipe_above">Above</string>
+    <string name="outline_swipe_below">Below</string>
+    <string name="outline_swipe_sub">Sub</string>
+    <!-- Move the heading to another notebook or under another heading. -->
+    <string name="outline_swipe_refile">Refile</string>
+
+    <!-- Dialog from the Note swipe action: free text logged into the heading's LOGBOOK. -->
+    <string name="outline_add_note_title">Add note</string>
+    <string name="outline_add_note_placeholder">Note contents</string>
+    <string name="outline_add_note_confirm">Add</string>
+
+    <!-- Selection bar (long-press headings). %d = number of selected headings. -->
+    <plurals name="outline_selected_count">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <!-- Screen reader labels: promote = one level up (fewer stars), demote = one level down. -->
+    <string name="outline_promote">Promote</string>
+    <string name="outline_demote">Demote</string>
+    <string name="outline_metadata">Metadata</string>
+    <!-- Delete confirmation for one heading. -->
+    <string name="outline_delete_one_title">Delete this note?</string>
+    <string name="outline_delete_one_body">This will delete the heading and everything under it.</string>
+    <!-- Delete confirmation for several headings (always 2 or more). %d = count. -->
+    <plurals name="outline_delete_many_title">
+        <item quantity="one">Delete %d notes?</item>
+        <item quantity="other">Delete %d notes?</item>
+    </plurals>
+    <string name="outline_delete_many_body">This will delete the headings and everything under them.</string>
+
+    <!-- Refile picker title. %d = number of headings being moved. -->
+    <plurals name="outline_refile_title">
+        <item quantity="one">Refile %d note</item>
+        <item quantity="other">Refile %d notes</item>
+    </plurals>
+
+    <!-- Refile / location picker (ui/screens/RefileSheet.kt). -->
+    <string name="refile_confirm">Refile here</string>
+    <!-- Breadcrumb hint after the notebook name before a heading is picked. -->
+    <string name="refile_crumb_top_level_or_pick">top level · or pick a heading</string>
+    <!-- Breadcrumb for a location at a notebook's top level (not under any heading). -->
+    <string name="refile_top_level">top level</string>
+    <string name="refile_choose_notebook">Choose a destination notebook</string>
+    <string name="refile_no_subheadings">No sub-headings here</string>
+    <!-- Quick action: move to the archive location set in Settings. -->
+    <string name="refile_archive">Archive</string>
+    <!-- Quick action: the destination of the most recent refile. -->
+    <string name="refile_last_used">Last used location</string>
+    <!-- Row atop the notebook list that creates a new .org file. -->
+    <string name="refile_new_file_row">New file…</string>
+    <string name="refile_new_file_title">New file</string>
+    <!-- Example file name in the empty name field (".org" is added after it). -->
+    <string name="refile_new_file_placeholder">ideas</string>
+    <!-- "work/ideas" is an example path; keep the slash. -->
+    <string name="refile_new_file_helper">Use a slash to nest it in folders, e.g. work/ideas</string>
+
+    <!-- Toasts after editing a heading's metadata. "→" reads "changed to". -->
+    <!-- %1$s = new TODO state (TODO, DONE...) or metadata_toast_none. -->
+    <string name="metadata_toast_state">State → %1$s</string>
+    <!-- %1$s = new priority (#A, #B...) or metadata_toast_none. -->
+    <string name="metadata_toast_priority">Priority → %1$s</string>
+    <!-- No state / no priority. -->
+    <string name="metadata_toast_none">none</string>
+    <!-- Planning = the SCHEDULED / DEADLINE dates. -->
+    <string name="metadata_toast_planning_updated">Planning updated</string>
+    <string name="metadata_toast_note_added">Note added</string>
+    <!-- An org-mode ID property was created for the heading. Keep "org-id" as is. -->
+    <string name="metadata_toast_org_id_generated">org-id generated</string>
+
+    <!-- Read mode (ui/screens/ReadNoteScreen.kt, ReadFileScreen.kt). -->
+    <!-- Screen reader label of the green save icon shown while the editor has unsaved changes. -->
+    <string name="read_unsaved_save">Unsaved changes, tap to save</string>
+    <string name="read_note_not_found">Note not found</string>
+    <!-- Metadata sheet subtitle on text before the first heading: editing it first adds a heading above that text. -->
+    <string name="read_intro_metadata_target">New heading above intro</string>
+    <!-- Long-press menu on a link. -->
+    <string name="read_copy_link">Copy link</string>
+    <string name="read_share_link">Share link</string>
+    <string name="read_file_empty">This file is empty. Double-tap to start writing.</string>
+</resources>

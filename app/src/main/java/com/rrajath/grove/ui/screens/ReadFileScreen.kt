@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.res.stringResource
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -64,6 +66,7 @@ import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.theme.ContentFontScale
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.backArrowGlyph
 import com.rrajath.grove.ui.util.IntSetSaver
 import com.rrajath.grove.ui.vault.DocumentUiState
 import com.rrajath.grove.ui.vault.DocumentViewModel
@@ -186,12 +189,12 @@ fun ReadFileScreen(
         topBar = {
             GroveTopBar(
                 leading = {
-                    IconGlyph("←", onClick = onBack)
+                    IconGlyph(backArrowGlyph(), onClick = onBack)
                     // Green: what's rendered is the editor's unsaved buffer; a tap writes it.
                     if (pendingEdit != null) {
                         androidx.compose.material3.Icon(
                             Icons.Outlined.Save,
-                            contentDescription = "Unsaved changes, tap to save",
+                            contentDescription = stringResource(R.string.read_unsaved_save),
                             tint = c.green,
                             modifier = Modifier
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
@@ -374,7 +377,7 @@ internal fun FileContent(
     Box(Modifier.onGloballyPositioned { boxCoords = it }) {
         if (isEmpty) {
             Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("This file is empty. Double-tap to start writing.", fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2)
+                Text(stringResource(R.string.read_file_empty), fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2)
             }
         } else {
             LazyColumn(
@@ -397,7 +400,7 @@ internal fun FileContent(
                 if (hasPreface) {
                     item(key = "preface") {
                         CollapsibleKvSection(
-                            label = "PREFACE",
+                            label = prefaceSectionLabel(),
                             entries = doc.preambleKeywords,
                             expanded = prefaceExpanded,
                             onToggle = { prefaceExpanded = !prefaceExpanded },

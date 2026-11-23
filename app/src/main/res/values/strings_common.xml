@@ -46,6 +46,8 @@
     <string name="action_move_down">Move down</string>
     <!-- Dialog buttons. -->
     <string name="action_save">Save</string>
+    <!-- Create a new file or folder (name dialog button). -->
+    <string name="action_create">Create</string>
     <!-- Throw away unsaved changes or an unsaved note. -->
     <string name="action_discard">Discard</string>
     <string name="action_ok">OK</string>
