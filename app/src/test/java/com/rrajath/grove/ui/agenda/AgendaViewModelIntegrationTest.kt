@@ -16,6 +16,7 @@ import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -92,14 +93,23 @@ class AgendaViewModelIntegrationTest {
         CoroutineScope(mainDispatcherRule.dispatcher),
     )
 
-    private fun agenda() = AgendaViewModel(
-        settingsRepository = settingsRepository,
-        keywordsFlow = keywords,
-        database = db,
-        vaultFlow = vaultFlow,
-        sync = sync,
-        dispatchers = mainDispatcherRule.appDispatchers,
-    )
+    /**
+     * The real [SettingsRepository] reads its DataStore on a real IO thread, which
+     * `advanceUntilIdle()` doesn't wait for. The agenda builds no state until settings
+     * arrive, so on a slow runner `advanceUntilIdle()` returned with the agenda still
+     * empty. Awaiting the first settings value makes it replay at once to the VM.
+     */
+    private suspend fun agenda(): AgendaViewModel {
+        settingsRepository.settings.first()
+        return AgendaViewModel(
+            settingsRepository = settingsRepository,
+            keywordsFlow = keywords,
+            database = db,
+            vaultFlow = vaultFlow,
+            sync = sync,
+            dispatchers = mainDispatcherRule.appDispatchers,
+        )
+    }
 
     @After
     fun tearDown() {
