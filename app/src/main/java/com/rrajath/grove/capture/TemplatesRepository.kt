@@ -6,9 +6,14 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import java.util.UUID
 
 private val Context.templatesDataStore: DataStore<Preferences> by preferencesDataStore(name = "templates")
@@ -23,12 +28,25 @@ class TemplatesRepository(
 
     constructor(context: Context) : this(context.templatesDataStore, { DefaultTemplates.localized(context) })
 
-    val templates: Flow<List<CaptureTemplate>> = store.data.map { prefs ->
-        prefs[KEY]?.let { TemplateSerializer.decode(it) } ?: defaults()
-    }
+    /** Bumped after every [save]; see [templates]. */
+    private val saves = MutableStateFlow(0)
+
+    /**
+     * Re-subscribes to [DataStore.data] after each [save] because DataStore 1.2.1 can
+     * lose a write for a collector that subscribes while that write is in flight: the
+     * writer bumps the version before writing the file, the new collector reads the old
+     * file tagged with the new version, then drops the cache update as already seen.
+     * That happens when the templates list resumes while the editor's save is landing.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val templates: Flow<List<CaptureTemplate>> = saves
+        .flatMapLatest { store.data }
+        .map { prefs -> prefs[KEY]?.let { TemplateSerializer.decode(it) } ?: defaults() }
+        .distinctUntilChanged()
 
     suspend fun save(list: List<CaptureTemplate>) {
         store.edit { it[KEY] = TemplateSerializer.encode(list) }
+        saves.update { it + 1 }
     }
 
     suspend fun upsert(template: CaptureTemplate) {
