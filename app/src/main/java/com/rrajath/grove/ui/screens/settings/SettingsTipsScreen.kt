@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.screens.settings
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -64,7 +66,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -90,6 +92,7 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.util.StringSetSaver
+import com.rrajath.grove.ui.util.backArrowGlyph
 
 /**
  * Settings § Help → Tips & tricks (design/Grove.dc.html lines 1820-1863). A
@@ -111,8 +114,8 @@ import com.rrajath.grove.ui.util.StringSetSaver
 fun SettingsTipsScreen(onBack: () -> Unit) {
     val c = MaterialTheme.grove
     val appName = stringResource(R.string.app_name)
-    val context = LocalContext.current
-    val groups = remember(appName) { tipGroups(appName, context::getString) }
+    val res = LocalResources.current
+    val groups = remember(appName, res) { tipGroups(appName, res) }
     val allIds = remember(groups) { groups.flatMap { g -> g.tips.map { it.id } }.toSet() }
     var openIds by rememberSaveable(stateSaver = StringSetSaver) { mutableStateOf(emptySet()) }
     val allExpanded = allIds.isNotEmpty() && openIds.containsAll(allIds)
@@ -121,10 +124,10 @@ fun SettingsTipsScreen(onBack: () -> Unit) {
         containerColor = c.bg,
         topBar = {
             GroveTopBar(
-                leading = { IconGlyph("←", onClick = onBack) },
+                leading = { IconGlyph(backArrowGlyph(), onClick = onBack) },
                 title = {
                     Text(
-                        "Tips & Tricks",
+                        stringResource(R.string.settings_page_tips_title),
                         style = MaterialTheme.typography.titleLarge,
                         color = c.ink,
                         modifier = Modifier.padding(start = 4.dp),
@@ -133,7 +136,7 @@ fun SettingsTipsScreen(onBack: () -> Unit) {
                 actions = {
                     IconGlyph(
                         icon = if (allExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
-                        contentDescription = if (allExpanded) "Collapse all tips" else "Expand all tips",
+                        contentDescription = stringResource(if (allExpanded) R.string.tips_collapse_all else R.string.tips_expand_all),
                         onClick = { openIds = if (allExpanded) emptySet() else allIds },
                     )
                 },
@@ -149,7 +152,7 @@ fun SettingsTipsScreen(onBack: () -> Unit) {
                 .padding(top = 4.dp, bottom = 40.dp),
         ) {
             Text(
-                "A handful of gestures and shortcuts the interface doesn't spell out. Tap a tip to read it.",
+                stringResource(R.string.tips_intro),
                 fontFamily = PlexSans, fontSize = 13.sp, lineHeight = 1.55.em, color = c.ink2,
                 modifier = Modifier.padding(start = 4.dp, bottom = 20.dp),
             )
@@ -158,7 +161,7 @@ fun SettingsTipsScreen(onBack: () -> Unit) {
                 // Leaving this screen retires any NEW dot whose destination is
                 // one of these groups (so the header dot shows for the visit).
                 MarkNewFeatureSeen(NewAnchors.tipsGroup(group.id))
-                SectionLabel(group.label.uppercase()) {
+                SectionLabel(group.label) {
                     NewDot(NewAnchors.tipsGroup(group.id))
                 }
                 SettingsGroup {
@@ -292,7 +295,8 @@ private val TIP_MARKUP_RE = Regex(
 @Composable
 private fun TipText(text: String, color: Color, lineHeight: TextUnit) {
     val c = MaterialTheme.grove
-    val annotated = remember(text, c.synProp, c.synLink, c.synTag) {
+    val linkWord = stringResource(R.string.tips_readlink_word)
+    val annotated = remember(text, linkWord, c.synProp, c.synLink, c.synTag) {
         buildAnnotatedString {
             var last = 0
             TIP_MARKUP_RE.findAll(text).forEach { m ->
@@ -305,7 +309,7 @@ private fun TipText(text: String, color: Color, lineHeight: TextUnit) {
                     // other tip text; it never navigates.
                     m.value == "{{readlink}}" ->
                         withStyle(SpanStyle(color = c.synLink, textDecoration = TextDecoration.Underline)) {
-                            append("link")
+                            append(linkWord)
                         }
                     m.value.startsWith(":") ->
                         withStyle(SpanStyle(fontFamily = PlexMono, color = c.synProp)) { append(m.value) }
@@ -409,186 +413,122 @@ private data class TipGroup(val id: String, val label: String, val tips: List<Ti
 /**
  * Tip content, reworded from the author's notes in design/Grove.dc.html
  * `tipVals()` (lines 3835-3868); the "Links" group is new to the app and has no
- * prototype entry. `{{…}}` markers become inline keycaps. [appName] is
- * `R.string.app_name`, so the copy never hardcodes the app's name. [str] resolves string
- * resources: newer tips (the Outline group) live in `strings.xml` so they can be translated.
+ * prototype entry. `{{…}}` markers become inline keycaps. All copy lives in
+ * `strings_settings_help.xml`; [appName] is `R.string.app_name`, so the copy never
+ * hardcodes the app's name.
  */
-private fun tipGroups(appName: String, str: (Int) -> String): List<TipGroup> = listOf(
-    TipGroup(
-        "sync-saving",
-        "Sync & saving",
-        listOf(
-            Tip(
-                "sync", Icons.Default.CloudDone, "View the last synced time",
-                "On the Notebooks screen, tap the {{check}} checkmark in the top bar to see when your vault last synced.",
-            ),
-            Tip(
-                "auto", Icons.Default.Autorenew, "Autosave, and two ways to save now",
-                "The editor saves on its own about five seconds after you stop typing. Two things also save it right away:",
-                listOf("Tap the {{save}} save icon in the top bar", "Switch to Read mode"),
-            ),
-            Tip(
-                "saved", Icons.Default.Schedule, "Check when a note was last saved",
-                "While a note has unsaved changes the {{save}} save icon is highlighted; tap it to save now. Once it turns " +
-                    "grey the note matches what's on disk, and tapping it then shows the time of the last save.",
-            ),
-        ),
-    ),
-    TipGroup(
-        "writing",
-        "Writing",
-        listOf(
-            Tip(
-                "date", Icons.Default.EditCalendar, "Insert today's date or time",
-                "The {{clock}} button on the formatting toolbar drops an inactive timestamp for today at the cursor. " +
-                    "Long-press it to open the date and time picker, prefilled with right now.",
-                newAnchor = NewAnchors.tipsItem("writing", "date"),
-            ),
-            Tip(
-                "stars", Icons.Default.FormatSize, "Cycle heading levels with the asterisk",
-                "The {{star}} button on the formatting toolbar starts a subheading on the next line, one level " +
-                    "below the heading you're in. Tap again while that heading is still empty to raise it one " +
-                    "level at a time. Past the top level it wraps back to a subheading.",
-            ),
-            Tip(
-                "dbl", Icons.Default.TouchApp, "Double-tap to edit while reading",
-                "Double-tap anywhere in a note you're reading to drop straight into edit mode. It only works that " +
-                    "direction, so a stray tap in the editor won't send you back.",
-            ),
-            Tip(
-                "drawers", Icons.Default.EditNote, "Edit blocks and drawers in place",
-                "The preface keyword block and any :PROPERTIES: or :LOGBOOK: drawer each open in their own small " +
-                    "editor. Double-tap a key/value row to edit just that block.",
-            ),
-            Tip(
-                "block-shorthand", Icons.Default.FormatQuote, "Insert a quote, example or src block",
-                "At the start of a line or after a space, type a shorthand (any case). A chip above the keyboard " +
-                    "offers to swap it for the block, with the cursor inside:",
-                listOf(
-                    "<q for #+BEGIN_QUOTE",
-                    "<e for #+BEGIN_EXAMPLE",
-                    "<s for #+BEGIN_SRC, with the cursor ready for the language",
+private fun tipGroups(appName: String, res: Resources): List<TipGroup> {
+    fun s(@StringRes id: Int, vararg args: Any): String = res.getString(id, *args)
+    return listOf(
+        TipGroup(
+            "sync-saving",
+            s(R.string.tips_group_sync_saving),
+            listOf(
+                Tip("sync", Icons.Default.CloudDone, s(R.string.tip_sync_title), s(R.string.tip_sync_body)),
+                Tip(
+                    "auto", Icons.Default.Autorenew, s(R.string.tip_autosave_title), s(R.string.tip_autosave_body),
+                    listOf(s(R.string.tip_autosave_step_1), s(R.string.tip_autosave_step_2)),
                 ),
-                newAnchor = NewAnchors.tipsItem("writing", "block-shorthand"),
-            ),
-            Tip(
-                "drawer-shorthand", Icons.Default.DataObject, "Insert a properties or logbook drawer",
-                "Type :PRO or :LOG (any case) and tap the chip above the keyboard to insert a :PROPERTIES: or " +
-                    ":LOGBOOK: drawer, closed by :END:, with the cursor on its empty line. The chip stays up as " +
-                    "you type more of the word.",
-                newAnchor = NewAnchors.tipsItem("writing", "drawer-shorthand"),
-            ),
-            Tip(
-                "property-keys", Icons.Default.Abc, "Pick property keys as you type",
-                "Inside a :PROPERTIES: drawer, type : at the start of a line. Chips above the keyboard offer " +
-                    "property keys, most-used first; keep typing to narrow them (:c shows :CUSTOM_ID:, :CREATED:, " +
-                    "and so on). Tap one to insert the full key, ready for its value. Keys already in the drawer " +
-                    "aren't offered again.",
-                newAnchor = NewAnchors.tipsItem("writing", "property-keys"),
+                Tip("saved", Icons.Default.Schedule, s(R.string.tip_saved_title), s(R.string.tip_saved_body)),
             ),
         ),
-    ),
-    TipGroup(
-        "outline",
-        str(R.string.tips_group_outline),
-        listOf(
-            Tip(
-                "outline-view-file", Icons.Default.Description, str(R.string.tip_outline_view_file_title),
-                str(R.string.tip_outline_view_file_body),
-                newAnchor = NewAnchors.tipsItem("outline", "outline-view-file"),
-            ),
-        ),
-    ),
-    TipGroup(
-        "checklists",
-        "Checklists",
-        listOf(
-            Tip(
-                "checkbox-tap", Icons.Default.CheckBox, "Tap and hold a checkbox in Read mode",
-                "In Read mode, a checklist box responds to two gestures:",
-                listOf(
-                    "Tap to toggle it done. An empty or in-progress box becomes [X]; a done box goes back to [ ]",
-                    "Tap and hold (with a short buzz) to mark it in-progress [-]. Hold again to clear it back to [ ]",
+        TipGroup(
+            "writing",
+            s(R.string.tips_group_writing),
+            listOf(
+                Tip(
+                    "date", Icons.Default.EditCalendar, s(R.string.tip_date_title), s(R.string.tip_date_body),
+                    newAnchor = NewAnchors.tipsItem("writing", "date"),
+                ),
+                Tip("stars", Icons.Default.FormatSize, s(R.string.tip_stars_title), s(R.string.tip_stars_body)),
+                Tip("dbl", Icons.Default.TouchApp, s(R.string.tip_double_tap_title), s(R.string.tip_double_tap_body)),
+                Tip("drawers", Icons.Default.EditNote, s(R.string.tip_drawers_title), s(R.string.tip_drawers_body)),
+                Tip(
+                    "block-shorthand", Icons.Default.FormatQuote,
+                    s(R.string.tip_block_shorthand_title), s(R.string.tip_block_shorthand_body),
+                    listOf(
+                        s(R.string.tip_block_shorthand_step_1),
+                        s(R.string.tip_block_shorthand_step_2),
+                        s(R.string.tip_block_shorthand_step_3),
+                    ),
+                    newAnchor = NewAnchors.tipsItem("writing", "block-shorthand"),
+                ),
+                Tip(
+                    "drawer-shorthand", Icons.Default.DataObject,
+                    s(R.string.tip_drawer_shorthand_title), s(R.string.tip_drawer_shorthand_body),
+                    newAnchor = NewAnchors.tipsItem("writing", "drawer-shorthand"),
+                ),
+                Tip(
+                    "property-keys", Icons.Default.Abc,
+                    s(R.string.tip_property_keys_title), s(R.string.tip_property_keys_body),
+                    newAnchor = NewAnchors.tipsItem("writing", "property-keys"),
                 ),
             ),
         ),
-    ),
-    TipGroup(
-        "links",
-        "Links",
-        listOf(
-            Tip(
-                "link-follow", Icons.Default.Link, "Tap a link to follow it",
-                "In Read mode, tap any {{readlink}} to jump to its target. A link to a heading opens that " +
-                        "heading; a link to a whole file opens that file's outline. Web, email and phone links " +
-                        "open in the matching app. If nothing matches the link, a short message tells you and " +
-                        "you stay where you are.",
-            ),
-            Tip(
-                "link-build", Icons.Default.AddLink, "Let the toolbar write links for you",
-                "The {{link}} button on the formatting toolbar builds the link syntax so you never type the brackets.",
-                listOf(
-                    "Copy a link first, then select some text and tap {{link}}: the copied link becomes the target and your text becomes the label, nothing to type",
-                    "No link copied? Select text and tap {{link}} for a https:// scaffold, then just paste your URL over it, https:// and all",
-                    "Tap with nothing selected to drop in an empty [[link][description]] template",
-                    "Long-press {{link}} to search the whole vault live and link straight to a file or a heading",
+        TipGroup(
+            "outline",
+            s(R.string.tips_group_outline),
+            listOf(
+                Tip(
+                    "outline-view-file", Icons.Default.Description,
+                    s(R.string.tip_outline_view_file_title), s(R.string.tip_outline_view_file_body),
+                    newAnchor = NewAnchors.tipsItem("outline", "outline-view-file"),
                 ),
             ),
-            Tip(
-                "link-picker", Icons.Default.Search, "Search the vault to build a link",
-                "Long-pressing {{link}} opens a full-height picker with the search box already focused, starting at your notebook list.",
-                listOf(
-                    "Type to filter files and headings live across the whole vault, or browse without typing by tapping a notebook to drill into its headings.",
-                    "Tapping a heading with no sub-headings links it right away; only a heading with sub-headings drills in further."
+        ),
+        TipGroup(
+            "checklists",
+            s(R.string.tips_group_checklists),
+            listOf(
+                Tip(
+                    "checkbox-tap", Icons.Default.CheckBox, s(R.string.tip_checkbox_title), s(R.string.tip_checkbox_body),
+                    listOf(s(R.string.tip_checkbox_step_1), s(R.string.tip_checkbox_step_2)),
                 ),
-                newAnchor = NewAnchors.tipsItem("links", "link-picker"),
-            ),
-            Tip(
-                "link-id", Icons.Default.Tag, "Link by ID so it survives moves",
-                "When a file or heading you pick has an ID (or CUSTOM_ID), $appName offers to link by that instead of by name. " +
-                        "Choose it: an ID link keeps working after the target is renamed, moved, or refiled into " +
-                        "another file. To put an ID on every new heading automatically, turn on Settings › Notes › " +
-                        "Add ID to new notes.",
             ),
         ),
-    ),
-    TipGroup(
-        "search",
-        "Search",
-        listOf(
-            Tip(
-                "swipe", Icons.Default.SwapHoriz, "Swipe search results",
-                "A search result that's a TODO heading can be swiped. Swipe right to change its TODO state or add a " +
-                    "note; swipe left to schedule it.",
-            ),
-            Tip(
-                "queries", Icons.Default.StarBorder, "Change your quick-start and saved queries",
-                "The quick-start cards and saved searches aren't fixed. Tap the star beside the search box to point a " +
-                    "slot at a different saved query, or to save a new one.",
-            ),
-        ),
-    ),
-    TipGroup(
-        "capture-automation",
-        "Capture & automation",
-        listOf(
-            Tip(
-                "launcher", Icons.Default.Apps, "Capture from the home-screen icon",
-                "Long-press $appName's home-screen icon to open a capture template without going through the app first.",
-            ),
-            Tip(
-                "archive", Icons.Default.Archive, "Auto-archive tasks when they're done",
-                "Turn on auto-archive in Settings › Notes and a task refiles itself to your archive location the moment " +
-                    "it's marked done, unless the file or heading already points somewhere else.",
-            ),
-            Tip(
-                "archive-location", Icons.Default.Inventory2, "Choose where a file archives to",
-                "Set an `ARCHIVE` property on a heading or in the file's top properties drawer, or a `#+ARCHIVE:` line. " +
-                    "`%s` stands for the current file, so `%s_archive::` archives {{file:agenda.org}} into " +
-                    "{{file:agenda.org_archive}}. " +
-                    "The nearest one wins over the Settings location.",
-                newAnchor = NewAnchors.tipsItem("capture-automation", "archive-location"),
+        TipGroup(
+            "links",
+            s(R.string.tips_group_links),
+            listOf(
+                Tip("link-follow", Icons.Default.Link, s(R.string.tip_link_follow_title), s(R.string.tip_link_follow_body)),
+                Tip(
+                    "link-build", Icons.Default.AddLink, s(R.string.tip_link_build_title), s(R.string.tip_link_build_body),
+                    listOf(
+                        s(R.string.tip_link_build_step_1),
+                        s(R.string.tip_link_build_step_2),
+                        s(R.string.tip_link_build_step_3),
+                        s(R.string.tip_link_build_step_4),
+                    ),
+                ),
+                Tip(
+                    "link-picker", Icons.Default.Search, s(R.string.tip_link_picker_title), s(R.string.tip_link_picker_body),
+                    listOf(s(R.string.tip_link_picker_step_1), s(R.string.tip_link_picker_step_2)),
+                    newAnchor = NewAnchors.tipsItem("links", "link-picker"),
+                ),
+                Tip("link-id", Icons.Default.Tag, s(R.string.tip_link_id_title), s(R.string.tip_link_id_body, appName)),
             ),
         ),
-    ),
-)
+        TipGroup(
+            "search",
+            s(R.string.tips_group_search),
+            listOf(
+                Tip("swipe", Icons.Default.SwapHoriz, s(R.string.tip_swipe_title), s(R.string.tip_swipe_body)),
+                Tip("queries", Icons.Default.StarBorder, s(R.string.tip_queries_title), s(R.string.tip_queries_body)),
+            ),
+        ),
+        TipGroup(
+            "capture-automation",
+            s(R.string.tips_group_capture_automation),
+            listOf(
+                Tip("launcher", Icons.Default.Apps, s(R.string.tip_launcher_title), s(R.string.tip_launcher_body, appName)),
+                Tip("archive", Icons.Default.Archive, s(R.string.tip_archive_title), s(R.string.tip_archive_body)),
+                Tip(
+                    "archive-location", Icons.Default.Inventory2,
+                    // i18n: "%s" is org's archive-location placeholder for the current file
+                    s(R.string.tip_archive_location_title), s(R.string.tip_archive_location_body, "%s"),
+                    newAnchor = NewAnchors.tipsItem("capture-automation", "archive-location"),
+                ),
+            ),
+        ),
+    )
+}

@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings › Help › Tips & Tricks (ui/screens/settings/SettingsTipsScreen.kt).
+         Tip text markup, keep it exactly as written when translating:
+         {{check}} {{save}} {{clock}} {{star}} {{link}} {{menu}} are drawn as keycaps of that button;
+         {{readlink}} is drawn as the word "link" styled like a link (its word is tips_readlink_word);
+         {{file:name}} shows a file name; text in `backticks` is org syntax shown in a code font;
+         :PROPERTIES:, :LOGBOOK:, :END:, [ ], [-], [X], [[link]], [[link][description]], https:// and
+         #+BEGIN_… are org syntax and stay as-is. -->
+    <string name="tips_intro">A handful of gestures and shortcuts the interface doesn\'t spell out. Tap a tip to read it.</string>
+    <string name="tips_expand_all">Expand all tips</string>
+    <string name="tips_collapse_all">Collapse all tips</string>
+    <!-- The {{readlink}} sample: the word "link" painted the way Read mode paints a link. -->
+    <string name="tips_readlink_word">link</string>
+
+    <!-- Group: Sync & saving. -->
+    <string name="tips_group_sync_saving">Sync &amp; saving</string>
+    <string name="tip_sync_title">View the last synced time</string>
+    <string name="tip_sync_body">On the Notebooks screen, tap the {{check}} checkmark in the top bar to see when your vault last synced.</string>
+    <string name="tip_autosave_title">Autosave, and two ways to save now</string>
+    <string name="tip_autosave_body">The editor saves on its own about five seconds after you stop typing. Two things also save it right away:</string>
+    <string name="tip_autosave_step_1">Tap the {{save}} save icon in the top bar</string>
+    <string name="tip_autosave_step_2">Switch to Read mode</string>
+    <string name="tip_saved_title">Check when a note was last saved</string>
+    <string name="tip_saved_body">While a note has unsaved changes the {{save}} save icon is highlighted; tap it to save now. Once it turns grey the note matches what\'s on disk, and tapping it then shows the time of the last save.</string>
+
+    <!-- Group: Writing. -->
+    <string name="tips_group_writing">Writing</string>
+    <string name="tip_date_title">Insert today\'s date or time</string>
+    <string name="tip_date_body">The {{clock}} button on the formatting toolbar drops an inactive timestamp for today at the cursor. Long-press it to open the date and time picker, prefilled with right now.</string>
+    <string name="tip_stars_title">Cycle heading levels with the asterisk</string>
+    <string name="tip_stars_body">The {{star}} button on the formatting toolbar starts a subheading on the next line, one level below the heading you\'re in. Tap again while that heading is still empty to raise it one level at a time. Past the top level it wraps back to a subheading.</string>
+    <string name="tip_double_tap_title">Double-tap to edit while reading</string>
+    <string name="tip_double_tap_body">Double-tap anywhere in a note you\'re reading to drop straight into edit mode. It only works that direction, so a stray tap in the editor won\'t send you back.</string>
+    <string name="tip_drawers_title">Edit blocks and drawers in place</string>
+    <string name="tip_drawers_body">The preface keyword block and any :PROPERTIES: or :LOGBOOK: drawer each open in their own small editor. Double-tap a key/value row to edit just that block.</string>
+    <string name="tip_block_shorthand_title">Insert a quote, example or src block</string>
+    <string name="tip_block_shorthand_body">At the start of a line or after a space, type a shorthand (any case). A chip above the keyboard offers to swap it for the block, with the cursor inside:</string>
+    <!-- <q, <e and <s are the typed shorthands; keep them and the #+BEGIN_ keywords as-is. -->
+    <string name="tip_block_shorthand_step_1">&lt;q for #+BEGIN_QUOTE</string>
+    <string name="tip_block_shorthand_step_2">&lt;e for #+BEGIN_EXAMPLE</string>
+    <string name="tip_block_shorthand_step_3">&lt;s for #+BEGIN_SRC, with the cursor ready for the language</string>
+    <string name="tip_drawer_shorthand_title">Insert a properties or logbook drawer</string>
+    <!-- :PRO and :LOG are what the user types; keep them as-is. -->
+    <string name="tip_drawer_shorthand_body">Type :PRO or :LOG (any case) and tap the chip above the keyboard to insert a :PROPERTIES: or :LOGBOOK: drawer, closed by :END:, with the cursor on its empty line. The chip stays up as you type more of the word.</string>
+    <string name="tip_property_keys_title">Pick property keys as you type</string>
+    <!-- ":" and ":c" are typed characters; :CUSTOM_ID: and :CREATED: are org property keys. Keep them as-is. -->
+    <string name="tip_property_keys_body">Inside a :PROPERTIES: drawer, type : at the start of a line. Chips above the keyboard offer property keys, most-used first; keep typing to narrow them (:c shows :CUSTOM_ID:, :CREATED:, and so on). Tap one to insert the full key, ready for its value. Keys already in the drawer aren\'t offered again.</string>
+
+    <!-- Group: Outline. -->
+    <string name="tips_group_outline">Outline</string>
+    <string name="tip_outline_view_file_title">Double-tap below the outline to view the whole file</string>
+    <string name="tip_outline_view_file_body">In a notebook\'s outline, double-tap the empty space below the last heading to open the whole file as one note, the same as View file in the {{menu}} menu.</string>
+
+    <!-- Group: Checklists. -->
+    <string name="tips_group_checklists">Checklists</string>
+    <string name="tip_checkbox_title">Tap and hold a checkbox in Read mode</string>
+    <string name="tip_checkbox_body">In Read mode, a checklist box responds to two gestures:</string>
+    <string name="tip_checkbox_step_1">Tap to toggle it done. An empty or in-progress box becomes [X]; a done box goes back to [ ]</string>
+    <string name="tip_checkbox_step_2">Tap and hold (with a short buzz) to mark it in-progress [-]. Hold again to clear it back to [ ]</string>
+
+    <!-- Group: Links. -->
+    <string name="tips_group_links">Links</string>
+    <string name="tip_link_follow_title">Tap a link to follow it</string>
+    <string name="tip_link_follow_body">In Read mode, tap any {{readlink}} to jump to its target. A link to a heading opens that heading; a link to a whole file opens that file\'s outline. Web, email and phone links open in the matching app. If nothing matches the link, a short message tells you and you stay where you are.</string>
+    <string name="tip_link_build_title">Let the toolbar write links for you</string>
+    <string name="tip_link_build_body">The {{link}} button on the formatting toolbar builds the link syntax so you never type the brackets.</string>
+    <string name="tip_link_build_step_1">Copy a link first, then select some text and tap {{link}}: the copied link becomes the target and your text becomes the label, nothing to type</string>
+    <string name="tip_link_build_step_2">No link copied? Select text and tap {{link}} for a https:// scaffold, then just paste your URL over it, https:// and all</string>
+    <string name="tip_link_build_step_3">Tap with nothing selected to drop in an empty [[link][description]] template</string>
+    <string name="tip_link_build_step_4">Long-press {{link}} to search the whole vault live and link straight to a file or a heading</string>
+    <string name="tip_link_picker_title">Search the vault to build a link</string>
+    <string name="tip_link_picker_body">Long-pressing {{link}} opens a full-height picker with the search box already focused, starting at your notebook list.</string>
+    <string name="tip_link_picker_step_1">Type to filter files and headings live across the whole vault, or browse without typing by tapping a notebook to drill into its headings.</string>
+    <string name="tip_link_picker_step_2">Tapping a heading with no sub-headings links it right away; only a heading with sub-headings drills in further.</string>
+    <string name="tip_link_id_title">Link by ID so it survives moves</string>
+    <!-- %1$s is the app name. ID and CUSTOM_ID are org property names. "Settings › Notes › Add ID to new notes"
+         names a real setting: match the translated Settings page and row titles. -->
+    <string name="tip_link_id_body">When a file or heading you pick has an ID (or CUSTOM_ID), %1$s offers to link by that instead of by name. Choose it: an ID link keeps working after the target is renamed, moved, or refiled into another file. To put an ID on every new heading automatically, turn on Settings › Notes › Add ID to new notes.</string>
+
+    <!-- Group: Search. -->
+    <string name="tips_group_search">Search</string>
+    <string name="tip_swipe_title">Swipe search results</string>
+    <string name="tip_swipe_body">A search result that\'s a TODO heading can be swiped. Swipe right to change its TODO state or add a note; swipe left to schedule it.</string>
+    <string name="tip_queries_title">Change your quick-start and saved queries</string>
+    <string name="tip_queries_body">The quick-start cards and saved searches aren\'t fixed. Tap the star beside the search box to point a slot at a different saved query, or to save a new one.</string>
+
+    <!-- Group: Capture & automation. -->
+    <string name="tips_group_capture_automation">Capture &amp; automation</string>
+    <string name="tip_launcher_title">Capture from the home-screen icon</string>
+    <!-- %1$s is the app name. -->
+    <string name="tip_launcher_body">Long-press %1$s\'s home-screen icon to open a capture template without going through the app first.</string>
+    <string name="tip_archive_title">Auto-archive tasks when they\'re done</string>
+    <string name="tip_archive_body">Turn on auto-archive in Settings › Notes and a task refiles itself to your archive location the moment it\'s marked done, unless the file or heading already points somewhere else.</string>
+    <string name="tip_archive_location_title">Choose where a file archives to</string>
+    <!-- %1$s is always the literal org placeholder "%s" (the current file name in an ARCHIVE value);
+         keep both %1$s, the `backtick` spans and the {{file:…}} names as-is. -->
+    <string name="tip_archive_location_body">Set an `ARCHIVE` property on a heading or in the file\'s top properties drawer, or a `#+ARCHIVE:` line. `%1$s` stands for the current file, so `%1$s_archive::` archives {{file:agenda.org}} into {{file:agenda.org_archive}}. The nearest one wins over the Settings location.</string>
+
+    <!-- Settings › Help › Report a bug (ui/screens/settings/SettingsBugReportScreen.kt). The report
+         itself (email body) stays English for the developer; only the screen is translated. -->
+    <string name="bug_report_intro">Tell us what happened. Everything below is optional except the description. Either button copies the report to your clipboard, then opens your mail app or GitHub; nothing is filed until you send the email or submit the issue.</string>
+    <!-- Field labels, shown in capitals. -->
+    <string name="bug_report_what_went_wrong">What went wrong</string>
+    <string name="bug_report_steps">Steps to reproduce</string>
+    <!-- Tag next to a field label. -->
+    <string name="bug_report_required">required</string>
+    <string name="bug_report_optional">optional</string>
+    <string name="bug_report_description_hint">e.g. App crashed when I opened a saved note offline</string>
+    <!-- Placeholder for the steps field: a numbered list, one step per line. -->
+    <string name="bug_report_steps_hint">1. Open a note\n2. Turn on airplane mode\n3. …</string>
+    <string name="bug_report_what_we_include">What we include</string>
+    <string name="bug_report_device_info">Device &amp; app info</string>
+    <string name="bug_report_device_info_desc">Android version, device model, app version (helps us reproduce it)</string>
+    <string name="bug_report_error_log">Recent error log</string>
+    <string name="bug_report_error_log_desc">Last ~50 lines from this session only. Off by default.</string>
+    <string name="bug_report_show_payload">Show exactly what gets sent</string>
+    <!-- Preview of the report: row labels. -->
+    <string name="bug_report_row_app_version">App version</string>
+    <string name="bug_report_row_build_number">Build number</string>
+    <string name="bug_report_row_android_version">Android version</string>
+    <string name="bug_report_row_device_model">Device model</string>
+    <string name="bug_report_row_locale">Locale</string>
+    <string name="bug_report_row_report_time">Report time</string>
+    <string name="bug_report_row_error_log">Error log</string>
+    <string name="bug_report_log_unavailable">couldn\'t capture (unavailable on this device)</string>
+    <string name="bug_report_log_empty">captured, but this session has no log lines yet</string>
+    <plurals name="bug_report_log_captured">
+        <item quantity="one">%1$d line captured from this session</item>
+        <item quantity="other">%1$d lines captured from this session</item>
+    </plurals>
+    <!-- Preview footer: %1$s is the list of what's never sent (bug_report_never_included_items), drawn in a different color. -->
+    <string name="bug_report_never_included">never included: %1$s</string>
+    <string name="bug_report_never_included_items">name, email, account ID, location, contacts, file contents</string>
+    <string name="bug_report_privacy">Goes straight to the developer, by email or as a GitHub issue you submit. Never sent to Google or filed anywhere automatically.</string>
+    <string name="bug_report_send_email">Send report via email</string>
+    <string name="bug_report_opening_mail">Opening mail app…</string>
+    <string name="bug_report_open_github">Open an issue on GitHub</string>
+    <string name="bug_report_copied_note">The bug details will be copied to your clipboard.</string>
+    <!-- Title of the system app chooser for the email. -->
+    <string name="bug_report_chooser_title">Send bug report</string>
+    <string name="bug_report_toast_mail_opened">Opened your mail app. Report also copied to clipboard.</string>
+    <string name="bug_report_toast_no_mail">No mail app found. Report copied to clipboard instead.</string>
+    <string name="bug_report_toast_github_opened">Report copied. Opening GitHub, paste it into the issue.</string>
+    <string name="bug_report_toast_no_browser">Couldn\'t open a browser. Report copied to clipboard instead.</string>
+</resources>

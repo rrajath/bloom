@@ -2,6 +2,7 @@ package com.rrajath.grove.ui.screens.settings
 
 import android.content.ClipData
 import android.content.Intent
+import android.content.res.Resources
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -57,6 +58,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -66,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -80,6 +84,8 @@ import com.rrajath.grove.ui.screens.IconGlyph
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.uppercaseForUi
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -115,7 +121,9 @@ fun SettingsBugReportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    // i18n: the email subject is read by the developer, stays English
     val bugReportSubject = "${stringResource(R.string.app_name)} Bug Report"
+    val res = LocalResources.current
 
     var description by rememberSaveable { mutableStateOf("") }
     val stepsState = rememberTextFieldState()
@@ -148,18 +156,18 @@ fun SettingsBugReportScreen(onBack: () -> Unit) {
     }
 
     val canSend = description.isNotBlank() && !sending
-    val payload = remember(includeDeviceInfo, includeErrorLog, errorLogLines) {
-        bugPayload(includeDeviceInfo, includeErrorLog, errorLogLines)
+    val payload = remember(includeDeviceInfo, includeErrorLog, errorLogLines, res) {
+        bugPayload(res, includeDeviceInfo, includeErrorLog, errorLogLines)
     }
 
     Scaffold(
         containerColor = c.bg,
         topBar = {
             GroveTopBar(
-                leading = { IconGlyph("←", onClick = onBack) },
+                leading = { IconGlyph(backArrowGlyph(), onClick = onBack) },
                 title = {
                     Text(
-                        "Report a bug",
+                        stringResource(R.string.settings_page_bug_report_title),
                         style = MaterialTheme.typography.titleLarge,
                         color = c.ink,
                         modifier = Modifier.padding(start = 4.dp),
@@ -172,7 +180,7 @@ fun SettingsBugReportScreen(onBack: () -> Unit) {
                 HorizontalDivider(color = c.line)
                 Column(Modifier.padding(16.dp)) {
                     BugReportButton(
-                        label = if (sending) "Opening mail app…" else "Send report via email",
+                        label = stringResource(if (sending) R.string.bug_report_opening_mail else R.string.bug_report_send_email),
                         enabled = canSend,
                         primary = true,
                         onClick = {
@@ -190,11 +198,11 @@ fun SettingsBugReportScreen(onBack: () -> Unit) {
                                     putExtra(Intent.EXTRA_TEXT, body)
                                 }
                                 runCatching {
-                                    context.startActivity(Intent.createChooser(intent, "Send bug report"))
+                                    context.startActivity(Intent.createChooser(intent, res.getString(R.string.bug_report_chooser_title)))
                                 }.onSuccess {
-                                    Toast.makeText(context, "Opened your mail app. Report also copied to clipboard.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, R.string.bug_report_toast_mail_opened, Toast.LENGTH_LONG).show()
                                 }.onFailure {
-                                    Toast.makeText(context, "No mail app found. Report copied to clipboard instead.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, R.string.bug_report_toast_no_mail, Toast.LENGTH_LONG).show()
                                 }
                                 sending = false
                             }
@@ -202,7 +210,7 @@ fun SettingsBugReportScreen(onBack: () -> Unit) {
                     )
                     Spacer(Modifier.height(10.dp))
                     BugReportButton(
-                        label = "Open an issue on GitHub",
+                        label = stringResource(R.string.bug_report_open_github),
                         enabled = canSend,
                         primary = false,
                         onClick = {
@@ -211,15 +219,15 @@ fun SettingsBugReportScreen(onBack: () -> Unit) {
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, GITHUB_ISSUE_URL.toUri()))
                                 }.onSuccess {
-                                    Toast.makeText(context, "Report copied. Opening GitHub, paste it into the issue.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, R.string.bug_report_toast_github_opened, Toast.LENGTH_LONG).show()
                                 }.onFailure {
-                                    Toast.makeText(context, "Couldn't open a browser. Report copied to clipboard instead.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, R.string.bug_report_toast_no_browser, Toast.LENGTH_LONG).show()
                                 }
                             }
                         },
                     )
                     Text(
-                        "The bug details will be copied to your clipboard.",
+                        stringResource(R.string.bug_report_copied_note),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
@@ -236,42 +244,40 @@ fun SettingsBugReportScreen(onBack: () -> Unit) {
                 .padding(16.dp),
         ) {
             Text(
-                "Tell us what happened. Everything below is optional except the description. " +
-                    "Either button copies the report to your clipboard, then opens your mail app " +
-                    "or GitHub; nothing is filed until you send the email or submit the issue.",
+                stringResource(R.string.bug_report_intro),
                 fontFamily = PlexSans, fontSize = 13.sp, lineHeight = 1.55.em, color = c.ink2,
                 modifier = Modifier.padding(bottom = 18.dp),
             )
 
-            FieldSectionLabel(label = "WHAT WENT WRONG", required = true)
+            FieldSectionLabel(label = stringResource(R.string.bug_report_what_went_wrong), required = true)
             BugTextArea(
                 value = description,
                 onValueChange = { description = it },
-                placeholder = "e.g. App crashed when I opened a saved note offline",
+                placeholder = stringResource(R.string.bug_report_description_hint),
                 minLines = 4,
                 modifier = Modifier.padding(bottom = 20.dp),
             )
 
-            FieldSectionLabel(label = "STEPS TO REPRODUCE", required = false)
+            FieldSectionLabel(label = stringResource(R.string.bug_report_steps), required = false)
             BugListTextArea(
                 state = stepsState,
-                placeholder = "1. Open a note\n2. Turn on airplane mode\n3. …",
+                placeholder = stringResource(R.string.bug_report_steps_hint),
                 minLines = 3,
                 modifier = Modifier.padding(bottom = 22.dp),
             )
 
-            SectionLabel("WHAT WE INCLUDE")
+            SectionLabel(stringResource(R.string.bug_report_what_we_include))
             SettingsGroup {
                 ToggleRow(
-                    label = "Device & app info",
-                    description = "Android version, device model, app version (helps us reproduce it)",
+                    label = stringResource(R.string.bug_report_device_info),
+                    description = stringResource(R.string.bug_report_device_info_desc),
                     checked = includeDeviceInfo,
                     onToggle = { includeDeviceInfo = it },
                 )
                 RowDivider()
                 ToggleRow(
-                    label = "Recent error log",
-                    description = "Last ~50 lines from this session only. Off by default.",
+                    label = stringResource(R.string.bug_report_error_log),
+                    description = stringResource(R.string.bug_report_error_log_desc),
                     checked = includeErrorLog,
                     onToggle = { includeErrorLog = it },
                 )
@@ -316,20 +322,24 @@ private fun stepsListInputTransformation() = InputTransformation {
 }
 
 @Composable
-private fun FieldSectionLabel(label: String, required: Boolean) {
+private fun FieldSectionLabel(
+    /** Normal case; drawn in capitals with the UI language's rules. */
+    label: String,
+    required: Boolean,
+) {
     val c = MaterialTheme.grove
     Row(
         verticalAlignment = Alignment.Bottom,
         modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
     ) {
         Text(
-            label,
+            label.uppercaseForUi(),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp, letterSpacing = 1.sp, color = c.accent,
         )
         Spacer(Modifier.width(7.dp))
         Text(
-            if (required) "required" else "optional",
+            stringResource(if (required) R.string.bug_report_required else R.string.bug_report_optional),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
             fontSize = 11.sp, color = if (required) c.red else c.ink3,
         )
@@ -409,7 +419,10 @@ private fun BugListTextArea(
 @Composable
 private fun PreviewToggleRow(open: Boolean, onToggle: () -> Unit) {
     val c = MaterialTheme.grove
-    val rotation by animateFloatAsState(if (open) 90f else 0f, label = "bugPreviewCaret")
+    // `▸` isn't mirrored by the bidi algorithm: under RTL point toward the start edge
+    // and rotate the other way so the open caret still points down.
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val rotation by animateFloatAsState(if (open) (if (rtl) -90f else 90f) else 0f, label = "bugPreviewCaret")
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -418,13 +431,13 @@ private fun PreviewToggleRow(open: Boolean, onToggle: () -> Unit) {
             .padding(vertical = 4.dp, horizontal = 4.dp),
     ) {
         Text(
-            "▸",
+            if (rtl) "◂" else "▸",
             fontFamily = PlexSans, fontSize = 10.sp, color = c.accent,
             modifier = Modifier.rotate(rotation),
         )
         Spacer(Modifier.width(7.dp))
         Text(
-            "Show exactly what gets sent",
+            stringResource(R.string.bug_report_show_payload),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.accent,
         )
     }
@@ -433,6 +446,11 @@ private fun PreviewToggleRow(open: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun BugPayloadPreview(payload: List<BugPayloadRow>, modifier: Modifier = Modifier) {
     val c = MaterialTheme.grove
+    val neverIncluded = stringResource(
+        R.string.bug_report_never_included,
+        stringResource(R.string.bug_report_never_included_items),
+    )
+    val neverIncludedItems = stringResource(R.string.bug_report_never_included_items)
     Column(
         modifier
             .fillMaxWidth()
@@ -455,8 +473,16 @@ private fun BugPayloadPreview(payload: List<BugPayloadRow>, modifier: Modifier =
         DashedDivider(color = c.line2, modifier = Modifier.padding(top = 6.dp, bottom = 9.dp))
         Text(
             buildAnnotatedString {
-                withStyle(SpanStyle(color = c.red, fontWeight = FontWeight.SemiBold)) { append("never included: ") }
-                append("name, email, account ID, location, contacts, file contents")
+                // The label part (everything outside %1$s) is red; the item list keeps the ink color.
+                val at = neverIncluded.indexOf(neverIncludedItems)
+                val red = SpanStyle(color = c.red, fontWeight = FontWeight.SemiBold)
+                if (at < 0) {
+                    append(neverIncluded)
+                } else {
+                    withStyle(red) { append(neverIncluded.substring(0, at)) }
+                    append(neverIncludedItems)
+                    withStyle(red) { append(neverIncluded.substring(at + neverIncludedItems.length)) }
+                }
             },
             fontFamily = PlexMono, fontSize = 11.5.sp, lineHeight = 1.6.em, color = c.ink3,
         )
@@ -489,8 +515,7 @@ private fun PrivacyNote() {
         Text("⚿", fontSize = 14.sp, color = c.accent, modifier = Modifier.padding(top = 1.dp))
         Spacer(Modifier.width(10.dp))
         Text(
-            "Goes straight to the developer, by email or as a GitHub issue you submit. " +
-                "Never sent to Google or filed anywhere automatically.",
+            stringResource(R.string.bug_report_privacy),
             fontFamily = PlexSans, fontSize = 11.5.sp, lineHeight = 1.6.em, color = c.ink2,
         )
     }
@@ -549,26 +574,33 @@ private fun deviceInfo(): DeviceInfo = DeviceInfo(
     locale = Locale.getDefault().toLanguageTag(),
 )
 
-private fun bugPayload(includeDeviceInfo: Boolean, includeErrorLog: Boolean, errorLogLines: List<String>?): List<BugPayloadRow> {
+/** The on-screen preview of the report, in the UI language (the report itself stays English). */
+private fun bugPayload(
+    res: Resources,
+    includeDeviceInfo: Boolean,
+    includeErrorLog: Boolean,
+    errorLogLines: List<String>?,
+): List<BugPayloadRow> {
     val rows = mutableListOf<BugPayloadRow>()
     if (includeDeviceInfo) {
         val info = deviceInfo()
-        rows += BugPayloadRow("App version", info.appVersion)
-        rows += BugPayloadRow("Build number", info.buildNumber)
-        rows += BugPayloadRow("Android version", info.androidVersion)
-        rows += BugPayloadRow("Device model", info.deviceModel)
-        rows += BugPayloadRow("Locale", info.locale)
+        rows += BugPayloadRow(res.getString(R.string.bug_report_row_app_version), info.appVersion)
+        rows += BugPayloadRow(res.getString(R.string.bug_report_row_build_number), info.buildNumber)
+        rows += BugPayloadRow(res.getString(R.string.bug_report_row_android_version), info.androidVersion)
+        rows += BugPayloadRow(res.getString(R.string.bug_report_row_device_model), info.deviceModel)
+        rows += BugPayloadRow(res.getString(R.string.bug_report_row_locale), info.locale)
     }
-    rows += BugPayloadRow("Report time", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString())
+    rows += BugPayloadRow(
+        res.getString(R.string.bug_report_row_report_time),
+        Instant.now().truncatedTo(ChronoUnit.SECONDS).toString(),
+    )
     if (includeErrorLog) {
-        rows += when {
-            errorLogLines == null -> BugPayloadRow("Error log", "couldn't capture (unavailable on this device)")
-            errorLogLines.isEmpty() -> BugPayloadRow("Error log", "captured, but this session has no log lines yet")
-            else -> {
-                val n = errorLogLines.size
-                BugPayloadRow("Error log", "$n line${if (n == 1) "" else "s"} captured from this session")
-            }
+        val value = when {
+            errorLogLines == null -> res.getString(R.string.bug_report_log_unavailable)
+            errorLogLines.isEmpty() -> res.getString(R.string.bug_report_log_empty)
+            else -> res.getQuantityString(R.plurals.bug_report_log_captured, errorLogLines.size, errorLogLines.size)
         }
+        rows += BugPayloadRow(res.getString(R.string.bug_report_row_error_log), value)
     }
     return rows
 }
