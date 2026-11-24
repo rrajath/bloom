@@ -21,6 +21,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -48,6 +49,10 @@ private val GutterEdgeMargin = 10.dp
 /** Space between a number's trailing edge and the text it labels. */
 private val GutterTextGap = 10.dp
 
+/** Black overlay alpha that shades the gutter strip darker than the editor `bg`. */
+private const val GutterShadeLight = 0.05f
+private const val GutterShadeDark = 0.3f
+
 /** Fewest digit columns reserved, so the text doesn't shift as a short buffer grows past 9 lines. */
 private const val MinGutterDigits = 2
 
@@ -55,7 +60,7 @@ private const val MinGutterDigits = 2
  * Settings § Notes "Show line numbers": a start-side gutter of the buffer's real file
  * line numbers, so line 1 of a subtree buffer reads as its heading's line in the file.
  * Only a logical line's first visual row is numbered; its soft-wrapped rows are blank.
- * Numbers are `ink3` on a `surface` strip; the lines the caret or selection covers are
+ * Numbers are `ink3` on a strip shaded darker than `bg`; the lines the caret or selection covers are
  * `ink2` while focused.
  *
  * Tapping a number selects its whole line, trailing newline included (so Cut removes
@@ -111,15 +116,18 @@ fun rememberLineNumberGutter(
     val coords = remember { GutterCoords() }
     var focused by remember { mutableStateOf(false) }
 
-    // The gutter's `surface` strip stops half the text gap short of the text. Drawn on
-    // the outer node (before the padding) so it sits under the current-line band.
+    // The gutter's strip is the editor `bg` shaded with black (no palette token is darker
+    // than `bg` in every theme; dark `bg`s need more black to show). It stops half the
+    // text gap short of the text, and is drawn on the outer node (before the padding) so
+    // it sits under the current-line band.
+    val stripColor = Color.Black.copy(alpha = if (c.isDark) GutterShadeDark else GutterShadeLight)
     val stripWidth = startPadding - GutterTextGap / 2
     val inputModifier = Modifier
         .onPlaced { coords.outer = it }
         .drawBehind {
             val w = stripWidth.toPx()
             drawRect(
-                color = c.surface,
+                color = stripColor,
                 topLeft = Offset(if (ltr) 0f else size.width - w, 0f),
                 size = Size(w, size.height),
             )
