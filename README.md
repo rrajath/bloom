@@ -150,6 +150,10 @@ app/src/main/java/com/rrajath/grove/
 | [docs/terminology.md](docs/terminology.md) | Glossary of org-mode and Bloom-specific terms used throughout the code |
 | [docs/search-syntax.md](docs/search-syntax.md) | Full reference for the search query language |
 
+## Translations
+
+Bloom is translated by volunteers on [Weblate](https://hosted.weblate.org/engage/bloom/), entirely in the browser: no git or Android tools needed. Weblate opens a pull request with new translations, and untranslated strings fall back to English. See [TRANSLATING.md](TRANSLATING.md) for how to get started, the rules (such as never translating org-mode syntax), and how to test a translation.
+
 ## Docs site
 
 `docs-site/` is the public landing page and user docs (Astro + Starlight), deployed as a Cloudflare Worker with static assets (`npm run deploy`). It's a separate npm project — see [docs-site/README.md](docs-site/README.md) for setup and deployment details. Changes there don't trigger the app CI workflow (`.github/workflows/build.yml` ignores `docs-site/**`).
