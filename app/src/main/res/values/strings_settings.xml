@@ -245,4 +245,174 @@
     <!-- Capture template row in Settings > Capture Templates: delete confirmation. %1$s = template name. -->
     <string name="settings_template_delete_title">Delete “%1$s”?</string>
     <string name="settings_template_delete_body">This removes the capture template. Notes you already captured with it are not affected.</string>
+    <!-- Settings > Attachments. -->
+    <string name="settings_attach_preview_note">Early preview. Expect changes as this feature develops.</string>
+    <!-- Section headers are shown in capitals; write them in normal case. -->
+    <string name="settings_attach_section_attachments">Attachments</string>
+    <!-- org-attach is the Emacs package name; keep it as is. -->
+    <string name="settings_attach_section_org_attach">Org-attach compatibility</string>
+    <string name="settings_attach_photo_size">Photo size</string>
+    <string name="settings_attach_photo_size_hint">Camera and Photos only. Files are copied as-is.</string>
+    <string name="settings_attach_image_width">Default image width</string>
+    <!-- %1$s = the org syntax "#+ATTR_ORG: :width", drawn in monospace. -->
+    <string name="settings_attach_image_width_hint">%1$s overrides this per image.</string>
+    <!-- Label next to the width stepper. -->
+    <string name="settings_attach_width">Width</string>
+    <!-- Accessibility labels of the width stepper's minus and plus buttons. -->
+    <string name="settings_attach_width_narrower">Narrower</string>
+    <string name="settings_attach_width_wider">Wider</string>
+    <!-- %1$d = width in pixels. -->
+    <string name="settings_attach_width_px">%1$d px</string>
+    <string name="settings_attach_folder">Attachment folder</string>
+    <!-- %1$s = the Emacs variable name org-attach-id-dir, drawn in monospace. -->
+    <string name="settings_attach_folder_hint">Matches %1$s in Emacs.</string>
+    <!-- data/ is the old default folder name; keep it as is. -->
+    <string name="settings_attach_folder_helper">Relative to each note\'s folder. Files already in data/ keep opening.</string>
+    <string name="settings_attach_tag">Attachment tag</string>
+    <!-- %1$s = the Emacs variable name org-attach-auto-tag, drawn in monospace. -->
+    <string name="settings_attach_tag_none_hint">No tag is added to headings you attach files to. Matches %1$s in Emacs.</string>
+    <!-- %1$s = the tag with colons, e.g. :ATTACH:; %2$s = the Emacs variable name org-attach-auto-tag. Both drawn in monospace. -->
+    <string name="settings_attach_tag_hint">Headings you attach files to get %1$s. Matches %2$s in Emacs.</string>
+    <string name="settings_attach_tag_helper">Without colons. Leave empty to add no tag.</string>
+    <!-- Shown as the attachment tag when none is set. -->
+    <string name="settings_attach_tag_value_none">None</string>
+    <!-- Attachment folder validation errors. "/" and "\\" are path separators, ".." and "." the parent and current folder, "~" the home folder. -->
+    <string name="settings_attach_folder_error_empty">Enter a folder.</string>
+    <string name="settings_attach_folder_error_leading_slash">Use a folder inside each note\'s folder; remove the leading /.</string>
+    <string name="settings_attach_folder_error_tilde">~ isn\'t supported.</string>
+    <string name="settings_attach_folder_error_backslash">Use / between folders.</string>
+    <string name="settings_attach_folder_error_parent">Use a folder inside each note\'s folder; .. isn\'t supported.</string>
+    <string name="settings_attach_folder_error_dot">Use folder names, not \".\".</string>
+    <string name="settings_attach_folder_error_space">Folder names can\'t start or end with a space.</string>
+
+    <!-- Settings > Roam Features. -->
+    <string name="settings_roam_experimental_note">These are experimental features and are subject to change.</string>
+    <string name="settings_roam_enable_hint">Adds backlinks (a Backlinks bar showing notes that reference this one) and auto suggestions for files or headings as you type.</string>
+    <string name="settings_roam_backlinks">Show backlinks</string>
+    <!-- ID is an org-mode property name; keep it as is. -->
+    <string name="settings_roam_backlinks_hint">Show the Backlinks bar on roam files (file-level ID) in the Outline and the whole-file Read and Edit views.</string>
+    <string name="settings_roam_suggestions">Show suggestions while typing</string>
+    <string name="settings_roam_suggestions_hint">Suggest matching files or headings to link to as you type in Edit mode.</string>
+    <string name="settings_roam_whole_file">Open roam files directly in read mode</string>
+    <!-- %1$d = line limit, e.g. 1000. :ID: is org-mode syntax; keep it as is. -->
+    <string name="settings_roam_whole_file_hint">For org-roam files (ones with a file-level :ID:) of up to %1$d lines, opening the notebook skips the outline and shows the whole file in your default note mode, like a single note. Larger and non-roam files still open in the outline. Turning this off opens roam files in the outline too, regardless of size.</string>
+    <!-- Section header, shown in capitals; write it in normal case. -->
+    <string name="settings_roam_section_dailies">Dailies</string>
+    <string name="settings_roam_dailies_location">Dailies location</string>
+    <string name="settings_roam_dailies_location_hint">Where daily notes are created; blank = vault root.</string>
+    <string name="settings_roam_dailies_pattern">File name pattern</string>
+    <!-- FilenamePattern is the name of the token syntax; %<%Y-%m-%d>.org is an example pattern. Keep both as is. -->
+    <string name="settings_roam_dailies_pattern_hint">FilenamePattern tokens, e.g. %1$s.</string>
+    <string name="settings_roam_dailies_header">Header template</string>
+    <!-- %1$s = the cursor placeholder %?. -->
+    <string name="settings_roam_dailies_header_hint">Expanded into a new day\'s file. %1$s marks the cursor.</string>
+
+    <!-- Settings > Backup. -->
+    <string name="settings_backup_intro">Import or export your preferences, capture templates, favorites and saved searches as a JSON file. The sync folder isn\'t included; it stays on this device.</string>
+    <string name="settings_backup_import_title">Import backup</string>
+    <string name="settings_backup_import_body">Each checked item replaces what\'s on this device.</string>
+    <!-- Import dialog: one checkbox per part of the backup file. -->
+    <string name="settings_backup_section_settings">Settings</string>
+    <string name="settings_backup_section_settings_detail">Look and feel, notes, sync, agenda and other preferences</string>
+    <string name="settings_backup_section_templates">Capture templates</string>
+    <string name="settings_backup_section_favorites">Favorites</string>
+    <string name="settings_backup_section_searches">Saved searches &amp; Quick Start cards</string>
+    <plurals name="settings_backup_count_templates">
+        <item quantity="one">%1$d template</item>
+        <item quantity="other">%1$d templates</item>
+    </plurals>
+    <plurals name="settings_backup_count_favorites">
+        <item quantity="one">%1$d favorite</item>
+        <item quantity="other">%1$d favorites</item>
+    </plurals>
+    <plurals name="settings_backup_count_searches">
+        <item quantity="one">%1$d saved search</item>
+        <item quantity="other">%1$d saved searches</item>
+    </plurals>
+    <plurals name="settings_backup_count_cards">
+        <item quantity="one">%1$d customized Quick Start card</item>
+        <item quantity="other">%1$d customized Quick Start cards</item>
+    </plurals>
+    <!-- %1$s = saved search count, %2$s = Quick Start card count, e.g. "3 saved searches, 1 customized Quick Start card". -->
+    <string name="settings_backup_searches_and_cards">%1$s, %2$s</string>
+
+    <!-- Settings > Sync. -->
+    <!-- The vault folder row. -->
+    <string name="settings_sync_folder">Folder</string>
+    <!-- Shown instead of a folder name when none is picked yet. -->
+    <string name="settings_sync_folder_none">tap to choose</string>
+    <string name="settings_sync_auto">Auto-sync</string>
+    <string name="settings_sync_interval">Interval</string>
+    <!-- Interval options. %1$d = minutes. Very short: three share one segmented control. -->
+    <string name="settings_sync_interval_minutes">%1$dm</string>
+    <string name="settings_sync_view_log">View sync log</string>
+
+    <!-- Settings > Sharing. -->
+    <string name="settings_share_target">Shared content target</string>
+    <!-- %1$s = the app name. -->
+    <string name="settings_share_target_hint">The file or heading that receives links and text shared into %1$s</string>
+    <string name="settings_share_placement">Add shared items at</string>
+    <!-- Placement options. Short: two share one segmented control. -->
+    <string name="settings_share_placement_top">Top</string>
+    <string name="settings_share_placement_bottom">Bottom</string>
+    <!-- Placement description when the target is a file. %1$s = target file, e.g. inbox. -->
+    <string name="settings_share_placement_file_top">Shared items are added as a new heading at the top of %1$s</string>
+    <string name="settings_share_placement_file_bottom">Shared items are added as a new heading at the bottom of %1$s</string>
+    <!-- Placement description when the target is a heading. %1$s = target path, e.g. inbox › Projects; %2$s = settings_share_placement_first or _last, drawn in bold. -->
+    <string name="settings_share_placement_heading">Shared items are added as the %2$s subheading of %1$s</string>
+    <string name="settings_share_placement_first">first</string>
+    <string name="settings_share_placement_last">last</string>
+    <string name="settings_share_fetch_titles">Fetch link titles</string>
+    <string name="settings_share_fetch_titles_hint">Looks up a shared link\'s page title online. Off makes no network request; the link uses any title the sharing app sent, or the URL</string>
+
+    <!-- Settings > Reminders. SCHEDULED and DEADLINE are org-mode keywords; keep them as is. -->
+    <string name="settings_reminders_enable">Enable reminders</string>
+    <!-- <2026-10-30 Thu 09:00> is an example org timestamp; keep it as is. -->
+    <string name="settings_reminders_enable_hint">Notify at SCHEDULED and DEADLINE times, and at any active timestamp like %1$s</string>
+    <string name="settings_reminders_notify_me">Notify me</string>
+    <string name="settings_reminders_notify_me_hint">When a task with a specific time is due</string>
+    <string name="settings_reminders_untimed">Notify for tasks without a time</string>
+    <string name="settings_reminders_untimed_hint">A separate notification for each SCHEDULED, DEADLINE, or active timestamp on a day with no time of day</string>
+    <!-- Name of the daily summary notification. -->
+    <string name="settings_reminders_morning_brief">Morning Brief</string>
+    <string name="settings_reminders_morning_brief_hint">Organize your day</string>
+    <string name="settings_reminders_send_at">Send reminder at</string>
+    <string name="settings_reminders_send_at_hint">Time of day for the Morning Brief and any timeless SCHEDULED, DEADLINE, or active stamp</string>
+    <!-- Rows shown while a permission reminders need is off. -->
+    <string name="settings_reminders_access_notifications">Notifications</string>
+    <string name="settings_reminders_access_notifications_hint">Required for any reminder to appear</string>
+    <string name="settings_reminders_access_exact">Exact timing</string>
+    <string name="settings_reminders_access_exact_hint">Lets reminders fire at the exact minute. Without it, Android may delay them by up to an hour.</string>
+    <!-- Button: grants the permission. -->
+    <string name="settings_reminders_access_allow">Allow</string>
+
+    <!-- Settings > Agenda. -->
+    <string name="settings_agenda_swipe_left">Swipe left</string>
+    <string name="settings_agenda_swipe_right">Swipe right</string>
+    <string name="settings_agenda_swipe_left_scheduled">Swiping an agenda item left will open the scheduled-date picker</string>
+    <string name="settings_agenda_swipe_left_deadline">Swiping an agenda item left will open the deadline picker</string>
+    <string name="settings_agenda_swipe_left_done">Swiping an agenda item left will mark it done</string>
+    <string name="settings_agenda_swipe_right_scheduled">Swiping an agenda item right will open the scheduled-date picker</string>
+    <string name="settings_agenda_swipe_right_deadline">Swiping an agenda item right will open the deadline picker</string>
+    <string name="settings_agenda_swipe_right_done">Swiping an agenda item right will mark it done</string>
+    <string name="settings_agenda_deadline_warning">Deadline warning</string>
+    <!-- "Due soon" and "Today" name Agenda sections; -3d is org syntax, keep it as is. -->
+    <string name="settings_agenda_deadline_warning_hint">Days before a deadline that it shows under Due soon on Today. A warning on the deadline itself, like -3d, wins. 0 turns this off.</string>
+    <string name="settings_agenda_week_start">Start of week</string>
+    <string name="settings_agenda_week_start_hint">The first column of every calendar. System default follows your device\'s region.</string>
+
+    <!-- Settings > What's New. -->
+    <string name="settings_whats_new_empty">Release notes will appear here.</string>
+    <!-- Pill on the release that is installed on this phone. -->
+    <string name="settings_whats_new_installed">installed</string>
+
+    <!-- Settings > Capture Templates. -->
+    <string name="settings_templates_new">＋ New template</string>
+    <string name="settings_templates_notification">Capture from notification</string>
+
+    <!-- Settings > Widget live preview: sample task titles. -->
+    <string name="settings_widget_sample_passport">Renew passport</string>
+    <string name="settings_widget_sample_expenses">File expense report</string>
+    <string name="settings_widget_sample_standup">Team standup</string>
+    <string name="settings_widget_sample_report">Draft quarterly report</string>
 </resources>

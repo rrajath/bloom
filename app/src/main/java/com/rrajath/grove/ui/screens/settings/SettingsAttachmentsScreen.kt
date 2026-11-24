@@ -29,10 +29,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
@@ -41,6 +39,8 @@ import com.rrajath.grove.settings.AttachFolder
 import com.rrajath.grove.settings.AttachImageWidth
 import com.rrajath.grove.settings.AttachPhotoSize
 import com.rrajath.grove.settings.GroveSettings
+import com.rrajath.grove.ui.attach.StyledArg
+import com.rrajath.grove.ui.attach.withStyledArgs
 import com.rrajath.grove.ui.components.NameDialog
 import com.rrajath.grove.ui.components.Pill
 import com.rrajath.grove.ui.components.SegmentedControl
@@ -50,7 +50,6 @@ import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.ui.util.UiText
 
 /**
  * Settings § Attachments (preview), prototype 1o:
@@ -76,22 +75,22 @@ fun SettingsAttachmentsScreen(
     MarkNewFeatureSeen(NewAnchors.SETTINGS_ATTACHMENTS_PAGE)
     MarkNewFeatureSeen(NewAnchors.SETTINGS_ATTACHMENTS_AUTO_TAG)
     SettingsPageScaffold(
-        title = "Attachments",
+        title = stringResource(R.string.settings_page_attachments_title),
         onBack = onBack,
-        titleBadge = { Pill(text = "Preview", fg = c.amber, bg = c.amberSoft) },
+        titleBadge = { Pill(text = stringResource(R.string.settings_badge_preview), fg = c.amber, bg = c.amberSoft) },
     ) {
         // Same note style as Settings § Roam Features.
         Text(
-            "Early preview. Expect changes as this feature develops.",
+            stringResource(R.string.settings_attach_preview_note),
             fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2,
             modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 20.dp),
         )
-        SectionLabel("ATTACHMENTS")
+        SectionLabel(stringResource(R.string.settings_attach_section_attachments))
         SettingsGroup {
             Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp)) {
-                RowTitle("Photo size")
+                RowTitle(stringResource(R.string.settings_attach_photo_size))
                 Text(
-                    "Camera and Photos only. Files are copied as-is.",
+                    stringResource(R.string.settings_attach_photo_size_hint),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     modifier = Modifier.padding(top = 2.dp, bottom = 11.dp),
                 )
@@ -111,12 +110,12 @@ fun SettingsAttachmentsScreen(
             }
             RowDivider()
             Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp)) {
-                RowTitle("Default image width")
+                RowTitle(stringResource(R.string.settings_attach_image_width))
                 Text(
-                    buildAnnotatedString {
-                        withStyle(SpanStyle(fontFamily = PlexMono)) { append("#+ATTR_ORG: :width") }
-                        append(" overrides this per image.")
-                    },
+                    withStyledArgs(
+                        stringResource(R.string.settings_attach_image_width_hint),
+                        StyledArg("#+ATTR_ORG: :width", SpanStyle(fontFamily = PlexMono)), // i18n: org syntax
+                    ),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     modifier = Modifier.padding(top = 2.dp, bottom = 11.dp),
                 )
@@ -135,17 +134,16 @@ fun SettingsAttachmentsScreen(
             }
         }
         Spacer(Modifier.height(20.dp))
-        SectionLabel("ORG-ATTACH COMPATIBILITY")
+        SectionLabel(stringResource(R.string.settings_attach_section_org_attach))
         SettingsGroup {
             SettingsRow(
-                label = "Attachment folder",
+                label = stringResource(R.string.settings_attach_folder),
                 descriptionContent = {
                     Text(
-                        buildAnnotatedString {
-                            append("Matches ")
-                            withStyle(SpanStyle(fontFamily = PlexMono)) { append("org-attach-id-dir") }
-                            append(" in Emacs.")
-                        },
+                        withStyledArgs(
+                            stringResource(R.string.settings_attach_folder_hint),
+                            StyledArg("org-attach-id-dir", SpanStyle(fontFamily = PlexMono)),
+                        ),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     )
                 },
@@ -164,21 +162,21 @@ fun SettingsAttachmentsScreen(
             }
             RowDivider()
             SettingsRow(
-                label = "Attachment tag",
+                label = stringResource(R.string.settings_attach_tag),
                 descriptionContent = {
                     val tag = settings.attachAutoTag
                     Text(
-                        buildAnnotatedString {
-                            if (tag.isEmpty()) {
-                                append("No tag is added to headings you attach files to.")
-                            } else {
-                                append("Headings you attach files to get ")
-                                withStyle(SpanStyle(fontFamily = PlexMono)) { append(":$tag:") }
-                                append(".")
-                            }
-                            append(" Matches ")
-                            withStyle(SpanStyle(fontFamily = PlexMono)) { append("org-attach-auto-tag") }
-                            append(" in Emacs.")
+                        if (tag.isEmpty()) {
+                            withStyledArgs(
+                                stringResource(R.string.settings_attach_tag_none_hint),
+                                StyledArg("org-attach-auto-tag", SpanStyle(fontFamily = PlexMono)),
+                            )
+                        } else {
+                            withStyledArgs(
+                                stringResource(R.string.settings_attach_tag_hint),
+                                StyledArg(":$tag:", SpanStyle(fontFamily = PlexMono)),
+                                StyledArg("org-attach-auto-tag", SpanStyle(fontFamily = PlexMono)),
+                            )
                         },
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.testTag("attach_auto_tag_description"),
@@ -189,7 +187,7 @@ fun SettingsAttachmentsScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        settings.attachAutoTag.ifEmpty { "None" },
+                        settings.attachAutoTag.ifEmpty { stringResource(R.string.settings_attach_tag_value_none) },
                         fontFamily = if (settings.attachAutoTag.isEmpty()) PlexSans else PlexMono,
                         fontSize = 13.sp,
                         color = if (settings.attachAutoTag.isEmpty()) c.ink3 else c.ink2,
@@ -204,12 +202,12 @@ fun SettingsAttachmentsScreen(
     }
     if (editingFolder) {
         NameDialog(
-            title = "Attachment folder",
+            title = stringResource(R.string.settings_attach_folder),
             initial = settings.attachFolder,
-            confirmLabel = "Save",
+            confirmLabel = stringResource(R.string.action_save),
             placeholder = AttachFolder.DEFAULT,
-            validate = { AttachFolder.error(it)?.let(UiText::raw) },
-            helperText = "Relative to each note's folder. Files already in data/ keep opening.",
+            validate = { AttachFolder.error(it) },
+            helperText = stringResource(R.string.settings_attach_folder_helper),
             onDismiss = { editingFolder = false },
             onConfirm = { raw ->
                 editingFolder = false
@@ -220,12 +218,12 @@ fun SettingsAttachmentsScreen(
     }
     if (editingTag) {
         NameDialog(
-            title = "Attachment tag",
+            title = stringResource(R.string.settings_attach_tag),
             initial = settings.attachAutoTag,
-            confirmLabel = "Save",
+            confirmLabel = stringResource(R.string.action_save),
             placeholder = null,
             validate = { AttachAutoTag.error(it) },
-            helperText = "Without colons. Leave empty to add no tag.",
+            helperText = stringResource(R.string.settings_attach_tag_helper),
             allowBlank = true,
             onDismiss = { editingTag = false },
             onConfirm = { raw ->
@@ -256,7 +254,7 @@ private fun WidthStepper(px: Int, onChange: (Int) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            "Width",
+            stringResource(R.string.settings_attach_width),
             fontFamily = PlexSans, fontSize = 13.sp, color = c.ink2,
             modifier = Modifier.weight(1f),
         )
@@ -267,16 +265,16 @@ private fun WidthStepper(px: Int, onChange: (Int) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StepButton(
-                "−", "Narrower", enabled = px > AttachImageWidth.MIN_PX,
+                "−", stringResource(R.string.settings_attach_width_narrower), enabled = px > AttachImageWidth.MIN_PX,
                 tag = "attach_width_minus",
             ) { onChange(px - AttachImageWidth.STEP_PX) }
             Text(
-                "$px px",
+                stringResource(R.string.settings_attach_width_px, px),
                 fontFamily = PlexMono, fontSize = 13.sp, color = c.ink,
                 modifier = Modifier.padding(horizontal = 10.dp).testTag("attach_width_value"),
             )
             StepButton(
-                "+", "Wider", enabled = px < AttachImageWidth.MAX_PX,
+                "+", stringResource(R.string.settings_attach_width_wider), enabled = px < AttachImageWidth.MAX_PX,
                 tag = "attach_width_plus",
             ) { onChange(px + AttachImageWidth.STEP_PX) }
         }

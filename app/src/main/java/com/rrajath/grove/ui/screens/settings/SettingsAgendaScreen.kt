@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.screens.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,17 +52,17 @@ fun SettingsAgendaScreen(
     MarkNewFeatureSeen(NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING)
     MarkNewFeatureSeen(NewAnchors.SETTINGS_AGENDA_WEEK_START)
     val systemFirstDay = remember { systemFirstDayOfWeek() }
-    SettingsPageScaffold(title = "Agenda", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_agenda_title), onBack = onBack) {
         SettingsGroup {
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
-                    "Swipe left",
+                    stringResource(R.string.settings_agenda_swipe_left),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                     modifier = Modifier.padding(bottom = 2.dp),
                 )
                 Text(
-                    "Swiping an agenda item left will " + swipeActionDescription(settings.agendaSwipeLeftAction),
+                    stringResource(swipeDescriptionRes(left = true, settings.agendaSwipeLeftAction)),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
@@ -75,13 +76,13 @@ fun SettingsAgendaScreen(
             RowDivider()
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
-                    "Swipe right",
+                    stringResource(R.string.settings_agenda_swipe_right),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                     modifier = Modifier.padding(bottom = 2.dp),
                 )
                 Text(
-                    "Swiping an agenda item right will " + swipeActionDescription(settings.agendaSwipeRightAction),
+                    stringResource(swipeDescriptionRes(left = false, settings.agendaSwipeRightAction)),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
@@ -101,15 +102,14 @@ fun SettingsAgendaScreen(
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Deadline warning",
+                            stringResource(R.string.settings_agenda_deadline_warning),
                             fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                             fontSize = 14.5.sp, color = c.ink,
                         )
                         NewDot(NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING, Modifier.padding(start = 8.dp))
                     }
                     Text(
-                        "Days before a deadline that it shows under Due soon on Today. " +
-                            "A warning on the deadline itself, like -3d, wins. 0 turns this off.",
+                        stringResource(R.string.settings_agenda_deadline_warning_hint),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -123,14 +123,14 @@ fun SettingsAgendaScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Start of week",
+                        stringResource(R.string.settings_agenda_week_start),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
                     NewDot(NewAnchors.SETTINGS_AGENDA_WEEK_START, Modifier.padding(start = 8.dp))
                 }
                 Text(
-                    "The first column of every calendar. System default follows your device's region.",
+                    stringResource(R.string.settings_agenda_week_start_hint),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
@@ -143,6 +143,17 @@ fun SettingsAgendaScreen(
             }
         }
     }
+}
+
+/** The sentence under a swipe direction, naming what that swipe does. */
+@StringRes
+private fun swipeDescriptionRes(left: Boolean, action: AgendaSwipeAction): Int = when (action) {
+    AgendaSwipeAction.SET_SCHEDULED ->
+        if (left) R.string.settings_agenda_swipe_left_scheduled else R.string.settings_agenda_swipe_right_scheduled
+    AgendaSwipeAction.SET_DEADLINE ->
+        if (left) R.string.settings_agenda_swipe_left_deadline else R.string.settings_agenda_swipe_right_deadline
+    AgendaSwipeAction.MARK_DONE ->
+        if (left) R.string.settings_agenda_swipe_left_done else R.string.settings_agenda_swipe_right_done
 }
 
 /** "System default (Monday)" names the day the device region resolves to, in the app's language. */

@@ -46,7 +46,6 @@ import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.TemplateKind
 import com.rrajath.grove.capture.TemplateValidator
-import com.rrajath.grove.settings.AgendaSwipeAction
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.MonogramTile
 import com.rrajath.grove.ui.components.Pill
@@ -354,12 +353,6 @@ internal fun TemplateSettingsRow(
             },
         )
     }
-}
-
-internal fun swipeActionDescription(action: AgendaSwipeAction): String = when (action) {
-    AgendaSwipeAction.SET_SCHEDULED -> "open the scheduled-date picker"
-    AgendaSwipeAction.SET_DEADLINE -> "open the deadline picker"
-    AgendaSwipeAction.MARK_DONE -> "mark it done"
 }
 
 /** Friendly folder name from a SAF tree URI ("content://…/tree/primary%3Aorg" → "org"). */

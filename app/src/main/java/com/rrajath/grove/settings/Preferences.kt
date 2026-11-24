@@ -284,20 +284,21 @@ object AttachFolder {
     const val DEFAULT = "data/"
 
     /** Why [raw] can't be used, or null when it can. */
-    fun error(raw: String): String? {
+    fun error(raw: String): UiText? {
         val v = raw.trim()
         val segments = v.split('/').filter { it.isNotEmpty() }
-        return when {
-            v.isEmpty() -> "Enter a folder."
-            v.startsWith("/") -> "Use a folder inside each note's folder; remove the leading /."
-            '~' in v -> "~ isn't supported."
-            '\\' in v -> "Use / between folders."
-            segments.isEmpty() -> "Enter a folder."
-            segments.any { it.trim() == ".." } -> "Use a folder inside each note's folder; .. isn't supported."
-            segments.any { it.trim() == "." } -> "Use folder names, not \".\"."
-            segments.any { it != it.trim() } -> "Folder names can't start or end with a space."
-            else -> null
+        val id = when {
+            v.isEmpty() -> R.string.settings_attach_folder_error_empty
+            v.startsWith("/") -> R.string.settings_attach_folder_error_leading_slash
+            '~' in v -> R.string.settings_attach_folder_error_tilde
+            '\\' in v -> R.string.settings_attach_folder_error_backslash
+            segments.isEmpty() -> R.string.settings_attach_folder_error_empty
+            segments.any { it.trim() == ".." } -> R.string.settings_attach_folder_error_parent
+            segments.any { it.trim() == "." } -> R.string.settings_attach_folder_error_dot
+            segments.any { it != it.trim() } -> R.string.settings_attach_folder_error_space
+            else -> return null
         }
+        return UiText.res(id)
     }
 
     /** [raw] trimmed, repeated `/` collapsed, one trailing `/`; null when [error] rejects it. */

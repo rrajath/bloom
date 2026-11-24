@@ -1,5 +1,8 @@
 package com.rrajath.grove.ui.screens.settings
 
+import com.rrajath.grove.R
+import androidx.compose.ui.res.stringResource
+import com.rrajath.grove.ui.util.backArrowGlyph
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -62,10 +65,10 @@ fun SettingsWhatsNewScreen(versions: List<ChangelogVersion>, onBack: () -> Unit)
         containerColor = c.bg,
         topBar = {
             GroveTopBar(
-                leading = { IconGlyph("←", onClick = onBack) },
+                leading = { IconGlyph(backArrowGlyph(), onClick = onBack) },
                 title = {
                     Text(
-                        "What's New",
+                        stringResource(R.string.settings_page_whats_new_title),
                         style = MaterialTheme.typography.titleLarge,
                         color = c.ink,
                         modifier = Modifier.padding(start = 4.dp),
@@ -84,7 +87,7 @@ fun SettingsWhatsNewScreen(versions: List<ChangelogVersion>, onBack: () -> Unit)
         ) {
             if (versions.isEmpty()) {
                 Text(
-                    "Release notes will appear here.",
+                    stringResource(R.string.settings_whats_new_empty),
                     fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3,
                     modifier = Modifier.padding(start = 4.dp, top = 8.dp),
                 )
@@ -123,7 +126,7 @@ private fun ReleaseCard(version: ChangelogVersion) {
             }
             if (version.versionCode == BuildConfig.VERSION_CODE) {
                 Spacer(Modifier.weight(1f))
-                Pill(text = "installed", fg = c.green, bg = c.greenSoft)
+                Pill(text = stringResource(R.string.settings_whats_new_installed), fg = c.green, bg = c.greenSoft)
             }
         }
         version.subsections.forEach { section ->
@@ -150,6 +153,7 @@ private fun ReleaseCard(version: ChangelogVersion) {
 @Composable
 private fun CategoryTag(heading: String) {
     val c = MaterialTheme.grove
+    // i18n-begin: CHANGELOG.md subheadings, which stay English
     val (fg, bg) = when (heading) {
         "Added" -> c.green to c.greenSoft
         "Changed" -> c.blue to c.blueSoft
@@ -158,6 +162,7 @@ private fun CategoryTag(heading: String) {
         "Deprecated" -> c.amber to c.amberSoft
         else -> c.ink2 to c.surface2
     }
+    // i18n-end
     Box(
         Modifier
             .width(64.dp)

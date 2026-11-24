@@ -1,5 +1,8 @@
 package com.rrajath.grove.ui.screens.settings
 
+import com.rrajath.grove.R
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -74,7 +77,7 @@ fun SettingsRoamScreen(
         }
     }
 
-    SettingsPageScaffold(title = "Roam Features", onBack = onBack) { scrollState ->
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_roam_title), onBack = onBack) { scrollState ->
         // Leaving this screen retires the "Open roam files directly in read mode"
         // dot from its whole trail (menu glyph, drawer, Settings hub row, the row itself).
         MarkNewFeatureSeen(NewAnchors.SETTINGS_ROAM_WHOLE_FILE)
@@ -97,43 +100,38 @@ fun SettingsRoamScreen(
 
         Column(Modifier.padding(bottom = 10.dp)) {
             Text(
-                "These are experimental features and are subject to change.",
+                stringResource(R.string.settings_roam_experimental_note),
                 fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp),
             )
         }
         SettingsGroup {
             ToggleRow(
-                label = "Roam Features",
+                label = stringResource(R.string.settings_page_roam_title),
                 checked = settings.roamFeaturesEnabled,
-                description = "Adds backlinks (a Backlinks bar showing notes that reference " +
-                    "this one) and auto suggestions for files or headings as you type.",
+                description = stringResource(R.string.settings_roam_enable_hint),
                 onToggle = onSetRoamFeaturesEnabled,
             )
             if (settings.roamFeaturesEnabled) {
                 RowDivider()
                 ToggleRow(
-                    label = "Show backlinks",
+                    label = stringResource(R.string.settings_roam_backlinks),
                     checked = settings.roamShowBacklinks,
-                    description = "Show the Backlinks bar on roam files (file-level ID) in the Outline and the whole-file Read and Edit views.",
+                    description = stringResource(R.string.settings_roam_backlinks_hint),
                     onToggle = onSetRoamShowBacklinks,
                 )
                 RowDivider()
                 ToggleRow(
-                    label = "Show suggestions while typing",
+                    label = stringResource(R.string.settings_roam_suggestions),
                     checked = settings.roamShowSuggestions,
-                    description = "Suggest matching files or headings to link to as you type in Edit mode.",
+                    description = stringResource(R.string.settings_roam_suggestions_hint),
                     onToggle = onSetRoamShowSuggestions,
                 )
                 RowDivider()
                 ToggleRow(
-                    label = "Open roam files directly in read mode",
+                    label = stringResource(R.string.settings_roam_whole_file),
                     checked = settings.roamOpenWholeFile,
-                    description = "For org-roam files (ones with a file-level :ID:) of up to " +
-                        "$WHOLE_FILE_LINE_LIMIT lines, opening the notebook skips the outline and " +
-                        "shows the whole file in your default note mode, like a single note. Larger " +
-                        "and non-roam files still open in the outline. Turning this off opens roam " +
-                        "files in the outline too, regardless of size.",
+                    description = stringResource(R.string.settings_roam_whole_file_hint, WHOLE_FILE_LINE_LIMIT),
                     labelBadge = { NewDot(NewAnchors.SETTINGS_ROAM_WHOLE_FILE, Modifier.padding(start = 6.dp)) },
                     onToggle = onSetRoamOpenWholeFile,
                 )
@@ -142,9 +140,12 @@ fun SettingsRoamScreen(
 
         if (settings.roamFeaturesEnabled) {
             Spacer(Modifier.height(20.dp))
-            SectionLabel("DAILIES")
+            SectionLabel(stringResource(R.string.settings_roam_section_dailies))
             SettingsGroup {
-                SettingsRow(label = "Dailies location", description = "Where daily notes are created; blank = vault root.") {}
+                SettingsRow(
+                    label = stringResource(R.string.settings_roam_dailies_location),
+                    description = stringResource(R.string.settings_roam_dailies_location_hint),
+                ) {}
                 Box(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 0.dp)) {
                     com.rrajath.grove.ui.components.DirectoryField(
                         value = dailiesDirectoryText,
@@ -154,7 +155,10 @@ fun SettingsRoamScreen(
                     )
                 }
                 RowDivider()
-                SettingsRow(label = "File name pattern", description = "FilenamePattern tokens, e.g. %<%Y-%m-%d>.org.") {}
+                SettingsRow(
+                    label = stringResource(R.string.settings_roam_dailies_pattern),
+                    description = stringResource(R.string.settings_roam_dailies_pattern_hint, "%<%Y-%m-%d>.org"),
+                ) {}
                 Box(Modifier.fillMaxWidth().padding(horizontal = 15.dp)) {
                     val patternError = com.rrajath.grove.capture.FilenamePattern.errorFor(dailiesPatternText)
                     androidx.compose.material3.OutlinedTextField(
@@ -174,7 +178,10 @@ fun SettingsRoamScreen(
                     )
                 }
                 RowDivider()
-                SettingsRow(label = "Header template", description = "Expanded into a new day's file. %? marks the cursor.") {}
+                SettingsRow(
+                    label = stringResource(R.string.settings_roam_dailies_header),
+                    description = stringResource(R.string.settings_roam_dailies_header_hint, "%?"),
+                ) {}
                 Box(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 6.dp)) {
                     val headerInvalid = remember(dailiesHeaderText) {
                         com.rrajath.grove.capture.PlaceholderExpander.findInvalid(dailiesHeaderText)
@@ -195,8 +202,11 @@ fun SettingsRoamScreen(
                         )
                         if (headerInvalid.isNotEmpty()) {
                             Text(
-                                "Unsupported placeholder${if (headerInvalid.size > 1) "s" else ""}: " +
+                                pluralStringResource(
+                                    R.plurals.template_unsupported_placeholders,
+                                    headerInvalid.size,
                                     headerInvalid.joinToString(", "),
+                                ),
                                 fontFamily = PlexSans, fontSize = 12.sp, color = c.red,
                                 modifier = Modifier.padding(top = 4.dp),
                             )

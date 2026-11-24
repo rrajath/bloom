@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.screens.settings
 
+import com.rrajath.grove.R
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,14 +49,14 @@ fun SettingsRemindersScreen(
     // off and the toggle row below never composes (otherwise the dot could never clear).
     MarkNewFeatureSeen(NewAnchors.SETTINGS_REMINDERS_UNTIMED)
 
-    SettingsPageScaffold(title = "Reminders", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_reminders_title), onBack = onBack) {
         // Replaces ReminderPermissionBanner on this screen: the rows cover both
         // permissions, and only while off. Nothing is armed with reminders off.
         if (settings.remindersEnabled) ReminderAccessSection()
         SettingsGroup {
             ToggleRow(
-                label = "Enable reminders",
-                description = "Notify at SCHEDULED and DEADLINE times, and at any active timestamp like <2026-10-30 Thu 09:00>",
+                label = stringResource(R.string.settings_reminders_enable),
+                description = stringResource(R.string.settings_reminders_enable_hint, "<2026-10-30 Thu 09:00>"), // i18n: org timestamp syntax
                 checked = settings.remindersEnabled,
                 onToggle = onSetRemindersEnabled,
             )
@@ -63,13 +64,13 @@ fun SettingsRemindersScreen(
                 RowDivider()
                 Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
                     Text(
-                        "Notify me",
+                        stringResource(R.string.settings_reminders_notify_me),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                         modifier = Modifier.padding(bottom = 2.dp),
                     )
                     Text(
-                        "When a task with a specific time is due",
+                        stringResource(R.string.settings_reminders_notify_me_hint),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.padding(bottom = 10.dp),
                     )
@@ -82,8 +83,8 @@ fun SettingsRemindersScreen(
                 }
                 RowDivider()
                 ToggleRow(
-                    label = "Notify for tasks without a time",
-                    description = "A separate notification for each SCHEDULED, DEADLINE, or active timestamp on a day with no time of day",
+                    label = stringResource(R.string.settings_reminders_untimed),
+                    description = stringResource(R.string.settings_reminders_untimed_hint),
                     checked = settings.notifyUntimedTasks,
                     labelBadge = { NewDot(NewAnchors.SETTINGS_REMINDERS_UNTIMED) },
                     onToggle = onSetNotifyUntimedTasks,
@@ -91,16 +92,16 @@ fun SettingsRemindersScreen(
             }
             RowDivider()
             ToggleRow(
-                label = "Morning Brief",
-                description = "Organize your day",
+                label = stringResource(R.string.settings_reminders_morning_brief),
+                description = stringResource(R.string.settings_reminders_morning_brief_hint),
                 checked = settings.morningBriefEnabled,
                 onToggle = onSetMorningBriefEnabled,
             )
             if (settings.morningBriefEnabled || settings.notifyUntimedTasks) {
                 RowDivider()
                 SettingsRow(
-                    label = "Send reminder at",
-                    description = "Time of day for the Morning Brief and any timeless SCHEDULED, DEADLINE, or active stamp",
+                    label = stringResource(R.string.settings_reminders_send_at),
+                    description = stringResource(R.string.settings_reminders_send_at_hint),
                     onClick = { showReminderTimePicker = true },
                 ) {
                     Text(

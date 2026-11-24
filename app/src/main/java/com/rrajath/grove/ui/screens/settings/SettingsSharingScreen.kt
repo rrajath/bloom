@@ -9,13 +9,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
+import com.rrajath.grove.ui.attach.StyledArg
+import com.rrajath.grove.ui.attach.withStyledArgs
 import com.rrajath.grove.org.NotePlacement
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.components.SegmentedControl
@@ -39,16 +39,15 @@ fun SettingsSharingScreen(
     val target = shareTargetBreadcrumb(settings)
     val toHeading = settings.shareTargetHeadingPath.isNotEmpty()
 
-    SettingsPageScaffold(title = "Sharing", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_sharing_title), onBack = onBack) {
         // Leaving this screen retires these rows' NEW dots from their whole trail.
         MarkNewFeatureSeen(NewAnchors.SETTINGS_SHARING_FETCH_TITLES)
         MarkNewFeatureSeen(NewAnchors.SETTINGS_SHARING_PLACEMENT)
 
         SettingsGroup {
             SettingsRow(
-                label = "Shared content target",
-                description = "The file or heading that receives links and text shared into " +
-                        stringResource(R.string.app_name),
+                label = stringResource(R.string.settings_share_target),
+                description = stringResource(R.string.settings_share_target_hint, stringResource(R.string.app_name)),
                 onClick = onOpenShareTargetPicker,
             ) {
                 Text(
@@ -62,7 +61,7 @@ fun SettingsSharingScreen(
             }
             RowDivider()
             SettingsRow(
-                label = "Add shared items at",
+                label = stringResource(R.string.settings_share_placement),
                 descriptionContent = {
                     Text(
                         placementDescription(target, toHeading, settings.shareInsertPlacement),
@@ -72,7 +71,7 @@ fun SettingsSharingScreen(
                 labelBadge = { NewDot(NewAnchors.SETTINGS_SHARING_PLACEMENT) },
             ) {
                 SegmentedControl(
-                    options = listOf("Top", "Bottom"),
+                    options = listOf(stringResource(R.string.settings_share_placement_top), stringResource(R.string.settings_share_placement_bottom)),
                     selectedIndex = PLACEMENT_OPTIONS.indexOf(settings.shareInsertPlacement),
                     onSelect = { onSetShareInsertPlacement(PLACEMENT_OPTIONS[it]) },
                     modifier = Modifier.width(160.dp),
@@ -80,9 +79,8 @@ fun SettingsSharingScreen(
             }
             RowDivider()
             ToggleRow(
-                label = "Fetch link titles",
-                description = "Looks up a shared link's page title online. Off makes no network " +
-                        "request; the link uses any title the sharing app sent, or the URL",
+                label = stringResource(R.string.settings_share_fetch_titles),
+                description = stringResource(R.string.settings_share_fetch_titles_hint),
                 checked = settings.fetchSharedLinkTitles,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_SHARING_FETCH_TITLES) },
                 onToggle = onSetFetchSharedLinkTitles,
@@ -102,19 +100,27 @@ internal fun shareTargetBreadcrumb(settings: GroveSettings): String {
 }
 
 /**
- * The "Add shared items at" description: where in the target items land, then
+ * The "Add shared items at" description: where in the target items land, with
  * the target breadcrumb in PlexMono. A heading target's "first"/"last" is SemiBold (PlexSans has no Bold face).
  */
-internal fun placementDescription(target: String, toHeading: Boolean, placement: NotePlacement): AnnotatedString {
+@Composable
+private fun placementDescription(target: String, toHeading: Boolean, placement: NotePlacement): AnnotatedString {
     val top = placement == NotePlacement.TOP
-    return buildAnnotatedString {
-        if (toHeading) {
-            append("Shared items are added as the ")
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(if (top) "first" else "last") }
-            append(" subheading of ")
-        } else {
-            append("Shared items are added as a new heading at the ${if (top) "top" else "bottom"} of ")
-        }
-        withStyle(SpanStyle(fontFamily = PlexMono)) { append(target) }
+    return when {
+        toHeading -> styledPlacement(
+            stringResource(R.string.settings_share_placement_heading),
+            target,
+            stringResource(if (top) R.string.settings_share_placement_first else R.string.settings_share_placement_last),
+        )
+        top -> styledPlacement(stringResource(R.string.settings_share_placement_file_top), target)
+        else -> styledPlacement(stringResource(R.string.settings_share_placement_file_bottom), target)
     }
 }
+
+/** [sentence] with `%1$s` = [target] in PlexMono and `%2$s` = [emphasis] in SemiBold. */
+internal fun styledPlacement(sentence: String, target: String, emphasis: String? = null): AnnotatedString =
+    withStyledArgs(
+        sentence,
+        StyledArg(target, SpanStyle(fontFamily = PlexMono)),
+        StyledArg(emphasis.orEmpty(), SpanStyle(fontWeight = FontWeight.SemiBold)),
+    )

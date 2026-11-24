@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.screens.settings
 
+import com.rrajath.grove.R
+import androidx.compose.ui.res.stringResource
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -110,14 +112,14 @@ internal fun ReminderAccessRows(
     SettingsGroup {
         if (access.notificationsOff) {
             SettingsRow(
-                label = "Notifications",
-                description = "Required for any reminder to appear",
+                label = stringResource(R.string.settings_reminders_access_notifications),
+                description = stringResource(R.string.settings_reminders_access_notifications_hint),
                 onClick = onAllowNotifications,
             ) { AllowLabel() }
         } else {
             SettingsRow(
-                label = "Exact timing",
-                description = "Lets reminders fire at the exact minute. Without it, Android may delay them by up to an hour.",
+                label = stringResource(R.string.settings_reminders_access_exact),
+                description = stringResource(R.string.settings_reminders_access_exact_hint),
                 onClick = onAllowExactAlarms,
             ) { AllowLabel() }
         }
@@ -128,7 +130,7 @@ internal fun ReminderAccessRows(
 @Composable
 private fun AllowLabel() {
     Text(
-        "Allow",
+        stringResource(R.string.settings_reminders_access_allow),
         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
         color = MaterialTheme.grove.accent,
     )

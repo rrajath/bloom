@@ -62,7 +62,8 @@ import java.time.LocalTime
 internal fun AgendaWidgetPreview(settings: GroveSettings, transparencyOverride: Float? = null) {
     val c = MaterialTheme.grove
     val today = remember { LocalDate.now() }
-    val notes = remember(today) { previewNotes(today) }
+    val resources = LocalResources.current
+    val notes = remember(today, resources) { previewNotes(today, resources) }
     val sections = remember(notes, today, settings) {
         LedgerBuckets.build(notes, today, settings.agendaWidgetDaysAhead, settings)
     }
@@ -72,7 +73,6 @@ internal fun AgendaWidgetPreview(settings: GroveSettings, transparencyOverride: 
     val backgroundColor = c.surface.copy(alpha = 1f - (transparencyOverride ?: settings.agendaWidgetTransparency))
     val totalCount = sections.sumOf { it.count }
     val todayCount = sections.firstOrNull { it.day == today }?.count ?: 0
-    val resources = LocalResources.current
 
     Column(
         Modifier
@@ -217,28 +217,30 @@ private fun ScaledText(
  * Tomorrow — enough sections to preview every widget-only lever at once (tags,
  * filename, priority, font size).
  */
-private fun previewNotes(today: LocalDate): List<NoteMeta> = listOf(
+// i18n-begin: sample file names, tags and keywords are org data
+private fun previewNotes(today: LocalDate, res: android.content.res.Resources): List<NoteMeta> = listOf(
     previewNote(
-        fileName = "Work/Personal/admin.org", title = "Renew passport", keyword = "TODO",
+        fileName = "Work/Personal/admin.org", title = res.getString(R.string.settings_widget_sample_passport), keyword = "TODO",
         priority = "A", tags = listOf("errand"),
         scheduled = OrgTimestamp(today.minusDays(3)).format(),
     ),
     previewNote(
-        fileName = "finance.org", title = "File expense report", keyword = "TODO",
+        fileName = "finance.org", title = res.getString(R.string.settings_widget_sample_expenses), keyword = "TODO",
         priority = "B", tags = emptyList(),
         scheduled = OrgTimestamp(today.minusDays(10)).format(),
     ),
     previewNote(
-        fileName = "work/standup.org", title = "Team standup", keyword = "NEXT",
+        fileName = "work/standup.org", title = res.getString(R.string.settings_widget_sample_standup), keyword = "NEXT",
         priority = null, tags = listOf("meeting"),
         scheduled = OrgTimestamp(today, time = LocalTime.of(9, 0)).format(),
     ),
     previewNote(
-        fileName = "reports/q3.org", title = "Draft quarterly report", keyword = "TODO",
+        fileName = "reports/q3.org", title = res.getString(R.string.settings_widget_sample_report), keyword = "TODO",
         priority = "B", tags = listOf("work"),
         scheduled = OrgTimestamp(today.plusDays(1)).format(),
     ),
 )
+// i18n-end
 
 private fun previewNote(
     fileName: String,

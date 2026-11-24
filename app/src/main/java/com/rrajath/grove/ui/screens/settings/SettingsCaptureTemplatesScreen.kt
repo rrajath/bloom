@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.screens.settings
 
+import com.rrajath.grove.R
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,7 +25,7 @@ fun SettingsCaptureTemplatesScreen(
     } else {
         allTemplates.filterNot { it.kind == TemplateKind.ROAM_NODE }
     }
-    SettingsPageScaffold(title = "Capture Templates", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_capture_templates_title), onBack = onBack) {
         SettingsGroup {
             templates.forEachIndexed { i, template ->
                 if (i > 0) RowDivider()
@@ -36,13 +38,13 @@ fun SettingsCaptureTemplatesScreen(
                 )
             }
             if (templates.isNotEmpty()) RowDivider()
-            SettingsRow(label = "＋ New template", onClick = { onEditTemplate(null) }) {}
+            SettingsRow(label = stringResource(R.string.settings_templates_new), onClick = { onEditTemplate(null) }) {}
             RowDivider()
             val notifPermission = androidx.activity.compose.rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
             ) { granted -> if (granted) onSetCaptureNotification(true) }
             ToggleRow(
-                label = "Capture from notification",
+                label = stringResource(R.string.settings_templates_notification),
                 checked = settings.captureNotification,
             ) { enabled ->
                 when {

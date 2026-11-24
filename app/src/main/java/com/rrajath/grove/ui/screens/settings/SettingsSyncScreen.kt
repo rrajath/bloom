@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.screens.settings
 
+import com.rrajath.grove.R
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
@@ -51,12 +52,12 @@ fun SettingsSyncScreen(
         }
     }
 
-    SettingsPageScaffold(title = "Sync", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_sync_title), onBack = onBack) {
         SettingsGroup {
             val vaultUri = settings.vaultTreeUri
-            SettingsRow(label = "Folder", onClick = { folderPicker.launch(null) }) {
+            SettingsRow(label = stringResource(R.string.settings_sync_folder), onClick = { folderPicker.launch(null) }) {
                 Text(
-                    settings.vaultTreeUri?.let { uriDisplayName(it) } ?: "tap to choose",
+                    settings.vaultTreeUri?.let { uriDisplayName(it) } ?: stringResource(R.string.settings_sync_folder_none),
                     fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,
                 )
             }
@@ -76,7 +77,7 @@ fun SettingsSyncScreen(
             RowDivider()
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
-                    "Auto-sync",
+                    stringResource(R.string.settings_sync_auto),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                     modifier = Modifier.padding(bottom = 8.dp),
@@ -103,9 +104,9 @@ fun SettingsSyncScreen(
             }
             if (settings.syncMode == SyncMode.PERIODIC) {
                 RowDivider()
-                SettingsRow(label = "Interval") {
+                SettingsRow(label = stringResource(R.string.settings_sync_interval)) {
                     SegmentedControl(
-                        options = listOf("15m", "30m", "60m"),
+                        options = listOf(15, 30, 60).map { stringResource(R.string.settings_sync_interval_minutes, it) },
                         selectedIndex = when (settings.periodicSyncMinutes) {
                             15 -> 0
                             60 -> 2
@@ -117,7 +118,7 @@ fun SettingsSyncScreen(
                 }
             }
             RowDivider()
-            SettingsRow(label = "View sync log", onClick = onOpenSyncLog) {
+            SettingsRow(label = stringResource(R.string.settings_sync_view_log), onClick = onOpenSyncLog) {
                 Text("›", fontFamily = PlexMono, fontSize = 14.sp, color = c.ink2)
             }
         }

@@ -1,5 +1,7 @@
 package com.rrajath.grove.ui.screens.settings
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.annotation.PluralsRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,12 +64,11 @@ fun SettingsBackupScreen(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) onImportSettings(uri) }
 
-    SettingsPageScaffold(title = "Backup", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_backup_title), onBack = onBack) {
         SettingsGroup {
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
-                    "Import or export your preferences, capture templates, favorites and saved"
-                        + " searches as a JSON file. The sync folder isn't included; it stays on this device.",
+                    stringResource(R.string.settings_backup_intro),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
@@ -126,7 +127,7 @@ private fun ImportBackupDialog(
         containerColor = c.surface,
         title = {
             Text(
-                "Import backup",
+                stringResource(R.string.settings_backup_import_title),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, color = c.ink,
             )
@@ -134,7 +135,7 @@ private fun ImportBackupDialog(
         text = {
             Column {
                 Text(
-                    "Each checked item replaces what's on this device.",
+                    stringResource(R.string.settings_backup_import_body),
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
                 for (section in sections) {
@@ -151,7 +152,7 @@ private fun ImportBackupDialog(
         confirmButton = {
             TextButton(onClick = { onConfirm(checked) }, enabled = checked.isNotEmpty()) {
                 Text(
-                    "Import",
+                    stringResource(R.string.backup_import),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     color = if (checked.isNotEmpty()) c.accent else c.ink3,
                 )
@@ -159,28 +160,35 @@ private fun ImportBackupDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", fontFamily = PlexSans, color = c.ink2)
+                Text(stringResource(R.string.action_cancel), fontFamily = PlexSans, color = c.ink2)
             }
         },
     )
 }
 
 /** Row label and its count / summary line for one [section] of [backup]. */
+@Composable
 private fun sectionText(section: BackupSection, backup: Backup): Pair<String, String> = when (section) {
-    BackupSection.SETTINGS -> "Settings" to "Look and feel, notes, sync, agenda and other preferences"
+    BackupSection.SETTINGS ->
+        stringResource(R.string.settings_backup_section_settings) to stringResource(R.string.settings_backup_section_settings_detail)
     BackupSection.CAPTURE_TEMPLATES ->
-        "Capture templates" to count(backup.captureTemplates.orEmpty().size, "template")
-    BackupSection.FAVORITES -> "Favorites" to count(backup.favorites.orEmpty().size, "favorite")
+        stringResource(R.string.settings_backup_section_templates) to
+            count(R.plurals.settings_backup_count_templates, backup.captureTemplates.orEmpty().size)
+    BackupSection.FAVORITES ->
+        stringResource(R.string.settings_backup_section_favorites) to
+            count(R.plurals.settings_backup_count_favorites, backup.favorites.orEmpty().size)
     BackupSection.SAVED_SEARCHES -> {
         val all = backup.savedSearches.orEmpty()
         val cards = all.count { it.id in QuickStartOverrides.ids }
-        val searches = count(all.size - cards, "saved search", "saved searches")
-        "Saved searches & Quick Start cards" to
-            if (cards == 0) searches else "$searches, ${count(cards, "customized Quick Start card")}"
+        val searches = count(R.plurals.settings_backup_count_searches, all.size - cards)
+        stringResource(R.string.settings_backup_section_searches) to
+            if (cards == 0) searches
+            else stringResource(R.string.settings_backup_searches_and_cards, searches, count(R.plurals.settings_backup_count_cards, cards))
     }
 }
 
-private fun count(n: Int, one: String, many: String = one + "s"): String = "$n ${if (n == 1) one else many}"
+@Composable
+private fun count(@PluralsRes id: Int, n: Int): String = pluralStringResource(id, n, n)
 
 /**
  * Checkbox row matching the attachments 1n row (22dp box, 6dp radius, 2dp border; label
