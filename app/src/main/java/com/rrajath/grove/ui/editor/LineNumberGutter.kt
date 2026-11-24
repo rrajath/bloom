@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -54,7 +55,8 @@ private const val MinGutterDigits = 2
  * Settings § Notes "Show line numbers": a start-side gutter of the buffer's real file
  * line numbers, so line 1 of a subtree buffer reads as its heading's line in the file.
  * Only a logical line's first visual row is numbered; its soft-wrapped rows are blank.
- * Numbers are `ink3`; the lines the caret or selection covers are `ink2` while focused.
+ * Numbers are `ink3` on a `surface` strip; the lines the caret or selection covers are
+ * `ink2` while focused.
  *
  * Tapping a number selects its whole line, trailing newline included (so Cut removes
  * the line); dragging across numbers selects every line between, auto-scrolling past
@@ -109,8 +111,19 @@ fun rememberLineNumberGutter(
     val coords = remember { GutterCoords() }
     var focused by remember { mutableStateOf(false) }
 
+    // The gutter's `surface` strip stops half the text gap short of the text. Drawn on
+    // the outer node (before the padding) so it sits under the current-line band.
+    val stripWidth = startPadding - GutterTextGap / 2
     val inputModifier = Modifier
         .onPlaced { coords.outer = it }
+        .drawBehind {
+            val w = stripWidth.toPx()
+            drawRect(
+                color = c.surface,
+                topLeft = Offset(if (ltr) 0f else size.width - w, 0f),
+                size = Size(w, size.height),
+            )
+        }
         .pointerInput(textState, scrollState) {
             coroutineScope {
                 awaitEachGesture {
