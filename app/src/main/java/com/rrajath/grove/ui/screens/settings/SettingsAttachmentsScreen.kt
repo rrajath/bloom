@@ -207,7 +207,12 @@ fun SettingsAttachmentsScreen(
             confirmLabel = stringResource(R.string.action_save),
             placeholder = AttachFolder.DEFAULT,
             validate = { AttachFolder.error(it) },
-            helperText = stringResource(R.string.settings_attach_folder_helper),
+            styledHelperText = withStyledArgs(
+                stringResource(R.string.settings_attach_folder_helper),
+                StyledArg("attach/", SpanStyle(fontFamily = PlexMono)), // i18n: example folder value
+                StyledArg("/attach/", SpanStyle(fontFamily = PlexMono)), // i18n: example folder value
+                StyledArg(AttachFolder.DEFAULT, SpanStyle(fontFamily = PlexMono)),
+            ),
             onDismiss = { editingFolder = false },
             onConfirm = { raw ->
                 editingFolder = false

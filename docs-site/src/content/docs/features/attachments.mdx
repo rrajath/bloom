@@ -15,7 +15,7 @@ import settingsDark from '../assets/dark/settings-attachments.png';
 Early preview. Expect changes as this feature develops.
 :::
 
-Attachments let you keep photos, PDFs and other files next to the note they belong to. Bloom stores them the way Emacs [org-attach](https://orgmode.org/manual/Attachments.html) does: each heading gets its own folder inside your vault, named from the heading's `:ID:` and kept under an attachment folder next to the note (`data/` unless you [change it](#settings)), and the note links to the file with an `[[attachment:...]]` link. Since the files are plain files in your synced folder, Emacs on your laptop sees the same attachments, and attachments you add in Emacs show up in Bloom.
+Attachments let you keep photos, PDFs and other files next to the note they belong to. Bloom stores them the way Emacs [org-attach](https://orgmode.org/manual/Attachments.html) does: each heading gets its own folder inside your vault, named from the heading's `:ID:` and kept under an attachment folder next to the note (`data/` unless you [change it](#settings), or one [folder for the whole vault](#one-folder-for-the-whole-vault)), and the note links to the file with an `[[attachment:...]]` link. Since the files are plain files in your synced folder, Emacs on your laptop sees the same attachments, and attachments you add in Emacs show up in Bloom.
 
 <ThemeShot
   light={readLight}
@@ -129,6 +129,8 @@ Attachment folders follow the notes they belong to:
 
 An attachment folder that's also used by a note somewhere else is never moved or deleted out from under it. It's copied or kept instead, and the confirmation tells you how many.
 
+With a [vault-root attachment folder](#one-folder-for-the-whole-vault), attachments stay put when notes, notebooks or folders move, since their place doesn't depend on where the note is. Deleting a notebook or heading still offers to delete them, and a folder whose `:ID:` another note anywhere in the vault still uses is kept.
+
 Attachment folders (`data/`, or the folder you set in [Settings](#settings)) never show up as notebooks, and sync doesn't scan inside them.
 
 ## Settings
@@ -147,10 +149,24 @@ Attachment folders (`data/`, or the folder you set in [Settings](#settings)) nev
 |---|---|
 | **Photo size** | **Original** (full resolution), **Large** (long edge 2560 px), **Medium** (1920 px), **Small** (1280 px). Applies to Camera and Photos only. |
 | **Default image width** | **Fit column** fills the width of the note. **Fixed** shows a stepper for a set width, 120 to 1200 px in steps of 40. An `#+ATTR_ORG: :width` line overrides it for one image. |
-| **Attachment folder** | Where `:ID:` folders go, relative to each note's folder. `data/` by default, like Emacs; set it to match `org-attach-id-dir`, for example `attach/` or `.attach/`. Nested folders (`media/files/`) work. Absolute paths, `..` and `~` aren't allowed. Existing attachments aren't moved: files already in `data/` keep opening, and new ones go to the new folder. |
+| **Attachment folder** | Where `:ID:` folders go. Without a leading `/` it's relative to each note's folder: `data/` by default, like Emacs, or for example `attach/` or `.attach/`. With a leading `/` it's [one folder at the vault root](#one-folder-for-the-whole-vault), for example `/attach/`. Set it to match `org-attach-id-dir`. Nested folders (`media/files/`) work; `..` and `~` aren't allowed. Files already in `data/` next to a note keep opening. |
 | **Attachment tag** | The tag a heading gets when you attach files to it, `ATTACH` by default, like Emacs's `org-attach-auto-tag`. Enter it without colons; it follows the same rules as any heading tag (letters, numbers, `_ @ # % -`, no spaces). Leave it empty to add no tag. |
 
 Images are never shown wider than their own size, and tall images are scaled down to fit on screen.
+
+### One folder for the whole vault
+
+By default, like Emacs, the attachment folder is relative to each note, so `projects/work.org` keeps its attachments in `projects/attach/` and `inbox.org` in `attach/`. To keep every attachment in a single folder at the top of your vault instead, start the folder with a `/`, for example `/attach/`.
+
+In Emacs, the same layout comes from an absolute `org-attach-id-dir` pointing at that folder:
+
+```elisp
+(setq org-attach-id-dir (expand-file-name "attach/" org-directory))
+```
+
+Use the same folder in Bloom on every device and in Emacs, or each will look in a different place.
+
+When you switch from a folder next to each note (`attach/`) to a vault-root one (`/attach/`) and Bloom finds attachments in the old folders, it asks whether to move them into the new one. **Move** merges them in and removes the emptied folders; a file whose name is already taken there by a different file stays where it was. **Keep where they are** leaves them alone, and their `[[attachment:...]]` links stop opening until you move them. Links written as plain paths, such as `[[file:projects/attach/AB/CD/photo.jpg]]`, aren't rewritten either way. Switching back, or renaming the folder, doesn't move anything.
 
 ## Related
 

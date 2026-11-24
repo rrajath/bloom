@@ -268,8 +268,8 @@
     <string name="settings_attach_folder">Attachment folder</string>
     <!-- %1$s = the Emacs variable name org-attach-id-dir, drawn in monospace. -->
     <string name="settings_attach_folder_hint">Matches %1$s in Emacs.</string>
-    <!-- attach/ and /attach/ are example folder values (keep them as is): without a leading / the folder sits next to each note, with one it is a single folder at the top of the vault. data/ is the old default folder name; keep it as is. -->
-    <string name="settings_attach_folder_helper">attach/ goes next to each note. /attach/ is one folder at the vault root. Files already in data/ keep opening.</string>
+    <!-- %1$s = attach/, %2$s = /attach/, %3$s = data/, all drawn in monospace. Without a leading / the folder sits next to each note; with one it is a single folder at the top of the vault. data/ is the old default folder. -->
+    <string name="settings_attach_folder_helper">%1$s goes next to each note. %2$s is one folder at the vault root. Files already in %3$s keep opening.</string>
     <string name="settings_attach_tag">Attachment tag</string>
     <!-- %1$s = the Emacs variable name org-attach-auto-tag, drawn in monospace. -->
     <string name="settings_attach_tag_none_hint">No tag is added to headings you attach files to. Matches %1$s in Emacs.</string>
