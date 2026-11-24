@@ -19,9 +19,18 @@ class AttachFolderTest {
     }
 
     @Test
-    fun `absolute, climbing, home, backslash and empty values are rejected`() {
+    fun `a leading slash is kept for a vault root folder`() {
+        assertEquals("/attach/", AttachFolder.normalize("/attach"))
+        assertEquals("/attach/", AttachFolder.normalize(" //attach/ "))
+        assertEquals("/media/files/", AttachFolder.normalize("/media//files/"))
+        assertEquals("/.attach/", AttachFolder.normalize("/.attach"))
+        assertEquals("/attach/", AttachFolder.sanitize("/attach/"))
+    }
+
+    @Test
+    fun `climbing, home, backslash and empty values are rejected`() {
         val bad = listOf(
-            "", "   ", "/", "//", "/attachments", "../attach", "a/../b", "a/..", "~/attach", "~",
+            "", "   ", "/", "//", " / ", "/../x", "/a/..", "/~", "/~/x", "/./x", "/a\\b", "/ a", "../attach", "a/../b", "a/..", "~/attach", "~",
             "a\\b", ".", "./attach", "a/ b", "a /b",
         )
         for (v in bad) {
@@ -34,7 +43,8 @@ class AttachFolderTest {
     fun `sanitize falls back to data`() {
         assertEquals("data/", AttachFolder.sanitize(null))
         assertEquals("data/", AttachFolder.sanitize("../x"))
-        assertEquals("data/", AttachFolder.sanitize("/x"))
+        assertEquals("data/", AttachFolder.sanitize("/../x"))
+        assertEquals("data/", AttachFolder.sanitize("/"))
         assertEquals("x/", AttachFolder.sanitize("x"))
     }
 }

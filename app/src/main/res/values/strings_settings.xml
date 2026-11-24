@@ -268,8 +268,8 @@
     <string name="settings_attach_folder">Attachment folder</string>
     <!-- %1$s = the Emacs variable name org-attach-id-dir, drawn in monospace. -->
     <string name="settings_attach_folder_hint">Matches %1$s in Emacs.</string>
-    <!-- data/ is the old default folder name; keep it as is. -->
-    <string name="settings_attach_folder_helper">Relative to each note\'s folder. Files already in data/ keep opening.</string>
+    <!-- attach/ and /attach/ are example folder values (keep them as is): without a leading / the folder sits next to each note, with one it is a single folder at the top of the vault. data/ is the old default folder name; keep it as is. -->
+    <string name="settings_attach_folder_helper">attach/ goes next to each note. /attach/ is one folder at the vault root. Files already in data/ keep opening.</string>
     <string name="settings_attach_tag">Attachment tag</string>
     <!-- %1$s = the Emacs variable name org-attach-auto-tag, drawn in monospace. -->
     <string name="settings_attach_tag_none_hint">No tag is added to headings you attach files to. Matches %1$s in Emacs.</string>
@@ -280,10 +280,9 @@
     <string name="settings_attach_tag_value_none">None</string>
     <!-- Attachment folder validation errors. "/" and "\\" are path separators, ".." and "." the parent and current folder, "~" the home folder. -->
     <string name="settings_attach_folder_error_empty">Enter a folder.</string>
-    <string name="settings_attach_folder_error_leading_slash">Use a folder inside each note\'s folder; remove the leading /.</string>
     <string name="settings_attach_folder_error_tilde">~ isn\'t supported.</string>
     <string name="settings_attach_folder_error_backslash">Use / between folders.</string>
-    <string name="settings_attach_folder_error_parent">Use a folder inside each note\'s folder; .. isn\'t supported.</string>
+    <string name="settings_attach_folder_error_parent">Use a folder inside the vault; .. isn\'t supported.</string>
     <string name="settings_attach_folder_error_dot">Use folder names, not \".\".</string>
     <string name="settings_attach_folder_error_space">Folder names can\'t start or end with a space.</string>
 

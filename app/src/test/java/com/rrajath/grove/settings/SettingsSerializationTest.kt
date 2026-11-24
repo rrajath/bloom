@@ -218,8 +218,14 @@ class SettingsSerializationTest {
     }
 
     @Test
+    fun `a vault root attachment folder survives an export then import`() {
+        val json = SettingsSerialization.export(GroveSettings(attachFolder = "/attach/"))
+        assertEquals("/attach/", SettingsSerialization.import(json, GroveSettings()).attachFolder)
+    }
+
+    @Test
     fun `an invalid attachment folder imports as data`() {
-        for (bad in listOf("../attach", "/attach", "~/attach", "")) {
+        for (bad in listOf("../attach", "/../attach", "/", "~/attach", "")) {
             val json = SettingsSerialization.export(GroveSettings(attachFolder = "x/"))
                 .replace("\"attachFolder\": \"x/\"", "\"attachFolder\": \"$bad\"")
             assertTrue(bad, json.contains("\"attachFolder\": \"$bad\""))
