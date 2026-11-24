@@ -260,6 +260,14 @@ android {
             all {
                 it.systemProperty("user.language", "en")
                 it.systemProperty("user.country", "US")
+                // CI logs are the only record of a CI-only failure: print the
+                // message, cause chain and stack, not just "AssertionError at :67".
+                it.testLogging {
+                    events("failed")
+                    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                    showCauses = true
+                    showStackTraces = true
+                }
             }
         }
         // Run each instrumented test in an isolated process via AndroidX Test
