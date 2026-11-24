@@ -3,11 +3,11 @@ title: Undo
 description: A consistent undo snackbar behind nearly every mutating action in Bloom, so quick gestures stay safe to use.
 ---
 
-Because so much of Bloom's interaction model is built around fast, low-friction gestures (swipe-to-done, swipe-to-schedule, one-tap "Move to today"), almost every mutating action shows an undo snackbar (or toast, for simpler cases) immediately afterward.
+Because so much of Bloom's interaction model is built around fast, low-friction gestures (swipe-to-done, swipe-to-schedule, refile), almost every mutating action shows an undo snackbar (or toast, for simpler cases) immediately afterward.
 
 ## What's covered
 
-State changes, scheduling changes, archiving, refiling, and bulk actions like Agenda's "Move to today" all snapshot the affected file(s) before mutating them. If you tap **Undo** in the snackbar, Bloom restores the pre-mutation content exactly.
+State changes, scheduling changes, archiving, refiling, and multi-file actions like refiling all snapshot the affected file(s) before mutating them. If you tap **Undo** in the snackbar, Bloom restores the pre-mutation content exactly.
 
 For actions that touch multiple files at once (like a bulk overdue reschedule), the snapshot covers every affected file, so a single Undo tap reverts the whole batch, not just one item.
 

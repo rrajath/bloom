@@ -36,7 +36,7 @@ A heading with no TODO keyword is an event: the notification reads "Your event i
 
 ### Repeating timestamps
 
-A timestamp with a repeater (`+1w`, `++1d`, `.+1m`, `+2h`) reminds you on every occurrence, not only on the date written in the file. A weekly meeting written as `<2026-10-28 Wed 12:00 +1w>` reminds you every Wednesday at noon, and after each reminder fires the next one is set up automatically. This applies to SCHEDULED, DEADLINE and bare active timestamps alike, so a recurring task you haven't marked done keeps reminding you on each repeat. Marking it done (or tapping **Complete**) moves the date in the file forward as usual. The daily digest still counts an unfinished recurring task as overdue, the same way the Agenda does.
+A timestamp with a repeater (`+1w`, `++1d`, `.+1m`, `+2h`) reminds you on every occurrence, not only on the date written in the file. A weekly meeting written as `<2026-10-28 Wed 12:00 +1w>` reminds you every Wednesday at noon, and after each reminder fires the next one is set up automatically. This applies to SCHEDULED, DEADLINE and bare active timestamps alike, so a recurring task you haven't marked done keeps reminding you on each repeat. Marking it done (or tapping **Complete**) moves the date in the file forward as usual. The daily digest still counts an unfinished recurring task whose date has passed, the same way the Agenda keeps it on Today.
 
 Tapping the notification body itself deep-links into the note in Read mode.
 

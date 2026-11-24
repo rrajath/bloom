@@ -19,7 +19,9 @@ import java.time.LocalTime
  * ([AgendaBuckets.whenDate]): one day per heading, its SCHEDULED date, else
  * its DEADLINE. The one difference is a SCHEDULED date past the window: the
  * heading then lands on its DEADLINE instead, since that is what put it in
- * the window. A planned day before today goes to [OVERDUE_KEY]. Events (bare
+ * the window. A missed DEADLINE goes to [OVERDUE_KEY] whatever the SCHEDULED
+ * date, and a past SCHEDULED date with no missed deadline is carried onto
+ * today, after today's own entries, oldest first (issue #116). Events (bare
  * active timestamps) are separate entries on every window day they cover,
  * and never overdue. Within a day, timed entries come first in time order,
  * then untimed ones, each by title. Days with nothing on them are left out.
@@ -41,13 +43,19 @@ internal object SearchAgenda {
     fun build(notes: List<NoteMeta>, today: LocalDate, days: Int): List<Day> {
         val horizon = QueryMatcher.agendaHorizon(today, days)
         val overdue = mutableListOf<Pair<LocalDate, Entry>>()
+        val carried = mutableListOf<Pair<LocalDate, Entry>>()
         val byDay = sortedMapOf<LocalDate, MutableList<Entry>>()
 
         for (note in notes) {
-            planned(note, horizon)?.let { (day, time) ->
-                val entry = Entry(note, time)
-                if (day.isBefore(today)) overdue += day to entry
-                else byDay.getOrPut(day) { mutableListOf() } += entry
+            val deadline = note.deadlineDate
+            if (deadline != null && deadline.isBefore(today)) {
+                overdue += deadline to Entry(note, note.deadlineTime)
+            } else {
+                planned(note, horizon)?.let { (day, time) ->
+                    val entry = Entry(note, time)
+                    if (day.isBefore(today)) carried += day to entry
+                    else byDay.getOrPut(day) { mutableListOf() } += entry
+                }
             }
             for (ts in note.activeTimestamps) {
                 var day = maxOf(ts.date, today)
@@ -71,8 +79,13 @@ internal object SearchAgenda {
             )
             out += Day(OVERDUE_KEY, UiText.res(R.string.agenda_section_overdue), sorted.map { it.second })
         }
+        if (carried.isNotEmpty()) byDay.getOrPut(today) { mutableListOf() }
+        val carriedSorted = carried.sortedWith(
+            compareBy<Pair<LocalDate, Entry>> { it.first }.thenBy { it.second.note.title.lowercase() },
+        ).map { it.second }
         byDay.forEach { (day, entries) ->
-            out += Day(day.toString(), label(day, today), entries.sortedWith(BY_TIME))
+            val trailing = if (day == today) carriedSorted else emptyList()
+            out += Day(day.toString(), label(day, today), entries.sortedWith(BY_TIME) + trailing)
         }
         return out
     }

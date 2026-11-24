@@ -64,6 +64,8 @@ re-uploads the APKs to the existing release instead of failing.
 ### Changed
 - Every new org ID Bloom generates is checked against your vault so it never duplicates an existing one.
 - Settings › Agenda › Start of week now names your region's first weekday in your device language.
+- Agenda: only missed deadlines are overdue; past scheduled tasks stay on Today with "3d ago" (#116).
+- Agenda's Overdue card drops "Move to today"; reschedule missed deadlines one at a time instead.
 
 ### Fixed
 - Saving a capture template no longer risks being lost when the editor closes before the write finishes.

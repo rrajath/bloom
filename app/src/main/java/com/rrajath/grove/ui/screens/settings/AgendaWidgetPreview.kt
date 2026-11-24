@@ -213,7 +213,7 @@ private fun ScaledText(
 }
 
 /**
- * Four stubbed headings spanning Overdue (two, at different ages), Today, and
+ * Four stubbed headings spanning Overdue (two missed deadlines, at different ages), Today, and
  * Tomorrow — enough sections to preview every widget-only lever at once (tags,
  * filename, priority, font size).
  */
@@ -222,12 +222,12 @@ private fun previewNotes(today: LocalDate, res: android.content.res.Resources): 
     previewNote(
         fileName = "Work/Personal/admin.org", title = res.getString(R.string.settings_widget_sample_passport), keyword = "TODO",
         priority = "A", tags = listOf("errand"),
-        scheduled = OrgTimestamp(today.minusDays(3)).format(),
+        deadline = OrgTimestamp(today.minusDays(3)).format(),
     ),
     previewNote(
         fileName = "finance.org", title = res.getString(R.string.settings_widget_sample_expenses), keyword = "TODO",
         priority = "B", tags = emptyList(),
-        scheduled = OrgTimestamp(today.minusDays(10)).format(),
+        deadline = OrgTimestamp(today.minusDays(10)).format(),
     ),
     previewNote(
         fileName = "work/standup.org", title = res.getString(R.string.settings_widget_sample_standup), keyword = "NEXT",
@@ -248,9 +248,10 @@ private fun previewNote(
     keyword: String?,
     priority: String?,
     tags: List<String>,
-    scheduled: String,
+    scheduled: String? = null,
+    deadline: String? = null,
 ) = NoteMeta(
     fileName = fileName, lineIndex = 0, title = title, keyword = keyword, isDoneKeyword = false,
-    priority = priority, tags = tags, inheritedTags = tags, scheduled = scheduled, deadline = null,
+    priority = priority, tags = tags, inheritedTags = tags, scheduled = scheduled, deadline = deadline,
     closed = null, createdAt = null, lastModified = 0L, searchText = title,
 )

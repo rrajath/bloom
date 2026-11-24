@@ -1315,7 +1315,7 @@ private fun SearchResultRow(result: SearchResult, matchedTerms: List<String>) {
                 ) {
                     if (showDates) {
                         result.deadlineLabel?.let { DatePillText(it, overdue = result.deadlineOverdue, kind = PillKind.DEADLINE) }
-                        result.scheduledLabel?.let { DatePillText(it, overdue = result.scheduledOverdue, kind = PillKind.SCHEDULED) }
+                        result.scheduledLabel?.let { DatePillText(it, overdue = false, kind = PillKind.SCHEDULED) }
                         result.activeLabels.forEach { DatePillText(it, overdue = false, kind = PillKind.ACTIVE) }
                     }
                     if (result.tagLine.isNotEmpty()) {

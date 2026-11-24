@@ -15,7 +15,7 @@ Search covers every notebook in your vault at once, with a compact query syntax 
 
 Opening Search with an empty query shows:
 
-- **Quick Start cards**: Overdue, Today, Open tasks, Browse tags, each a one-tap shortcut into a pre-built query
+- **Quick Start cards**: Overdue, Today, Open tasks, Browse tags, each a one-tap shortcut into a pre-built query. Overdue lists open tasks whose deadline has passed; a past SCHEDULED date alone shows as "3d ago" on a result, not as overdue
 - **Saved Searches**: your starred queries, each showing its name and underlying query string (e.g. `s.today`)
 
 ## Query syntax
@@ -122,7 +122,7 @@ A row whose title is in a right-to-left language (Persian, Arabic, Hebrew) mirro
 
 ## Agenda view (`ad.N`)
 
-Add `ad.N` to any search to see the results by day, like Orgzly's agenda: `ad.7 t.work` lists everything tagged `work` that is scheduled, due or happening in the next seven days (today included). An **Overdue** section comes first, then one section per day with something on it. Timed entries are listed in time order, with untimed ones after them. Events (bare active timestamps) appear on every day they cover. The rest of the query still applies, so you can combine `ad.N` with tags, notebooks, states and `OR`.
+Add `ad.N` to any search to see the results by day, like Orgzly's agenda: `ad.7 t.work` lists everything tagged `work` that is scheduled, due or happening in the next seven days (today included). An **Overdue** section of missed deadlines comes first, then one section per day with something on it; a task whose SCHEDULED date has passed is listed at the end of today, as on the Agenda. Timed entries are listed in time order, with untimed ones after them. Events (bare active timestamps) appear on every day they cover. The rest of the query still applies, so you can combine `ad.N` with tags, notebooks, states and `OR`.
 
 ## Filters panel
 

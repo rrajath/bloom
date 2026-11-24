@@ -71,6 +71,15 @@ class ReminderDigestTest {
     }
 
     @Test
+    fun `a missed deadline counts even when its heading is scheduled later, matching Agenda's overdue card`() {
+        val reminders = listOf(
+            entity("task-sched", today.plusDays(2), PlanningType.SCHEDULED, headingPath = "task"),
+            entity("task-deadline", today.minusDays(1), PlanningType.DEADLINE, headingPath = "task"),
+        )
+        assertEquals(1, ReminderDigest.count(reminders, today, zone))
+    }
+
+    @Test
     fun `an active event today is counted`() {
         val reminders = listOf(entity("evt", today, PlanningType.ACTIVE))
         assertEquals(1, ReminderDigest.count(reminders, today, zone))
