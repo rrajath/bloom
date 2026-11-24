@@ -60,5 +60,5 @@ object NotesFts {
         false
     }
 
-    private const val TAG = "NotesFts"
+    private const val TAG = "NotesFts" // i18n: log tag
 }

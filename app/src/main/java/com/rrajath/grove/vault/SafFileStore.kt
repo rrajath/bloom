@@ -745,7 +745,7 @@ class SafFileStore(
     }
 
     // Recycle: the stream is the return value; FileStore callers close it.
-    @SuppressLint("Recycle")
+    @SuppressLint("Recycle") // i18n: lint issue id
     override suspend fun openInput(name: String): InputStream = withContext(Dispatchers.IO) {
         val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
         resolver.openInputStream(uri) ?: throw FileNotFoundException(name)
@@ -776,7 +776,7 @@ class SafFileStore(
     }
 
     // Recycle: the stream is the return value; FileStore callers close it.
-    @SuppressLint("Recycle")
+    @SuppressLint("Recycle") // i18n: lint issue id
     override suspend fun openOutput(name: String): OutputStream = withContext(Dispatchers.IO) {
         val uri = rawFileUri(name) ?: throw FileNotFoundException(name)
         resolver.openOutputStream(uri, "wt") ?: throw FileNotFoundException(name)

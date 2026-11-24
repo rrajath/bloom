@@ -457,7 +457,7 @@ abstract class IndexDao {
 
     @Query(
         "SELECT fileName, keyword, isDone, inheritedTags, scheduled, deadline, " +
-            "activeTimestamps, lastModified FROM notes"
+            "activeTimestamps, lastModified FROM notes" // i18n: SQL
     )
     abstract fun noteFacets(): Flow<List<NoteFacetRow>>
 
@@ -483,8 +483,8 @@ abstract class IndexDao {
      */
     @Query(
         "SELECT fileName, lineIndex, title, keyword, priority, tags, inheritedTags, " +
-            "scheduled, deadline, closed, activeTimestamps, createdAt, isDone, lastModified, " +
-            "orgId, customId " +
+            "scheduled, deadline, closed, activeTimestamps, createdAt, isDone, lastModified, " + // i18n: SQL
+            "orgId, customId " + // i18n: SQL
             "FROM notes WHERE scheduled IS NOT NULL OR deadline IS NOT NULL " +
             "OR activeTimestamps IS NOT NULL"
     )
@@ -613,7 +613,7 @@ abstract class IndexDao {
     @SkipQueryVerification
     @Query(
         "DELETE FROM notes_fts WHERE rowid IN " +
-            "(SELECT ftsRowid FROM notes_fts_map WHERE fileName = :fileName)"
+            "(SELECT ftsRowid FROM notes_fts_map WHERE fileName = :fileName)" // i18n: SQL
     )
     abstract suspend fun deleteFtsRowsByMap(fileName: String)
 

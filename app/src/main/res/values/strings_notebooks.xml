@@ -123,4 +123,20 @@
     </plurals>
     <!-- Sync error with no details from the system; shown by the Notebooks sync warning icon. -->
     <string name="sync_failed">Sync failed</string>
+    <!-- Resolve conflict screen (ui/screens/ConflictScreen.kt). The top bar title reuses
+         notebooks_menu_resolve_conflict. -->
+    <string name="conflict_none">No conflict on this notebook</string>
+    <string name="conflict_explanation">This file changed on two devices. Syncthing kept the newer version and saved the other as a conflict copy. Pick what to keep.</string>
+    <!-- CONFLICT is the org heading the merged copy goes under; keep it in English and capitals. -->
+    <string name="conflict_keep_both">Keep both (merge under CONFLICT)</string>
+    <string name="conflict_keep_current">Keep current</string>
+    <string name="conflict_keep_copy">Keep copy</string>
+    <!-- .sync-conflict is part of the copy's file name; keep it as-is. -->
+    <string name="conflict_copy_removed">Either way the .sync-conflict copy is removed afterwards.</string>
+    <!-- Diff header labels, shown in capitals: "CURRENT VERSION → CONFLICT COPY · <date>". -->
+    <string name="conflict_current_version">Current version</string>
+    <string name="conflict_conflict_copy">Conflict copy</string>
+    <!-- Separator above a block of changed lines. %1$d is the line number in the current file. -->
+    <string name="conflict_hunk_line">Line %1$d</string>
+    <string name="conflict_no_differences">No textual differences between the two copies.</string>
 </resources>

@@ -33,4 +33,15 @@
     <!-- Snackbar after a capture saves into a new file. %1$s = the file's name. -->
     <string name="nav_capture_saved_file">Saved \"%1$s\"</string>
     <string name="nav_capture_visit_file">Visit file</string>
+    <!-- First-run onboarding (ui/screens/OnboardingScreen.kt). -->
+    <string name="onboarding_tagline">Your org-mode notes, at home on your phone.</string>
+    <!-- Small tag next to the Syncthing setup card's title. -->
+    <string name="onboarding_recommended">Recommended</string>
+    <string name="onboarding_syncthing_title">Sync with Syncthing</string>
+    <string name="onboarding_step_install">Install Syncthing on this phone and your laptop</string>
+    <string name="onboarding_step_share">Share your org folder between the two devices</string>
+    <!-- %1$s is the app name. -->
+    <string name="onboarding_step_point">Point %1$s at that folder below: sync is automatic</string>
+    <string name="onboarding_choose_folder">Choose a local folder</string>
+    <string name="onboarding_later">I\'ll set this up later</string>
 </resources>

@@ -13,9 +13,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.whatsnew.ChangelogVersion
@@ -32,14 +34,14 @@ fun WhatsNewDialog(versions: List<ChangelogVersion>, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         containerColor = c.surface,
         title = {
-            Text("What's New", fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = c.ink)
+            Text(stringResource(R.string.settings_page_whats_new_title), fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = c.ink)
         },
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 versions.forEachIndexed { index, version ->
                     if (index > 0) Spacer(Modifier.height(16.dp))
                     Text(
-                        if (version.versionCode != null) "v${version.title}" else "Latest changes",
+                        if (version.versionCode != null) "v${version.title}" else stringResource(R.string.whats_new_latest_changes),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.accent,
                     )
                     version.subsections.forEach { section ->

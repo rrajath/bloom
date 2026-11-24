@@ -415,4 +415,14 @@
     <string name="settings_widget_sample_expenses">File expense report</string>
     <string name="settings_widget_sample_standup">Team standup</string>
     <string name="settings_widget_sample_report">Draft quarterly report</string>
+    <!-- Sync log screen (ui/screens/SyncLogScreen.kt). -->
+    <string name="sync_log_title">Sync log</string>
+    <!-- Button at the end of the sync log. %1$d is how many older entries aren't shown yet. -->
+    <plurals name="sync_log_load_more">
+        <item quantity="one">Load more (%1$d older)</item>
+        <item quantity="other">Load more (%1$d older)</item>
+    </plurals>
+    <!-- What's New dialog (ui/screens/WhatsNewDialog.kt): heading for changes not yet in a release.
+         The dialog title reuses settings_page_whats_new_title. -->
+    <string name="whats_new_latest_changes">Latest changes</string>
 </resources>

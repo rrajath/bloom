@@ -81,7 +81,7 @@ fun OnboardingScreen(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Your org-mode notes, at home on your phone.",
+            stringResource(R.string.onboarding_tagline),
             fontFamily = PlexSans,
             fontSize = 15.sp,
             color = c.ink2,
@@ -99,18 +99,18 @@ fun OnboardingScreen(
                 .padding(18.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Pill("Recommended", fg = c.green, bg = c.greenSoft)
+                Pill(stringResource(R.string.onboarding_recommended), fg = c.green, bg = c.greenSoft)
                 Spacer(Modifier.size(8.dp))
                 Text(
-                    "Sync with Syncthing",
+                    stringResource(R.string.onboarding_syncthing_title),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp, color = c.ink,
                 )
             }
             Spacer(Modifier.height(14.dp))
-            OnboardingStep(1, "Install Syncthing on this phone and your laptop")
-            OnboardingStep(2, "Share your org folder between the two devices")
-            OnboardingStep(3, "Point ${stringResource(R.string.app_name)} at that folder below: sync is automatic")
+            OnboardingStep(1, stringResource(R.string.onboarding_step_install))
+            OnboardingStep(2, stringResource(R.string.onboarding_step_share))
+            OnboardingStep(3, stringResource(R.string.onboarding_step_point, stringResource(R.string.app_name)))
         }
 
         Spacer(Modifier.height(26.dp))
@@ -126,7 +126,7 @@ fun OnboardingScreen(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                "Choose a local folder",
+                stringResource(R.string.onboarding_choose_folder),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp, color = c.accentInk,
             )
@@ -140,7 +140,7 @@ fun OnboardingScreen(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                "I'll set this up later",
+                stringResource(R.string.onboarding_later),
                 fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
             )
         }

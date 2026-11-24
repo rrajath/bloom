@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -42,11 +43,15 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.difflib.DiffUtils
 import com.github.difflib.UnifiedDiffUtils
+import com.rrajath.grove.R
 import com.rrajath.grove.sync.ConflictResolution
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.forwardArrowGlyph
+import com.rrajath.grove.ui.util.uppercaseForUi
 import com.rrajath.grove.ui.vault.ConflictUiState
 import com.rrajath.grove.ui.vault.ConflictViewModel
 
@@ -66,11 +71,11 @@ fun ConflictScreen(
         containerColor = c.bg,
         topBar = {
             GroveTopBar(
-                leading = { IconGlyph("←", onClick = onBack) },
+                leading = { IconGlyph(backArrowGlyph(), onClick = onBack) },
                 title = {
                     Column(Modifier.padding(start = 4.dp)) {
                         Text(
-                            "Resolve conflict",
+                            stringResource(R.string.notebooks_menu_resolve_conflict),
                             style = MaterialTheme.typography.titleMedium, color = c.ink,
                         )
                         Text(notebookId, fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink2)
@@ -85,7 +90,7 @@ fun ConflictScreen(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("No conflict on this notebook", fontFamily = PlexSans, color = c.ink2)
+                Text(stringResource(R.string.conflict_none), fontFamily = PlexSans, color = c.ink2)
             }
 
             is ConflictUiState.Loaded -> Column(
@@ -113,8 +118,7 @@ fun ConflictScreen(
                     }
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "This file changed on two devices. Syncthing kept the newer " +
-                                "version and saved the other as a conflict copy. Pick what to keep.",
+                        stringResource(R.string.conflict_explanation),
                         fontFamily = PlexSans, fontSize = 13.sp, lineHeight = 1.5.em, color = c.ink,
                     )
                 }
@@ -128,22 +132,22 @@ fun ConflictScreen(
                 Spacer(Modifier.height(18.dp))
 
                 // Actions
-                PrimaryButton("Keep both (merge under CONFLICT)") {
+                PrimaryButton(stringResource(R.string.conflict_keep_both)) {
                     viewModel.resolve(s.fileName, ConflictResolution.KEEP_BOTH)
                 }
                 Spacer(Modifier.height(10.dp))
                 Row {
-                    SecondaryButton("Keep current", Modifier.weight(1f)) {
+                    SecondaryButton(stringResource(R.string.conflict_keep_current), Modifier.weight(1f)) {
                         viewModel.resolve(s.fileName, ConflictResolution.KEEP_CURRENT)
                     }
                     Spacer(Modifier.width(10.dp))
-                    SecondaryButton("Keep copy", Modifier.weight(1f)) {
+                    SecondaryButton(stringResource(R.string.conflict_keep_copy), Modifier.weight(1f)) {
                         viewModel.resolve(s.fileName, ConflictResolution.KEEP_CONFLICT_COPY)
                     }
                 }
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "Either way the .sync-conflict copy is removed afterwards.",
+                    stringResource(R.string.conflict_copy_removed),
                     fontFamily = PlexMono, fontSize = 11.5.sp, color = c.ink3,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -156,7 +160,8 @@ fun ConflictScreen(
 
 /** One row of a rendered unified diff: a hunk boundary label, or a single line. */
 private sealed class DiffRow {
-    data class Hunk(val label: String) : DiffRow()
+    /** [line] is the hunk's first line number in the current file. */
+    data class Hunk(val line: Int) : DiffRow()
     data class Line(val prefix: Char, val text: String) : DiffRow()
 }
 
@@ -174,7 +179,7 @@ private fun computeUnifiedDiff(current: String, copy: String): List<DiffRow> {
     for (line in unified.drop(2)) { // drop the "---"/"+++" file header lines
         val hunkMatch = HUNK_HEADER.find(line)
         when {
-            hunkMatch != null -> rows += DiffRow.Hunk("Line ${hunkMatch.groupValues[1]}")
+            hunkMatch != null -> rows += DiffRow.Hunk(hunkMatch.groupValues[1].toInt())
             line.startsWith("+") -> rows += DiffRow.Line('+', line.drop(1))
             line.startsWith("-") -> rows += DiffRow.Line('-', line.drop(1))
             line.startsWith(" ") -> rows += DiffRow.Line(' ', line.drop(1))
@@ -187,12 +192,15 @@ private fun computeUnifiedDiff(current: String, copy: String): List<DiffRow> {
 private fun UnifiedDiffCard(dateLabel: String, current: String, copy: String) {
     val c = MaterialTheme.grove
     val rows = remember(current, copy) { computeUnifiedDiff(current, copy) }
+    val currentLabel = stringResource(R.string.conflict_current_version).uppercaseForUi()
+    val copyLabel = stringResource(R.string.conflict_conflict_copy).uppercaseForUi()
+    val arrow = forwardArrowGlyph()
     Column {
         Text(
             buildAnnotatedString {
-                withStyle(SpanStyle(color = c.red)) { append("CURRENT VERSION") }
-                append(" → ")
-                withStyle(SpanStyle(color = c.green)) { append("CONFLICT COPY") }
+                withStyle(SpanStyle(color = c.red)) { append(currentLabel) }
+                append(" $arrow ")
+                withStyle(SpanStyle(color = c.green)) { append(copyLabel) }
                 append(" · $dateLabel")
             },
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
@@ -211,14 +219,14 @@ private fun UnifiedDiffCard(dateLabel: String, current: String, copy: String) {
         ) {
             if (rows.isEmpty()) {
                 Text(
-                    "No textual differences between the two copies.",
+                    stringResource(R.string.conflict_no_differences),
                     fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink3,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
             rows.forEach { row ->
                 when (row) {
-                    is DiffRow.Hunk -> DiffHunkSeparator(row.label)
+                    is DiffRow.Hunk -> DiffHunkSeparator(stringResource(R.string.conflict_hunk_line, row.line))
                     is DiffRow.Line -> DiffLineRow(row)
                 }
             }

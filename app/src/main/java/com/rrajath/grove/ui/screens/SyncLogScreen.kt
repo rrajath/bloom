@@ -19,21 +19,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.ScrollJumpButtons
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.backArrowGlyph
 import com.rrajath.grove.ui.vault.SyncLogViewModel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+// i18n: numeric log timestamp, same in every language
 private val LOG_TIME = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss.SSS")
 
 /** Sync log (Settings → Sync → View Log, PRD §13). */
@@ -50,10 +55,10 @@ fun SyncLogScreen(
         containerColor = c.bg,
         topBar = {
             GroveTopBar(
-                leading = { IconGlyph("←", onClick = onBack) },
+                leading = { IconGlyph(backArrowGlyph(), onClick = onBack) },
                 title = {
                     Text(
-                        "Sync log",
+                        stringResource(R.string.sync_log_title),
                         style = MaterialTheme.typography.titleLarge, color = c.ink,
                         modifier = Modifier.padding(start = 4.dp),
                     )
@@ -86,7 +91,7 @@ fun SyncLogScreen(
             if (entries.size < total) {
                 item(key = "load-more") {
                     Text(
-                        "Load more (${total - entries.size} older)",
+                        pluralStringResource(R.plurals.sync_log_load_more, total - entries.size, total - entries.size),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp, color = c.accent,
                         textAlign = TextAlign.Center,
