@@ -5,7 +5,6 @@ import com.rrajath.grove.R
 import com.rrajath.grove.org.NotePlacement
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgMutations
-import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.settings.GroveSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filterNotNull
@@ -82,7 +81,7 @@ object ShareIntake {
             settings.shareInsertPlacement,
             note,
             OrgMutations.NewNoteOptions(
-                id = if (settings.addIdToNewNotes) newOrgId() else null,
+                id = if (settings.addIdToNewNotes) app.orgIdAllocator.next() else null,
                 createdAt = if (settings.addCreatedToNewNotes) LocalDateTime.now() else null,
                 body = note.body,
             ),

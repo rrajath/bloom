@@ -104,7 +104,6 @@ import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgTimestamp
-import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.rememberTapFlash
@@ -536,9 +535,7 @@ fun ReadNoteScreen(
                 },
                 onGenerateId = {
                     metadataOpen = false
-                    viewModel.withIntroHeading(resources.getString(R.string.metadata_toast_org_id_generated)) { d, h ->
-                        OrgMutations.upsertProperty(d, h, "ID", newOrgId())
-                    }
+                    viewModel.generateIntroId(resources.getString(R.string.metadata_toast_org_id_generated))
                 },
                 onRefile = {},
                 showRefile = false,

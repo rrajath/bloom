@@ -57,7 +57,11 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+- Capture templates accept `%id`, and each use inserts its own unique ID, e.g. in a `:PROPERTIES:` drawer.
+
 ### Changed
+- Every new org ID Bloom generates is checked against your vault so it never duplicates an existing one.
 - Settings › Agenda › Start of week now names your region's first weekday in your device language.
 
 ### Fixed

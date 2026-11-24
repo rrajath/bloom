@@ -40,6 +40,7 @@ val PLACEHOLDER_DOCS: List<Pair<String, Int>> = listOf(
     "%clipboard" to R.string.placeholder_doc_clipboard,
     "%shared_text" to R.string.placeholder_doc_shared_text,
     "%shared_url" to R.string.placeholder_doc_shared_url,
+    "%id / %(id)" to R.string.placeholder_doc_id,
     "%cursor / %?" to R.string.placeholder_doc_cursor,
     "%^{Prompt}" to R.string.placeholder_doc_prompt,
 )

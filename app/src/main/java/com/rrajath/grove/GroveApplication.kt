@@ -136,6 +136,11 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
     val database: GroveDatabase by lazy { GroveDatabase.build(this) }
 
+    /** Every `:ID:` Grove writes comes from here: checked against the index for vault uniqueness. */
+    val orgIdAllocator: com.rrajath.grove.org.OrgIdAllocator by lazy {
+        com.rrajath.grove.org.OrgIdAllocator(taken = { database.indexDao().orgIdTaken(it) })
+    }
+
     /** Current TODO keyword config; parser consumers read this. */
     val keywords: StateFlow<OrgKeywords> by lazy {
         settingsRepository.settings

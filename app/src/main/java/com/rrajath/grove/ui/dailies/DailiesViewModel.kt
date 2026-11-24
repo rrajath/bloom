@@ -7,6 +7,7 @@ import com.rrajath.grove.capture.FilenamePattern
 import com.rrajath.grove.dailies.DailiesRepository
 import com.rrajath.grove.dailies.DailyNoteLookup
 import com.rrajath.grove.org.OrgDocument
+import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.SettingsSource
 import com.rrajath.grove.ui.vault.factory
@@ -50,6 +51,8 @@ class DailiesViewModel(
     private val settings: SettingsSource,
     private val dispatchers: AppDispatchers,
     private val lookup: DailyNoteLookup? = null,
+    /** [count] fresh vault-unique IDs ([com.rrajath.grove.org.OrgIdAllocator] in the app). */
+    private val orgIds: suspend (count: Int) -> List<String> = { n -> List(n) { newOrgId() } },
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<DailiesNavState?>(null)
@@ -87,9 +90,11 @@ class DailiesViewModel(
     /** Delegates to the [DailiesRepository]/settings snapshot [refresh] last resolved, so the
      *  empty-day "start typing" affordance can seed the header template without this screen
      *  needing its own [Vault] access. */
-    fun expandedHeaderFor(date: LocalDate): com.rrajath.grove.capture.ExpandedTemplate {
+    suspend fun expandedHeaderFor(date: LocalDate): com.rrajath.grove.capture.ExpandedTemplate {
         val idx = index ?: return com.rrajath.grove.capture.ExpandedTemplate("", 0)
-        return idx.repo.expandHeaderTemplate(idx.settings.dailiesHeaderTemplate, date)
+        val template = idx.settings.dailiesHeaderTemplate
+        val ids = orgIds(maxOf(1, com.rrajath.grove.capture.PlaceholderExpander.idCount(template)))
+        return idx.repo.expandHeaderTemplate(template, date, ids)
     }
 
     /** The prefetched parse of [fileName], if the prefetch has reached it. */
@@ -258,7 +263,7 @@ class DailiesViewModel(
 
     companion object {
         val Factory = factory {
-            DailiesViewModel(it.vault, it.settingsRepository, it.dispatchers, it.dailyNoteLookup)
+            DailiesViewModel(it.vault, it.settingsRepository, it.dispatchers, it.dailyNoteLookup, it.orgIdAllocator::allocate)
         }
     }
 }

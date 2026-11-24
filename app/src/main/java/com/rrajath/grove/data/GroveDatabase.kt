@@ -412,6 +412,18 @@ abstract class IndexDao {
     abstract suspend fun notebookByOrgId(id: String): String?
 
     /**
+     * Whether any heading `:ID:`/`:CUSTOM_ID:` or file-level `:ID:` already uses
+     * [id], for [com.rrajath.grove.org.OrgIdAllocator]. Case-insensitive (the
+     * NOCASE columns), so a lowercase Emacs ID still counts as taken. Indexed.
+     */
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM notes WHERE orgId = :id) " +
+            "OR EXISTS(SELECT 1 FROM notes WHERE customId = :id) " +
+            "OR EXISTS(SELECT 1 FROM notebooks WHERE orgId = :id COLLATE NOCASE)"
+    )
+    abstract suspend fun orgIdTaken(id: String): Boolean
+
+    /**
      * Every (file, `:ID:`) pair among [ids], headings and file-level drawers
      * alike: which files share an attachment dir (attachments, experimental).
      * Callers chunk [ids] under SQLite's bound-parameter limit ([ids] binds
