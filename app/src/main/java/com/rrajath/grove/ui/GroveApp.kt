@@ -87,6 +87,7 @@ import com.rrajath.grove.ui.screens.settings.SettingsDeveloperScreen
 import com.rrajath.grove.ui.screens.settings.SettingsNotebooksScreen
 import com.rrajath.grove.ui.screens.settings.SettingsNotesScreen
 import com.rrajath.grove.ui.screens.settings.SettingsRemindersScreen
+import com.rrajath.grove.ui.attach.AttachFolderMoveSheet
 import com.rrajath.grove.ui.screens.settings.SettingsAttachmentsScreen
 import com.rrajath.grove.ui.screens.settings.SettingsRoamScreen
 import com.rrajath.grove.ui.screens.settings.SettingsSharingScreen
@@ -1214,6 +1215,16 @@ private fun GroveNavigation(
                     onSetAttachFolder = viewModel::setAttachFolder,
                     onSetAttachAutoTag = viewModel::setAttachAutoTag,
                 )
+                viewModel.attachFolderMove.collectAsStateWithLifecycle().value?.let { offer ->
+                    AttachFolderMoveSheet(
+                        from = offer.from,
+                        to = offer.to,
+                        found = offer.found,
+                        moving = offer.moving,
+                        onMove = viewModel::moveAttachFolder,
+                        onKeep = viewModel::keepAttachFolder,
+                    )
+                }
             }
             screen(Routes.SETTINGS_BACKUP) {
                 SettingsBackupScreen(

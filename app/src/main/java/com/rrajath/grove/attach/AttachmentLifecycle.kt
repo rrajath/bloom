@@ -81,6 +81,28 @@ data class AttachmentInventory(
     }
 }
 
+/**
+ * Attachment folders next to notes that a switch to a vault-root folder would
+ * leave behind ([AttachmentLifecycle.perNoteRoots]). [files] and [bytes] only
+ * count what's inside their shards.
+ */
+data class PerNoteRoots(val roots: List<String>, val files: Int, val bytes: Long) {
+    val isEmpty: Boolean get() = roots.isEmpty()
+
+    companion object {
+        val Empty = PerNoteRoots(emptyList(), 0, 0L)
+    }
+}
+
+/**
+ * Outcome of [AttachmentLifecycle.mergeRootsInto]: [left] files stayed where
+ * they were because a different file already had their name in the target,
+ * [failed] couldn't be moved.
+ */
+data class RootMergeResult(val left: Int = 0, val failed: Int = 0) {
+    val notMoved: Int get() = left + failed
+}
+
 /** Outcome of a lifecycle operation, counted per attach dir. */
 data class LifecycleResult(val moved: Int = 0, val copied: Int = 0, val deleted: Int = 0, val kept: Int = 0, val failed: Int = 0) {
     companion object {
@@ -446,6 +468,79 @@ class AttachmentLifecycle(
         acc.copy(failed = acc.failed + 1)
     }
 
+    /**
+     * Every per-note attachment folder in the vault (this lifecycle's folder
+     * relative to each note's folder, `attach` or `Work/attach` for `attach/`)
+     * holding at least one shard, [exclude] aside (the vault-root folder being
+     * switched to, which at the vault root is the same path). Empty when this
+     * lifecycle's folder is already a vault-root one.
+     */
+    suspend fun perNoteRoots(exclude: String?): PerNoteRoots {
+        if (config.isVaultRoot) return PerNoteRoots.Empty
+        val tail = normalizeVaultPath(config.idDir)?.takeIf { it.isNotEmpty() } ?: return PerNoteRoots.Empty
+        val skip = exclude?.trim('/')
+        val roots = walkRoots("", isRoot = { it == tail || it.endsWith("/$tail") }, skip = skip)
+        var files = 0
+        var bytes = 0L
+        for (root in roots) {
+            for (shard in store.listSubdirs(root).filter(::isAttachShard)) {
+                val size = this.files.sizeOf(joinPath(root, shard))
+                files += size.files
+                bytes += size.bytes
+            }
+        }
+        return PerNoteRoots(roots, files, bytes)
+    }
+
+    /**
+     * Moves the shards of each of [roots] into [dest] (a vault-root attachment
+     * folder), merging with what's there. A file whose name is taken in the
+     * target by identical content is dropped; by different content it stays
+     * where it was (renaming it would break its `[[attachment:]]` link).
+     * Emptied roots are removed; anything else in them (user folders) stays.
+     */
+    suspend fun mergeRootsInto(roots: List<String>, dest: String): RootMergeResult = mutex.withLock {
+        val target = dest.trim('/')
+        var result = RootMergeResult()
+        var changed = false
+        for (root in roots) {
+            if (root.trim('/') == target) continue
+            for (shard in store.listSubdirs(root).filter(::isAttachShard)) {
+                val r = mergeTree(joinPath(root, shard), joinPath(target, shard))
+                result = RootMergeResult(result.left + r.left, result.failed + r.failed)
+                changed = true
+            }
+            files.pruneEmpty(root, stopAt = parentOf(root))
+        }
+        if (changed) onChanged()
+        result
+    }
+
+    /** [src] merged into [dst]: one directory move when [dst] is free, else file by file. */
+    private suspend fun mergeTree(src: String, dst: String): RootMergeResult {
+        if (!store.dirExists(dst) && store.moveDir(src, parentOf(dst))) return RootMergeResult()
+        var left = 0
+        var failed = 0
+        for (entry in store.listDirRaw(src)) {
+            val leaf = entry.name.substringAfterLast('/')
+            val from = joinPath(src, leaf)
+            val to = joinPath(dst, leaf)
+            when {
+                store.statRaw(to) == null ->
+                    if (!(files.copyFile(from, to) && store.deleteRaw(from))) failed++
+                sameContent(from, to) -> if (!store.deleteRaw(from)) failed++
+                else -> left++
+            }
+        }
+        for (sub in store.listSubdirs(src)) {
+            val r = mergeTree(joinPath(src, sub), joinPath(dst, sub))
+            left += r.left
+            failed += r.failed
+        }
+        if (store.listDirRaw(src).isEmpty() && store.listSubdirs(src).isEmpty()) store.deleteDir(src)
+        return RootMergeResult(left, failed)
+    }
+
     /** IDs among [ids] that any file in the vault holds, [exclude] aside. */
     private suspend fun idsHeldAnywhere(ids: Collection<String>, exclude: Set<String>): Set<String> {
         if (ids.isEmpty()) return emptySet()
@@ -471,15 +566,30 @@ class AttachmentLifecycle(
      * the central folder belongs to the whole vault, not to [dir].
      */
     private suspend fun attachRoots(dir: String, limit: Int = Int.MAX_VALUE): List<String> {
+        if (dir.isEmpty()) return emptyList()
         val leaf = if (centralRoot != null) AttachDirResolver.DEFAULT_ID_DIR else config.idDir.trim('/').substringAfterLast('/')
+        return walkRoots(dir, isRoot = { it.substringAfterLast('/') == leaf }, skip = centralRoot, limit = limit)
+    }
+
+    /**
+     * Folders at or under [start] ("" for the whole vault) that [isRoot]
+     * accepts and that hold at least one shard. Never walks into shards, a
+     * dot folder or [skip]; a root's non-shard children are walked too.
+     */
+    private suspend fun walkRoots(
+        start: String,
+        isRoot: (String) -> Boolean,
+        skip: String?,
+        limit: Int = Int.MAX_VALUE,
+    ): List<String> {
         val out = mutableListOf<String>()
         suspend fun walk(path: String) {
             for (sub in store.listSubdirs(path)) {
                 if (out.size >= limit) return
                 if (sub.startsWith(".")) continue
                 val child = joinPath(path, sub)
-                if (child == centralRoot) continue
-                if (sub == leaf) {
+                if (child == skip) continue
+                if (isRoot(child)) {
                     val kids = store.listSubdirs(child)
                     if (kids.any(::isAttachShard)) out += child
                     for (kid in kids) {
@@ -491,7 +601,7 @@ class AttachmentLifecycle(
                 }
             }
         }
-        if (dir.isNotEmpty()) walk(dir)
+        walk(start)
         return out
     }
 }

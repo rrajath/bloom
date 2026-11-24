@@ -285,6 +285,22 @@
     <string name="settings_attach_folder_error_parent">Use a folder inside the vault; .. isn\'t supported.</string>
     <string name="settings_attach_folder_error_dot">Use folder names, not \".\".</string>
     <string name="settings_attach_folder_error_space">Folder names can\'t start or end with a space.</string>
+    <!-- Sheet shown after the attachment folder changes from one next to each note (attach/) to one at the vault root (/attach/), when attachment folders next to notes were found. -->
+    <string name="settings_attach_move_title">Move existing attachments?</string>
+    <!-- %1$s = old folder (e.g. attach/), %2$s = new folder (e.g. /attach/), %3$s = "3 folders · 12 files · 4.1 MB". Flip the arrow for right-to-left languages. -->
+    <string name="settings_attach_move_subline">%1$s → %2$s · %3$s</string>
+    <!-- %1$s = the new vault-root folder, e.g. /attach/, drawn in monospace. -->
+    <string name="settings_attach_move_body">Attachment folders were found next to your notes. Move them into %1$s so their links keep working? A file whose name is already taken there by a different file stays where it is.</string>
+    <string name="settings_attach_move_keep">Keep where they are</string>
+    <string name="settings_attach_move_confirm">Move</string>
+    <!-- Toast after the move. %1$s = the new vault-root folder, e.g. /attach/. -->
+    <string name="settings_attach_move_done">Attachments moved to %1$s.</string>
+    <!-- Toast after the move when some files couldn't go. %1$d = files left behind, %2$s = the new vault-root folder. -->
+    <plurals name="settings_attach_move_partial">
+        <item quantity="one">Attachments moved to %2$s. %1$d file stayed in its old folder.</item>
+        <item quantity="other">Attachments moved to %2$s. %1$d files stayed in their old folders.</item>
+    </plurals>
+    <string name="settings_attach_move_failed">Couldn\'t move the attachments. They\'re still in their old folders.</string>
 
     <!-- Settings > Roam Features. -->
     <string name="settings_roam_experimental_note">These are experimental features and are subject to change.</string>

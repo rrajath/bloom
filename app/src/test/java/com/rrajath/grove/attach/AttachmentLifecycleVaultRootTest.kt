@@ -137,4 +137,62 @@ class AttachmentLifecycleVaultRootTest {
         put("Work/data/BB/22/b.jpg")
         assertTrue(lifecycle().folderHasAttachments("Work"))
     }
+
+    // --- switching to a vault-root folder: find and merge per-note folders ---
+
+    private fun read(path: String) = File(tmp.root, path).readText()
+
+    @Test
+    fun `perNoteRoots finds the old folder next to notes, not the new central one`() = runTest {
+        put("attach/AA/11/root.jpg", "12")
+        put("projects/attach/BB/22/b.jpg", "123")
+        put("deep/x/attach/__/C/CC33/c.txt", "1")
+        put("projects/attachments/DD/44/d.jpg")
+        put("notes/attach/readme.org", "* not an attach root")
+        val found = lifecycle("attach/").perNoteRoots(exclude = "attach")
+        assertEquals(setOf("projects/attach", "deep/x/attach"), found.roots.toSet())
+        assertEquals(2, found.files)
+        assertEquals(4L, found.bytes)
+    }
+
+    @Test
+    fun `perNoteRoots matches a nested folder as a trailing path`() = runTest {
+        put("Work/media/files/AA/11/a.jpg")
+        put("Work/files/BB/22/b.jpg")
+        assertEquals(listOf("Work/media/files"), lifecycle("media/files/").perNoteRoots(exclude = "media/files").roots)
+    }
+
+    @Test
+    fun `perNoteRoots is empty when the folder is already at the vault root`() = runTest {
+        put("projects/attach/BB/22/b.jpg")
+        assertTrue(lifecycle("/attach/").perNoteRoots(exclude = "attach").isEmpty)
+    }
+
+    @Test
+    fun `mergeRootsInto moves shards, dedupes identical files and leaves conflicting ones`() = runTest {
+        put("projects/attach/AA/11/new.jpg", "new")
+        put("projects/attach/BB/22/same.jpg", "same")
+        put("projects/attach/BB/22/clash.jpg", "mine")
+        put("projects/attach/BB/22/extra.jpg", "extra")
+        put("projects/attach/notes/keep.org", "* user folder")
+        put("deep/attach/CC/33/c.jpg", "c")
+        put("attach/BB/22/same.jpg", "same")
+        put("attach/BB/22/clash.jpg", "theirs")
+
+        val r = lifecycle().mergeRootsInto(listOf("projects/attach", "deep/attach"), "attach")
+
+        assertEquals(RootMergeResult(left = 1), r)
+        assertEquals("new", read("attach/AA/11/new.jpg"))
+        assertEquals("same", read("attach/BB/22/same.jpg"))
+        assertEquals("theirs", read("attach/BB/22/clash.jpg"))
+        assertEquals("extra", read("attach/BB/22/extra.jpg"))
+        assertEquals("c", read("attach/CC/33/c.jpg"))
+        // The conflicting file stays where it was, with its folders.
+        assertEquals("mine", read("projects/attach/BB/22/clash.jpg"))
+        assertFalse(exists("projects/attach/BB/22/same.jpg"))
+        assertFalse(exists("projects/attach/AA"))
+        assertTrue(exists("projects/attach/notes/keep.org"))
+        // An emptied root goes away.
+        assertFalse(exists("deep/attach"))
+    }
 }

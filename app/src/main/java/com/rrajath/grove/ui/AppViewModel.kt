@@ -77,6 +77,8 @@ class AppViewModel(
     // asset streams, contentResolver, getString, and ShareIntake.consumeShare.
     private val app: GroveApplication,
     private val templatesRepository: com.rrajath.grove.capture.TemplatesRepository = app.templatesRepository,
+    // The vault's store, for the attachment folder move offer; injectable for tests.
+    private val attachStore: () -> com.rrajath.grove.vault.FileStore? = { app.fileStore.value },
 ) : ViewModel() {
 
     /** Null until the DataStore emits, so the UI can gate on first load. */
@@ -450,8 +452,75 @@ class AppViewModel(
     fun setAttachImageWidthPx(px: Int) =
         viewModelScope.launch { settingsRepository.setAttachImageWidthPx(px) }
 
-    fun setAttachFolder(folder: String) =
-        viewModelScope.launch { settingsRepository.setAttachFolder(folder) }
+    /** An offer to move attachment folders next to notes into a new vault-root folder (Settings › Attachments). */
+    data class AttachFolderMove(
+        val from: String,
+        val to: String,
+        val found: com.rrajath.grove.attach.PerNoteRoots,
+        val moving: Boolean = false,
+    )
+
+    private val _attachFolderMove = MutableStateFlow<AttachFolderMove?>(null)
+    val attachFolderMove: StateFlow<AttachFolderMove?> = _attachFolderMove
+
+    /**
+     * Stores the attachment folder. Switching from a folder next to each note
+     * (`attach/`) to a vault-root one (`/attach/`) then looks for attachment
+     * folders the old setting left next to notes and, when there are any,
+     * offers to move them ([attachFolderMove]).
+     */
+    fun setAttachFolder(folder: String) = viewModelScope.launch {
+        val old = settingsRepository.settings.first().attachFolder
+        settingsRepository.setAttachFolder(folder)
+        val oldConfig = com.rrajath.grove.attach.AttachConfig.forFolder(old)
+        val newConfig = com.rrajath.grove.attach.AttachConfig.forFolder(folder)
+        if (oldConfig.isVaultRoot || !newConfig.isVaultRoot) return@launch
+        val store = attachStore() ?: return@launch
+        val found = withContext(dispatchers.io) {
+            runCatching {
+                // Scan with the old folder; scanning and merging need no ID index.
+                com.rrajath.grove.attach.AttachmentLifecycle(store, com.rrajath.grove.attach.IdHolders.None, oldConfig)
+                    .perNoteRoots(exclude = newConfig.rootFor(""))
+            }.getOrNull()
+        }
+        if (found != null && !found.isEmpty) _attachFolderMove.value = AttachFolderMove(old, folder, found)
+    }
+
+    /** Moves the folders [attachFolderMove] found into the vault-root folder, then toasts how it went. */
+    fun moveAttachFolder() {
+        val offer = _attachFolderMove.value?.takeIf { !it.moving } ?: return
+        _attachFolderMove.value = offer.copy(moving = true)
+        viewModelScope.launch {
+            val dest = com.rrajath.grove.attach.AttachConfig.forFolder(offer.to).rootFor("")
+            val result = withContext(dispatchers.io) {
+                runCatching {
+                    val lifecycle = app.attachmentLifecycle()
+                        ?: attachStore()?.let {
+                            com.rrajath.grove.attach.AttachmentLifecycle(
+                                it, com.rrajath.grove.attach.IdHolders.None, com.rrajath.grove.attach.AttachConfig.forFolder(offer.to),
+                            )
+                        }
+                    lifecycle?.mergeRootsInto(offer.found.roots, dest)
+                }.getOrNull()
+            }
+            _attachFolderMove.value = null
+            when {
+                result == null -> toast(R.string.settings_attach_move_failed, duration = android.widget.Toast.LENGTH_LONG)
+                result.notMoved == 0 -> toast(R.string.settings_attach_move_done, offer.to)
+                else -> toast(
+                    app.resources.getQuantityString(R.plurals.settings_attach_move_partial, result.notMoved, result.notMoved, offer.to),
+                    duration = android.widget.Toast.LENGTH_LONG,
+                )
+            }
+            sync.requestSync("attachments moved")
+        }
+    }
+
+    /** Leaves the folders [attachFolderMove] found where they are. Ignored while the move runs. */
+    fun keepAttachFolder() {
+        if (_attachFolderMove.value?.moving == true) return
+        _attachFolderMove.value = null
+    }
 
     fun setAttachAutoTag(tag: String) =
         viewModelScope.launch { settingsRepository.setAttachAutoTag(tag) }

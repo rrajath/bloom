@@ -53,8 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.PerNoteRoots
 import com.rrajath.grove.attach.attachDirLabel
 import com.rrajath.grove.attach.folderLabel
+import com.rrajath.grove.attach.formatTotalSize
 import com.rrajath.grove.attach.inventoryDetail
 import com.rrajath.grove.attach.moveSubline
 import com.rrajath.grove.ui.components.SyncedCheckIcon
@@ -138,6 +140,63 @@ fun NotebookMoveAttachmentsSheet(
             confirmTag = "attach_move_confirm",
             onCancel = onDismiss,
         ) { onMove(moveAttachments) }
+    }
+}
+
+/**
+ * Settings › Attachments: the attachment folder just changed from one next to
+ * each note ([from], `attach/`) to one at the vault root ([to], `/attach/`) and
+ * [found] folders next to notes still hold attachments. Built from the 1l
+ * pieces. [onMove] merges them into [to]; [onKeep] (also a dismiss) leaves them.
+ */
+@Composable
+fun AttachFolderMoveSheet(
+    from: String,
+    to: String,
+    found: PerNoteRoots,
+    moving: Boolean,
+    onMove: () -> Unit,
+    onKeep: () -> Unit,
+) {
+    val c = MaterialTheme.grove
+    LifecycleSheet(onDismiss = { if (!moving) onKeep() }, Modifier.testTag("attach_folder_move_sheet")) {
+        Text(
+            stringResource(R.string.settings_attach_move_title),
+            fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = c.ink,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        Text(
+            stringResource(
+                R.string.settings_attach_move_subline,
+                from,
+                to,
+                UiText.res(
+                    R.string.attach_inventory_detail,
+                    UiText.plural(R.plurals.count_folders, found.roots.size),
+                    UiText.plural(R.plurals.count_files, found.files),
+                    formatTotalSize(found.bytes),
+                ).asString(),
+            ),
+            fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink2,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 14.dp),
+        )
+        Text(
+            withStyledArgs(stringResource(R.string.settings_attach_move_body), StyledArg(to, folderSpan())),
+            fontFamily = PlexSans, fontSize = 13.sp, lineHeight = 19.5.sp, color = c.ink2,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        SheetButtons(
+            confirmLabel = stringResource(if (moving) R.string.attach_dir_notice_moving else R.string.settings_attach_move_confirm),
+            confirmColor = c.accent,
+            confirmWeight = 1f,
+            confirmFontSize = 14.5f,
+            confirmTag = "attach_folder_move_confirm",
+            onCancel = onKeep,
+            cancelLabel = stringResource(R.string.settings_attach_move_keep),
+            cancelWeight = 1.4f,
+            enabled = !moving,
+            onConfirm = onMove,
+        )
     }
 }
 
@@ -386,25 +445,29 @@ private fun SheetButtons(
     confirmFontSize: Float,
     confirmTag: String,
     onCancel: () -> Unit,
+    cancelLabel: String = stringResource(R.string.action_cancel),
+    cancelWeight: Float = 1f,
+    // False while the confirmed work runs: both buttons stop responding.
+    enabled: Boolean = true,
     onConfirm: () -> Unit,
 ) {
     val c = MaterialTheme.grove
     val shape = RoundedCornerShape(24.dp)
     Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SheetButton(
-            stringResource(R.string.action_cancel),
+            cancelLabel,
             Modifier
                 .clip(shape)
                 .border(1.dp, c.line2, shape)
-                .clickable(onClick = onCancel),
-            c.ink, 14.5f, 1f,
+                .clickable(enabled = enabled, onClick = onCancel),
+            c.ink, 14.5f, cancelWeight,
         )
         SheetButton(
             confirmLabel,
             Modifier
                 .clip(shape)
                 .background(confirmColor)
-                .clickable(onClick = onConfirm)
+                .clickable(enabled = enabled, onClick = onConfirm)
                 .testTag(confirmTag),
             c.accentInk, confirmFontSize, confirmWeight,
         )
