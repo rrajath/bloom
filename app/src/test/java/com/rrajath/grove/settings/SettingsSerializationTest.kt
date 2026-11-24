@@ -26,6 +26,7 @@ class SettingsSerializationTest {
         newNoteCursor = NewNoteCursor.HEADING,
         capitalizeHeadings = false,
         highlightCurrentLine = false,
+        showLineNumbers = true,
         // Nested vault paths are valid keys now the vault is a tree.
         notebookModes = mapOf("work.org" to "edit", "projects/clients/acme.org" to "read"),
         notebookColors = mapOf("work.org" to "green", "projects/clients/acme.org" to "amber"),
@@ -112,6 +113,7 @@ class SettingsSerializationTest {
         assertEquals(sample.newNoteCursor, restored.newNoteCursor)
         assertEquals(sample.capitalizeHeadings, restored.capitalizeHeadings)
         assertEquals(sample.highlightCurrentLine, restored.highlightCurrentLine)
+        assertEquals(sample.showLineNumbers, restored.showLineNumbers)
         assertEquals(sample.notebookModes, restored.notebookModes)
         assertEquals(sample.notebookColors, restored.notebookColors)
         assertEquals(sample.folderColors, restored.folderColors)
@@ -454,6 +456,12 @@ class SettingsSerializationTest {
         val json = """{ "theme": "light", "futureField": 42 }"""
         val restored = SettingsSerialization.import(json, GroveSettings())
         assertEquals(ThemeSelection.fromLegacy(ThemePreference.LIGHT), restored.themeSelection)
+    }
+
+    @Test
+    fun `an export from before line numbers imports them off`() {
+        val restored = SettingsSerialization.import("""{ "version": 18 }""", GroveSettings(showLineNumbers = true))
+        assertEquals(false, restored.showLineNumbers)
     }
 
     @Test

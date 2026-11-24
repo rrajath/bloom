@@ -209,6 +209,8 @@
     <string name="settings_notes_capitalize_hint">Capitalizes the first letter typed into a heading. Off leaves capitalization to your keyboard</string>
     <string name="settings_notes_highlight_line">Highlight current line</string>
     <string name="settings_notes_highlight_line_hint">Shades the whole line you\'re typing on, including where it wraps, so you can tell a long wrapped line from separate lines</string>
+    <string name="settings_notes_line_numbers">Show line numbers</string>
+    <string name="settings_notes_line_numbers_hint">Shows each line\'s number in the file beside the editor. Tap a number to select its line, or drag across numbers to select several</string>
     <string name="settings_notes_auto_archive">Auto-archive done items?</string>
     <!-- ARCHIVE is an org-mode property and keyword name; keep it as is. -->
     <string name="settings_notes_auto_archive_hint">Refiles a task the moment it\'s marked done, to its ARCHIVE property/keyword if it has one, otherwise the location below</string>

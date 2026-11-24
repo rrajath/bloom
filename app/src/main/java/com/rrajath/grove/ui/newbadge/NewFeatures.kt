@@ -56,6 +56,9 @@ object NewAnchors {
     /** The "Highlight current line" toggle inside Settings § Notes. */
     const val SETTINGS_NOTES_HIGHLIGHT_LINE = "settings.notes.highlightLine"
 
+    /** The "Show line numbers" toggle inside Settings § Notes. */
+    const val SETTINGS_NOTES_LINE_NUMBERS = "settings.notes.lineNumbers"
+
     /** The Settings hub row leading to the Capture Templates page. */
     const val SETTINGS_CAPTURE_TEMPLATES = "settings.captureTemplates"
 
@@ -603,5 +606,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.tipsItem("writing", "property-keys"),
         ),
         destination = NewAnchors.tipsItem("writing", "property-keys"),
+    ),
+    NewFeature(
+        // Settings § Notes gained a "Show line numbers" switch (off by default):
+        // the file-backed editors show the buffer's real file line numbers in a
+        // gutter. `since` is the versionCode of the release that ships it: bump it
+        // to match `gradle.properties` versionName when cutting the release.
+        id = "notes-line-numbers",
+        since = 11700,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_NOTES,
+            NewAnchors.SETTINGS_NOTES_LINE_NUMBERS,
+        ),
+        destination = NewAnchors.SETTINGS_NOTES_LINE_NUMBERS,
     ),
 )

@@ -127,7 +127,19 @@ data class EditorUiState(
      *  top bar's save icon. Tracked here (not per-screen `remember`) so both
      *  [EditorViewModel]'s own idle auto-save and an explicit save update it the same way. */
     val lastSavedAt: LocalDateTime? = null,
-)
+) {
+    /**
+     * 0-based file line of [buffer]'s first line, for the editor's line-number gutter:
+     * 0 for the whole file, the region's first line for a scoped region, and the
+     * subtree's owned span (falling back to its headline) otherwise.
+     */
+    val bufferFirstFileLine: Int
+        get() = when (region) {
+            EditRegion.WHOLE_FILE -> 0
+            null -> ownedSpan?.first ?: lineIndex
+            else -> regionRange?.takeUnless { it.isEmpty() }?.first ?: 0
+        }
+}
 
 /**
  * State for the toolbar's "insert a link" bottom sheet: a notebook drill-down

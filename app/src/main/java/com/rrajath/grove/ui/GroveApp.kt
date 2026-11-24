@@ -510,6 +510,7 @@ private fun GroveNavigation(
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
                     highlightCurrentLine = settings.highlightCurrentLine,
+                    showLineNumbers = settings.showLineNumbers,
                 )
             }
             screen(Routes.DRAWER) { entry ->
@@ -528,6 +529,7 @@ private fun GroveNavigation(
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
                     highlightCurrentLine = settings.highlightCurrentLine,
+                    showLineNumbers = settings.showLineNumbers,
                 )
             }
             screen(Routes.BLOCK) { entry ->
@@ -540,6 +542,7 @@ private fun GroveNavigation(
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
                     highlightCurrentLine = settings.highlightCurrentLine,
+                    showLineNumbers = settings.showLineNumbers,
                 )
             }
             screen(Routes.FILE) { entry ->
@@ -597,6 +600,7 @@ private fun GroveNavigation(
                         editModeFontSize = settings.editModeFontSize,
                         capitalizeHeadings = settings.capitalizeHeadings,
                         highlightCurrentLine = settings.highlightCurrentLine,
+                        showLineNumbers = settings.showLineNumbers,
                         showBacklinks = settings.roamFeaturesEnabled && settings.roamShowBacklinks,
                         roamSuggestionsEnabled = settings.roamSuggestionsActive,
                         onOpenNote = { target -> navController.navigate(Routes.note(target.encode())) },
@@ -660,6 +664,7 @@ private fun GroveNavigation(
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
                     highlightCurrentLine = settings.highlightCurrentLine,
+                    showLineNumbers = settings.showLineNumbers,
                     onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                 )
             }
@@ -795,6 +800,7 @@ private fun GroveNavigation(
                             editModeFontSize = settings.editModeFontSize,
                             capitalizeHeadings = settings.capitalizeHeadings,
                             highlightCurrentLine = settings.highlightCurrentLine,
+                            showLineNumbers = settings.showLineNumbers,
                         )
                     } else if (mode == "edit") {
                         EditNoteScreen(
@@ -805,6 +811,7 @@ private fun GroveNavigation(
                             newNoteCursor = settings.newNoteCursor,
                             capitalizeHeadings = settings.capitalizeHeadings,
                             highlightCurrentLine = settings.highlightCurrentLine,
+                            showLineNumbers = settings.showLineNumbers,
                             roamSuggestionsEnabled = settings.roamSuggestionsActive,
                             onBack = leaveNote,
                             onSwitchToRead = { editTargetLine = null; mode = "read" },
@@ -1068,6 +1075,7 @@ private fun GroveNavigation(
                     onSetAutoSaveNotes = viewModel::setAutoSaveNotes,
                     onSetCapitalizeHeadings = viewModel::setCapitalizeHeadings,
                     onSetHighlightCurrentLine = viewModel::setHighlightCurrentLine,
+                    onSetShowLineNumbers = viewModel::setShowLineNumbers,
                     onSetAutoArchiveDoneItems = viewModel::setAutoArchiveDoneItems,
                     onOpenArchiveLocationPicker = viewModel::startArchiveLocationPick,
                 )

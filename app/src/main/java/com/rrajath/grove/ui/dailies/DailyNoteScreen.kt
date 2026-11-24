@@ -113,6 +113,7 @@ fun DailyNoteScreen(
     editModeFontSize: FontSizePreference,
     capitalizeHeadings: Boolean,
     highlightCurrentLine: Boolean,
+    showLineNumbers: Boolean = false,
     /** Opens an inline image in the full-screen viewer. */
     onOpenImage: ((path: String, name: String) -> Unit)? = null,
     dailiesViewModel: DailiesViewModel = viewModel(factory = DailiesViewModel.Factory),
@@ -614,6 +615,7 @@ fun DailyNoteScreen(
                         editModeFontSize = editModeFontSize,
                         capitalizeHeadings = capitalizeHeadings,
                         highlightCurrentLine = highlightCurrentLine,
+                        showLineNumbers = showLineNumbers,
                         showBacklinks = false, // this screen's own bottom bar owns Backlinks (Task 17)
                         isRoamFile = false,
                         linkedCount = 0,

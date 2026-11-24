@@ -124,6 +124,7 @@ data class SettingsExport(
     val autoSaveNotes: Boolean = true,
     val capitalizeHeadings: Boolean = true,
     val highlightCurrentLine: Boolean = true,
+    val showLineNumbers: Boolean = false,
     val notebookModes: Map<String, String> = emptyMap(),
     val notebookColors: Map<String, String> = emptyMap(),
     val folderColors: Map<String, String> = emptyMap(),
@@ -223,6 +224,7 @@ data class SettingsExport(
         autoSaveNotes = autoSaveNotes,
         capitalizeHeadings = capitalizeHeadings,
         highlightCurrentLine = highlightCurrentLine,
+        showLineNumbers = showLineNumbers,
         notebookModes = notebookModes,
         notebookColors = notebookColors,
         folderColors = folderColors,
@@ -334,7 +336,9 @@ data class SettingsExport(
         // and import leaves those lists untouched; present ones replace the device's.
         // v18: added weekStart (Settings § Agenda). Additive: older exports omit
         // it and import as System default; an unknown value also imports as that.
-        const val CURRENT_VERSION = 18
+        // v19: added showLineNumbers (Settings § Notes). Additive: older exports omit
+        // it and import as off, the default.
+        const val CURRENT_VERSION = 19
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
             theme = s.themeSelection.let { if (it.mode == ThemeMode.DARK) it.dark else it.light }.storageKey,
@@ -357,6 +361,7 @@ data class SettingsExport(
             autoSaveNotes = s.autoSaveNotes,
             capitalizeHeadings = s.capitalizeHeadings,
             highlightCurrentLine = s.highlightCurrentLine,
+            showLineNumbers = s.showLineNumbers,
             notebookModes = s.notebookModes,
             notebookColors = s.notebookColors,
             folderColors = s.folderColors,

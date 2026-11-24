@@ -58,6 +58,7 @@ re-uploads the APKs to the existing release instead of failing.
 ## [Unreleased]
 
 ### Added
+- Settings › Notes › Show line numbers: editors show real file line numbers; tap or drag them to select lines.
 - Capture templates accept `%id`, and each use inserts its own unique ID, e.g. in a `:PROPERTIES:` drawer.
 
 ### Changed

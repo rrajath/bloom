@@ -166,6 +166,11 @@ data class GroveSettings(
      * soft-wraps reads as one line. On by default.
      */
     val highlightCurrentLine: Boolean = true,
+    /**
+     * Whether the file-backed editors show a gutter of the buffer's real file line
+     * numbers (tap one to select its line, drag to select a range). Off by default.
+     */
+    val showLineNumbers: Boolean = false,
     /** Per-notebook last-used note mode overrides: "file.org" → "read"/"edit". */
     val notebookModes: Map<String, String> = emptyMap(),
     /** Per-notebook monogram color overrides: "file.org" → palette key ("green"…). */
@@ -397,6 +402,7 @@ class SettingsRepository(
         val autoSaveNotes = booleanPreferencesKey("auto_save_notes")
         val capitalizeHeadings = booleanPreferencesKey("capitalize_headings")
         val highlightCurrentLine = booleanPreferencesKey("highlight_current_line")
+        val showLineNumbers = booleanPreferencesKey("show_line_numbers")
         val notebookModes = stringPreferencesKey("notebook_modes")
 
         /**
@@ -528,6 +534,7 @@ class SettingsRepository(
             autoSaveNotes = prefs[Keys.autoSaveNotes] ?: true,
             capitalizeHeadings = prefs[Keys.capitalizeHeadings] ?: true,
             highlightCurrentLine = prefs[Keys.highlightCurrentLine] ?: true,
+            showLineNumbers = prefs[Keys.showLineNumbers] ?: false,
             notebookModes = decodeModes(prefs[Keys.notebookModes]),
             notebookColors = decodeModes(prefs[Keys.notebookColors]),
             folderColors = decodeModes(prefs[Keys.folderColors]),
@@ -684,6 +691,7 @@ class SettingsRepository(
             p[Keys.autoSaveNotes] = s.autoSaveNotes
             p[Keys.capitalizeHeadings] = s.capitalizeHeadings
             p[Keys.highlightCurrentLine] = s.highlightCurrentLine
+            p[Keys.showLineNumbers] = s.showLineNumbers
             p[Keys.notebookModes] = encodeModes(s.notebookModes)
             p[Keys.notebookColors] = encodeModes(s.notebookColors)
             p[Keys.folderColors] = encodeModes(s.folderColors)
@@ -809,6 +817,10 @@ class SettingsRepository(
 
     suspend fun setHighlightCurrentLine(enabled: Boolean) {
         editSettings { it[Keys.highlightCurrentLine] = enabled }
+    }
+
+    suspend fun setShowLineNumbers(enabled: Boolean) {
+        editSettings { it[Keys.showLineNumbers] = enabled }
     }
 
     /**

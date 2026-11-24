@@ -215,6 +215,9 @@ class AppViewModel(
     fun setHighlightCurrentLine(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setHighlightCurrentLine(enabled) }
 
+    fun setShowLineNumbers(enabled: Boolean) =
+        viewModelScope.launch { settingsRepository.setShowLineNumbers(enabled) }
+
     fun setShowNotebookFileIcons(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setShowNotebookFileIcons(enabled) }
 

@@ -56,6 +56,7 @@ fun SettingsNotesScreen(
     onSetAutoSaveNotes: (Boolean) -> Unit,
     onSetCapitalizeHeadings: (Boolean) -> Unit,
     onSetHighlightCurrentLine: (Boolean) -> Unit,
+    onSetShowLineNumbers: (Boolean) -> Unit,
     onSetAutoArchiveDoneItems: (Boolean) -> Unit,
     onOpenArchiveLocationPicker: () -> Unit,
 ) {
@@ -82,6 +83,7 @@ fun SettingsNotesScreen(
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS)
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_AUTO_SAVE)
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE)
+        MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_LINE_NUMBERS)
 
         SectionLabel(stringResource(R.string.settings_notes_section_tasks))
         SettingsGroup {
@@ -238,6 +240,14 @@ fun SettingsNotesScreen(
                 checked = settings.highlightCurrentLine,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE) },
                 onToggle = onSetHighlightCurrentLine,
+            )
+            RowDivider()
+            ToggleRow(
+                label = stringResource(R.string.settings_notes_line_numbers),
+                description = stringResource(R.string.settings_notes_line_numbers_hint),
+                checked = settings.showLineNumbers,
+                labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_LINE_NUMBERS) },
+                onToggle = onSetShowLineNumbers,
             )
         }
         Spacer(Modifier.height(20.dp))
