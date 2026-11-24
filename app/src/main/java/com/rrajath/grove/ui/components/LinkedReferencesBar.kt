@@ -27,12 +27,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.util.countLabel
 
 /**
  * Collapsed "Backlinks" bar (design: Roam Links.dc.html, variant 1a):
@@ -112,13 +114,13 @@ fun LinkedReferencesBar(
             }
             Spacer(Modifier.width(11.dp))
             Text(
-                pluralCount(linkedCount, "backlink"),
+                countLabel(R.plurals.count_backlinks, linkedCount),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 14.5.sp, color = c.ink,
                 modifier = Modifier.weight(1f),
             )
             if (unlinkedCount > 0) {
-                Pill(text = "$unlinkedCount unlinked", fg = c.ink2, bg = c.surface2)
+                Pill(text = pluralStringResource(R.plurals.links_unlinked_count, unlinkedCount, unlinkedCount), fg = c.ink2, bg = c.surface2)
             }
         }
     }

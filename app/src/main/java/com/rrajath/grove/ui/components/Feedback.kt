@@ -30,15 +30,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.ui.util.asString
+import com.rrajath.grove.ui.util.uppercaseForUi
 import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.vault.OutlineToast
 
@@ -113,7 +116,7 @@ fun GroveUndoSnackbar(
             )
             Spacer(Modifier.width(12.dp))
             Text(
-                "UNDO",
+                stringResource(R.string.action_undo).uppercaseForUi(),
                 fontFamily = PlexSans, fontWeight = FontWeight.Bold,
                 fontSize = 13.sp, color = c.accent,
             )
@@ -227,7 +230,7 @@ fun GroveProgressSnackbar(
                 }
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    "Cancel",
+                    stringResource(R.string.action_cancel),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 13.5.sp, color = c.accent,
                     modifier = Modifier

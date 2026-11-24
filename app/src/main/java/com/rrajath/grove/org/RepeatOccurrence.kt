@@ -19,13 +19,9 @@ private fun OrgHeadline.repeatingDates(): List<LocalDate> =
         .map { it.date }
 
 /**
- * The mark-done snackbar text: "Marked done", plus "Next occurrence Jun 5th" for a
- * recurring task. The year is added ("Jan 3rd, 2027") only when [next] falls in a
- * different year than [today].
+ * [date] for the mark-done snackbar (`ui/util/MarkedDoneText.kt`): "Jun 5th", with the
+ * year ("Jan 3rd, 2027") only when [date] falls in a different year than [today].
  */
-fun markedDoneMessage(next: LocalDate?, today: LocalDate): String =
-    if (next == null) "Marked done" else "Marked done. Next occurrence ${formatOccurrence(next, today)}"
-
 internal fun formatOccurrence(date: LocalDate, today: LocalDate): String {
     val locale = orgLocale()
     // Ordinal suffixes are English-only; other languages get their own date form.

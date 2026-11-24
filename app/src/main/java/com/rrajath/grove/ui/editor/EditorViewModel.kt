@@ -1,22 +1,22 @@
 package com.rrajath.grove.ui.editor
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachDirChange
 import com.rrajath.grove.attach.AttachDirMoves
 import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.attach.AttachMoveOutcome
-import com.rrajath.grove.attach.applyMoveOutcomeText
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachmentFollow
-import com.rrajath.grove.attach.attachOwners
-import com.rrajath.grove.attach.withAttachedOwner
 import com.rrajath.grove.attach.FileRewrite
 import com.rrajath.grove.attach.FollowAction
+import com.rrajath.grove.attach.applyMoveOutcomeText
+import com.rrajath.grove.attach.attachOwners
 import com.rrajath.grove.attach.fileOwner
 import com.rrajath.grove.attach.rewritesFor
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.rrajath.grove.AppDispatchers
+import com.rrajath.grove.attach.withAttachedOwner
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.RoamNodeCreator
 import com.rrajath.grove.capture.RoamNodeResult
@@ -30,24 +30,25 @@ import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
-import com.rrajath.grove.org.markedDoneMessage
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.settings.SettingsSource
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.util.UiText
-import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.ui.util.markedDoneMessage
+import com.rrajath.grove.ui.vault.LinkedReferencesLoader
 import com.rrajath.grove.ui.vault.LinkedReferencesResult
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.vault.RefileNotebook
-import com.rrajath.grove.ui.vault.LinkedReferencesLoader
 import com.rrajath.grove.ui.vault.factory
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.ui.vault.headlineFor
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.StateChangeResult
+import com.rrajath.grove.vault.Vault
 import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -66,7 +67,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.time.LocalDateTime
 
 /**
  * Which scoped region of a file an [EditorViewModel] session is editing, if not a
@@ -567,7 +567,7 @@ class EditorViewModel(
                             buffer = s.buffer,
                             ownedSpan = s.ownedSpan,
                         )
-                        showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
+                        showSnack(markedDoneMessage(next, LocalDate.now()))
                     }
                 }
                 is StateChangeResult.Archived -> {

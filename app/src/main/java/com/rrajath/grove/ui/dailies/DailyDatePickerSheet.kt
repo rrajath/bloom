@@ -27,17 +27,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
+import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.settings.WeekStart
 import com.rrajath.grove.ui.components.WeekdayHeaderRow
 import com.rrajath.grove.ui.components.rememberFirstDayOfWeek
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -61,12 +63,12 @@ fun DailyDatePickerSheet(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                MonthArrow("‹", "Previous month") { month = month.minusMonths(1) }
+                MonthArrow("‹", stringResource(R.string.dailies_previous_month)) { month = month.minusMonths(1) }
                 Text(
                     LocalDates.format(month, "yMMMM", "MMMM yyyy"),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink,
                 )
-                MonthArrow("›", "Next month") { month = month.plusMonths(1) }
+                MonthArrow("›", stringResource(R.string.dailies_next_month)) { month = month.plusMonths(1) }
             }
             val firstOfMonth = month.atDay(1)
             // Columns start at Settings § Agenda "Start of week".

@@ -1,3 +1,4 @@
+// i18n: activity-alias class names from the manifest, not UI text
 package com.rrajath.grove.icon
 
 import android.content.ComponentName

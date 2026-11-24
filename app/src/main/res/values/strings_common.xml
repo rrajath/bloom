@@ -32,11 +32,6 @@
         <item quantity="one">%d reference</item>
         <item quantity="other">%d references</item>
     </plurals>
-    <!-- A folder holding a heading's attached files. -->
-    <plurals name="count_attachment_folders">
-        <item quantity="one">%d attachment folder</item>
-        <item quantity="other">%d attachment folders</item>
-    </plurals>
 
     <!-- Shared actions. Reuse a key only where the meaning and grammar match. -->
     <string name="action_rename">Rename</string>
@@ -72,4 +67,32 @@
     <string name="swipe_done">Done</string>
     <!-- Open the heading in its notebook's outline. -->
     <string name="swipe_reveal">Reveal</string>
+
+    <!-- More shared actions. -->
+    <string name="action_close">Close</string>
+    <!-- Remove a value, e.g. clear all dates or the reminder time. -->
+    <string name="action_clear">Clear</string>
+    <!-- Close a picker after choosing. -->
+    <string name="action_done">Done</string>
+    <!-- Undo action on the undo snackbar. Shown in capitals. -->
+    <string name="action_undo">Undo</string>
+    <!-- Snackbar after marking a heading done. -->
+    <string name="snack_marked_done">Marked done</string>
+    <!-- Snackbar after marking a recurring heading done. %1$s = the next date, e.g. "Jun 5th". -->
+    <string name="snack_marked_done_next">Marked done. Next occurrence %1$s</string>
+    <!-- Directory field (capture template folder, Roam folder): the top folder of the notes folder. -->
+    <string name="directory_vault_root">(Vault root)</string>
+    <!-- Screen reader labels for the jump buttons on long notes. -->
+    <string name="scroll_to_top">Scroll to top</string>
+    <string name="scroll_to_bottom">Scroll to bottom</string>
+    <!-- Colour picker for a notebook or template icon (long press on the icon). -->
+    <string name="monogram_change_color">Change icon color</string>
+    <!-- Section header in the colour picker. Shown in capitals. -->
+    <string name="monogram_color_header">Color</string>
+    <!-- Why a heading tag can't be used (tag field in the metadata sheet, Settings). -->
+    <string name="tag_error_empty">Enter a tag.</string>
+    <string name="tag_error_spaces">Tags can\'t contain spaces.</string>
+    <string name="tag_error_colons">Tags can\'t contain colons.</string>
+    <!-- Keep the symbols _ @ # % - as they are: they are the characters org-mode allows. -->
+    <string name="tag_error_charset">Use letters, numbers, _ @ # % or -.</string>
 </resources>

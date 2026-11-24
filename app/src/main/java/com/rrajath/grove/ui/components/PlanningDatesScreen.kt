@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.components
 
+import android.content.res.Resources
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -67,7 +69,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -89,32 +94,37 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.R
 import com.rrajath.grove.org.DateShorthandParser
+import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.org.Repeater
 import com.rrajath.grove.org.RepeaterType
 import com.rrajath.grove.org.ShorthandParse
+import com.rrajath.grove.org.orgLocale
+import com.rrajath.grove.settings.WeekStart
 import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.org.LocalDates
-import com.rrajath.grove.org.orgLocale
-import com.rrajath.grove.settings.WeekStart
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOn
+import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.asString
+import com.rrajath.grove.ui.util.forwardArrowGlyph
+import com.rrajath.grove.ui.util.uppercaseForUi
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 
 /**
  * SCHEDULED, DEADLINE and bare active timestamps on one canvas ("Dates B: tabs"
@@ -189,7 +199,9 @@ fun PlanningDatesScreen(
     )? = null,
 ) {
     val c = MaterialTheme.grove
+    val res = LocalResources.current
     val today = remember { LocalDate.now() }
+    val tabLabels = PlanningKind.entries.associateWith { tabLabel(it) }
 
     // Every other note's SCHEDULED/DEADLINE/active day, so the calendar can mark
     // days that already have something on them (mirrors Emacs org-mode's
@@ -205,7 +217,7 @@ fun PlanningDatesScreen(
     var tab by remember { mutableStateOf(focus) }
     var shorthand by remember { mutableStateOf("") }
     // Transient one-liner under the calendar ("Removed …", "Cleared …").
-    var note by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf<UiText?>(null) }
     // Mixed kinds the user chose to remove from every selected note.
     var removed by remember { mutableStateOf(emptySet<PlanningKind>()) }
 
@@ -260,7 +272,7 @@ fun PlanningDatesScreen(
 
     fun selectTab(next: PlanningKind) {
         tab = next
-        note = ""
+        note = null
         val d = when (next) {
             PlanningKind.SCHEDULED -> sched?.date
             PlanningKind.DEADLINE -> dead?.date
@@ -286,7 +298,7 @@ fun PlanningDatesScreen(
     }
 
     fun tapDay(day: LocalDate) {
-        note = ""
+        note = null
         when (tab) {
             PlanningKind.ACTIVE -> {
                 // Always adds, even on a day that already has entries (same-day
@@ -302,7 +314,7 @@ fun PlanningDatesScreen(
             PlanningKind.SCHEDULED ->
                 if (sched?.covers(day) == true) {
                     sched = null
-                    note = "Cleared. Tap a day to set it again."
+                    note = UiText.res(R.string.planning_cleared_note)
                 } else {
                     sched = (sched ?: OrgTimestamp(day)).copy(date = day, rangeEnd = null)
                     month = YearMonth.from(day)
@@ -310,7 +322,7 @@ fun PlanningDatesScreen(
             PlanningKind.DEADLINE ->
                 if (dead?.covers(day) == true) {
                     dead = null
-                    note = "Cleared. Tap a day to set it again."
+                    note = UiText.res(R.string.planning_cleared_note)
                 } else {
                     dead = (dead ?: OrgTimestamp(day)).copy(date = day, rangeEnd = null)
                     month = YearMonth.from(day)
@@ -324,7 +336,7 @@ fun PlanningDatesScreen(
         acts.add(OrgTimestamp(lo, rangeEnd = hi))
         acts.sortBy { it.date }
         actI = acts.indexOfFirst { it.date == lo && it.rangeEnd == hi }.coerceAtLeast(0)
-        note = ""
+        note = null
         month = YearMonth.from(lo)
     }
 
@@ -367,7 +379,7 @@ fun PlanningDatesScreen(
             } ?: month.atDay(1),
         )
         shorthand = ""
-        note = ""
+        note = null
     }
 
     Dialog(
@@ -413,7 +425,7 @@ fun PlanningDatesScreen(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Close",
+                            contentDescription = stringResource(R.string.action_close),
                             tint = c.ink,
                             modifier = Modifier.size(21.dp),
                         )
@@ -426,7 +438,7 @@ fun PlanningDatesScreen(
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        "Clear",
+                        stringResource(R.string.action_clear),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 12.5.sp, color = c.ink2,
                         modifier = Modifier
@@ -436,7 +448,7 @@ fun PlanningDatesScreen(
                                 dead = null
                                 acts.clear()
                                 actI = 0
-                                note = ""
+                                note = null
                                 removed = mixed
                             }
                             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -460,7 +472,7 @@ fun PlanningDatesScreen(
 
                     if (parse != null) {
                         Text(
-                            shorthandEcho(parse, today, tab),
+                            shorthandEcho(res, parse, today, tab, tabLabels::getValue, forwardArrowGlyph()),
                             fontFamily = PlexMono, fontSize = 11.5.sp,
                             color = if (parsedOk != null) c.green else c.red,
                             modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 7.dp, bottom = 2.dp),
@@ -507,9 +519,9 @@ fun PlanningDatesScreen(
                         onRange = ::rangeDays,
                     )
 
-                    if (note.isNotEmpty()) {
+                    note?.let { n ->
                         Text(
-                            note,
+                            n.asString(),
                             fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2, lineHeight = 16.sp,
                             modifier = Modifier.padding(horizontal = 3.dp).padding(top = 10.dp),
                         )
@@ -520,17 +532,17 @@ fun PlanningDatesScreen(
                         Modifier.fillMaxWidth().padding(top = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        TabButton(Icons.Outlined.CalendarMonth, "SCHEDULED", 0,
+                        TabButton(Icons.Outlined.CalendarMonth, tabLabels.getValue(PlanningKind.SCHEDULED), 0,
                             tab == PlanningKind.SCHEDULED, c.blue, c.blueSoft,
                         ) {
                             selectTab(PlanningKind.SCHEDULED)
                         }
-                        TabButton(Icons.Filled.Flag, "DEADLINE", 0,
+                        TabButton(Icons.Filled.Flag, tabLabels.getValue(PlanningKind.DEADLINE), 0,
                             tab == PlanningKind.DEADLINE, c.red, c.redSoft,
                         ) {
                             selectTab(PlanningKind.DEADLINE)
                         }
-                        TabButton(Icons.Filled.FiberManualRecord, "ACTIVE", acts.size, isActiveTab, c.violet, c.violetSoft,
+                        TabButton(Icons.Filled.FiberManualRecord, tabLabels.getValue(PlanningKind.ACTIVE), acts.size, isActiveTab, c.violet, c.violetSoft,
                             badgeAnchor = NewAnchors.PLANNING_DATES_ACTIVE,
                         ) { selectTab(PlanningKind.ACTIVE) }
                     }
@@ -538,23 +550,20 @@ fun PlanningDatesScreen(
                     if (isActiveTab) MarkNewFeatureSeen(NewAnchors.PLANNING_DATES_ACTIVE)
 
                     Text(
-                        if (isActiveTab)
-                            "Long-press and drag for a range · tap a day to add a timestamp, even one it already has · remove one with × below"
-                        else
-                            "One day only. Tapping another day moves it; tapping it again clears it.",
+                        stringResource(if (isActiveTab) R.string.planning_help_active else R.string.planning_help_single),
                         fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2, lineHeight = 16.sp,
                         modifier = Modifier.padding(horizontal = 3.dp).padding(top = 10.dp),
                     )
 
                     if (count == 0 && tab in mixed && tab !in removed) {
                         Text(
-                            "Selected notes have different ${tab.name} dates.",
+                            stringResource(R.string.planning_mixed_dates, tabLabels.getValue(tab)),
                             fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2, lineHeight = 16.sp,
                             modifier = Modifier.padding(horizontal = 3.dp).padding(top = 14.dp),
                         )
                         // Same chrome as the header's Clear action.
                         Text(
-                            "Remove from all",
+                            stringResource(R.string.planning_remove_from_all),
                             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                             fontSize = 12.5.sp, color = c.ink2,
                             modifier = Modifier
@@ -562,7 +571,7 @@ fun PlanningDatesScreen(
                                 .clip(RoundedCornerShape(9.dp))
                                 .clickable {
                                     removed = removed + tab
-                                    note = "${tab.name} will be removed from every selected note."
+                                    note = UiText.res(R.string.planning_removed_from_all_note, tabLabels.getValue(tab))
                                 }
                                 .padding(horizontal = 3.dp, vertical = 8.dp),
                         )
@@ -570,7 +579,7 @@ fun PlanningDatesScreen(
 
                     if (count > 0) {
                         Text(
-                            if (isActiveTab) "$count timestamp${plural(count)}" else "1 timestamp",
+                            pluralStringResource(R.plurals.planning_timestamp_count, count, count),
                             fontFamily = PlexMono, fontWeight = FontWeight.Bold,
                             fontSize = 11.sp, letterSpacing = 0.7.sp,
                             color = accent,
@@ -586,7 +595,7 @@ fun PlanningDatesScreen(
                         ) {
                             datePresets(today).forEach { (name, date) ->
                                 Chip(
-                                    label = "$name · ${date.format(ShortDate)}",
+                                    label = "${stringResource(name)} · ${date.format(ShortDate)}",
                                     selected = false,
                                     accent = accent,
                                     onClick = { tapDay(date) },
@@ -620,7 +629,7 @@ fun PlanningDatesScreen(
                                                 actI = actI.coerceIn(0, maxOf(0, acts.lastIndex))
                                             }
                                         }
-                                        note = ""
+                                        note = null
                                     },
                                 )
                             }
@@ -667,7 +676,7 @@ fun PlanningDatesScreen(
                         )
                     }
                     Text(
-                        "Apply dates",
+                        stringResource(R.string.planning_apply_dates),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 14.5.sp, color = c.accentInk,
                         textAlign = TextAlign.Center,
@@ -762,7 +771,7 @@ fun InsertTimestampScreen(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Close",
+                            contentDescription = stringResource(R.string.action_close),
                             tint = c.ink,
                             modifier = Modifier.size(21.dp),
                         )
@@ -802,16 +811,14 @@ fun InsertTimestampScreen(
                     )
 
                     Text(
-                        if (ts.active) {
-                            "Inserts an active timestamp at the cursor; it may show up on the agenda."
-                        } else {
-                            "Inserts an inactive timestamp at the cursor; a plain logged date/time that won't show up on the agenda."
-                        },
+                        stringResource(
+                            if (ts.active) R.string.planning_insert_active_help else R.string.planning_insert_inactive_help,
+                        ),
                         fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2, lineHeight = 16.sp,
                         modifier = Modifier.padding(horizontal = 3.dp).padding(top = 10.dp),
                     )
                     Text(
-                        if (ts.active) "Make it an inactive timestamp?" else "Make it an active timestamp?",
+                        stringResource(if (ts.active) R.string.planning_make_inactive else R.string.planning_make_active),
                         fontFamily = PlexSans, fontWeight = FontWeight.Bold,
                         fontSize = 11.5.sp, color = c.synLink,
                         textDecoration = TextDecoration.Underline,
@@ -850,7 +857,7 @@ fun InsertTimestampScreen(
                         )
                     }
                     Text(
-                        "Apply date",
+                        stringResource(R.string.planning_apply_date),
                         fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                         fontSize = 14.5.sp, color = c.accentInk,
                         textAlign = TextAlign.Center,
@@ -867,6 +874,7 @@ fun InsertTimestampScreen(
     }
 }
 
+// i18n: shorthand the parser understands, English only
 private val ShorthandHints = listOf("fri", "+2w", "aug 3", "10-11am", "++1w", "a: sat")
 
 /** `covers`: is [day] within this stamp's span (a range end, or the single day)? */
@@ -949,7 +957,7 @@ private fun AccentCalendar(
             )
             if (dragLo != null && dragHi != null) {
                 Text(
-                    "${dragLo.format(ShortDate)} → ${dragHi.format(ShortDate)}",
+                    "${dragLo.format(ShortDate)} ${forwardArrowGlyph()} ${dragHi.format(ShortDate)}",
                     fontFamily = PlexMono, fontWeight = FontWeight.Bold, fontSize = 11.sp,
                     color = accent,
                     modifier = Modifier
@@ -1263,7 +1271,7 @@ private fun StampEditor(
         ) {
             datePresets(today).forEach { (name, date) ->
                 Chip(
-                    label = "$name · ${date.format(ShortDate)}",
+                    label = "${stringResource(name)} · ${date.format(ShortDate)}",
                     selected = value.date == date && value.rangeEnd == null,
                     accent = accent,
                     onClick = { patch { it.copy(date = date, rangeEnd = null) } },
@@ -1277,7 +1285,7 @@ private fun StampEditor(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                timeLabel(value, c.ink, c.ink2),
+                timeLabel(LocalResources.current, value, c.ink, c.ink2),
                 fontFamily = PlexSans, fontSize = 13.5.sp,
                 modifier = Modifier.weight(1f),
             )
@@ -1297,7 +1305,7 @@ private fun StampEditor(
                     if (t == null) patch { it.copy(time = null, endTime = null) }
                     else patch { it.copy(time = t) }
                 }
-                Text("to", fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3)
+                Text(stringResource(R.string.planning_time_to), fontFamily = PlexSans, fontSize = 13.sp, color = c.ink3)
                 TimeField(value.endTime, "-", allowClear = true) { t -> patch { it.copy(endTime = t) } }
                 Row(
                     Modifier.weight(1f),
@@ -1319,7 +1327,7 @@ private fun StampEditor(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                "Repeat",
+                stringResource(R.string.planning_repeat),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp, color = c.ink,
                 modifier = Modifier.weight(1f),
@@ -1365,7 +1373,7 @@ private fun ShorthandBox(
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) {
                 Text(
-                    "d: aug 5 ++1m",
+                    "d: aug 5 ++1m", // i18n: shorthand example
                     fontFamily = PlexMono, fontSize = 14.sp, color = c.ink3,
                     modifier = Modifier.padding(vertical = 11.dp),
                 )
@@ -1382,7 +1390,7 @@ private fun ShorthandBox(
             )
         }
         Text(
-            "Set",
+            stringResource(R.string.action_set),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
             color = if (canApply) c.surface else c.ink3,
             modifier = Modifier
@@ -1412,8 +1420,14 @@ private fun RepeaterCard(
             .border(1.dp, c.line, RoundedCornerShape(14.dp))
             .padding(12.dp),
     ) {
-        val sentence = remember(repeater.value, repeater.unit, repeater.type, accent) {
-            buildRepeaterSentence(intervalLabel(repeater), kindWords(repeater.type), accent)
+        val res = LocalResources.current
+        val sentence = remember(repeater.value, repeater.unit, repeater.type, accent, res) {
+            buildRepeaterSentence(
+                res.getString(R.string.planning_repeat_sentence),
+                intervalLabel(res, repeater),
+                kindWords(res, repeater.type),
+                accent,
+            )
         }
         var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
         Text(
@@ -1461,7 +1475,7 @@ private fun RepeaterCard(
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
             Text(
-                kindHint(repeater),
+                kindHint(res, repeater),
                 fontFamily = PlexSans, fontSize = 11.5.sp, color = c.ink2, lineHeight = 16.sp,
                 modifier = Modifier.weight(1f).padding(top = 3.dp),
             )
@@ -1484,9 +1498,14 @@ private fun RepeaterCard(
                 Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.End),
             ) {
-                listOf('d' to "Day", 'w' to "Week", 'm' to "Month", 'y' to "Year").forEach { (u, name) ->
+                listOf(
+                    'd' to R.string.planning_unit_chip_day,
+                    'w' to R.string.planning_unit_chip_week,
+                    'm' to R.string.planning_unit_chip_month,
+                    'y' to R.string.planning_unit_chip_year,
+                ).forEach { (u, name) ->
                     Chip(
-                        label = name,
+                        label = stringResource(name),
                         selected = repeater.unit == u,
                         accent = accent,
                         onClick = { onChange(repeater.copy(unit = u)) },
@@ -1504,22 +1523,36 @@ private data class RepeaterSentence(
     val kindRange: IntRange,
 )
 
-private fun buildRepeaterSentence(intervalText: String, kindText: String, accent: Color): RepeaterSentence {
-    lateinit var intervalRange: IntRange
-    lateinit var kindRange: IntRange
+/**
+ * Fills [template] (`planning_repeat_sentence`: `%1$s` = interval, `%2$s` = kind) and
+ * styles both words, wherever the translation puts them.
+ */
+private fun buildRepeaterSentence(
+    template: String,
+    intervalText: String,
+    kindText: String,
+    accent: Color,
+): RepeaterSentence {
+    var intervalRange = IntRange.EMPTY
+    var kindRange = IntRange.EMPTY
     val text = buildAnnotatedString {
-        append("Every ")
-        val intervalStart = length
-        withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) { append(intervalText) }
-        intervalRange = intervalStart until length
-        append(", and if I am late, ")
-        val kindStart = length
-        withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) { append(kindText) }
-        kindRange = kindStart until length
-        append(".")
+        var last = 0
+        for (m in SentencePlaceholder.findAll(template)) {
+            append(template.substring(last, m.range.first))
+            val isInterval = m.groupValues[1] == "1"
+            val start = length
+            withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) {
+                append(if (isInterval) intervalText else kindText)
+            }
+            if (isInterval) intervalRange = start until length else kindRange = start until length
+            last = m.range.last + 1
+        }
+        append(template.substring(last))
     }
     return RepeaterSentence(text, intervalRange, kindRange)
 }
+
+private val SentencePlaceholder = Regex("%([12])\\\$s")
 
 /**
  * Draws a dashed rule under [range] of [layout], anchored to that range's own
@@ -1683,87 +1716,120 @@ private val ShortDate: DateTimeFormatter get() = LocalDates.formatter("MMMd", "M
 private val MonthLabel: DateTimeFormatter get() = LocalDates.formatter("yMMM", "MMM yyyy")
 private val ClockTime: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-private fun plural(n: Int) = if (n == 1) "" else "s"
+/** A tab's name as shown: the org keyword for SCHEDULED / DEADLINE, translated for active timestamps. */
+@Composable
+@ReadOnlyComposable
+private fun tabLabel(kind: PlanningKind): String = when (kind) {
+    PlanningKind.SCHEDULED, PlanningKind.DEADLINE -> kind.name
+    PlanningKind.ACTIVE -> stringResource(R.string.planning_tab_active).uppercaseForUi()
+}
 
-private fun datePresets(today: LocalDate): List<Pair<String, LocalDate>> {
+private fun datePresets(today: LocalDate): List<Pair<Int, LocalDate>> {
     fun next(target: java.time.DayOfWeek): LocalDate {
         val delta = ((target.value - today.dayOfWeek.value + 7) % 7).let { if (it == 0) 7 else it }
         return today.plusDays(delta.toLong())
     }
     return listOf(
-        "Today" to today,
-        "Tomorrow" to today.plusDays(1),
-        "This weekend" to next(java.time.DayOfWeek.SATURDAY),
-        "Next week" to next(java.time.DayOfWeek.MONDAY),
+        R.string.planning_preset_today to today,
+        R.string.planning_preset_tomorrow to today.plusDays(1),
+        R.string.planning_preset_this_weekend to next(java.time.DayOfWeek.SATURDAY),
+        R.string.planning_preset_next_week to next(java.time.DayOfWeek.MONDAY),
     )
 }
 
 /** "**Time** · All day": the label is semibold, the current value is not. */
-private fun timeLabel(ts: OrgTimestamp?, ink: Color, ink2: Color): AnnotatedString {
+private fun timeLabel(res: Resources, ts: OrgTimestamp?, ink: Color, ink2: Color): AnnotatedString {
     val value = ts?.time?.let { t ->
         t.format(ClockTime) + (ts.endTime?.let { " – ${it.format(ClockTime)}" } ?: "")
-    } ?: "All day"
+    } ?: res.getString(R.string.planning_all_day)
     return buildAnnotatedString {
-        withStyle(SpanStyle(color = ink, fontWeight = FontWeight.SemiBold)) { append("Time") }
+        withStyle(SpanStyle(color = ink, fontWeight = FontWeight.SemiBold)) { append(res.getString(R.string.planning_time)) }
         withStyle(SpanStyle(color = ink2)) { append(" · $value") }
     }
 }
 
-private fun unitName(unit: Char, n: Int): String {
-    val base = when (unit) {
-        'd' -> "day"; 'w' -> "week"; 'm' -> "month"; 'y' -> "year"; 'h' -> "hour"; else -> "week"
-    }
-    return base + plural(n)
-}
-
-private fun intervalLabel(rep: Repeater): String =
-    if (rep.value == 1) unitName(rep.unit, 1) else "${rep.value} ${unitName(rep.unit, rep.value)}"
-
-private fun kindWords(type: RepeaterType): String = when (type) {
-    RepeaterType.CUMULATIVE -> "keep the original rhythm"
-    RepeaterType.CATCH_UP -> "skip the ones I missed"
-    RepeaterType.FUTURE -> "count from when I finish"
-}
-
-private fun kindHint(rep: Repeater): String {
-    val interval = intervalLabel(rep).let { if (rep.value == 1) "one $it" else it }
-    return when (rep.type) {
-        RepeaterType.CUMULATIVE ->
-            "Moves on by exactly $interval, so if you were late the new date can still be in the past."
-        RepeaterType.CATCH_UP ->
-            "Jumps forward in $interval steps until it lands after today. Missed rounds are dropped."
-        RepeaterType.FUTURE ->
-            "Next date is $interval after the day you actually mark it DONE."
+/** "week" for one unit, "2 weeks" for more: the interval in the repeat sentence and the echo. */
+private fun intervalLabel(res: Resources, rep: Repeater): String {
+    val n = rep.value
+    return when (rep.unit) {
+        'd' -> if (n == 1) res.getString(R.string.planning_unit_day) else res.getQuantityString(R.plurals.planning_units_day, n, n)
+        'm' -> if (n == 1) res.getString(R.string.planning_unit_month) else res.getQuantityString(R.plurals.planning_units_month, n, n)
+        'y' -> if (n == 1) res.getString(R.string.planning_unit_year) else res.getQuantityString(R.plurals.planning_units_year, n, n)
+        'h' -> if (n == 1) res.getString(R.string.planning_unit_hour) else res.getQuantityString(R.plurals.planning_units_hour, n, n)
+        else -> if (n == 1) res.getString(R.string.planning_unit_week) else res.getQuantityString(R.plurals.planning_units_week, n, n)
     }
 }
 
-private fun relativeDay(date: LocalDate, today: LocalDate): String {
+/** "one week" for one unit, "2 weeks" for more: the interval inside the kind hints. */
+private fun intervalPhrase(res: Resources, rep: Repeater): String {
+    if (rep.value != 1) return intervalLabel(res, rep)
+    return res.getString(
+        when (rep.unit) {
+            'd' -> R.string.planning_one_day
+            'm' -> R.string.planning_one_month
+            'y' -> R.string.planning_one_year
+            'h' -> R.string.planning_one_hour
+            else -> R.string.planning_one_week
+        },
+    )
+}
+
+private fun kindWords(res: Resources, type: RepeaterType): String = res.getString(
+    when (type) {
+        RepeaterType.CUMULATIVE -> R.string.planning_repeat_kind_cumulative
+        RepeaterType.CATCH_UP -> R.string.planning_repeat_kind_catch_up
+        RepeaterType.FUTURE -> R.string.planning_repeat_kind_future
+    },
+)
+
+private fun kindHint(res: Resources, rep: Repeater): String = res.getString(
+    when (rep.type) {
+        RepeaterType.CUMULATIVE -> R.string.planning_repeat_hint_cumulative
+        RepeaterType.CATCH_UP -> R.string.planning_repeat_hint_catch_up
+        RepeaterType.FUTURE -> R.string.planning_repeat_hint_future
+    },
+    intervalPhrase(res, rep),
+)
+
+private fun relativeDay(res: Resources, date: LocalDate, today: LocalDate): String {
     val n = ChronoUnit.DAYS.between(today, date).toInt()
     return when {
-        n == 0 -> "today"
-        n == 1 -> "tomorrow"
-        n == -1 -> "yesterday"
-        n > 0 -> "in $n days"
-        else -> "${abs(n)} days ago"
+        n == 0 -> res.getString(R.string.planning_relative_today)
+        n == 1 -> res.getString(R.string.planning_relative_tomorrow)
+        n == -1 -> res.getString(R.string.planning_relative_yesterday)
+        n > 0 -> res.getQuantityString(R.plurals.planning_relative_in_days, n, n)
+        else -> res.getQuantityString(R.plurals.planning_relative_days_ago, abs(n), abs(n))
     }
 }
 
-private fun shorthandEcho(parse: ShorthandParse, today: LocalDate, activeTab: PlanningKind): String = when (parse) {
+/**
+ * The line under the shorthand field. [targetLabel] names the tab it will set and
+ * [arrow] points at it ([forwardArrowGlyph], so it flips under RTL).
+ */
+private fun shorthandEcho(
+    res: Resources,
+    parse: ShorthandParse,
+    today: LocalDate,
+    activeTab: PlanningKind,
+    targetLabel: (PlanningKind) -> String,
+    arrow: String,
+): String = when (parse) {
     is ShorthandParse.Unrecognised ->
-        "Not understood, try “fri”, “+2w”, “aug 3 10-11am”"
+        // i18n: shorthand the parser understands, English only
+        res.getString(R.string.planning_shorthand_not_understood, "fri", "+2w", "aug 3 10-11am")
     is ShorthandParse.Ok -> {
         val sh = parse.value
         // No explicit s:/d:/a: prefix falls back to the open tab (the same
         // fallback applyShorthand() uses), so the echo always names its target.
         val target = sh.target ?: activeTab
-        val arrow = "→ ${target.name}"
+        val pointer = "$arrow ${targetLabel(target)}"
         val segments = listOfNotNull(
-            sh.date?.let { "${it.format(HumanDate)} · ${relativeDay(it, today)}" },
+            sh.date?.let { "${it.format(HumanDate)} · ${relativeDay(res, it, today)}" },
             sh.time?.let { t ->
                 t.format(ClockTime) + (sh.endTime?.let { "–${it.format(ClockTime)}" } ?: "")
             },
-            sh.repeater?.let { r -> "every ${intervalLabel(r)} $r" },
+            sh.repeater?.let { r -> res.getString(R.string.planning_echo_every, intervalLabel(res, r), r.toString()) },
         )
-        if (segments.isEmpty()) arrow else segments.joinToString("  ·  ") + "  " + arrow
+        if (segments.isEmpty()) pointer else segments.joinToString("  ·  ") + "  " + pointer
     }
 }

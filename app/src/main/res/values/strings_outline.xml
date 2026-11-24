@@ -265,4 +265,19 @@
         <item quantity="one">Refiled %1$d note to %2$s › %3$s</item>
         <item quantity="other">Refiled %1$d notes to %2$s › %3$s</item>
     </plurals>
+
+    <!-- Backlinks bar and "References to" sheet (ui/components/LinkedReferencesBar.kt, LinkedReferencesSheet.kt). -->
+    <!-- Pill on the backlinks bar: mentions of this note's title that aren't links. -->
+    <plurals name="links_unlinked_count">
+        <item quantity="one">%d unlinked</item>
+        <item quantity="other">%d unlinked</item>
+    </plurals>
+    <!-- Sheet header above the note title. Shown in capitals. -->
+    <string name="links_references_to">References to</string>
+    <!-- Sheet tabs. %1$d = how many. -->
+    <string name="links_tab_backlinks">Backlinks %1$d</string>
+    <string name="links_tab_unlinked">Unlinked %1$d</string>
+    <string name="links_no_backlinks">No backlinks yet</string>
+    <string name="links_no_unlinked">No unlinked mentions</string>
+    <string name="links_tap_to_jump">Tap any reference to jump to it</string>
 </resources>

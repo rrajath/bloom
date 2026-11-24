@@ -29,7 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.theme.grove
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -191,7 +193,7 @@ private fun ScrollJumpButtonsRow(
         if (showTop) {
             ScrollJumpButton(
                 icon = Icons.Default.KeyboardArrowUp,
-                contentDescription = "Scroll to top",
+                contentDescription = stringResource(R.string.scroll_to_top),
                 onClick = onScrollToTop,
             )
             Spacer(Modifier.height(8.dp))
@@ -199,7 +201,7 @@ private fun ScrollJumpButtonsRow(
         if (showBottom) {
             ScrollJumpButton(
                 icon = Icons.Default.KeyboardArrowDown,
-                contentDescription = "Scroll to bottom",
+                contentDescription = stringResource(R.string.scroll_to_bottom),
                 onClick = onScrollToBottom,
             )
         }

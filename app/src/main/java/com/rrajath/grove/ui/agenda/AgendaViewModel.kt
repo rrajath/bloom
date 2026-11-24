@@ -1,15 +1,17 @@
 package com.rrajath.grove.ui.agenda
 
+import androidx.compose.runtime.Immutable
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.R
 import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.FileRewrite
 import com.rrajath.grove.attach.FollowAction
 import com.rrajath.grove.attach.rewritesFor
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.data.toNoteMeta
+import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
@@ -17,8 +19,8 @@ import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
-import com.rrajath.grove.org.markedDoneMessage
 import com.rrajath.grove.org.nextRepeatOccurrence
+import com.rrajath.grove.org.orgLocale
 import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.settings.AgendaGrouping
 import com.rrajath.grove.settings.AgendaStateFilter
@@ -26,16 +28,22 @@ import com.rrajath.grove.settings.AgendaSwipeAction
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.sync.SyncTrigger
-import com.rrajath.grove.vault.Vault
-import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.markedDoneMessage
+import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.vault.factory
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.StateChangeResult
-import com.rrajath.grove.org.LocalDates
-import com.rrajath.grove.org.orgLocale
-import androidx.compose.runtime.Immutable
+import com.rrajath.grove.vault.Vault
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.util.Locale
+import kotlin.math.abs
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -48,14 +56,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
-import java.time.temporal.ChronoUnit
-import java.util.Locale
-import kotlin.math.abs
 
 /** Which theme color one meta chip on an agenda row renders in. */
 enum class AgendaMetaTone { NORMAL, MUTED, DANGER, TAG, EVENT }
@@ -589,7 +589,7 @@ class AgendaViewModel(
                     sync.requestReindex(fileName, result.text, "agenda toggle done")
                     val next = result.doc.headlines.firstOrNull { it.lineIndex == lineIndex }
                         ?.let { nextRepeatOccurrence(headline, it) }
-                    showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
+                    showSnack(markedDoneMessage(next, LocalDate.now()))
                 }
                 is StateChangeResult.Archived -> {
                     undoSnapshot = if (result.sourceFile == result.destFile) {
@@ -644,7 +644,7 @@ class AgendaViewModel(
             val next = OrgParser.parse(newText, doc.keywords).headlines
                 .firstOrNull { it.lineIndex == row.lineIndex }
                 ?.let { nextRepeatOccurrence(headline, it) }
-            showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
+            showSnack(markedDoneMessage(next, LocalDate.now()))
         }
     }
 

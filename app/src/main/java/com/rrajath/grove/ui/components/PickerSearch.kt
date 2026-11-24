@@ -45,7 +45,7 @@ import com.rrajath.grove.ui.editor.LinkSearchItem
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.util.countLabel
 
 /**
  * The live "search files and headings" field shared by the insert-link picker
@@ -155,7 +155,7 @@ fun LazyListScope.pickerSearchResults(
                 icon = notebookIcon(),
                 title = hit.title,
                 crumb = stringResource(R.string.picker_search_file_crumb),
-                meta = hit.noteCount.takeIf { it > 0 }?.let { pluralCount(it, "heading") },
+                meta = hit.noteCount.takeIf { it > 0 }?.let { countLabel(R.plurals.count_headings, it) },
                 onClick = { onClick(hit) },
             )
             is LinkHeadingHit -> PickerRow(

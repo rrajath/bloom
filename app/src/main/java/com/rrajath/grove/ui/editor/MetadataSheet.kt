@@ -42,9 +42,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
@@ -55,16 +55,18 @@ import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgTags
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
+import com.rrajath.grove.ui.components.FlyUpPositionProvider
 import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.components.orgInlinePlainText
 import com.rrajath.grove.ui.screens.NoteDialog
-import com.rrajath.grove.ui.components.FlyUpPositionProvider
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.theme.priorityColor
 import com.rrajath.grove.ui.theme.prioritySoftColor
+import com.rrajath.grove.ui.util.asString
 import com.rrajath.grove.ui.util.forwardArrowGlyph
+import com.rrajath.grove.ui.util.text
 
 /**
  * Note metadata sheet (PRD §5.2): state, priority, tags, SCHEDULED, DEADLINE.
@@ -241,7 +243,7 @@ fun MetadataSheet(
                 }
                 val exactMatch = allTags.any { it.equals(tagQuery, ignoreCase = true) }
                 // A new tag must survive being written to the headline (OrgTags); say why when it can't.
-                val createError = if (tagQuery.isNotBlank() && !exactMatch) OrgTags.error(tagQuery) else null
+                val createError = if (tagQuery.isNotBlank() && !exactMatch) OrgTags.error(tagQuery)?.text() else null
                 val showCreate = tagQuery.isNotBlank() && !exactMatch
                 val hasSuggestions = showCreate || filtered.isNotEmpty()
 
@@ -278,7 +280,7 @@ fun MetadataSheet(
                             if (showCreate) {
                                 if (createError != null) {
                                     Text(
-                                        createError,
+                                        createError.asString(),
                                         fontFamily = PlexSans, fontSize = 13.sp, color = c.red,
                                         modifier = Modifier
                                             .fillMaxWidth()

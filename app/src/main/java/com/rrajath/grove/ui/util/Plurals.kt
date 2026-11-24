@@ -16,16 +16,3 @@ import androidx.compose.ui.res.pluralStringResource
 @ReadOnlyComposable
 fun countLabel(@PluralsRes id: Int, count: Int): String = pluralStringResource(id, count, count)
 
-/**
- * "{count} {singular}" for a count of 1, "{count} {plural}" otherwise. [plural]
- * defaults to the singular with an "s" appended; pass it explicitly for
- * irregular words.
- */
-// i18n-begin: compiler message for developers
-@Deprecated(
-    "English-only plural rule. Use countLabel(R.plurals.count_*, n) for a bare count, " +
-        "or a whole-sentence <plurals> when the count is part of a sentence.",
-)
-// i18n-end
-fun pluralCount(count: Int, singular: String, plural: String = "${singular}s"): String =
-    "$count ${if (count == 1) singular else plural}"

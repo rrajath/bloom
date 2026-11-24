@@ -23,9 +23,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.FilenameValidation
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
@@ -46,7 +48,7 @@ fun DirectoryField(
     onValueChange: (String) -> Unit,
     directories: List<String>,
     modifier: Modifier = Modifier,
-    placeholder: String = "(Vault root)",
+    placeholder: String = stringResource(R.string.directory_vault_root),
 ) {
     val c = MaterialTheme.grove
     var menuOpen by remember { mutableStateOf(false) }
@@ -97,7 +99,7 @@ fun DirectoryField(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
-                    "(Vault root)", fontFamily = PlexMono, fontSize = 13.5.sp, color = c.ink,
+                    stringResource(R.string.directory_vault_root), fontFamily = PlexMono, fontSize = 13.5.sp, color = c.ink,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(9.dp))

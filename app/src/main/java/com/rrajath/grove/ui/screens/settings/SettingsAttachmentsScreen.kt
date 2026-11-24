@@ -224,7 +224,7 @@ fun SettingsAttachmentsScreen(
             initial = settings.attachAutoTag,
             confirmLabel = "Save",
             placeholder = null,
-            validate = { AttachAutoTag.error(it)?.let(UiText::raw) },
+            validate = { AttachAutoTag.error(it) },
             helperText = "Without colons. Leave empty to add no tag.",
             allowBlank = true,
             onDismiss = { editingTag = false },

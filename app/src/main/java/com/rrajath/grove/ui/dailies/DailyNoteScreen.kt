@@ -43,40 +43,42 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.rrajath.grove.settings.FontSizePreference
-import com.rrajath.grove.ui.components.ReadEditToggle
-import com.rrajath.grove.ui.components.GroveTopBar
-import com.rrajath.grove.ui.components.KeyboardHiddenLinkedReferencesBar
-import com.rrajath.grove.ui.components.LinkedReferencesSheet
+import com.rrajath.grove.R
+import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.org.OrgTimestamp
-import com.rrajath.grove.ui.components.InsertTimestampScreen
-import com.rrajath.grove.ui.components.rememberImeVisible
+import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
 import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
 import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.components.GroveTopBar
+import com.rrajath.grove.ui.components.InsertTimestampScreen
+import com.rrajath.grove.ui.components.KeyboardHiddenLinkedReferencesBar
+import com.rrajath.grove.ui.components.LinkedReferencesSheet
+import com.rrajath.grove.ui.components.ReadEditToggle
+import com.rrajath.grove.ui.components.rememberImeVisible
 import com.rrajath.grove.ui.editor.EditRegion
-import com.rrajath.grove.ui.editor.rememberAttachController
+import com.rrajath.grove.ui.editor.EditorBottomMarginLines
+import com.rrajath.grove.ui.editor.EditorViewModel
 import com.rrajath.grove.ui.editor.LinkIdChoice
 import com.rrajath.grove.ui.editor.LinkIdChoiceDialog
 import com.rrajath.grove.ui.editor.LinkPick
 import com.rrajath.grove.ui.editor.LinkPickerSheet
-import com.rrajath.grove.ui.editor.applyEdit
-import com.rrajath.grove.ui.editor.applyToolbarLink
-import com.rrajath.grove.ui.editor.insertAtCursor
-import com.rrajath.grove.ui.editor.resolveLinkPick
-import com.rrajath.grove.ui.vault.headlineAtLine
-import com.rrajath.grove.ui.editor.EditorBottomMarginLines
-import com.rrajath.grove.ui.editor.EditorViewModel
 import com.rrajath.grove.ui.editor.OrgSyntaxHighlight
 import com.rrajath.grove.ui.editor.WholeFileEditorBody
 import com.rrajath.grove.ui.editor.WordAtCursor
+import com.rrajath.grove.ui.editor.applyEdit
+import com.rrajath.grove.ui.editor.applyToolbarLink
 import com.rrajath.grove.ui.editor.filterAutoLinkSuggestions
+import com.rrajath.grove.ui.editor.insertAtCursor
 import com.rrajath.grove.ui.editor.isInPreface
+import com.rrajath.grove.ui.editor.rememberAttachController
+import com.rrajath.grove.ui.editor.resolveLinkPick
 import com.rrajath.grove.ui.editor.wordAtCursor
 import com.rrajath.grove.ui.screens.FileContent
 import com.rrajath.grove.ui.screens.IconGlyph
@@ -84,13 +86,13 @@ import com.rrajath.grove.ui.screens.ReadModeBreadcrumb
 import com.rrajath.grove.ui.theme.ContentFontScale
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.asString
 import com.rrajath.grove.ui.vault.DocumentUiState
 import com.rrajath.grove.ui.vault.DocumentViewModel
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.PendingEdit
-import com.rrajath.grove.org.LocalDates
+import com.rrajath.grove.ui.vault.headlineAtLine
 import java.time.LocalDate
-import com.rrajath.grove.ui.util.asString
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -278,7 +280,7 @@ fun DailyNoteScreen(
                     ) {
                         androidx.compose.material3.Icon(
                             Icons.Outlined.Save,
-                            contentDescription = if (editState.dirty) "Unsaved changes, tap to save" else "Saved",
+                            contentDescription = stringResource(if (editState.dirty) R.string.dailies_unsaved_tap_to_save else R.string.dailies_saved),
                             tint = if (editState.dirty) c.green else c.ink3,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
@@ -335,7 +337,7 @@ fun DailyNoteScreen(
                         val todayTint = if (date == LocalDate.now()) c.ink2 else c.accent
                         androidx.compose.material3.Icon(
                             Icons.Filled.CalendarToday,
-                            contentDescription = "Today",
+                            contentDescription = stringResource(R.string.dailies_today),
                             tint = todayTint,
                             modifier = Modifier.size(24.dp),
                         )
@@ -423,7 +425,7 @@ fun DailyNoteScreen(
                 n == null -> {
                     if (vaultMissing) {
                         Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                            Text("No sync folder configured", fontFamily = PlexSans, color = c.ink2)
+                            Text(stringResource(R.string.dailies_no_sync_folder), fontFamily = PlexSans, color = c.ink2)
                         }
                     }
                     // else: still loading -- render nothing, a brief transient state.
@@ -712,14 +714,14 @@ fun DailyNoteScreen(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Save changes?",
+                    stringResource(R.string.dailies_unsaved_title),
                     fontFamily = PlexSans, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    "This daily note has unsaved changes.",
+                    stringResource(R.string.dailies_unsaved_body),
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
@@ -728,7 +730,7 @@ fun DailyNoteScreen(
                     confirmLeave = false
                     val action = pendingAction.also { pendingAction = null }
                     editorViewModel.save(onSaved = { action?.invoke() })
-                }) { Text("Save", color = c.accent, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) }
+                }) { Text(stringResource(R.string.action_save), color = c.accent, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = {
@@ -736,7 +738,7 @@ fun DailyNoteScreen(
                     val action = pendingAction.also { pendingAction = null }
                     // Also undoes what an idle auto-save wrote since the last Save.
                     editorViewModel.discardChanges { action?.invoke() }
-                }) { Text("Discard", color = c.red) }
+                }) { Text(stringResource(R.string.action_discard), color = c.red) }
             },
         )
     }
@@ -771,8 +773,7 @@ private fun DailyEmptyState(fileName: String, onStartTyping: () -> Unit) {
         contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
         Text(
-            "Nothing here yet. Tap to start typing and create $fileName. " +
-                "Long-press the calendar icon to create a note for another date.",
+            stringResource(R.string.dailies_empty_state, fileName),
             fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )

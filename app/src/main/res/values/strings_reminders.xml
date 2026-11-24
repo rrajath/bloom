@@ -53,4 +53,12 @@
     <string name="reminders_exact_prompt_title">Get reminders on time</string>
     <string name="reminders_exact_prompt_allow">Allow</string>
     <string name="reminders_exact_prompt_not_now">Not now</string>
+
+    <!-- Banner when notifications are off but reminders are pending (ui/components/ReminderPermissionBanner.kt). -->
+    <plurals name="reminders_permission_banner">
+        <item quantity="one">%d reminder needs permission to notify you</item>
+        <item quantity="other">%d reminders need permission to notify you</item>
+    </plurals>
+    <!-- Banner button that opens the notification permission prompt or settings. -->
+    <string name="reminders_permission_grant">Grant</string>
 </resources>

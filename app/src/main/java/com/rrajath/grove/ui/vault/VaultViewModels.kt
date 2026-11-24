@@ -4,31 +4,31 @@ import android.content.Intent
 import android.provider.DocumentsContract
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Immutable
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.rrajath.grove.AppDispatchers
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
+import com.rrajath.grove.attach.AttachConfig
 import com.rrajath.grove.attach.AttachmentBase
 import com.rrajath.grove.attach.AttachmentFiles
 import com.rrajath.grove.attach.AttachmentFollow
-import com.rrajath.grove.attach.DirPin
+import com.rrajath.grove.attach.AttachmentIntents
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.attach.AttachmentLifecycle
+import com.rrajath.grove.attach.AttachmentLink
+import com.rrajath.grove.attach.AttachmentLookup
+import com.rrajath.grove.attach.DirPin
 import com.rrajath.grove.attach.FileRewrite
-import com.rrajath.grove.attach.AttachConfig
+import com.rrajath.grove.attach.FollowAction
+import com.rrajath.grove.attach.LocalAttachment
 import com.rrajath.grove.attach.attachDirLabel
 import com.rrajath.grove.attach.notebookMoveMessage
 import com.rrajath.grove.attach.orgIdsIn
-import com.rrajath.grove.attach.AttachmentIntents
-import com.rrajath.grove.attach.AttachmentLink
-import com.rrajath.grove.attach.AttachmentLookup
-import com.rrajath.grove.attach.FollowAction
-import com.rrajath.grove.attach.LocalAttachment
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.data.FavoritesRepository
 import com.rrajath.grove.data.GroveDatabase
@@ -37,29 +37,30 @@ import com.rrajath.grove.data.matches
 import com.rrajath.grove.org.AdvancedPlanning
 import com.rrajath.grove.org.ArchiveLocation
 import com.rrajath.grove.org.ArchiveTarget
+import com.rrajath.grove.org.INTRO_LINE_INDEX
+import com.rrajath.grove.org.LineDiff
+import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
+import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgLinkParser
 import com.rrajath.grove.org.OrgLinkTarget
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
-import com.rrajath.grove.org.INTRO_LINE_INDEX
-import com.rrajath.grove.org.LineDiff
-import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.advancedRepeatingPlanning
-import com.rrajath.grove.org.markedDoneMessage
 import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.settings.NotebookDisplayNameMode
-import com.rrajath.grove.settings.PinKind
 import com.rrajath.grove.settings.NotebookSortKey
+import com.rrajath.grove.settings.PinKind
 import com.rrajath.grove.settings.PinnedItem
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.sync.SyncState
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.editor.LinkSearchItem
 import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.markedDoneMessage
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.Notebook
 import com.rrajath.grove.vault.StateChangeResult
@@ -67,8 +68,8 @@ import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.vault.matchDenoteNotebook
 import com.rrajath.grove.vault.matchOpenedFileToNotebook
 import com.rrajath.grove.vault.vaultPath
-import com.rrajath.grove.org.LocalDates
 import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
@@ -79,6 +80,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -98,9 +100,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
-import java.time.LocalDateTime
 
 /**
  * The vault folder's own name, from its SAF tree URI — e.g. a URI whose tree
@@ -1800,7 +1800,7 @@ class DocumentViewModel(
                     val next = after?.let { nextRepeatOccurrence(headline, it) }
                     if (next != null) {
                         undoSnapshot = UndoSnapshot(listOf(loaded.fileName to loaded.document.text))
-                        showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
+                        showSnack(markedDoneMessage(next, LocalDate.now()))
                     } else {
                         showToast(UiText.res(R.string.metadata_toast_state, keyword ?: UiText.res(R.string.metadata_toast_none)))
                     }

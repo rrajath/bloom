@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Planning dates screen (ui/components/PlanningDatesScreen.kt): the full-screen
+         picker for a heading's SCHEDULED, DEADLINE and active timestamps.
+         "SCHEDULED" and "DEADLINE" are org-mode keywords and stay in English. -->
+
+    <!-- Tab for the heading's active timestamps (<2026-01-05 Mon>), next to the
+         SCHEDULED and DEADLINE tabs. Shown in capitals. -->
+    <string name="planning_tab_active">Active</string>
+    <!-- Shown after tapping the already-selected day, which clears the date. -->
+    <string name="planning_cleared_note">Cleared. Tap a day to set it again.</string>
+    <string name="planning_help_active">Long-press and drag for a range · tap a day to add a timestamp, even one it already has · remove one with × below</string>
+    <string name="planning_help_single">One day only. Tapping another day moves it; tapping it again clears it.</string>
+    <!-- Editing several notes at once. %1$s: the tab, e.g. SCHEDULED. -->
+    <string name="planning_mixed_dates">Selected notes have different %1$s dates.</string>
+    <string name="planning_remove_from_all">Remove from all</string>
+    <!-- %1$s: the tab, e.g. SCHEDULED. -->
+    <string name="planning_removed_from_all_note">%1$s will be removed from every selected note.</string>
+    <plurals name="planning_timestamp_count">
+        <item quantity="one">%d timestamp</item>
+        <item quantity="other">%d timestamps</item>
+    </plurals>
+    <string name="planning_apply_dates">Apply dates</string>
+
+    <!-- Quick date chips; the date follows, e.g. "Tomorrow · Jan 6". -->
+    <string name="planning_preset_today">Today</string>
+    <string name="planning_preset_tomorrow">Tomorrow</string>
+    <string name="planning_preset_this_weekend">This weekend</string>
+    <string name="planning_preset_next_week">Next week</string>
+
+    <!-- Time row: "Time · All day" or "Time · 09:00 – 10:00". -->
+    <string name="planning_time">Time</string>
+    <string name="planning_all_day">All day</string>
+    <!-- Between the start and end time fields: "09:00 to 10:00". -->
+    <string name="planning_time_to">to</string>
+    <string name="planning_repeat">Repeat</string>
+
+    <!-- Repeat unit chips. -->
+    <string name="planning_unit_chip_day">Day</string>
+    <string name="planning_unit_chip_week">Week</string>
+    <string name="planning_unit_chip_month">Month</string>
+    <string name="planning_unit_chip_year">Year</string>
+
+    <!-- The repeat sentence. %1$s: the interval ("week", "2 weeks"); %2$s: what happens
+         when the task is done late (planning_repeat_kind_*). Both are tappable. -->
+    <string name="planning_repeat_sentence">Every %1$s, and if I am late, %2$s.</string>
+    <!-- A repeat interval of one unit, as in "Every week". -->
+    <string name="planning_unit_day">day</string>
+    <string name="planning_unit_week">week</string>
+    <string name="planning_unit_month">month</string>
+    <string name="planning_unit_year">year</string>
+    <string name="planning_unit_hour">hour</string>
+    <!-- A repeat interval of several units, as in "Every 2 weeks". -->
+    <plurals name="planning_units_day">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="planning_units_week">
+        <item quantity="one">%d week</item>
+        <item quantity="other">%d weeks</item>
+    </plurals>
+    <plurals name="planning_units_month">
+        <item quantity="one">%d month</item>
+        <item quantity="other">%d months</item>
+    </plurals>
+    <plurals name="planning_units_year">
+        <item quantity="one">%d year</item>
+        <item quantity="other">%d years</item>
+    </plurals>
+    <plurals name="planning_units_hour">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <!-- One unit, as in "Moves on by exactly one week". -->
+    <string name="planning_one_day">one day</string>
+    <string name="planning_one_week">one week</string>
+    <string name="planning_one_month">one month</string>
+    <string name="planning_one_year">one year</string>
+    <string name="planning_one_hour">one hour</string>
+
+    <!-- org repeater kinds: +1w, .+1w, ++1w. They end planning_repeat_sentence. -->
+    <string name="planning_repeat_kind_cumulative">keep the original rhythm</string>
+    <string name="planning_repeat_kind_catch_up">skip the ones I missed</string>
+    <string name="planning_repeat_kind_future">count from when I finish</string>
+    <!-- %1$s: the interval, e.g. "one week" or "2 weeks". -->
+    <string name="planning_repeat_hint_cumulative">Moves on by exactly %1$s, so if you were late the new date can still be in the past.</string>
+    <string name="planning_repeat_hint_catch_up">Jumps forward in %1$s steps until it lands after today. Missed rounds are dropped.</string>
+    <!-- DONE is the org-mode keyword; keep it as is. -->
+    <string name="planning_repeat_hint_future">Next date is %1$s after the day you actually mark it DONE.</string>
+
+    <!-- Shorthand field echo: "Fri, Jan 9 · tomorrow  ·  every week +1w  → SCHEDULED". -->
+    <string name="planning_relative_today">today</string>
+    <string name="planning_relative_tomorrow">tomorrow</string>
+    <string name="planning_relative_yesterday">yesterday</string>
+    <plurals name="planning_relative_in_days">
+        <item quantity="one">in %d day</item>
+        <item quantity="other">in %d days</item>
+    </plurals>
+    <plurals name="planning_relative_days_ago">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <!-- %1$s: the interval ("week", "2 weeks"); %2$s: the org repeater cookie, e.g. +1w. -->
+    <string name="planning_echo_every">every %1$s %2$s</string>
+    <!-- The examples are shorthand the date field understands, which is English only:
+         keep %1$s, %2$s and %3$s (fri, +2w, aug 3 10-11am); change only the quotes. -->
+    <string name="planning_shorthand_not_understood">Not understood, try “%1$s”, “%2$s”, “%3$s”</string>
+
+    <!-- Insert-timestamp screen (editor toolbar clock button, long press). -->
+    <string name="planning_insert_active_help">Inserts an active timestamp at the cursor; it may show up on the agenda.</string>
+    <string name="planning_insert_inactive_help">Inserts an inactive timestamp at the cursor; a plain logged date/time that won\'t show up on the agenda.</string>
+    <string name="planning_make_inactive">Make it an inactive timestamp?</string>
+    <string name="planning_make_active">Make it an active timestamp?</string>
+    <string name="planning_apply_date">Apply date</string>
+</resources>

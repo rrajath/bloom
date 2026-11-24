@@ -2,6 +2,8 @@ package com.rrajath.grove.settings
 
 import androidx.annotation.StringRes
 import com.rrajath.grove.R
+import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.text
 
 // Pure-Kotlin preference enums (no android framework imports) so mapping logic is JVM-testable.
 // User-visible labels are string resource ids (`R` and `@StringRes` are plain JVM types).
@@ -315,7 +317,7 @@ object AttachAutoTag {
     const val DEFAULT = "ATTACH"
 
     /** Why [raw] can't be used, or null when it can: blank (no tag) or a valid heading tag. */
-    fun error(raw: String): String? = if (raw.isBlank()) null else com.rrajath.grove.org.OrgTags.error(raw)
+    fun error(raw: String): UiText? = if (raw.isBlank()) null else com.rrajath.grove.org.OrgTags.error(raw)?.text()
 
     /** [raw] trimmed (empty for no tag); null when [error] rejects it. */
     fun normalize(raw: String): String? = if (error(raw) != null) null else raw.trim()

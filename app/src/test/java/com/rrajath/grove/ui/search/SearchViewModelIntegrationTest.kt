@@ -3,6 +3,7 @@ package com.rrajath.grove.ui.search
 import android.app.Application
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
+import com.rrajath.grove.R
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
@@ -14,8 +15,8 @@ import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
-import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -272,7 +273,7 @@ class SearchViewModelIntegrationTest {
         advanceTimeBy(1000)
 
         assertTrue(store.read("projects.org").contains("DONE Tag the release"))
-        assertEquals(UiText.raw("Marked done"), vm.snack.value?.message)
+        assertEquals(UiText.res(R.string.snack_marked_done), vm.snack.value?.message)
         vm.undo()
         advanceUntilIdle()
         assertFalse(store.read("projects.org").contains("DONE Tag the release"))

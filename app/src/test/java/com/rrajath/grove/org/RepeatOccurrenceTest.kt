@@ -1,5 +1,7 @@
 package com.rrajath.grove.org
 
+import com.rrajath.grove.testing.support.english
+import com.rrajath.grove.ui.util.markedDoneMessage
 import java.time.LocalDate
 import java.time.LocalDateTime
 import org.junit.Assert.assertEquals
@@ -25,12 +27,12 @@ class RepeatOccurrenceTest {
     }
 
     @Test fun `year shown only across a year boundary`() {
-        assertEquals("Marked done. Next occurrence Dec 31st", markedDoneMessage(LocalDate.of(2026, 12, 31), today))
-        assertEquals("Marked done. Next occurrence Jan 3rd, 2027", markedDoneMessage(LocalDate.of(2027, 1, 3), today))
+        assertEquals("Marked done. Next occurrence Dec 31st", markedDoneMessage(LocalDate.of(2026, 12, 31), today).english())
+        assertEquals("Marked done. Next occurrence Jan 3rd, 2027", markedDoneMessage(LocalDate.of(2027, 1, 3), today).english())
     }
 
     @Test fun `non-recurring mark done says just Marked done`() {
-        assertEquals("Marked done", markedDoneMessage(null, today))
+        assertEquals("Marked done", markedDoneMessage(null, today).english())
     }
 
     @Test fun `next occurrence of a repeating scheduled task after markDone`() {

@@ -108,14 +108,14 @@ fun SimpleTimePicker(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = { onConfirm(LocalTime.of(timeState.hour, timeState.minute)) }) {
-                Text("Set", color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.action_set), color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             if (onClear != null) {
-                TextButton(onClick = onClear) { Text("Clear", color = c.ink2) }
+                TextButton(onClick = onClear) { Text(stringResource(R.string.action_clear), color = c.ink2) }
             }
-            TextButton(onClick = onDismiss) { Text("Cancel", color = c.ink2) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
         },
     ) {
         // M3's TimePicker resolves its clock-dial number labels to

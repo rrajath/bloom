@@ -1,55 +1,61 @@
 package com.rrajath.grove.ui.search
 
-import com.rrajath.grove.R
 import androidx.annotation.StringRes
-import com.rrajath.grove.attach.AttachmentFollow
-import com.rrajath.grove.attach.FileRewrite
-import com.rrajath.grove.attach.FollowAction
-import com.rrajath.grove.attach.rewritesFor
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rrajath.grove.AppDispatchers
+import com.rrajath.grove.R
+import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.FileRewrite
+import com.rrajath.grove.attach.FollowAction
+import com.rrajath.grove.attach.rewritesFor
 import com.rrajath.grove.data.GroveDatabase
-import com.rrajath.grove.search.SearchRepository
-import com.rrajath.grove.search.loadSearchCandidates
-import com.rrajath.grove.settings.SettingsSource
-import com.rrajath.grove.sync.SyncTrigger
-import com.rrajath.grove.vault.Vault
 import com.rrajath.grove.data.NoteEntity
 import com.rrajath.grove.data.NoteFacetRow
 import com.rrajath.grove.data.toNoteMeta
 import com.rrajath.grove.org.INTRO_LINE_INDEX
+import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgTimestamp
-import com.rrajath.grove.org.markedDoneMessage
 import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.search.DatePresence
 import com.rrajath.grove.search.FacetNarrowing
 import com.rrajath.grove.search.FilenameMatcher
 import com.rrajath.grove.search.LineProbe
-import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.search.MatchOptions
+import com.rrajath.grove.search.NoteMeta
 import com.rrajath.grove.search.QueryMatcher
 import com.rrajath.grove.search.QueryParser
 import com.rrajath.grove.search.QuickStartOverrides
 import com.rrajath.grove.search.SavedSearch
 import com.rrajath.grove.search.SearchQuery
+import com.rrajath.grove.search.SearchRepository
 import com.rrajath.grove.search.Snippets
 import com.rrajath.grove.search.Term
+import com.rrajath.grove.search.loadSearchCandidates
 import com.rrajath.grove.search.textTerms
+import com.rrajath.grove.settings.SettingsSource
+import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.attach.PreviewChip
 import com.rrajath.grove.ui.attach.renderedWithChips
-import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.util.UiText
+import com.rrajath.grove.ui.util.markedDoneMessage
+import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.vault.factory
 import com.rrajath.grove.ui.vault.headlineAtLine
 import com.rrajath.grove.vault.AutoArchive
 import com.rrajath.grove.vault.StateChangeResult
-import com.rrajath.grove.org.LocalDates
+import com.rrajath.grove.vault.Vault
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import java.util.Locale
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -70,12 +76,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import java.util.Locale
 
 /** Sentinel bucket for notes with no TODO keyword, in both the states filter
  *  and the states catalog, distinct from any real keyword string. */
@@ -481,7 +481,7 @@ class SearchViewModel(
                     ?.let { nextRepeatOccurrence(headline, it) }
                 if (next != null || announceDone) {
                     undoSnapshot = listOf(fileName to doc.text)
-                    showSnack(UiText.raw(markedDoneMessage(next, LocalDate.now())))
+                    showSnack(markedDoneMessage(next, LocalDate.now()))
                 }
             }
             is StateChangeResult.Archived -> {

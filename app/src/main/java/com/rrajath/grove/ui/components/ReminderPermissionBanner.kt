@@ -21,11 +21,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.R
 import com.rrajath.grove.reminders.AlarmScheduler
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -40,7 +43,7 @@ import kotlinx.coroutines.launch
  */
 // InlinedApi: each permission is only requested after AlarmScheduler reports it
 // missing, which it never does below the API level that introduced it.
-@SuppressLint("InlinedApi")
+@SuppressLint("InlinedApi") // i18n: lint issue id
 @Composable
 fun ReminderPermissionBanner(pendingCount: Int, modifier: Modifier = Modifier) {
     if (pendingCount <= 0) return
@@ -79,13 +82,12 @@ fun ReminderPermissionBanner(pendingCount: Int, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            if (pendingCount == 1) "1 reminder needs permission to notify you"
-            else "$pendingCount reminders need permission to notify you",
+            pluralStringResource(R.plurals.reminders_permission_banner, pendingCount, pendingCount),
             fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink,
             modifier = Modifier.weight(1f),
         )
         Text(
-            "Grant",
+            stringResource(R.string.reminders_permission_grant),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
             color = c.accent,
             modifier = Modifier

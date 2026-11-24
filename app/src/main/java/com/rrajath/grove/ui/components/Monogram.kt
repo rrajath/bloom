@@ -30,14 +30,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.uppercaseForUi
 
 /**
  * Monogram icons for notebooks and capture templates (design: `Notebook Icons.dc.html`
@@ -184,7 +187,7 @@ fun ChangeIconColorDialog(
         containerColor = c.surface,
         title = {
             Text(
-                "Change icon color",
+                stringResource(R.string.monogram_change_color),
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, color = c.ink,
             )
@@ -225,7 +228,7 @@ fun ChangeIconColorDialog(
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "COLOR",
+                    stringResource(R.string.monogram_color_header).uppercaseForUi(),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 10.5.sp, letterSpacing = 1.sp, color = c.ink3,
                 )
@@ -262,7 +265,7 @@ fun ChangeIconColorDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Done", color = c.accent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.action_done), color = c.accent, fontWeight = FontWeight.SemiBold)
             }
         },
     )

@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -41,12 +42,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.ui.theme.GroveColors
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.PlexSerif
 import com.rrajath.grove.ui.theme.grove
-import com.rrajath.grove.ui.util.pluralCount
+import com.rrajath.grove.ui.util.countLabel
+import com.rrajath.grove.ui.util.uppercaseForUi
 import com.rrajath.grove.ui.vault.LinkedReferenceFileGroup
 import com.rrajath.grove.ui.vault.LinkedReferenceHit
 import com.rrajath.grove.ui.vault.LinkedReferencesResult
@@ -78,7 +81,7 @@ fun LinkedReferencesSheet(
         Column(Modifier.fillMaxSize()) {
             Column(Modifier.padding(horizontal = 18.dp)) {
                 Text(
-                    "REFERENCES TO",
+                    stringResource(R.string.links_references_to).uppercaseForUi(),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 12.sp, letterSpacing = 0.07.em, color = c.ink3,
                 )
@@ -92,13 +95,13 @@ fun LinkedReferencesSheet(
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     ReferenceTab(
-                        label = "Backlinks ${result.linkedCount}",
+                        label = stringResource(R.string.links_tab_backlinks, result.linkedCount),
                         selected = tab == 0,
                         onClick = { tab = 0 },
                     )
                     if (result.unlinkedCount > 0) {
                         ReferenceTab(
-                            label = "Unlinked ${result.unlinkedCount}",
+                            label = stringResource(R.string.links_tab_unlinked, result.unlinkedCount),
                             selected = tab == 1,
                             onClick = { tab = 1 },
                         )
@@ -112,7 +115,7 @@ fun LinkedReferencesSheet(
                     if (result.linkedByFile.isEmpty()) {
                         item {
                             Text(
-                                "No backlinks yet",
+                                stringResource(R.string.links_no_backlinks),
                                 fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink3,
                                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                             )
@@ -129,7 +132,7 @@ fun LinkedReferencesSheet(
                     if (result.unlinked.isEmpty()) {
                         item {
                             Text(
-                                "No unlinked mentions",
+                                stringResource(R.string.links_no_unlinked),
                                 fontFamily = PlexSans, fontSize = 13.5.sp, color = c.ink3,
                                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                             )
@@ -150,12 +153,12 @@ fun LinkedReferencesSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Tap any reference to jump to it",
+                    stringResource(R.string.links_tap_to_jump),
                     fontFamily = PlexSans, fontSize = 12.5.sp, color = c.ink2,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    "Close",
+                    stringResource(R.string.action_close),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 12.5.sp, color = c.accent,
                     modifier = Modifier.clickable(onClick = onDismiss),
@@ -206,7 +209,7 @@ private fun LinkedFileGroupSection(
             // instead of squeezing the count into a one-letter-wide column.
             Column(Modifier.weight(1f)) {
                 val folder = group.fileName.substringBeforeLast('/', missingDelimiterValue = "")
-                val count = pluralCount(group.hits.size, "reference")
+                val count = countLabel(R.plurals.count_references, group.hits.size)
                 Text(
                     group.fileName.substringAfterLast('/'), fontFamily = PlexMono, fontWeight = FontWeight.SemiBold,
                     fontSize = 12.5.sp, color = c.ink,
