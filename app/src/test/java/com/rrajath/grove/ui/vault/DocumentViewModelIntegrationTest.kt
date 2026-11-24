@@ -88,16 +88,25 @@ class DocumentViewModelIntegrationTest {
 
     private val liveVms = mutableListOf<DocumentViewModel>()
 
-    private fun documentVm() = DocumentViewModel(
-        vaultFlow = vaultFlow,
-        keywordsFlow = keywords,
-        sync = sync,
-        database = db,
-        settingsRepository = settingsRepository,
-        favoritesRepository = favoritesRepository,
-        dispatchers = mainDispatcherRule.appDispatchers,
-        app = app,
-    ).also { liveVms += it }
+    /**
+     * The real [SettingsRepository] reads its DataStore on a real IO thread that
+     * `advanceUntilIdle()` doesn't wait for, so a VM built before the first read lands
+     * can sit on empty state on a slow runner. Awaiting the first value primes the
+     * shared replay cache, which the VM then reads through the test scheduler.
+     */
+    private suspend fun documentVm(): DocumentViewModel {
+        settingsRepository.settings.first()
+        return DocumentViewModel(
+            vaultFlow = vaultFlow,
+            keywordsFlow = keywords,
+            sync = sync,
+            database = db,
+            settingsRepository = settingsRepository,
+            favoritesRepository = favoritesRepository,
+            dispatchers = mainDispatcherRule.appDispatchers,
+            app = app,
+        ).also { liveVms += it }
+    }
 
     @After
     fun tearDown() {
@@ -115,10 +124,8 @@ class DocumentViewModelIntegrationTest {
         loadedDoc(vm).headlines.first { it.title.startsWith(titlePrefix) }
 
     private suspend fun TestScope.loaded(fileName: String): DocumentViewModel {
-        // Edits like setState await `settings.first()`, which DataStore serves from its
-        // own IO thread, outside the test scheduler: advanceUntilIdle() can return before
-        // the edit runs. Prime the shared replay cache here so that read is immediate.
-        settingsRepository.settings.first()
+        // Edits like setState await `settings.first()`; documentVm() primes the replay
+        // cache so that read is immediate instead of racing DataStore's IO thread.
         val vm = documentVm()
         vm.load(fileName)
         advanceUntilIdle()

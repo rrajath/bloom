@@ -78,14 +78,23 @@ class NotebooksViewModelIntegrationTest {
 
     private val liveVms = mutableListOf<NotebooksViewModel>()
 
-    private fun notebooksVm(): NotebooksViewModel = NotebooksViewModel(
-        vaultFlow = vaultFlow,
-        database = db,
-        settingsRepository = settingsRepository,
-        sync = sync,
-        dispatchers = mainDispatcherRule.appDispatchers,
-        favoritesRepository = favoritesRepository,
-    ).also { liveVms += it }
+    /**
+     * The real [SettingsRepository] reads its DataStore on a real IO thread that
+     * `advanceUntilIdle()` doesn't wait for, so a VM built before the first read lands
+     * can sit on empty state on a slow runner. Awaiting the first value primes the
+     * shared replay cache, which the VM then reads through the test scheduler.
+     */
+    private suspend fun notebooksVm(): NotebooksViewModel {
+        settingsRepository.settings.first()
+        return NotebooksViewModel(
+            vaultFlow = vaultFlow,
+            database = db,
+            settingsRepository = settingsRepository,
+            sync = sync,
+            dispatchers = mainDispatcherRule.appDispatchers,
+            favoritesRepository = favoritesRepository,
+        ).also { liveVms += it }
+    }
 
     private suspend fun favoriteFiles(): List<String> = favoritesRepository.favorites.first().map { it.fileName }
 

@@ -26,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -113,13 +114,17 @@ class DocumentViewModelAttachmentLinkTest {
         shadowOf(app.packageManager).addResolveInfoForIntent(intent, info)
     }
 
-    private fun TestScope.loaded(): DocumentViewModel {
+    private suspend fun TestScope.loaded(): DocumentViewModel {
+        // The real SettingsRepository reads on a real IO thread that advanceUntilIdle()
+        // doesn't wait for; prime its replay cache so load() sees settings at once.
+        val settingsRepository = SettingsRepository(app, repoScope)
+        settingsRepository.settings.first()
         val vm = DocumentViewModel(
             vaultFlow = MutableStateFlow(Vault(store, parseDispatcher = mainDispatcherRule.dispatcher)),
             keywordsFlow = MutableStateFlow(OrgKeywords.DEFAULT),
             sync = FakeSyncTrigger(),
             database = db,
-            settingsRepository = SettingsRepository(app, repoScope),
+            settingsRepository = settingsRepository,
             favoritesRepository = FavoritesRepository(app),
             dispatchers = mainDispatcherRule.appDispatchers,
             app = app,

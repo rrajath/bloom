@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -74,6 +75,9 @@ class NotebooksViewModelAttachmentsTest {
         TestVaultSeeder.index(db, store)
         advanceUntilIdle()
         val lifecycle = AttachmentLifecycle(store, holders, AttachConfig.Default)
+        // The real SettingsRepository reads on a real IO thread that advanceUntilIdle()
+        // doesn't wait for; prime its replay cache so the VM sees settings at once.
+        settingsRepository.settings.first()
         return NotebooksViewModel(
             vaultFlow = MutableStateFlow(Vault(store, parseDispatcher = mainDispatcherRule.dispatcher)),
             database = db,

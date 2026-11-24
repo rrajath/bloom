@@ -73,17 +73,26 @@ class AppViewModelIntegrationTest {
 
     private val liveVms = mutableListOf<AppViewModel>()
 
-    private fun appVm() = AppViewModel(
-        settingsRepository = settingsRepository,
-        searchRepository = searchRepository,
-        favoritesRepository = favoritesRepository,
-        database = db,
-        sync = sync,
-        vaultFlow = vaultFlow,
-        pendingShare = pendingShare,
-        dispatchers = mainDispatcherRule.appDispatchers,
-        app = app,
-    ).also { liveVms += it }
+    /**
+     * The real [SettingsRepository] reads its DataStore on a real IO thread that
+     * `advanceUntilIdle()` doesn't wait for, so a VM built before the first read lands
+     * can sit on empty state on a slow runner. Awaiting the first value primes the
+     * shared replay cache, which the VM then reads through the test scheduler.
+     */
+    private suspend fun appVm(): AppViewModel {
+        settingsRepository.settings.first()
+        return AppViewModel(
+            settingsRepository = settingsRepository,
+            searchRepository = searchRepository,
+            favoritesRepository = favoritesRepository,
+            database = db,
+            sync = sync,
+            vaultFlow = vaultFlow,
+            pendingShare = pendingShare,
+            dispatchers = mainDispatcherRule.appDispatchers,
+            app = app,
+        ).also { liveVms += it }
+    }
 
     @After
     fun tearDown() {
