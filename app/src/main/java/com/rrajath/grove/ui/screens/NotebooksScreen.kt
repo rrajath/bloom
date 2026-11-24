@@ -660,8 +660,9 @@ fun NotebooksScreen(
     }
     pendingMove?.let { (target, newDir) ->
         // Null while the inventory loads; Empty runs the plain move (design 10.1).
+        // Dirs under a vault-root attachment folder don't move with the notebook.
         val inventory by produceState<AttachmentInventory?>(null, target, newDir) {
-            value = viewModel.notebookAttachments(target)
+            value = viewModel.notebookAttachments(target).movable()
         }
         val inv = inventory
         if (inv != null && inv.isEmpty) {

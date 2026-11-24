@@ -54,6 +54,11 @@ data class AttachDirEntry(
      * it instead, a delete keeps it.
      */
     val shared: Boolean,
+    /**
+     * The dir is under a vault-root attachment folder ([AttachConfig.isVaultRoot]):
+     * its path doesn't depend on where the note lives, so moves leave it alone.
+     */
+    val central: Boolean = false,
 )
 
 /** The attach dirs an operation on a file or subtree would touch (design 10.1). */
@@ -67,6 +72,9 @@ data class AttachmentInventory(
     val files: Int get() = dirs.sumOf { it.files }
     val bytes: Long get() = dirs.sumOf { it.bytes }
     val sharedFolders: Int get() = dirs.count { it.shared }
+
+    /** The dirs a notebook move would relocate: [AttachDirEntry.central] ones stay put. */
+    fun movable(): AttachmentInventory = copy(dirs = dirs.filterNot { it.central })
 
     companion object {
         val Empty = AttachmentInventory(emptyList())
@@ -85,9 +93,13 @@ data class LifecycleResult(val moved: Int = 0, val copied: Int = 0, val deleted:
  * or go away (design section 10). Only `:ID:` dirs are handled; `:DIR:` owners
  * are reported but never touched.
  *
- * Attach dirs live next to the org file (`<orgDir>/data/...`), so two notes only
- * share a dir when they sit in the same directory and carry the same `:ID:`.
- * That is what "shared" means here: a move copies such a dir and a delete keeps it.
+ * Attach dirs usually live next to the org file (`<orgDir>/data/...`), so two
+ * notes only share a dir when they sit in the same directory and carry the same
+ * `:ID:`. That is what "shared" means here: a move copies such a dir and a
+ * delete keeps it. Under a vault-root folder ([AttachConfig.isVaultRoot]) an
+ * `:ID:` dir is central: any file in the vault with that `:ID:` shares it, and
+ * moves never touch it since its path doesn't depend on the note's folder.
+ * The `data/` read fallback stays next to the note and is handled as before.
  */
 class AttachmentLifecycle(
     private val store: FileStore,
@@ -112,6 +124,16 @@ class AttachmentLifecycle(
 
     /** Serializes moves, so an UNDO can't race the refile it reverses. */
     private val mutex = Mutex()
+
+    /** The vault-root attachment folder, or null when the folder sits next to each note. */
+    private val centralRoot: String? = if (config.isVaultRoot) config.rootFor("").takeIf { it.isNotEmpty() } else null
+
+    /** True when [dir] is under the vault-root attachment folder. */
+    fun isCentral(dir: String): Boolean {
+        val root = centralRoot ?: return false
+        val d = dir.trim('/')
+        return d == root || d.startsWith("$root/")
+    }
 
     /** Every attach dir owned by [doc] (file-level owner and every heading), for a notebook move or delete. */
     suspend fun inventoryForFile(orgFile: String, doc: OrgDocument): AttachmentInventory {
@@ -151,6 +173,7 @@ class AttachmentLifecycle(
             .distinct()
         if (ids.isEmpty()) return AttachmentInventory(emptyList(), dirProps)
         val sharedInDir = idsHeldInDir(orgFile, ids, exclude = setOf(orgFile))
+        val sharedAnywhere = if (centralRoot == null) emptySet() else idsHeldAnywhere(ids, exclude = setOf(orgFile))
         // Most IDs have no attach dir; answering from listings keeps a notebook
         // with hundreds of IDs to a handful of queries before its dialog shows.
         val listed = AttachDirResolver(ListedDirs(store), config)
@@ -159,7 +182,9 @@ class AttachmentLifecycle(
             val dir = listed.readDir(orgFile, AttachOwner.File(id, null)) ?: return@mapNotNull null
             if (!seen.add(dir)) return@mapNotNull null
             val size = files.sizeOf(dir)
-            AttachDirEntry(id, dir, size.files, size.bytes, shared = id in sharedInDir || id in heldElsewhereInFile)
+            val central = isCentral(dir)
+            val shared = id in heldElsewhereInFile || id in (if (central) sharedAnywhere else sharedInDir)
+            AttachDirEntry(id, dir, size.files, size.bytes, shared = shared, central = central)
         }
         return AttachmentInventory(entries, dirProps)
     }
@@ -168,7 +193,8 @@ class AttachmentLifecycle(
      * After the notebook at [oldPath] moved to [newPath]: move each dir of
      * [inventory] to the same place relative to the new directory, merging with
      * what's there (collisions renamed). Shared dirs are copied. Emptied shards
-     * and `data/` are pruned. A dir that fails stays where it was.
+     * and `data/` are pruned. A dir that fails stays where it was. Central dirs
+     * (a vault-root folder) don't depend on the note's folder and are skipped.
      */
     suspend fun moveNotebookAttachments(oldPath: String, newPath: String, inventory: AttachmentInventory): LifecycleResult =
         mutex.withLock {
@@ -177,6 +203,7 @@ class AttachmentLifecycle(
             if (oldDir == newDir) return@withLock LifecycleResult.None
             var result = LifecycleResult.None
             for (e in inventory.dirs) {
+                if (e.central || isCentral(e.dir)) continue
                 val rel = relativeTo(e.dir, oldDir)
                 if (rel == null) {
                     result = result.copy(failed = result.failed + 1)
@@ -191,6 +218,8 @@ class AttachmentLifecycle(
      * Deletes the dirs of [inventory] that aren't shared. Right before each one,
      * [stillHeld] is asked again (a copy of the heading may have appeared since
      * the inventory ran); a held dir is kept. Emptied shards and `data/` are pruned.
+     * A central dir (vault-root folder) is also kept while any other file in the
+     * vault holds its `:ID:`, and pruning stops at the vault-root folder.
      */
     suspend fun deleteDirs(
         orgFile: String,
@@ -200,12 +229,13 @@ class AttachmentLifecycle(
         val orgDir = dirOf(orgFile)
         var result = LifecycleResult.None
         for (e in inventory.dirs) {
-            if (e.shared || stillHeld(e.id)) {
+            val central = e.central || isCentral(e.dir)
+            if (e.shared || stillHeld(e.id) || (central && e.id in idsHeldAnywhere(listOf(e.id), setOf(orgFile)))) {
                 result = result.copy(kept = result.kept + 1)
                 continue
             }
             if (files.deleteDir(e.dir)) {
-                files.pruneEmpty(parentOf(e.dir), stopAt = orgDir)
+                files.pruneEmpty(parentOf(e.dir), stopAt = if (central) centralRoot.orEmpty() else orgDir)
                 result = result.copy(deleted = result.deleted + 1)
             } else {
                 result = result.copy(failed = result.failed + 1)
@@ -224,7 +254,8 @@ class AttachmentLifecycle(
      * a file gained and another file of [writes] held before has its dir moved
      * to the same relative place next to the gaining file, merging when it
      * exists. The dir is copied when the ID is still in the source file or in
-     * another file of the source directory. No-op for same-directory moves.
+     * another file of the source directory. No-op for same-directory moves and
+     * for dirs under a vault-root folder, which don't depend on the note's folder.
      */
     suspend fun followMovedOwners(writes: List<FileRewrite>): LifecycleResult = mutex.withLock {
         val merged = writes.groupBy { it.file }.map { (file, ws) -> FileRewrite(file, ws.first().before, ws.last().after) }
@@ -242,6 +273,7 @@ class AttachmentLifecycle(
                 val dstDir = dirOf(gainer.file)
                 if (srcDir == dstDir) continue
                 val from = resolver.readDir(source.file, AttachOwner.File(id, null)) ?: continue
+                if (isCentral(from)) continue
                 val rel = relativeTo(from, srcDir) ?: continue
                 val copy = id in after.getValue(source.file) || heldInDir(source.file, id, exclude = involved)
                 result = relocate(from, joinPath(dstDir, rel), copy, pruneStop = srcDir, result)
@@ -414,6 +446,12 @@ class AttachmentLifecycle(
         acc.copy(failed = acc.failed + 1)
     }
 
+    /** IDs among [ids] that any file in the vault holds, [exclude] aside. */
+    private suspend fun idsHeldAnywhere(ids: Collection<String>, exclude: Set<String>): Set<String> {
+        if (ids.isEmpty()) return emptySet()
+        return holders.filesHolding(ids).filterValues { held -> held.any { it !in exclude } }.keys
+    }
+
     /** IDs among [ids] that a file in [orgFile]'s directory holds, [exclude] aside. */
     private suspend fun idsHeldInDir(orgFile: String, ids: Collection<String>, exclude: Set<String>): Set<String> {
         if (ids.isEmpty()) return emptySet()
@@ -429,15 +467,18 @@ class AttachmentLifecycle(
      * children (user folders such as `data/notes/`) are walked too. The walk
      * stops once [limit] roots are found. A missing [dir] lists as empty, so
      * there's no separate existence check (each one is a provider query on SAF).
+     * With a vault-root folder only the per-note `data/` fallback roots count:
+     * the central folder belongs to the whole vault, not to [dir].
      */
     private suspend fun attachRoots(dir: String, limit: Int = Int.MAX_VALUE): List<String> {
-        val leaf = config.idDir.trim('/').substringAfterLast('/')
+        val leaf = if (centralRoot != null) AttachDirResolver.DEFAULT_ID_DIR else config.idDir.trim('/').substringAfterLast('/')
         val out = mutableListOf<String>()
         suspend fun walk(path: String) {
             for (sub in store.listSubdirs(path)) {
                 if (out.size >= limit) return
                 if (sub.startsWith(".")) continue
                 val child = joinPath(path, sub)
+                if (child == centralRoot) continue
                 if (sub == leaf) {
                     val kids = store.listSubdirs(child)
                     if (kids.any(::isAttachShard)) out += child
