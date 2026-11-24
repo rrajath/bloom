@@ -12,8 +12,9 @@ fun interface DirExists {
  * `org-attach-dir` / `org-attach-dir-from-id` (org-attach.el):
  *
  * 1. `:DIR:` (then `:ATTACH_DIR:`) wins, resolved against the org file's directory.
- * 2. Else, with an `:ID:`, each ID path format in order: `<idDir>/<format(id)>`,
- *    then `data/<format(id)>` when [AttachConfig.idDir] isn't `data/`. The first
+ * 2. Else, with an `:ID:`, each ID path format in order: `<idDir>/<format(id)>`
+ *    (next to the org file, or from the vault root for [AttachConfig.isVaultRoot]),
+ *    then `data/<format(id)>` next to the org file when [AttachConfig.idDir] isn't `data/`. The first
  *    existing directory wins; when none exists, the first non-null candidate
  *    under `idDir` is the one to create.
  * 3. Neither: no directory.
@@ -35,8 +36,9 @@ class AttachDirResolver(
             return listOfNotNull(resolveRelative(orgDir, dir.trim())?.let { Candidate(it, null) })
         }
         val id = owner.id?.trim()?.takeIf { it.isNotEmpty() } ?: return emptyList()
-        val base = if (config.idDir.startsWith("/")) config.idDir else joinPath(orgDir, config.idDir)
-        val usesDefaultBase = !config.idDir.startsWith("/") && config.idDir.trim('/') == DEFAULT_ID_DIR
+        val base = if (config.isVaultRoot) config.idDir else joinPath(orgDir, config.idDir)
+        // The `data/` fallback is always next to the note, so a vault-root `/data/` still has one.
+        val usesDefaultBase = !config.isVaultRoot && config.idDir.trim('/') == DEFAULT_ID_DIR
         return config.idPathFormats.mapNotNull { fmt ->
             val name = fmt.path(id) ?: return@mapNotNull null
             val primary = normalizeVaultPath(joinPath(base, name))?.takeIf { it.isNotEmpty() }

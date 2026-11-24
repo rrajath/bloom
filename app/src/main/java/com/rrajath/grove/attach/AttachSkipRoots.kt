@@ -5,19 +5,24 @@ package com.rrajath.grove.attach
  * skip: org-attach shards (`3F/`, `202611/`, `__/`) directly inside one are
  * never walked by sync, the index or the notebook tree.
  *
- * A `data` folder always counts: reads fall back to `data/` (as
- * `org-attach-dir-from-id` does), so attachments made before the folder
- * changed stay hidden. The configured folder ([AttachConfig.idDir], relative
- * to each note's folder) counts wherever a folder's path ends with it.
+ * A `data` folder always counts: reads fall back to `data/` next to each note
+ * (as `org-attach-dir-from-id` does), so attachments made before the folder
+ * changed stay hidden. The configured folder ([AttachConfig.idDir]) counts
+ * wherever a folder's path ends with it when it's relative to each note's
+ * folder, and only at the vault root when it's [AttachConfig.isVaultRoot].
  */
 class AttachSkipRoots private constructor(
-    /** The configured folder as a trailing path (`attach`, `media/files`); null when it's `data`. */
-    private val suffix: String?,
+    /** The configured folder as a vault-relative path (`attach`, `media/files`); null when it's `data`. */
+    private val folder: String?,
+    /** True when [folder] only counts at the vault root, not as a trailing path. */
+    private val vaultRoot: Boolean,
 ) {
     /** Whether [parentPath] (vault-relative, "" for the root) is an attach root. */
     fun isAttachRoot(parentPath: String): Boolean {
         val p = parentPath.trim('/')
-        return endsWith(p, DATA) || (suffix != null && endsWith(p, suffix))
+        if (endsWith(p, DATA)) return true
+        if (folder == null) return false
+        return if (vaultRoot) p == folder else endsWith(p, folder)
     }
 
     private fun endsWith(path: String, tail: String) = path == tail || path.endsWith("/$tail")
@@ -26,11 +31,11 @@ class AttachSkipRoots private constructor(
         private const val DATA = AttachDirResolver.DEFAULT_ID_DIR
 
         /** Only `data` folders: Emacs's default, and the store default in tests. */
-        val DataOnly = AttachSkipRoots(null)
+        val DataOnly = AttachSkipRoots(null, vaultRoot = false)
 
         fun of(config: AttachConfig): AttachSkipRoots {
             val tail = normalizeVaultPath(config.idDir.trim())
-            return AttachSkipRoots(tail?.takeIf { it.isNotEmpty() && it != DATA })
+            return AttachSkipRoots(tail?.takeIf { it.isNotEmpty() && it != DATA }, config.isVaultRoot)
         }
     }
 }

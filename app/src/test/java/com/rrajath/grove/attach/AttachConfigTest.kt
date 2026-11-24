@@ -1,6 +1,8 @@
 package com.rrajath.grove.attach
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AttachConfigTest {
@@ -19,8 +21,24 @@ class AttachConfigTest {
         assertEquals("media/files/", attachDirLabel("travel.org", AttachConfig(idDir = "media/files/")))
     }
 
+    @Test fun `vault root folder is the same for every org file`() {
+        val config = AttachConfig(idDir = "/attach/")
+        assertTrue(config.isVaultRoot)
+        assertFalse(AttachConfig(idDir = "attach/").isVaultRoot)
+        assertEquals("attach", config.rootFor("inbox.org"))
+        assertEquals("attach", config.rootFor("projects/work.org"))
+        assertEquals("media/files", AttachConfig(idDir = "/media/files/").rootFor("a/b/c.org"))
+    }
+
+    @Test fun `attachDirLabel marks a vault root folder with a leading slash`() {
+        assertEquals("/attach/", attachDirLabel("projects/work.org", AttachConfig(idDir = "/attach/")))
+        assertEquals("/attach/", attachDirLabel("inbox.org", AttachConfig(idDir = "/attach/")))
+        assertEquals("/media/files/", attachDirLabel("x.org", AttachConfig(idDir = "/media/files/")))
+    }
+
     @Test fun `forFolder sets the id dir`() {
         assertEquals("attach/", AttachConfig.forFolder("attach/").idDir)
         assertEquals(AttachConfig.Default, AttachConfig.forFolder("data/"))
+        assertEquals("/attach/", AttachConfig.forFolder("/attach/").idDir)
     }
 }
