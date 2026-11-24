@@ -36,11 +36,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.TemplateKind
 import com.rrajath.grove.capture.TemplateValidator
@@ -55,6 +57,8 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.util.asString
+import com.rrajath.grove.ui.util.backArrowGlyph
+import com.rrajath.grove.ui.util.uppercaseForUi
 
 /**
  * Shared chrome for every settings sub-page (Settings §11 split into one page
@@ -79,7 +83,7 @@ internal fun SettingsPageScaffold(
                 // A focused field's cursor/selection handle lives in its own Popup, outside this
                 // page's exit transition — clear focus before navigating so it doesn't hang in
                 // place over the previous screen while this page fades out from under it.
-                leading = { IconGlyph("←", onClick = { focusManager.clearFocus(force = true); onBack() }) },
+                leading = { IconGlyph(backArrowGlyph(), onClick = { focusManager.clearFocus(force = true); onBack() }) },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -111,13 +115,17 @@ internal fun SettingsPageScaffold(
 }
 
 @Composable
-internal fun SectionLabel(text: String, trailing: (@Composable () -> Unit)? = null) {
+internal fun SectionLabel(
+    /** Normal case; drawn in capitals with the UI language's rules. */
+    text: String,
+    trailing: (@Composable () -> Unit)? = null,
+) {
     Row(
         Modifier.padding(start = 4.dp, top = 4.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text,
+            text.uppercaseForUi(),
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp, letterSpacing = 1.sp,
             color = MaterialTheme.grove.accent,
@@ -323,25 +331,25 @@ internal fun TemplateSettingsRow(
             containerColor = c.surface,
             title = {
                 Text(
-                    "Delete “${template.name}”?",
+                    stringResource(R.string.settings_template_delete_title, template.name),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp, color = c.ink,
                 )
             },
             text = {
                 Text(
-                    "This removes the capture template. Notes you already captured with it are not affected.",
+                    stringResource(R.string.settings_template_delete_body),
                     fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
                 )
             },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
-                    Text("Delete", color = c.red, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.action_delete), color = c.red, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) {
-                    Text("Cancel", color = c.ink2)
+                    Text(stringResource(R.string.action_cancel), color = c.ink2)
                 }
             },
         )

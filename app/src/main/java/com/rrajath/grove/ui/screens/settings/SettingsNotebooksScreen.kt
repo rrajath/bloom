@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import com.rrajath.grove.R
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.NotebookDisplayNameMode
 import com.rrajath.grove.settings.NotebookSortKey
@@ -69,7 +70,7 @@ fun SettingsNotebooksScreen(
         }
     }
 
-    SettingsPageScaffold(title = "Notebooks", onBack = onBack) { scrollState ->
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_notebooks_title), onBack = onBack) { scrollState ->
         // Leaving this screen retires the "Ignore list" NEW dot from its whole
         // trail (menu glyph, drawer, Settings hub row, the block itself).
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTEBOOKS_IGNORE_LIST)
@@ -89,29 +90,32 @@ fun SettingsNotebooksScreen(
         }
         SettingsGroup {
             ToggleRow(
-                label = "Show file icons in notebooks",
-                description = "Display the icon tile on each row of the notebooks list",
+                label = stringResource(R.string.settings_notebooks_file_icons),
+                description = stringResource(R.string.settings_notebooks_file_icons_hint),
                 checked = settings.showNotebookFileIcons,
                 onToggle = onSetShowNotebookFileIcons,
             )
             RowDivider()
             ToggleRow(
-                label = "Flatten folders",
-                description = "Hide folders and list every note as one flat list, each showing its folder path",
+                label = stringResource(R.string.settings_notebooks_flatten),
+                description = stringResource(R.string.settings_notebooks_flatten_hint),
                 checked = settings.flattenNotebookFolders,
                 onToggle = onSetFlattenNotebookFolders,
             )
             RowDivider()
             SettingsRow(
-                label = "Notebook display name",
+                label = stringResource(R.string.settings_notebooks_display_name),
                 description = if (settings.notebookDisplayNameMode == NotebookDisplayNameMode.FILENAME) {
-                    "Notebooks are displayed by their filenames"
+                    stringResource(R.string.settings_notebooks_display_name_filename_hint)
                 } else {
-                    "Notebooks are displayed by their titles, falling back to filename"
+                    stringResource(R.string.settings_notebooks_display_name_title_hint)
                 },
             ) {
                 SegmentedControl(
-                    options = listOf("Filename", "Title"),
+                    options = listOf(
+                        stringResource(R.string.settings_notebooks_display_name_filename),
+                        stringResource(R.string.settings_notebooks_display_name_title),
+                    ),
                     selectedIndex = settings.notebookDisplayNameMode.ordinal,
                     onSelect = { onSetNotebookDisplayNameMode(NotebookDisplayNameMode.entries[it]) },
                     modifier = Modifier.width(200.dp),
@@ -119,8 +123,8 @@ fun SettingsNotebooksScreen(
             }
             RowDivider()
             SettingsRow(
-                label = "Notebooks sort order",
-                description = "Pinned notebooks and folders are excluded from sorting; they keep their pinned order",
+                label = stringResource(R.string.settings_notebooks_sort),
+                description = stringResource(R.string.settings_notebooks_sort_hint),
             ) {
                 SegmentedControl(
                     options = NotebookSortKey.entries.map { stringResource(it.labelRes) },
@@ -131,16 +135,21 @@ fun SettingsNotebooksScreen(
             }
             RowDivider()
             SettingsRow(
-                label = "Order",
-                description = when (settings.notebookSortKey) {
-                    NotebookSortKey.ALPHABETICAL ->
-                        if (settings.notebookSortAscending) "A to Z" else "Z to A"
-                    NotebookSortKey.LAST_MODIFIED ->
-                        if (settings.notebookSortAscending) "Oldest edited first" else "Most recently edited first"
-                },
+                label = stringResource(R.string.settings_notebooks_order),
+                description = stringResource(
+                    when (settings.notebookSortKey) {
+                        NotebookSortKey.ALPHABETICAL ->
+                            if (settings.notebookSortAscending) R.string.settings_notebooks_order_a_to_z else R.string.settings_notebooks_order_z_to_a
+                        NotebookSortKey.LAST_MODIFIED ->
+                            if (settings.notebookSortAscending) R.string.settings_notebooks_order_oldest_first else R.string.settings_notebooks_order_newest_first
+                    },
+                ),
             ) {
                 SegmentedControl(
-                    options = listOf("Ascending", "Descending"),
+                    options = listOf(
+                        stringResource(R.string.settings_notebooks_order_ascending),
+                        stringResource(R.string.settings_notebooks_order_descending),
+                    ),
                     selectedIndex = if (settings.notebookSortAscending) 0 else 1,
                     onSelect = { onSetNotebookSortAscending(it == 0) },
                     modifier = Modifier.width(200.dp),
@@ -153,23 +162,25 @@ fun SettingsNotebooksScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        "Ignore list",
+                        stringResource(R.string.settings_notebooks_ignore_list),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
                     NewDot(NewAnchors.SETTINGS_NOTEBOOKS_IGNORE_LIST)
                 }
                 Text(
-                    "Files, folders, and patterns listed below are skipped during indexing. One per line.",
+                    stringResource(R.string.settings_notebooks_ignore_list_hint),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 2.dp, bottom = 6.dp),
                 )
                 Text(
-                    when {
-                        settings.ignoreListImportedFromFile -> "Imported from .orgzlyignore."
-                        settings.ignoreListLegacyFileEmpty -> "Found a .orgzlyignore file and it's empty."
-                        else -> "No .orgzlyignore file found."
-                    },
+                    stringResource(
+                        when {
+                            settings.ignoreListImportedFromFile -> R.string.settings_notebooks_ignore_imported
+                            settings.ignoreListLegacyFileEmpty -> R.string.settings_notebooks_ignore_legacy_empty
+                            else -> R.string.settings_notebooks_ignore_no_file
+                        },
+                    ),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
@@ -184,7 +195,7 @@ fun SettingsNotebooksScreen(
                         .onFocusChanged { ignoreListFieldFocused = it.isFocused },
                 )
                 Text(
-                    "Dot-prefixed folders (e.g. .git, .stversions, .stfolder) are always skipped automatically, no need to add them here.",
+                    stringResource(R.string.settings_notebooks_ignore_dot_folders),
                     fontFamily = PlexSans, fontSize = 11.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 6.dp),
                 )

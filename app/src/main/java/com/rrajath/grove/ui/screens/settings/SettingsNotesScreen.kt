@@ -20,10 +20,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.NewNoteCursor
@@ -73,7 +75,7 @@ fun SettingsNotesScreen(
         }
     }
 
-    SettingsPageScaffold(title = "Notes", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_notes_title), onBack = onBack) {
         // Leaving this screen retires each of its NEW dots from its whole trail
         // (menu glyph, drawer, Settings hub row, the row itself).
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_NEW_NOTE_CURSOR)
@@ -81,16 +83,16 @@ fun SettingsNotesScreen(
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_AUTO_SAVE)
         MarkNewFeatureSeen(NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE)
 
-        SectionLabel("TASKS")
+        SectionLabel(stringResource(R.string.settings_notes_section_tasks))
         SettingsGroup {
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
-                    "TODO keywords",
+                    stringResource(R.string.settings_notes_todo_keywords),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                 )
                 Text(
-                    "Keywords after | are done-type",
+                    stringResource(R.string.settings_notes_todo_keywords_hint),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
@@ -105,7 +107,7 @@ fun SettingsNotesScreen(
                 // "rebuild index" action, e.g. to recompute isDone for notebooks whose
                 // stale Room rows predate the keywords they were indexed under.
                 Text(
-                    "Apply (re-indexes all notebooks)",
+                    stringResource(R.string.settings_notes_todo_keywords_apply),
                     fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp, color = c.accent,
                     modifier = Modifier
@@ -117,11 +119,11 @@ fun SettingsNotesScreen(
             }
             RowDivider()
             SettingsRow(
-                label = "Default priority",
-                description = "Search's p. counts headings with no priority as this one",
+                label = stringResource(R.string.settings_notes_default_priority),
+                description = stringResource(R.string.settings_notes_default_priority_hint),
             ) {
                 SegmentedControl(
-                    options = listOf("None", "A", "B", "C"),
+                    options = listOf(stringResource(R.string.settings_notes_priority_none), "A", "B", "C"),
                     selectedIndex = when (settings.defaultPriority) {
                         'A' -> 1; 'B' -> 2; 'C' -> 3; else -> 0
                     },
@@ -133,18 +135,18 @@ fun SettingsNotesScreen(
         }
         Spacer(Modifier.height(20.dp))
 
-        SectionLabel("DISPLAY")
+        SectionLabel(stringResource(R.string.settings_notes_section_display))
         SettingsGroup {
             SettingsRow(
-                label = "Default note mode",
+                label = stringResource(R.string.settings_notes_default_mode),
                 description = if (settings.defaultNoteOpenMode == NoteOpenMode.READ) {
-                    "Notes open in read mode"
+                    stringResource(R.string.settings_notes_default_mode_read_hint)
                 } else {
-                    "Notes open in edit mode"
+                    stringResource(R.string.settings_notes_default_mode_edit_hint)
                 },
             ) {
                 SegmentedControl(
-                    options = listOf("Read", "Edit"),
+                    options = listOf(stringResource(R.string.mode_read), stringResource(R.string.mode_edit)),
                     selectedIndex = settings.defaultNoteOpenMode.ordinal,
                     onSelect = { onSetNoteOpenMode(NoteOpenMode.entries[it]) },
                     modifier = Modifier.width(160.dp),
@@ -153,58 +155,61 @@ fun SettingsNotesScreen(
             RowDivider()
             Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
                 Text(
-                    "Font size",
+                    stringResource(R.string.settings_notes_font_size),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                 )
                 Text(
-                    "Read and edit mode scale independently. The rest of the app is unaffected.",
+                    stringResource(R.string.settings_notes_font_size_hint),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 2.dp),
                 )
-                ModeFontSizePicker("Read mode", settings.readModeFontSize, onSetReadModeFontSize)
-                ModeFontSizePicker("Edit mode", settings.editModeFontSize, onSetEditModeFontSize)
+                ModeFontSizePicker(stringResource(R.string.settings_notes_font_size_read), settings.readModeFontSize, onSetReadModeFontSize)
+                ModeFontSizePicker(stringResource(R.string.settings_notes_font_size_edit), settings.editModeFontSize, onSetEditModeFontSize)
             }
             RowDivider()
             ToggleRow(
-                label = "Show preface",
-                description = "Display file-level #+ keywords in org files",
+                label = stringResource(R.string.settings_notes_show_preface),
+                description = stringResource(R.string.settings_notes_show_preface_hint),
                 checked = settings.showPreface,
                 onToggle = onSetShowPreface,
             )
             RowDivider()
             ToggleRow(
-                label = "Show property drawers",
-                description = "Display :PROPERTIES: drawers in org files",
+                label = stringResource(R.string.settings_notes_show_drawers),
+                description = stringResource(R.string.settings_notes_show_drawers_hint),
                 checked = settings.showPropertyDrawers,
                 onToggle = onSetShowPropertyDrawers,
             )
         }
         Spacer(Modifier.height(20.dp))
 
-        SectionLabel("NEW NOTES & EDITING")
+        SectionLabel(stringResource(R.string.settings_notes_section_new_notes))
         SettingsGroup {
             ToggleRow(
-                label = "Add ID to new notes",
-                description = "Adds an ID property while creating new notes",
+                label = stringResource(R.string.settings_notes_add_id),
+                description = stringResource(R.string.settings_notes_add_id_hint),
                 checked = settings.addIdToNewNotes,
                 onToggle = onSetAddId,
             )
             RowDivider()
             ToggleRow(
-                label = "Add CREATED timestamp",
-                description = "Adds a CREATED property with the current timestamp when creating new notes",
+                label = stringResource(R.string.settings_notes_add_created),
+                description = stringResource(R.string.settings_notes_add_created_hint),
                 checked = settings.addCreatedToNewNotes,
                 onToggle = onSetAddCreated,
             )
             RowDivider()
             SettingsRow(
-                label = "New note cursor",
-                description = "Where the cursor lands in a note you just created",
+                label = stringResource(R.string.settings_notes_new_note_cursor),
+                description = stringResource(R.string.settings_notes_new_note_cursor_hint),
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_NEW_NOTE_CURSOR) },
             ) {
                 SegmentedControl(
-                    options = listOf("Heading", "Body"),
+                    options = listOf(
+                        stringResource(R.string.settings_notes_new_note_cursor_heading),
+                        stringResource(R.string.settings_notes_new_note_cursor_body),
+                    ),
                     selectedIndex = settings.newNoteCursor.ordinal,
                     onSelect = { onSetNewNoteCursor(NewNoteCursor.entries[it]) },
                     modifier = Modifier.width(160.dp),
@@ -212,26 +217,24 @@ fun SettingsNotesScreen(
             }
             RowDivider()
             ToggleRow(
-                label = "Auto-save notes",
-                description = "Saves an open editor 5 seconds after you stop typing. Off means a note is " +
-                        "written only when you tap the save icon, so read mode shows your unsaved edits until then",
+                label = stringResource(R.string.settings_notes_auto_save),
+                description = stringResource(R.string.settings_notes_auto_save_hint),
                 checked = settings.autoSaveNotes,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_AUTO_SAVE) },
                 onToggle = onSetAutoSaveNotes,
             )
             RowDivider()
             ToggleRow(
-                label = "Auto-capitalize headings",
-                description = "Capitalizes the first letter typed into a heading. Off leaves capitalization to your keyboard",
+                label = stringResource(R.string.settings_notes_capitalize),
+                description = stringResource(R.string.settings_notes_capitalize_hint),
                 checked = settings.capitalizeHeadings,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS) },
                 onToggle = onSetCapitalizeHeadings,
             )
             RowDivider()
             ToggleRow(
-                label = "Highlight current line",
-                description = "Shades the whole line you're typing on, including where it wraps, so you can tell " +
-                        "a long wrapped line from separate lines",
+                label = stringResource(R.string.settings_notes_highlight_line),
+                description = stringResource(R.string.settings_notes_highlight_line_hint),
                 checked = settings.highlightCurrentLine,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE) },
                 onToggle = onSetHighlightCurrentLine,
@@ -239,24 +242,24 @@ fun SettingsNotesScreen(
         }
         Spacer(Modifier.height(20.dp))
 
-        SectionLabel("ARCHIVING")
+        SectionLabel(stringResource(R.string.settings_notes_section_archiving))
         SettingsGroup {
             ToggleRow(
-                label = "Auto-archive done items?",
-                description = "Refiles a task the moment it's marked done, to its ARCHIVE property/keyword " +
-                        "if it has one, otherwise the location below",
+                label = stringResource(R.string.settings_notes_auto_archive),
+                description = stringResource(R.string.settings_notes_auto_archive_hint),
                 checked = settings.autoArchiveDoneItems,
                 onToggle = onSetAutoArchiveDoneItems,
             )
             if (settings.autoArchiveDoneItems) {
                 RowDivider()
                 SettingsRow(
-                    label = "Archive location",
-                    description = "Fallback when a task has no ARCHIVE property/keyword of its own",
+                    label = stringResource(R.string.settings_notes_archive_location),
+                    description = stringResource(R.string.settings_notes_archive_location_hint),
                     onClick = onOpenArchiveLocationPicker,
                 ) {
                     Text(
-                        archiveLocationSummary(settings.autoArchiveFile, settings.autoArchiveHeadingPath),
+                        archiveLocationSummary(settings.autoArchiveFile, settings.autoArchiveHeadingPath)
+                            ?: stringResource(R.string.settings_location_not_set),
                         fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,
                     )
                 }
@@ -279,7 +282,7 @@ private fun ModeFontSizePicker(
             modifier = Modifier.padding(bottom = 6.dp),
         )
         SegmentedControl(
-            options = listOf("Small", "Medium", "Large"),
+            options = FontSizePreference.entries.map { stringResource(it.labelRes) },
             selectedIndex = selected.ordinal,
             onSelect = { onSelect(FontSizePreference.entries[it]) },
             modifier = Modifier.fillMaxWidth(),
@@ -287,8 +290,9 @@ private fun ModeFontSizePicker(
     }
 }
 
-private fun archiveLocationSummary(file: String?, headingPath: String): String {
-    if (file == null) return "Not set"
+/** The archive location as a `file › heading` path, or null when none is set. */
+private fun archiveLocationSummary(file: String?, headingPath: String): String? {
+    if (file == null) return null
     val segments = listOf(file.removeSuffix(".org")) + headingPath.split('/').filter { it.isNotEmpty() }
     return segments.joinToString(" › ")
 }

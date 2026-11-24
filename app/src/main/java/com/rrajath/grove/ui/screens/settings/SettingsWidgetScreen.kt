@@ -17,10 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rrajath.grove.R
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.components.SegmentedControl
@@ -47,7 +49,7 @@ fun SettingsWidgetScreen(
     onOpenQuickAddTargetPicker: () -> Unit,
 ) {
     val c = MaterialTheme.grove
-    SettingsPageScaffold(title = "Widget", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_widget_title), onBack = onBack) {
         // Leaving this screen retires the Widget page's NEW dot from its whole
         // trail (menu glyph, drawer, Settings hub row, the page itself).
         MarkNewFeatureSeen(NewAnchors.SETTINGS_WIDGET_PAGE)
@@ -65,18 +67,18 @@ fun SettingsWidgetScreen(
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Transparency",
+                        stringResource(R.string.settings_widget_transparency),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        "${(localTransparency * 100).roundToInt()}%",
+                        stringResource(R.string.settings_widget_percent, (localTransparency * 100).roundToInt()),
                         fontFamily = PlexMono, fontSize = 13.sp, color = c.accent,
                     )
                 }
                 Text(
-                    "Home-screen Agenda widget background",
+                    stringResource(R.string.settings_widget_transparency_hint),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                 )
                 Slider(
@@ -98,12 +100,12 @@ fun SettingsWidgetScreen(
             ) {
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
-                        "Days ahead",
+                        stringResource(R.string.settings_widget_days_ahead),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
                     Text(
-                        "How far into the future the widget shows",
+                        stringResource(R.string.settings_widget_days_ahead_hint),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -112,32 +114,32 @@ fun SettingsWidgetScreen(
             }
             RowDivider()
             ToggleRow(
-                label = "Filename",
+                label = stringResource(R.string.settings_widget_show_filename),
                 checked = settings.agendaWidgetShowFileName,
-                description = "Nested folders are contracted to initials, e.g. W/P/notes.org",
+                description = stringResource(R.string.settings_widget_show_filename_hint),
                 onToggle = onSetAgendaWidgetShowFileName,
             )
             RowDivider()
             ToggleRow(
-                label = "Tags",
+                label = stringResource(R.string.settings_widget_show_tags),
                 checked = settings.agendaWidgetShowTags,
-                description = "Own and inherited tags on each item",
+                description = stringResource(R.string.settings_widget_show_tags_hint),
                 onToggle = onSetAgendaWidgetShowTags,
             )
             RowDivider()
             ToggleRow(
-                label = "Priority",
+                label = stringResource(R.string.settings_widget_show_priority),
                 checked = settings.agendaWidgetShowPriority,
-                description = "The A/B/C priority badge on each item",
+                description = stringResource(R.string.settings_widget_show_priority_hint),
                 onToggle = onSetAgendaWidgetShowPriority,
             )
             RowDivider()
             SettingsRow(
-                label = "Quick add target",
+                label = stringResource(R.string.settings_widget_quick_add_target),
                 description = if (settings.quickAddTargetFile == null) {
-                    "Where the widget's + saves tasks. Follows the share target until you pick one"
+                    stringResource(R.string.settings_widget_quick_add_target_default_hint)
                 } else {
-                    "Where the widget's + saves tasks: a file, or a heading in one"
+                    stringResource(R.string.settings_widget_quick_add_target_hint)
                 },
                 labelBadge = { NewDot(NewAnchors.SETTINGS_WIDGET_QUICK_ADD_TARGET) },
                 onClick = onOpenQuickAddTargetPicker,
@@ -152,13 +154,13 @@ fun SettingsWidgetScreen(
             RowDivider()
             Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
                 Text(
-                    "Font size",
+                    stringResource(R.string.settings_widget_font_size),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
                 SegmentedControl(
-                    options = listOf("Small", "Medium", "Large"),
+                    options = FontSizePreference.entries.map { stringResource(it.labelRes) },
                     selectedIndex = settings.agendaWidgetFontSize.ordinal,
                     onSelect = { onSetAgendaWidgetFontSize(FontSizePreference.entries[it]) },
                     modifier = Modifier.fillMaxWidth(),
@@ -166,7 +168,7 @@ fun SettingsWidgetScreen(
             }
         }
         Text(
-            "Live preview. Updates as you change the settings above.",
+            stringResource(R.string.settings_widget_preview_hint),
             fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
             modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp),
         )

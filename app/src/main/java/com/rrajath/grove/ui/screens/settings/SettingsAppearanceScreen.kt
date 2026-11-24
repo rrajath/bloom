@@ -1,6 +1,7 @@
 package com.rrajath.grove.ui.screens.settings
 
 import android.os.Build
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,7 +61,7 @@ fun SettingsAppearanceScreen(
     val selection = settings.themeSelection
     val systemIsDark = isSystemInDarkTheme()
     val mode = selection.effectiveMode(systemDarkThemeSupported)
-    SettingsPageScaffold(title = "Look and Feel", onBack = onBack) {
+    SettingsPageScaffold(title = stringResource(R.string.settings_page_appearance_title), onBack = onBack) {
         // Leaving this screen retires the "Text size" NEW dot from its whole
         // trail (menu glyph, drawer, Settings hub row, the block itself).
         MarkNewFeatureSeen(NewAnchors.SETTINGS_APPEARANCE_TEXT_SIZE)
@@ -73,7 +74,7 @@ fun SettingsAppearanceScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        "Theme",
+                        stringResource(R.string.settings_appearance_theme),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
@@ -82,7 +83,7 @@ fun SettingsAppearanceScreen(
                 // Android 6-9 have no system dark theme, so System isn't offered there.
                 val modes = if (systemDarkThemeSupported) ThemeMode.entries else listOf(ThemeMode.LIGHT, ThemeMode.DARK)
                 SegmentedControl(
-                    options = modes.map { it.label },
+                    options = modes.map { stringResource(it.labelRes) },
                     selectedIndex = modes.indexOf(mode),
                     onSelect = { onSetThemeMode(modes[it]) },
                     leadingIcons = modes.map { it.icon },
@@ -111,7 +112,7 @@ fun SettingsAppearanceScreen(
                             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         )
                         Text(
-                            "${stringResource(R.string.app_name)} switches between these when your phone changes between light and dark mode.",
+                            stringResource(R.string.settings_appearance_system_hint, stringResource(R.string.app_name)),
                             fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                             modifier = Modifier.padding(top = 8.dp),
                         )
@@ -136,19 +137,19 @@ fun SettingsAppearanceScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        "Text size",
+                        stringResource(R.string.settings_appearance_text_size),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
                     NewDot(NewAnchors.SETTINGS_APPEARANCE_TEXT_SIZE)
                 }
                 Text(
-                    "Applies across the whole app. Read and edit mode scale on top of this.",
+                    stringResource(R.string.settings_appearance_text_size_hint),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 2.dp),
                 )
                 SegmentedControl(
-                    options = listOf("Small", "Medium", "Large"),
+                    options = FontSizePreference.entries.map { stringResource(it.labelRes) },
                     selectedIndex = settings.appFontSize.ordinal,
                     onSelect = { onSetAppFontSize(FontSizePreference.entries[it]) },
                     modifier = Modifier
@@ -161,7 +162,7 @@ fun SettingsAppearanceScreen(
 }
 
 /**
- * "Sync App Icon with Theme" toggle row plus a live 60x60 launcher-icon preview
+ * stringResource(R.string.settings_appearance_sync_icon) toggle row plus a live 60x60 launcher-icon preview
  * (design/Grove.dc.html lines 827-841: the tile mirrors `iconSpokesLauncher`,
  * `spokeSet(16, 7)`). The preview shows [theme]'s colors when [checked], the
  * default light mark otherwise. With [followsSystem] the icon trails the phone's
@@ -184,7 +185,7 @@ private fun SyncAppIconRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Sync App Icon with Theme",
+                stringResource(R.string.settings_appearance_sync_icon),
                 fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                 fontSize = 14.5.sp, color = c.ink,
                 modifier = Modifier.weight(1f),
@@ -202,7 +203,7 @@ private fun SyncAppIconRow(
         }
         if (checked && followsSystem) {
             Text(
-                "Matches the theme in use. The icon changes the next time you leave ${stringResource(R.string.app_name)}.",
+                stringResource(R.string.settings_appearance_sync_icon_hint, stringResource(R.string.app_name)),
                 fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                 modifier = Modifier.padding(top = 2.dp),
             )
@@ -245,11 +246,12 @@ private fun SyncAppIconRow(
     }
 }
 
-private val ThemeMode.label: String
+@get:StringRes
+private val ThemeMode.labelRes: Int
     get() = when (this) {
-        ThemeMode.LIGHT -> "Light"
-        ThemeMode.DARK -> "Dark"
-        ThemeMode.SYSTEM -> "System"
+        ThemeMode.LIGHT -> R.string.settings_appearance_mode_light
+        ThemeMode.DARK -> R.string.settings_appearance_mode_dark
+        ThemeMode.SYSTEM -> R.string.settings_appearance_mode_system
     }
 
 private val ThemeMode.icon: ImageVector

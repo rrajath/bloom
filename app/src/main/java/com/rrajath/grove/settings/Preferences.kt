@@ -136,10 +136,10 @@ data class ThemeSelection(
     }
 }
 
-enum class FontSizePreference(val storageKey: String, val scale: Float) {
-    SMALL("small", 0.9f),
-    MEDIUM("medium", 1.0f),
-    LARGE("large", 1.12f);
+enum class FontSizePreference(val storageKey: String, val scale: Float, @StringRes val labelRes: Int) {
+    SMALL("small", 0.9f, R.string.settings_font_size_small),
+    MEDIUM("medium", 1.0f, R.string.settings_font_size_medium),
+    LARGE("large", 1.12f, R.string.settings_font_size_large);
 
     companion object {
         fun fromStorage(value: String?): FontSizePreference =

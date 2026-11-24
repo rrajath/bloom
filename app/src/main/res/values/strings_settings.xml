@@ -64,4 +64,185 @@
     <string name="settings_share_picker_title">Set shared content target</string>
     <string name="settings_share_picker_confirm_heading">Share under this heading</string>
     <string name="settings_share_picker_confirm_file">Share to this file</string>
+    <!-- Settings hub: one row per settings page (title + one-line summary). Each title is also that page's top bar title. -->
+    <string name="settings_page_appearance_title">Look and Feel</string>
+    <string name="settings_page_appearance_summary">Theme, app icon, text size</string>
+    <string name="settings_page_notebooks_title">Notebooks</string>
+    <string name="settings_page_notebooks_summary">File icons, folder flattening, display names, sort order</string>
+    <string name="settings_page_capture_templates_title">Capture Templates</string>
+    <string name="settings_page_capture_templates_summary">Quick-capture targets and shortcuts</string>
+    <string name="settings_page_sync_title">Sync</string>
+    <string name="settings_page_sync_summary">Folder, auto-sync, sync log</string>
+    <string name="settings_page_notes_title">Notes</string>
+    <!-- TODO is an org-mode keyword; keep it as is. -->
+    <string name="settings_page_notes_summary">TODO keywords, priorities, note display</string>
+    <string name="settings_page_agenda_title">Agenda</string>
+    <string name="settings_page_agenda_summary">Swipe actions, deadline warnings, start of week</string>
+    <string name="settings_page_widget_title">Widget</string>
+    <string name="settings_page_widget_summary">Home-screen Agenda widget: content, transparency, size</string>
+    <string name="settings_page_reminders_title">Reminders</string>
+    <!-- SCHEDULED and DEADLINE are org-mode keywords; keep them as is. -->
+    <string name="settings_page_reminders_summary">Notifications for SCHEDULED/DEADLINE</string>
+    <!-- Org-roam style features. -->
+    <string name="settings_page_roam_title">Roam Features</string>
+    <string name="settings_page_roam_summary">Backlinks and link suggestions while typing</string>
+    <string name="settings_page_attachments_title">Attachments</string>
+    <string name="settings_page_attachments_summary">Photo size, default image width</string>
+    <string name="settings_page_sharing_title">Sharing</string>
+    <string name="settings_page_sharing_summary">Where shared content lands, link titles</string>
+    <string name="settings_page_backup_title">Backup</string>
+    <string name="settings_page_backup_summary">Export/import your preferences</string>
+    <string name="settings_page_bug_report_title">Report a bug</string>
+    <string name="settings_page_bug_report_summary">Send an email or create an issue on GitHub</string>
+    <string name="settings_page_tips_title">Tips &amp; Tricks</string>
+    <string name="settings_page_tips_summary">Shortcuts and gestures hiding in the app</string>
+    <string name="settings_page_whats_new_title">What\'s New</string>
+    <string name="settings_page_whats_new_summary">Changes in this and earlier releases</string>
+    <string name="settings_page_developer_title">Developer tools</string>
+    <!-- "New badges" are the dots marking features the user hasn't seen yet. -->
+    <string name="settings_page_developer_summary">Reset New badges and other debug actions</string>
+    <!-- Pill next to a settings page that may still change a lot. -->
+    <string name="settings_badge_experimental">Experimental</string>
+    <!-- Pill next to a settings page whose feature is an early preview. -->
+    <string name="settings_badge_preview">Preview</string>
+    <!-- Section headers on the Settings hub. Shown in capitals; write them in normal case. -->
+    <string name="settings_section_help">Help</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_section_developer">Developer</string>
+    <!-- About row. %1$s = version name, e.g. 1.16.0. -->
+    <string name="settings_about_version">Version %1$s</string>
+
+    <!-- Font size options (FontSizePreference), used for app, editor and widget text. Short: three share one segmented control. -->
+    <string name="settings_font_size_small">Small</string>
+    <string name="settings_font_size_medium">Medium</string>
+    <string name="settings_font_size_large">Large</string>
+
+    <!-- Settings > Look and Feel. -->
+    <string name="settings_appearance_theme">Theme</string>
+    <!-- Theme mode options. Short: three share one segmented control. -->
+    <string name="settings_appearance_mode_light">Light</string>
+    <string name="settings_appearance_mode_dark">Dark</string>
+    <!-- Follow the phone's light/dark setting. -->
+    <string name="settings_appearance_mode_system">System</string>
+    <!-- %1$s = the app name. -->
+    <string name="settings_appearance_system_hint">%1$s switches between these when your phone changes between light and dark mode.</string>
+    <string name="settings_appearance_sync_icon">Sync App Icon with Theme</string>
+    <!-- %1$s = the app name. -->
+    <string name="settings_appearance_sync_icon_hint">Matches the theme in use. The icon changes the next time you leave %1$s.</string>
+    <string name="settings_appearance_text_size">Text size</string>
+    <string name="settings_appearance_text_size_hint">Applies across the whole app. Read and edit mode scale on top of this.</string>
+
+    <!-- Settings > Notebooks. -->
+    <string name="settings_notebooks_file_icons">Show file icons in notebooks</string>
+    <string name="settings_notebooks_file_icons_hint">Display the icon tile on each row of the notebooks list</string>
+    <string name="settings_notebooks_flatten">Flatten folders</string>
+    <string name="settings_notebooks_flatten_hint">Hide folders and list every note as one flat list, each showing its folder path</string>
+    <string name="settings_notebooks_display_name">Notebook display name</string>
+    <string name="settings_notebooks_display_name_filename_hint">Notebooks are displayed by their filenames</string>
+    <string name="settings_notebooks_display_name_title_hint">Notebooks are displayed by their titles, falling back to filename</string>
+    <!-- Display name options. Short: two share one segmented control. -->
+    <string name="settings_notebooks_display_name_filename">Filename</string>
+    <string name="settings_notebooks_display_name_title">Title</string>
+    <string name="settings_notebooks_sort">Notebooks sort order</string>
+    <string name="settings_notebooks_sort_hint">Pinned notebooks and folders are excluded from sorting; they keep their pinned order</string>
+    <!-- Sort direction row label. -->
+    <string name="settings_notebooks_order">Order</string>
+    <string name="settings_notebooks_order_a_to_z">A to Z</string>
+    <string name="settings_notebooks_order_z_to_a">Z to A</string>
+    <string name="settings_notebooks_order_oldest_first">Oldest edited first</string>
+    <string name="settings_notebooks_order_newest_first">Most recently edited first</string>
+    <!-- Sort direction options. Short: two share one segmented control. -->
+    <string name="settings_notebooks_order_ascending">Ascending</string>
+    <string name="settings_notebooks_order_descending">Descending</string>
+    <string name="settings_notebooks_ignore_list">Ignore list</string>
+    <string name="settings_notebooks_ignore_list_hint">Files, folders, and patterns listed below are skipped during indexing. One per line.</string>
+    <!-- .orgzlyignore is a file name; keep it as is. -->
+    <string name="settings_notebooks_ignore_imported">Imported from .orgzlyignore.</string>
+    <string name="settings_notebooks_ignore_legacy_empty">Found a .orgzlyignore file and it\'s empty.</string>
+    <string name="settings_notebooks_ignore_no_file">No .orgzlyignore file found.</string>
+    <!-- .git, .stversions and .stfolder are folder names; keep them as is. -->
+    <string name="settings_notebooks_ignore_dot_folders">Dot-prefixed folders (e.g. .git, .stversions, .stfolder) are always skipped automatically, no need to add them here.</string>
+
+    <!-- Settings > Notes. Section headers are shown in capitals; write them in normal case. -->
+    <string name="settings_notes_section_tasks">Tasks</string>
+    <string name="settings_notes_section_display">Display</string>
+    <string name="settings_notes_section_new_notes">New notes &amp; editing</string>
+    <string name="settings_notes_section_archiving">Archiving</string>
+    <!-- TODO is an org-mode keyword; keep it as is. -->
+    <string name="settings_notes_todo_keywords">TODO keywords</string>
+    <!-- "|" is the literal separator character typed in the field. -->
+    <string name="settings_notes_todo_keywords_hint">Keywords after | are done-type</string>
+    <!-- Button: saves the keywords and rebuilds the search index. -->
+    <string name="settings_notes_todo_keywords_apply">Apply (re-indexes all notebooks)</string>
+    <string name="settings_notes_default_priority">Default priority</string>
+    <!-- "p." is the search operator for priority; keep it as is. -->
+    <string name="settings_notes_default_priority_hint">Search\'s p. counts headings with no priority as this one</string>
+    <!-- Priority option meaning no priority. Short: shares a segmented control with A, B, C. -->
+    <string name="settings_notes_priority_none">None</string>
+    <string name="settings_notes_default_mode">Default note mode</string>
+    <string name="settings_notes_default_mode_read_hint">Notes open in read mode</string>
+    <string name="settings_notes_default_mode_edit_hint">Notes open in edit mode</string>
+    <string name="settings_notes_font_size">Font size</string>
+    <string name="settings_notes_font_size_hint">Read and edit mode scale independently. The rest of the app is unaffected.</string>
+    <string name="settings_notes_font_size_read">Read mode</string>
+    <string name="settings_notes_font_size_edit">Edit mode</string>
+    <!-- The preface is the file-level #+KEY: lines at the top of an org file. -->
+    <string name="settings_notes_show_preface">Show preface</string>
+    <string name="settings_notes_show_preface_hint">Display file-level #+ keywords in org files</string>
+    <string name="settings_notes_show_drawers">Show property drawers</string>
+    <!-- :PROPERTIES: is org-mode syntax; keep it as is. -->
+    <string name="settings_notes_show_drawers_hint">Display :PROPERTIES: drawers in org files</string>
+    <!-- ID is an org-mode property name; keep it as is. -->
+    <string name="settings_notes_add_id">Add ID to new notes</string>
+    <string name="settings_notes_add_id_hint">Adds an ID property while creating new notes</string>
+    <!-- CREATED is an org-mode property name; keep it as is. -->
+    <string name="settings_notes_add_created">Add CREATED timestamp</string>
+    <string name="settings_notes_add_created_hint">Adds a CREATED property with the current timestamp when creating new notes</string>
+    <string name="settings_notes_new_note_cursor">New note cursor</string>
+    <string name="settings_notes_new_note_cursor_hint">Where the cursor lands in a note you just created</string>
+    <!-- Cursor options: on the heading line or in the body below it. Short: two share one segmented control. -->
+    <string name="settings_notes_new_note_cursor_heading">Heading</string>
+    <string name="settings_notes_new_note_cursor_body">Body</string>
+    <string name="settings_notes_auto_save">Auto-save notes</string>
+    <string name="settings_notes_auto_save_hint">Saves an open editor 5 seconds after you stop typing. Off means a note is written only when you tap the save icon, so read mode shows your unsaved edits until then</string>
+    <string name="settings_notes_capitalize">Auto-capitalize headings</string>
+    <string name="settings_notes_capitalize_hint">Capitalizes the first letter typed into a heading. Off leaves capitalization to your keyboard</string>
+    <string name="settings_notes_highlight_line">Highlight current line</string>
+    <string name="settings_notes_highlight_line_hint">Shades the whole line you\'re typing on, including where it wraps, so you can tell a long wrapped line from separate lines</string>
+    <string name="settings_notes_auto_archive">Auto-archive done items?</string>
+    <!-- ARCHIVE is an org-mode property and keyword name; keep it as is. -->
+    <string name="settings_notes_auto_archive_hint">Refiles a task the moment it\'s marked done, to its ARCHIVE property/keyword if it has one, otherwise the location below</string>
+    <string name="settings_notes_archive_location">Archive location</string>
+    <string name="settings_notes_archive_location_hint">Fallback when a task has no ARCHIVE property/keyword of its own</string>
+    <!-- Shown instead of a location when none is picked yet. -->
+    <string name="settings_location_not_set">Not set</string>
+
+    <!-- Settings > Widget (home-screen Agenda widget). -->
+    <!-- Slider for how see-through the widget background is. -->
+    <string name="settings_widget_transparency">Transparency</string>
+    <string name="settings_widget_transparency_hint">Home-screen Agenda widget background</string>
+    <!-- %1$d = percentage, 0 to 100. -->
+    <string name="settings_widget_percent">%1$d%%</string>
+    <string name="settings_widget_days_ahead">Days ahead</string>
+    <string name="settings_widget_days_ahead_hint">How far into the future the widget shows</string>
+    <!-- Toggle: show each item's file name. -->
+    <string name="settings_widget_show_filename">Filename</string>
+    <!-- W/P/notes.org is an example path; keep it as is. -->
+    <string name="settings_widget_show_filename_hint">Nested folders are contracted to initials, e.g. W/P/notes.org</string>
+    <!-- Toggle: show each item's tags. -->
+    <string name="settings_widget_show_tags">Tags</string>
+    <string name="settings_widget_show_tags_hint">Own and inherited tags on each item</string>
+    <!-- Toggle: show each item's priority. -->
+    <string name="settings_widget_show_priority">Priority</string>
+    <string name="settings_widget_show_priority_hint">The A/B/C priority badge on each item</string>
+    <string name="settings_widget_quick_add_target">Quick add target</string>
+    <!-- "+" is the widget's add button. -->
+    <string name="settings_widget_quick_add_target_default_hint">Where the widget\'s + saves tasks. Follows the share target until you pick one</string>
+    <string name="settings_widget_quick_add_target_hint">Where the widget\'s + saves tasks: a file, or a heading in one</string>
+    <string name="settings_widget_font_size">Font size</string>
+    <string name="settings_widget_preview_hint">Live preview. Updates as you change the settings above.</string>
+
+    <!-- Capture template row in Settings > Capture Templates: delete confirmation. %1$s = template name. -->
+    <string name="settings_template_delete_title">Delete “%1$s”?</string>
+    <string name="settings_template_delete_body">This removes the capture template. Notes you already captured with it are not affected.</string>
 </resources>

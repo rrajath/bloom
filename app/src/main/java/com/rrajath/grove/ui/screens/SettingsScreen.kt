@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.screens
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,10 +32,11 @@ import com.rrajath.grove.ui.screens.settings.SettingsGroup
 import com.rrajath.grove.ui.screens.settings.SettingsRow
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.util.backArrowGlyph
 
 private data class SettingsPage(
-    val title: String,
-    val description: String,
+    @StringRes val title: Int,
+    @StringRes val description: Int,
     val onClick: () -> Unit,
     val badge: (@Composable () -> Unit)? = null,
 )
@@ -68,84 +70,84 @@ fun SettingsScreen(
     val c = MaterialTheme.grove
     val pages = listOfNotNull(
         SettingsPage(
-            "Look and Feel",
-            "Theme, app icon, text size",
+            R.string.settings_page_appearance_title,
+            R.string.settings_page_appearance_summary,
             onClick = onOpenAppearance,
             badge = { NewDot(NewAnchors.SETTINGS_APPEARANCE) },
         ),
         SettingsPage(
-            "Notebooks",
-            "File icons, folder flattening, display names, sort order",
+            R.string.settings_page_notebooks_title,
+            R.string.settings_page_notebooks_summary,
             onClick = onOpenNotebooks,
             badge = { NewDot(NewAnchors.SETTINGS_NOTEBOOKS) },
         ),
         SettingsPage(
-            "Capture Templates",
-            "Quick-capture targets and shortcuts",
+            R.string.settings_page_capture_templates_title,
+            R.string.settings_page_capture_templates_summary,
             onClick = onOpenCaptureTemplates,
             badge = { NewDot(NewAnchors.SETTINGS_CAPTURE_TEMPLATES) },
         ),
-        SettingsPage("Sync", "Folder, auto-sync, sync log", onOpenSync),
+        SettingsPage(R.string.settings_page_sync_title, R.string.settings_page_sync_summary, onOpenSync),
         SettingsPage(
-            "Notes",
-            "TODO keywords, priorities, note display",
+            R.string.settings_page_notes_title,
+            R.string.settings_page_notes_summary,
             onClick = onOpenNotes,
             badge = { NewDot(NewAnchors.SETTINGS_NOTES) },
         ),
         SettingsPage(
-            "Agenda",
-            "Swipe actions, deadline warnings, start of week",
+            R.string.settings_page_agenda_title,
+            R.string.settings_page_agenda_summary,
             onOpenAgenda,
             badge = { NewDot(NewAnchors.SETTINGS_AGENDA) },
         ),
         SettingsPage(
-            "Widget",
-            "Home-screen Agenda widget: content, transparency, size",
+            R.string.settings_page_widget_title,
+            R.string.settings_page_widget_summary,
             onClick = onOpenWidget,
             badge = { NewDot(NewAnchors.SETTINGS_WIDGET) },
         ),
         SettingsPage(
-            "Reminders",
-            "Notifications for SCHEDULED/DEADLINE",
+            R.string.settings_page_reminders_title,
+            R.string.settings_page_reminders_summary,
             onClick = onOpenReminders,
             badge = { NewDot(NewAnchors.SETTINGS_REMINDERS) },
         ),
         // Debug and perf builds only, like every Roam surface (see SettingsRepository's load).
         if (!com.rrajath.grove.BuildConfig.ROAM_FEATURES) null else SettingsPage(
-            "Roam Features",
-            "Backlinks and link suggestions while typing",
+            R.string.settings_page_roam_title,
+            R.string.settings_page_roam_summary,
             onClick = onOpenRoam,
             badge = {
-                Pill(text = "Experimental", fg = c.amber, bg = c.amberSoft)
+                Pill(text = stringResource(R.string.settings_badge_experimental), fg = c.amber, bg = c.amberSoft)
                 NewDot(NewAnchors.SETTINGS_ROAM, Modifier.padding(start = 6.dp))
             },
         ),
         SettingsPage(
-            "Attachments",
-            "Photo size, default image width",
+            R.string.settings_page_attachments_title,
+            R.string.settings_page_attachments_summary,
             onClick = onOpenAttachments,
             badge = {
-                Pill(text = "Preview", fg = c.amber, bg = c.amberSoft)
+                Pill(text = stringResource(R.string.settings_badge_preview), fg = c.amber, bg = c.amberSoft)
                 NewDot(NewAnchors.SETTINGS_ATTACHMENTS, Modifier.padding(start = 6.dp))
             },
         ),
         SettingsPage(
-            "Sharing",
-            "Where shared content lands, link titles",
+            R.string.settings_page_sharing_title,
+            R.string.settings_page_sharing_summary,
             onClick = onOpenSharing,
             badge = { NewDot(NewAnchors.SETTINGS_SHARING) },
         ),
-        SettingsPage("Backup", "Export/import your preferences", onOpenBackup),
+        SettingsPage(R.string.settings_page_backup_title, R.string.settings_page_backup_summary, onOpenBackup),
     )
 
     Scaffold(
         containerColor = c.bg,
         topBar = {
             GroveTopBar(
-                leading = { IconGlyph("←", onClick = onBack) },
+                leading = { IconGlyph(backArrowGlyph(), onClick = onBack) },
                 title = {
                     Text(
-                        "Settings",
+                        stringResource(R.string.nav_settings),
                         style = MaterialTheme.typography.titleLarge,
                         color = c.ink,
                         modifier = Modifier.padding(start = 4.dp),
@@ -165,8 +167,8 @@ fun SettingsScreen(
                 pages.forEachIndexed { i, page ->
                     if (i > 0) RowDivider()
                     SettingsRow(
-                        label = page.title,
-                        description = page.description,
+                        label = stringResource(page.title),
+                        description = stringResource(page.description),
                         labelBadge = page.badge,
                         onClick = page.onClick,
                     ) {
@@ -176,19 +178,19 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(10.dp))
-            SectionLabel("HELP")
+            SectionLabel(stringResource(R.string.settings_section_help))
             SettingsGroup {
                 SettingsRow(
-                    label = "Report a bug",
-                    description = "Send an email or create an issue on GitHub",
+                    label = stringResource(R.string.settings_page_bug_report_title),
+                    description = stringResource(R.string.settings_page_bug_report_summary),
                     onClick = onOpenBugReport,
                 ) {
                     Text("›", fontFamily = PlexMono, fontSize = 14.sp, color = c.ink2)
                 }
                 RowDivider()
                 SettingsRow(
-                    label = "Tips & Tricks",
-                    description = "Shortcuts and gestures hiding in the app",
+                    label = stringResource(R.string.settings_page_tips_title),
+                    description = stringResource(R.string.settings_page_tips_summary),
                     labelBadge = { NewDot(NewAnchors.SETTINGS_TIPS) },
                     onClick = onOpenTips,
                 ) {
@@ -197,11 +199,11 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(10.dp))
-            SectionLabel("ABOUT")
+            SectionLabel(stringResource(R.string.settings_section_about))
             SettingsGroup {
                 SettingsRow(
-                    label = "What's New",
-                    description = "Changes in this and earlier releases",
+                    label = stringResource(R.string.settings_page_whats_new_title),
+                    description = stringResource(R.string.settings_page_whats_new_summary),
                     labelBadge = if (whatsNewHasUnseen) ({ UnseenDot() }) else null,
                     onClick = onOpenWhatsNew,
                 ) {
@@ -210,7 +212,7 @@ fun SettingsScreen(
                 RowDivider()
                 SettingsRow(
                     label = stringResource(R.string.app_name),
-                    description = "Version ${com.rrajath.grove.BuildConfig.VERSION_NAME}",
+                    description = stringResource(R.string.settings_about_version, com.rrajath.grove.BuildConfig.VERSION_NAME),
                 ) {
                     Text(
                         com.rrajath.grove.BuildConfig.APPLICATION_ID,
@@ -221,11 +223,11 @@ fun SettingsScreen(
 
             if (com.rrajath.grove.BuildConfig.DEBUG) {
                 Spacer(Modifier.height(10.dp))
-                SectionLabel("DEVELOPER")
+                SectionLabel(stringResource(R.string.settings_section_developer))
                 SettingsGroup {
                     SettingsRow(
-                        label = "Developer tools",
-                        description = "Reset New badges and other debug actions",
+                        label = stringResource(R.string.settings_page_developer_title),
+                        description = stringResource(R.string.settings_page_developer_summary),
                         onClick = onOpenDeveloper,
                     ) {
                         Text("›", fontFamily = PlexMono, fontSize = 14.sp, color = c.ink2)
