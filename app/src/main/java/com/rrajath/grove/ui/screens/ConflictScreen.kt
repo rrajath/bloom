@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -31,12 +32,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -207,6 +212,11 @@ private fun UnifiedDiffCard(dateLabel: String, current: String, copy: String) {
             fontSize = 12.sp, letterSpacing = 0.8.sp, color = c.ink3,
             modifier = Modifier.padding(bottom = 6.dp),
         )
+        // The diff is the org file's own text, so it lays out left to right like the
+        // editor's source view even under an RTL UI: the +/- gutter stays on the left,
+        // and each line picks its paragraph direction from its own content (so an
+        // English line keeps its punctuation in place and an Arabic line reads RTL).
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -221,6 +231,7 @@ private fun UnifiedDiffCard(dateLabel: String, current: String, copy: String) {
                 Text(
                     stringResource(R.string.conflict_no_differences),
                     fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink3,
+                    style = TextStyle(textDirection = TextDirection.Content),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
@@ -230,6 +241,7 @@ private fun UnifiedDiffCard(dateLabel: String, current: String, copy: String) {
                     is DiffRow.Line -> DiffLineRow(row)
                 }
             }
+        }
         }
     }
 }
@@ -275,6 +287,8 @@ private fun DiffLineRow(row: DiffRow.Line) {
             row.text.ifEmpty { " " },
             fontFamily = PlexMono, fontSize = 12.5.sp, lineHeight = 1.5.em,
             color = if (row.prefix == ' ') c.ink else fg,
+            style = TextStyle(textDirection = TextDirection.Content),
+            modifier = Modifier.weight(1f),
         )
     }
 }

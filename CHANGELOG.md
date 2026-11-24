@@ -62,6 +62,7 @@ re-uploads the APKs to the existing release instead of failing.
 
 ### Fixed
 - Saving a capture template no longer risks being lost when the editor closes before the write finishes.
+- In right-to-left languages, the conflict diff now shows file lines in their own direction, keeping punctuation in place.
 
 ## [1.16.0] - 2026-11-18
 
