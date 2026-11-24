@@ -419,7 +419,7 @@ private fun BugListTextArea(
 @Composable
 private fun PreviewToggleRow(open: Boolean, onToggle: () -> Unit) {
     val c = MaterialTheme.grove
-    // `▸` isn't mirrored by the bidi algorithm: under RTL point toward the start edge
+    // `▸` isn't mirrored by the bidi algorithm: under RTL point toward the end (left) edge
     // and rotate the other way so the open caret still points down.
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val rotation by animateFloatAsState(if (open) (if (rtl) -90f else 90f) else 0f, label = "bugPreviewCaret")

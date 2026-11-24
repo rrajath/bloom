@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <!-- Settings › Help › Tips & Tricks (ui/screens/settings/SettingsTipsScreen.kt).
-         Tip text markup, keep it exactly as written when translating:
+         Tip text markup sits inside <xliff:g> (not translated, untouched by pseudolocales); keep it as-is:
          {{check}} {{save}} {{clock}} {{star}} {{link}} {{menu}} are drawn as keycaps of that button;
          {{readlink}} is drawn as the word "link" styled like a link (its word is tips_readlink_word);
          {{file:name}} shows a file name; text in `backticks` is org syntax shown in a code font;
@@ -16,61 +16,61 @@
     <!-- Group: Sync & saving. -->
     <string name="tips_group_sync_saving">Sync &amp; saving</string>
     <string name="tip_sync_title">View the last synced time</string>
-    <string name="tip_sync_body">On the Notebooks screen, tap the {{check}} checkmark in the top bar to see when your vault last synced.</string>
+    <string name="tip_sync_body">On the Notebooks screen, tap the <xliff:g id="markup">{{check}}</xliff:g> checkmark in the top bar to see when your vault last synced.</string>
     <string name="tip_autosave_title">Autosave, and two ways to save now</string>
     <string name="tip_autosave_body">The editor saves on its own about five seconds after you stop typing. Two things also save it right away:</string>
-    <string name="tip_autosave_step_1">Tap the {{save}} save icon in the top bar</string>
+    <string name="tip_autosave_step_1">Tap the <xliff:g id="markup">{{save}}</xliff:g> save icon in the top bar</string>
     <string name="tip_autosave_step_2">Switch to Read mode</string>
     <string name="tip_saved_title">Check when a note was last saved</string>
-    <string name="tip_saved_body">While a note has unsaved changes the {{save}} save icon is highlighted; tap it to save now. Once it turns grey the note matches what\'s on disk, and tapping it then shows the time of the last save.</string>
+    <string name="tip_saved_body">While a note has unsaved changes the <xliff:g id="markup">{{save}}</xliff:g> save icon is highlighted; tap it to save now. Once it turns grey the note matches what\'s on disk, and tapping it then shows the time of the last save.</string>
 
     <!-- Group: Writing. -->
     <string name="tips_group_writing">Writing</string>
     <string name="tip_date_title">Insert today\'s date or time</string>
-    <string name="tip_date_body">The {{clock}} button on the formatting toolbar drops an inactive timestamp for today at the cursor. Long-press it to open the date and time picker, prefilled with right now.</string>
+    <string name="tip_date_body">The <xliff:g id="markup">{{clock}}</xliff:g> button on the formatting toolbar drops an inactive timestamp for today at the cursor. Long-press it to open the date and time picker, prefilled with right now.</string>
     <string name="tip_stars_title">Cycle heading levels with the asterisk</string>
-    <string name="tip_stars_body">The {{star}} button on the formatting toolbar starts a subheading on the next line, one level below the heading you\'re in. Tap again while that heading is still empty to raise it one level at a time. Past the top level it wraps back to a subheading.</string>
+    <string name="tip_stars_body">The <xliff:g id="markup">{{star}}</xliff:g> button on the formatting toolbar starts a subheading on the next line, one level below the heading you\'re in. Tap again while that heading is still empty to raise it one level at a time. Past the top level it wraps back to a subheading.</string>
     <string name="tip_double_tap_title">Double-tap to edit while reading</string>
     <string name="tip_double_tap_body">Double-tap anywhere in a note you\'re reading to drop straight into edit mode. It only works that direction, so a stray tap in the editor won\'t send you back.</string>
     <string name="tip_drawers_title">Edit blocks and drawers in place</string>
-    <string name="tip_drawers_body">The preface keyword block and any :PROPERTIES: or :LOGBOOK: drawer each open in their own small editor. Double-tap a key/value row to edit just that block.</string>
+    <string name="tip_drawers_body">The preface keyword block and any <xliff:g id="markup">:PROPERTIES:</xliff:g> or <xliff:g id="markup">:LOGBOOK:</xliff:g> drawer each open in their own small editor. Double-tap a key/value row to edit just that block.</string>
     <string name="tip_block_shorthand_title">Insert a quote, example or src block</string>
     <string name="tip_block_shorthand_body">At the start of a line or after a space, type a shorthand (any case). A chip above the keyboard offers to swap it for the block, with the cursor inside:</string>
     <!-- <q, <e and <s are the typed shorthands; keep them and the #+BEGIN_ keywords as-is. -->
-    <string name="tip_block_shorthand_step_1">&lt;q for #+BEGIN_QUOTE</string>
-    <string name="tip_block_shorthand_step_2">&lt;e for #+BEGIN_EXAMPLE</string>
-    <string name="tip_block_shorthand_step_3">&lt;s for #+BEGIN_SRC, with the cursor ready for the language</string>
+    <string name="tip_block_shorthand_step_1">&lt;q for <xliff:g id="markup">#+BEGIN_QUOTE</xliff:g></string>
+    <string name="tip_block_shorthand_step_2">&lt;e for <xliff:g id="markup">#+BEGIN_EXAMPLE</xliff:g></string>
+    <string name="tip_block_shorthand_step_3">&lt;s for <xliff:g id="markup">#+BEGIN_SRC</xliff:g>, with the cursor ready for the language</string>
     <string name="tip_drawer_shorthand_title">Insert a properties or logbook drawer</string>
     <!-- :PRO and :LOG are what the user types; keep them as-is. -->
-    <string name="tip_drawer_shorthand_body">Type :PRO or :LOG (any case) and tap the chip above the keyboard to insert a :PROPERTIES: or :LOGBOOK: drawer, closed by :END:, with the cursor on its empty line. The chip stays up as you type more of the word.</string>
+    <string name="tip_drawer_shorthand_body">Type :PRO or :LOG (any case) and tap the chip above the keyboard to insert a <xliff:g id="markup">:PROPERTIES:</xliff:g> or <xliff:g id="markup">:LOGBOOK:</xliff:g> drawer, closed by <xliff:g id="markup">:END:</xliff:g>, with the cursor on its empty line. The chip stays up as you type more of the word.</string>
     <string name="tip_property_keys_title">Pick property keys as you type</string>
     <!-- ":" and ":c" are typed characters; :CUSTOM_ID: and :CREATED: are org property keys. Keep them as-is. -->
-    <string name="tip_property_keys_body">Inside a :PROPERTIES: drawer, type : at the start of a line. Chips above the keyboard offer property keys, most-used first; keep typing to narrow them (:c shows :CUSTOM_ID:, :CREATED:, and so on). Tap one to insert the full key, ready for its value. Keys already in the drawer aren\'t offered again.</string>
+    <string name="tip_property_keys_body">Inside a <xliff:g id="markup">:PROPERTIES:</xliff:g> drawer, type : at the start of a line. Chips above the keyboard offer property keys, most-used first; keep typing to narrow them (:c shows <xliff:g id="markup">:CUSTOM_ID:</xliff:g>, <xliff:g id="markup">:CREATED:</xliff:g>, and so on). Tap one to insert the full key, ready for its value. Keys already in the drawer aren\'t offered again.</string>
 
     <!-- Group: Outline. -->
     <string name="tips_group_outline">Outline</string>
     <string name="tip_outline_view_file_title">Double-tap below the outline to view the whole file</string>
-    <string name="tip_outline_view_file_body">In a notebook\'s outline, double-tap the empty space below the last heading to open the whole file as one note, the same as View file in the {{menu}} menu.</string>
+    <string name="tip_outline_view_file_body">In a notebook\'s outline, double-tap the empty space below the last heading to open the whole file as one note, the same as View file in the <xliff:g id="markup">{{menu}}</xliff:g> menu.</string>
 
     <!-- Group: Checklists. -->
     <string name="tips_group_checklists">Checklists</string>
     <string name="tip_checkbox_title">Tap and hold a checkbox in Read mode</string>
     <string name="tip_checkbox_body">In Read mode, a checklist box responds to two gestures:</string>
-    <string name="tip_checkbox_step_1">Tap to toggle it done. An empty or in-progress box becomes [X]; a done box goes back to [ ]</string>
-    <string name="tip_checkbox_step_2">Tap and hold (with a short buzz) to mark it in-progress [-]. Hold again to clear it back to [ ]</string>
+    <string name="tip_checkbox_step_1">Tap to toggle it done. An empty or in-progress box becomes <xliff:g id="markup">[X]</xliff:g>; a done box goes back to <xliff:g id="markup">[ ]</xliff:g></string>
+    <string name="tip_checkbox_step_2">Tap and hold (with a short buzz) to mark it in-progress <xliff:g id="markup">[-]</xliff:g>. Hold again to clear it back to <xliff:g id="markup">[ ]</xliff:g></string>
 
     <!-- Group: Links. -->
     <string name="tips_group_links">Links</string>
     <string name="tip_link_follow_title">Tap a link to follow it</string>
-    <string name="tip_link_follow_body">In Read mode, tap any {{readlink}} to jump to its target. A link to a heading opens that heading; a link to a whole file opens that file\'s outline. Web, email and phone links open in the matching app. If nothing matches the link, a short message tells you and you stay where you are.</string>
+    <string name="tip_link_follow_body">In Read mode, tap any <xliff:g id="markup">{{readlink}}</xliff:g> to jump to its target. A link to a heading opens that heading; a link to a whole file opens that file\'s outline. Web, email and phone links open in the matching app. If nothing matches the link, a short message tells you and you stay where you are.</string>
     <string name="tip_link_build_title">Let the toolbar write links for you</string>
-    <string name="tip_link_build_body">The {{link}} button on the formatting toolbar builds the link syntax so you never type the brackets.</string>
-    <string name="tip_link_build_step_1">Copy a link first, then select some text and tap {{link}}: the copied link becomes the target and your text becomes the label, nothing to type</string>
-    <string name="tip_link_build_step_2">No link copied? Select text and tap {{link}} for a https:// scaffold, then just paste your URL over it, https:// and all</string>
-    <string name="tip_link_build_step_3">Tap with nothing selected to drop in an empty [[link][description]] template</string>
-    <string name="tip_link_build_step_4">Long-press {{link}} to search the whole vault live and link straight to a file or a heading</string>
+    <string name="tip_link_build_body">The <xliff:g id="markup">{{link}}</xliff:g> button on the formatting toolbar builds the link syntax so you never type the brackets.</string>
+    <string name="tip_link_build_step_1">Copy a link first, then select some text and tap <xliff:g id="markup">{{link}}</xliff:g>: the copied link becomes the target and your text becomes the label, nothing to type</string>
+    <string name="tip_link_build_step_2">No link copied? Select text and tap <xliff:g id="markup">{{link}}</xliff:g> for a <xliff:g id="markup">https://</xliff:g> scaffold, then just paste your URL over it, <xliff:g id="markup">https://</xliff:g> and all</string>
+    <string name="tip_link_build_step_3">Tap with nothing selected to drop in an empty <xliff:g id="markup">[[link][description]]</xliff:g> template</string>
+    <string name="tip_link_build_step_4">Long-press <xliff:g id="markup">{{link}}</xliff:g> to search the whole vault live and link straight to a file or a heading</string>
     <string name="tip_link_picker_title">Search the vault to build a link</string>
-    <string name="tip_link_picker_body">Long-pressing {{link}} opens a full-height picker with the search box already focused, starting at your notebook list.</string>
+    <string name="tip_link_picker_body">Long-pressing <xliff:g id="markup">{{link}}</xliff:g> opens a full-height picker with the search box already focused, starting at your notebook list.</string>
     <string name="tip_link_picker_step_1">Type to filter files and headings live across the whole vault, or browse without typing by tapping a notebook to drill into its headings.</string>
     <string name="tip_link_picker_step_2">Tapping a heading with no sub-headings links it right away; only a heading with sub-headings drills in further.</string>
     <string name="tip_link_id_title">Link by ID so it survives moves</string>
@@ -95,7 +95,7 @@
     <string name="tip_archive_location_title">Choose where a file archives to</string>
     <!-- %1$s is always the literal org placeholder "%s" (the current file name in an ARCHIVE value);
          keep both %1$s, the `backtick` spans and the {{file:…}} names as-is. -->
-    <string name="tip_archive_location_body">Set an `ARCHIVE` property on a heading or in the file\'s top properties drawer, or a `#+ARCHIVE:` line. `%1$s` stands for the current file, so `%1$s_archive::` archives {{file:agenda.org}} into {{file:agenda.org_archive}}. The nearest one wins over the Settings location.</string>
+    <string name="tip_archive_location_body">Set an <xliff:g id="markup">`ARCHIVE`</xliff:g> property on a heading or in the file\'s top properties drawer, or a <xliff:g id="markup">`#+ARCHIVE:`</xliff:g> line. <xliff:g id="markup">`%1$s`</xliff:g> stands for the current file, so <xliff:g id="markup">`%1$s_archive::`</xliff:g> archives <xliff:g id="markup">{{file:agenda.org}}</xliff:g> into <xliff:g id="markup">{{file:agenda.org_archive}}</xliff:g>. The nearest one wins over the Settings location.</string>
 
     <!-- Settings › Help › Report a bug (ui/screens/settings/SettingsBugReportScreen.kt). The report
          itself (email body) stays English for the developer; only the screen is translated. -->
