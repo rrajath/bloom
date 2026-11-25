@@ -1232,10 +1232,7 @@ private fun highlightedOrgText(text: String, terms: List<String>, c: com.rrajath
     return buildAnnotatedString {
         append(base)
         highlights.forEach { range ->
-            addStyle(
-                SpanStyle(color = c.amber, background = c.amberSoft, fontWeight = FontWeight.SemiBold),
-                range.first, (range.last + 1).coerceAtMost(base.text.length),
-            )
+            addStyle(searchMatchStyle(c), range.first, (range.last + 1).coerceAtMost(base.text.length))
         }
     }
 }
@@ -1275,15 +1272,7 @@ private val TEXT_MATCH_SIZE = 13.5.sp
 
 /** [text] with every occurrence of [terms] in the match highlight. */
 private fun highlightedPlainText(text: String, terms: List<String>, c: com.rrajath.grove.ui.theme.GroveColors): AnnotatedString =
-    buildAnnotatedString {
-        append(text)
-        Snippets.highlightRanges(text, terms).forEach { range ->
-            addStyle(
-                SpanStyle(color = c.amber, background = c.amberSoft, fontWeight = FontWeight.SemiBold),
-                range.first, (range.last + 1).coerceAtMost(text.length),
-            )
-        }
-    }
+    highlightMatches(text, terms, c)
 
 @Composable
 private fun SearchResultRow(result: SearchResult, matchedTerms: List<String>) {

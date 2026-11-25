@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.ui.components.SegmentedControl
+import com.rrajath.grove.ui.search.highlightMatches
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -77,6 +78,7 @@ internal fun SettingsSearchResults(
             key(spec.id) {
                 SettingsSearchResultRow(
                     spec = spec,
+                    query = query,
                     control = inlineControls[spec.id].takeIf { spec.inline },
                     settings = settings,
                     onOpen = { onOpen(spec) },
@@ -89,11 +91,17 @@ internal fun SettingsSearchResults(
 @Composable
 private fun SettingsSearchResultRow(
     spec: SettingSpec,
+    query: String,
     control: InlineControl?,
     settings: GroveSettings,
     onOpen: () -> Unit,
 ) {
     val c = MaterialTheme.grove
+    // The same whole-query, case-insensitive match matchSettingSpecs filters on.
+    val terms = listOf(query.trim())
+    val pageTitle = stringResource(spec.page.title)
+    val label = spec.labelText()
+    val description = spec.descriptionText()
     val toggle = (control as? InlineControl.Toggle)?.let { t ->
         rememberSettingsSwitchState(t.checked(settings), t.onToggle)
     }
@@ -107,19 +115,19 @@ private fun SettingsSearchResultRow(
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                stringResource(spec.page.title),
+                remember(pageTitle, terms, c) { highlightMatches(pageTitle, terms, c) },
                 fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                 fontSize = 11.sp, color = c.ink3,
                 modifier = Modifier.padding(bottom = 1.dp),
             )
             Text(
-                spec.labelText(),
+                remember(label, terms, c) { highlightMatches(label, terms, c) },
                 fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                 fontSize = 14.5.sp, color = c.ink,
             )
-            spec.descriptionText()?.let { description ->
+            description?.let {
                 Text(
-                    description,
+                    remember(it, terms, c) { highlightMatches(it, terms, c) },
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
