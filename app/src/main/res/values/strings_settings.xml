@@ -333,6 +333,21 @@
     <!-- Settings > Backup. -->
     <string name="settings_backup_intro">Import or export your preferences, capture templates, favorites and saved searches as a JSON file. The sync folder isn\'t included; it stays on this device.</string>
     <string name="settings_backup_import_title">Import backup</string>
+    <!-- Settings > Backup section headers. Shown in capitals; write them in normal case. -->
+    <string name="settings_backup_section_auto">Automatic backup</string>
+    <string name="settings_backup_section_manual">Manual</string>
+    <string name="settings_auto_backup_toggle">Back up automatically</string>
+    <string name="settings_auto_backup_toggle_hint">Keeps a JSON copy up to date whenever settings, templates, favorites or saved searches change.</string>
+    <string name="settings_auto_backup_folder">Backup folder</string>
+    <!-- Trailing value of the Backup folder row before a folder is picked. -->
+    <string name="settings_auto_backup_folder_none">tap to choose</string>
+    <!-- %1$s = relative time from the system, e.g. "2 minutes ago" or "yesterday". -->
+    <string name="settings_auto_backup_last">Last backed up %1$s</string>
+    <string name="settings_auto_backup_last_just_now">Last backed up just now</string>
+    <string name="settings_auto_backup_never">Not backed up yet</string>
+    <!-- Tapping this line opens the folder picker. %1$s = app name. -->
+    <string name="settings_auto_backup_error">%1$s can\'t write to this folder. Choose it again.</string>
+    <string name="settings_auto_backup_restore">Restore from automatic backup</string>
     <string name="settings_backup_import_body">Each checked item replaces what\'s on this device.</string>
     <!-- Import dialog: one checkbox per part of the backup file. -->
     <string name="settings_backup_section_settings">Settings</string>

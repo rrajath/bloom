@@ -1246,7 +1246,12 @@ private fun GroveNavigation(
                     pendingImport = viewModel.pendingImport.collectAsStateWithLifecycle().value,
                     onConfirmImport = { viewModel.confirmImport(it) },
                     onCancelImport = viewModel::cancelImport,
+                    autoBackup = viewModel.autoBackup.collectAsStateWithLifecycle().value,
+                    vaultTreeUri = settings.vaultTreeUri,
+                    onSetAutoBackupEnabled = { viewModel.setAutoBackupEnabled(it) },
+                    onAutoBackupFolderPicked = { viewModel.pickAutoBackupFolder(it) },
                 )
+                LaunchedEffect(Unit) { viewModel.refreshAutoBackupFile() }
             }
             screen(Routes.SETTINGS_BUG_REPORT) {
                 SettingsBugReportScreen(onBack = { navController.popBackStack() })

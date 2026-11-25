@@ -41,8 +41,27 @@ import com.rrajath.grove.settings.Backup
 import com.rrajath.grove.settings.BackupSection
 import com.rrajath.grove.settings.sections
 import com.rrajath.grove.ui.components.SyncedCheckIcon
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
+import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+
+/** What Settings > Backup shows for the automatic backup; built from [com.rrajath.grove.settings.GroveSettings]. */
+data class AutoBackupUiState(
+    val enabled: Boolean = false,
+    val treeUri: String? = null,
+    val lastSuccessAt: Long? = null,
+    val error: Boolean = false,
+    /** Whether `bloom-settings.json` exists in [treeUri]; gates Restore. */
+    val fileExists: Boolean = false,
+)
+
+internal const val AUTO_BACKUP_STATUS_TAG = "auto_backup_status"
+internal const val AUTO_BACKUP_RESTORE_TAG = "auto_backup_restore"
 
 /** Settings § Backup. */
 @Composable
@@ -54,8 +73,17 @@ fun SettingsBackupScreen(
     pendingImport: Backup? = null,
     onConfirmImport: (Set<BackupSection>) -> Unit = {},
     onCancelImport: () -> Unit = {},
+    autoBackup: AutoBackupUiState = AutoBackupUiState(),
+    /** The vault folder, where the backup-folder picker opens when no backup folder is set yet. */
+    vaultTreeUri: String? = null,
+    onSetAutoBackupEnabled: (Boolean) -> Unit = {},
+    /** A folder the user picked, its read/write grant already persisted. Turns the backup on. */
+    onAutoBackupFolderPicked: (String) -> Unit = {},
+    onRestoreAutoBackup: () -> Unit = {},
+    nowMillis: () -> Long = System::currentTimeMillis,
 ) {
     val c = MaterialTheme.grove
+    val context = androidx.compose.ui.platform.LocalContext.current
     val settingsExporter = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
     ) { uri -> if (uri != null) onExportSettings(uri) }
@@ -64,7 +92,69 @@ fun SettingsBackupScreen(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) onImportSettings(uri) }
 
+    // Bumped when the picker comes back empty: re-keys the toggle so a switch flipped on
+    // by the tap that opened the picker slides back off.
+    var pickerCancels by remember { mutableIntStateOf(0) }
+    val folderPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) {
+            pickerCancels++
+        } else {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            onAutoBackupFolderPicked(uri.toString())
+        }
+    }
+    val openPicker = { folderPicker.launch(pickerStart(autoBackup.treeUri ?: vaultTreeUri)) }
+
     SettingsPageScaffold(title = stringResource(R.string.settings_page_backup_title), onBack = onBack) {
+        SectionLabel(stringResource(R.string.settings_backup_section_auto))
+        SettingsGroup {
+            key(pickerCancels) {
+                ToggleRow(spec = SettingSpecs.BackupAuto, checked = autoBackup.enabled) { on ->
+                    if (on && autoBackup.treeUri == null) openPicker() else onSetAutoBackupEnabled(on)
+                }
+            }
+            RowDivider()
+            SettingsRow(
+                spec = SettingSpecs.BackupFolder,
+                onClick = openPicker,
+                enabled = autoBackup.enabled,
+            ) {
+                Text(
+                    autoBackup.treeUri?.let { uriDisplayName(it) } ?: stringResource(R.string.settings_auto_backup_folder_none),
+                    fontFamily = PlexMono, fontSize = 12.sp,
+                    color = if (autoBackup.enabled) c.accent else c.ink3,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 140.dp),
+                )
+            }
+            RowDivider()
+            AutoBackupStatusLine(autoBackup, nowMillis, onErrorTap = openPicker)
+            RowDivider()
+            Box(
+                Modifier
+                    .settingAnchor(SettingSpecs.BackupRestore)
+                    .fillMaxWidth()
+                    .padding(horizontal = 15.dp, vertical = 14.dp),
+            ) {
+                BackupSecondaryButton(
+                    label = stringResource(R.string.settings_auto_backup_restore),
+                    enabled = autoBackup.enabled && autoBackup.treeUri != null && autoBackup.fileExists,
+                    modifier = Modifier.fillMaxWidth().testTag(AUTO_BACKUP_RESTORE_TAG),
+                    onClick = onRestoreAutoBackup,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        SectionLabel(stringResource(R.string.settings_backup_section_manual))
         SettingsGroup {
             Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
@@ -109,6 +199,61 @@ fun SettingsBackupScreen(
         ImportBackupDialog(backup, onConfirm = onConfirmImport, onDismiss = onCancelImport)
     }
 }
+
+/** Where the folder picker opens: [treeUri]'s own folder, or the picker's default when null. */
+private fun pickerStart(treeUri: String?): android.net.Uri? = treeUri?.let {
+    runCatching {
+        val tree = android.net.Uri.parse(it)
+        android.provider.DocumentsContract.buildDocumentUriUsingTree(
+            tree, android.provider.DocumentsContract.getTreeDocumentId(tree),
+        )
+    }.getOrNull()
+}
+
+/**
+ * The automatic backup's last outcome: a check glyph + "Last backed up 2 minutes ago",
+ * "Not backed up yet", or the `red` "can't write" line that re-opens the picker. All `ink3`
+ * (and not tappable) while the toggle is off.
+ */
+@Composable
+private fun AutoBackupStatusLine(state: AutoBackupUiState, nowMillis: () -> Long, onErrorTap: () -> Unit) {
+    val c = MaterialTheme.grove
+    val tappable = state.error && state.enabled
+    val text = when {
+        state.error -> stringResource(R.string.settings_auto_backup_error, stringResource(R.string.app_name))
+        state.lastSuccessAt != null -> lastBackedUp(state.lastSuccessAt, nowMillis())
+        else -> stringResource(R.string.settings_auto_backup_never)
+    }
+    Row(
+        Modifier
+            .testTag(AUTO_BACKUP_STATUS_TAG)
+            .fillMaxWidth()
+            .then(if (tappable) Modifier.clickable(onClick = onErrorTap) else Modifier)
+            .padding(horizontal = 15.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (!state.error && state.lastSuccessAt != null) {
+            SyncedCheckIcon(contentDescription = null, modifier = Modifier.size(14.dp), tint = c.ink3)
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            text,
+            fontFamily = PlexSans, fontSize = 12.sp,
+            color = if (tappable) c.red else c.ink3,
+        )
+    }
+}
+
+@Composable
+private fun lastBackedUp(at: Long, now: Long): String =
+    if (now - at < android.text.format.DateUtils.MINUTE_IN_MILLIS) {
+        stringResource(R.string.settings_auto_backup_last_just_now)
+    } else {
+        val ago = android.text.format.DateUtils.getRelativeTimeSpanString(
+            at, now, android.text.format.DateUtils.MINUTE_IN_MILLIS,
+        ).toString()
+        stringResource(R.string.settings_auto_backup_last, ago)
+    }
 
 /**
  * Which parts of a backup file to import: one checkbox per section the file has, all
@@ -231,10 +376,16 @@ private fun BackupSectionCheckbox(label: String, detail: String, checked: Boolea
 /**
  * Secondary button matching [com.rrajath.grove.ui.screens.ConflictScreen]'s `SecondaryButton` styling
  * (46dp height, 13dp corner radius, `surface` bg + 1dp `line` border,
- * PlexSans SemiBold 14sp `ink` text) for the paired Export/Import buttons.
+ * PlexSans SemiBold 14sp `ink` text) for the paired Export/Import buttons and the full-width Restore.
  */
 @Composable
-private fun BackupSecondaryButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun BackupSecondaryButton(
+    label: String,
+    modifier: Modifier = Modifier,
+    /** False: label in `ink3`, taps ignored. */
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
     val c = MaterialTheme.grove
     Box(
         modifier
@@ -242,13 +393,13 @@ private fun BackupSecondaryButton(label: String, modifier: Modifier = Modifier, 
             .clip(RoundedCornerShape(13.dp))
             .background(c.surface)
             .border(1.dp, c.line, RoundedCornerShape(13.dp))
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
             fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp, color = c.ink,
+            fontSize = 14.sp, color = if (enabled) c.ink else c.ink3,
         )
     }
 }

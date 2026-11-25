@@ -42,6 +42,9 @@ fun SettingsSyncScreen(
     val folderPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
+        // Switching the vault never releases the old folder's grant. If it ever does, it
+        // needs the mirror of BackupFolderPermissions' check: never release a grant the
+        // automatic backup (autoBackupTreeUri) still uses.
         if (uri != null) {
             context.contentResolver.takePersistableUriPermission(
                 uri,

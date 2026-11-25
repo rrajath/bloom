@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -730,6 +731,56 @@ class AppViewModel(
             }.isSuccess
         }
         toast(if (ok) R.string.settings_backup_exported else R.string.settings_backup_write_failed)
+    }
+
+    /** Bumped to re-check whether the automatic-backup file exists (Backup screen entry). */
+    private val autoBackupRefresh = MutableStateFlow(0)
+
+    /** Settings > Backup's automatic-backup state; the file check runs only while the screen collects it. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val autoBackup: StateFlow<com.rrajath.grove.ui.screens.settings.AutoBackupUiState> =
+        combine(settingsRepository.settings, autoBackupRefresh) { s, _ -> s }
+            .map { s -> com.rrajath.grove.ui.screens.settings.AutoBackupUiState(
+                enabled = s.autoBackupEnabled,
+                treeUri = s.autoBackupTreeUri,
+                lastSuccessAt = s.autoBackupLastSuccessAt,
+                error = s.autoBackupLastError,
+            ) }
+            .distinctUntilChanged()
+            .let { states -> combine(states, autoBackupRefresh) { state, _ -> state } }
+            .mapLatest { state ->
+                val exists = state.treeUri != null && withContext(dispatchers.io) {
+                    runCatching { app.autoBackupWriter.find(state.treeUri) != null }.getOrDefault(false)
+                }
+                state.copy(fileExists = exists)
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.rrajath.grove.ui.screens.settings.AutoBackupUiState())
+
+    fun refreshAutoBackupFile() {
+        autoBackupRefresh.value++
+    }
+
+    /** Toggle the automatic backup; turning it on writes at once so the status confirms it. */
+    fun setAutoBackupEnabled(enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setAutoBackupEnabled(enabled)
+        if (enabled) app.autoBackupManager.flush()
+    }
+
+    /**
+     * The user picked [uri] (grant already persisted): point the backup there, turn it on,
+     * release the previous folder's grant unless it's the vault, and write at once.
+     */
+    fun pickAutoBackupFolder(uri: String) = viewModelScope.launch {
+        val old = settingsRepository.settings.first().autoBackupTreeUri
+        settingsRepository.setAutoBackupTreeUri(uri)
+        settingsRepository.setAutoBackupEnabled(true)
+        if (old != null) {
+            // Current settings, read now: a vault switched to the old folder meanwhile stays granted.
+            com.rrajath.grove.settings.backup.BackupFolderPermissions.releaseIfUnused(
+                app.contentResolver, old, settingsRepository.settings.first(),
+            )
+        }
+        app.autoBackupManager.flush()
     }
 
     /**

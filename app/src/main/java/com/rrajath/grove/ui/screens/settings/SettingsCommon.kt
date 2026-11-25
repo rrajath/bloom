@@ -170,9 +170,11 @@ internal fun SettingsRow(
     labelBadge: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    /** False draws the label and description in `ink3` and drops [onClick]. */
+    enabled: Boolean = true,
     trailing: @Composable () -> Unit,
 ) {
-    val clickMod = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    val clickMod = if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier
     Row(
         modifier
             .fillMaxWidth()
@@ -185,7 +187,7 @@ internal fun SettingsRow(
                 Text(
                     label,
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
-                    fontSize = 14.5.sp, color = MaterialTheme.grove.ink,
+                    fontSize = 14.5.sp, color = if (enabled) MaterialTheme.grove.ink else MaterialTheme.grove.ink3,
                 )
                 if (labelBadge != null) {
                     Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) { labelBadge() }
@@ -196,7 +198,7 @@ internal fun SettingsRow(
             } else if (description != null) {
                 Text(
                     description,
-                    fontFamily = PlexSans, fontSize = 12.sp, color = MaterialTheme.grove.ink2,
+                    fontFamily = PlexSans, fontSize = 12.sp, color = if (enabled) MaterialTheme.grove.ink2 else MaterialTheme.grove.ink3,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -273,6 +275,7 @@ internal fun SettingsRow(
     descriptionContent: (@Composable () -> Unit)? = null,
     labelBadge: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
     trailing: @Composable () -> Unit,
 ) = SettingsRow(
     label = spec.labelText(),
@@ -281,6 +284,7 @@ internal fun SettingsRow(
     labelBadge = labelBadge,
     onClick = onClick,
     modifier = Modifier.settingAnchor(spec),
+    enabled = enabled,
     trailing = trailing,
 )
 

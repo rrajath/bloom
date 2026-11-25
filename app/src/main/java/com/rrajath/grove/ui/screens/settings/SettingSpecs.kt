@@ -339,6 +339,11 @@ object SettingSpecs {
     // Backup: the page has no row label, so the result names both buttons.
     val BackupFile = s("backup.file", SettingsPageId.BACKUP, R.string.settings_search_backup_label, R.string.settings_backup_intro)
 
+    // Not inline: turning it on may need the folder picker first.
+    val BackupAuto = s("backup.auto", SettingsPageId.BACKUP, R.string.settings_auto_backup_toggle, R.string.settings_auto_backup_toggle_hint, TOGGLE)
+    val BackupFolder = s("backup.folder", SettingsPageId.BACKUP, R.string.settings_auto_backup_folder)
+    val BackupRestore = s("backup.restore", SettingsPageId.BACKUP, R.string.settings_auto_backup_restore)
+
     // Help and About: page entries, nothing on the page is revealed.
     val BugReportPage = s(
         "page.bugReport", SettingsPageId.BUG_REPORT,
@@ -369,7 +374,7 @@ object SettingSpecs {
         RoamEnable, RoamBacklinks, RoamSuggestions, RoamWholeFile, RoamDailiesLocation, RoamDailiesPattern, RoamDailiesHeader,
         AttachPhotoSize, AttachImageWidth, AttachFolder, AttachTag,
         SharingTarget, SharingPlacement, SharingFetchTitles,
-        BackupFile,
+        BackupAuto, BackupFolder, BackupRestore, BackupFile,
         BugReportPage, TipsPage, WhatsNewPage, DeveloperPage,
     )
 
