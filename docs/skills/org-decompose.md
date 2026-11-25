@@ -5,22 +5,21 @@ description: "将任务标题拆解为 Org-mode 子任务。Invoke when 需要�
 
 # Org Decompose
 
-你是一个 Org-mode 和 git 专家。请将用户输入的任务标题拆解为详细的、可执行的
-子任务清单，并写入仓库根目录的 `inbox.org`。
+你是一个 Org-mode 专家。请将用户输入的任务标题拆解为详细的、可执行的
+子任务清单，并写入当前工作目录的 `inbox.org`。
 
-> 本技能是 App 内「AI 任务分解」向导的仓库侧对应物。App 只写 `inbox.org`，
-> 不执行 git；本技能在仓库工作树中运行，负责 git 环节。设计依据见
+> 本技能是 App 内「AI 任务分解」向导的仓库侧对应物，只负责生成并写入清单，
+> 写入后由既有同步链路接管。设计依据见
 > [../ai-task-decompose.md](../ai-task-decompose.md)，标签规则见
 > [../design-tag-system.md](../design-tag-system.md)。
 
 ## 硬要求
 
-1. 操作前先 commit 本地修改（如果有变更），然后 pull 最新代码。
-2. 使用 Org-mode 语法：`*` 表示输入的任务标题，`**` 表示子任务，
+1. 使用 Org-mode 语法：`*` 表示输入的任务标题，`**` 表示子任务，
    `***` 表示检查点。
-3. 每个子任务以 `** TODO` 开头。
-4. `GENERATE` 阶段输出纯文本，不要额外解释。
-5. 只写 `inbox.org`，不对 `archive/` 下任何文件写入。
+2. 每个子任务以 `** TODO` 开头。
+3. `GENERATE` 阶段输出纯文本，不要额外解释。
+4. 只写 `inbox.org`，不对 `archive/` 下任何文件写入。
 
 ## 执行步骤
 
@@ -62,22 +61,8 @@ description: "将任务标题拆解为 Org-mode 子任务。Invoke when 需要�
 
 ### 5. 插入文件
 
-将生成的 Org 任务清单插入到仓库根目录的 `inbox.org`（不存在则创建），
+将生成的 Org 任务清单插入到当前工作目录的 `inbox.org`（不存在则创建），
 追加到文件末尾**一段空行之后**，末尾保留一个换行。
-
-### 6. Git 操作
-
-```bash
-# 步骤 1 之前
-git add -A && git commit -m "chore: 自动拆解任务前保存本地修改"   # 仅当有变更
-git pull --rebase
-
-# 步骤 5 之后
-git add inbox.org
-git commit -m "feat: 自动拆解任务: <任务名>" && git push
-```
-
-提交信息前缀统一为 `feat: 自动拆解任务: <任务名>`。
 
 ## 示例输出
 
@@ -106,4 +91,4 @@ git commit -m "feat: 自动拆解任务: <任务名>" && git push
 
 - 所有文本文件使用 UTF-8（无 BOM），Windows 换行符（CRLF）。
 - 只写 `inbox.org`；不要改写已有标题，只在文件末尾追加。
-- 在 App 内使用时不需要执行 git 步骤，清单写入后由既有同步链路接管。
+- 清单写入后由既有同步链路接管。

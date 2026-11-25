@@ -14,7 +14,7 @@ object DecomposePrompts {
 
     fun system(): AiMessage = AiMessage.system(
         """
-        你是 Org-mode 与 git 专家。把用户给出的任务标题拆解为详细、可执行的 Org-mode 子任务清单。
+        你是 Org-mode 专家。把用户给出的任务标题拆解为详细、可执行的 Org-mode 子任务清单。
         硬要求：
         1. 顶层用「* TODO」，子任务用「** TODO」，检查点用「***」且不带 TODO。
         2. 每个子任务下 2-3 个检查点；子任务按依赖顺序（澄清→环境→设计→实施→收尾）排序。
