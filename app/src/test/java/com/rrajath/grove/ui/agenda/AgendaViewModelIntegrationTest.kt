@@ -13,6 +13,7 @@ import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.testing.support.IsolatedPreferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,9 +92,11 @@ class AgendaViewModelIntegrationTest {
     private val keywords = MutableStateFlow(OrgKeywords.DEFAULT)
     private val db: GroveDatabase =
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
+    private val settingsStore = IsolatedPreferencesDataStore()
     private val settingsRepository = SettingsRepository(
         ApplicationProvider.getApplicationContext<Application>(),
         CoroutineScope(mainDispatcherRule.dispatcher),
+        settingsStore.store,
     )
 
     /**
@@ -117,6 +120,7 @@ class AgendaViewModelIntegrationTest {
     @After
     fun tearDown() {
         db.close()
+        settingsStore.close()
     }
 
     @Test

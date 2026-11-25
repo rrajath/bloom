@@ -74,11 +74,21 @@ class AppViewModel(
     private val pendingShare: MutableStateFlow<SharedPayload?>,
     private val dispatchers: AppDispatchers,
     // Kept for the handful of Android Context APIs with no JVM stub: Toast,
-    // asset streams, contentResolver, getString, and ShareIntake.consumeShare.
+    // asset streams, contentResolver, and getString.
     private val app: GroveApplication,
     private val templatesRepository: com.rrajath.grove.capture.TemplatesRepository = app.templatesRepository,
     // The vault's store, for the attachment folder move offer; injectable for tests.
     private val attachStore: () -> com.rrajath.grove.vault.FileStore? = { app.fileStore.value },
+    // What consumeSharedContent routes a share through; tests swap the ID, title and toast hooks.
+    private val shareIntake: ShareIntake.Deps = ShareIntake.Deps(
+        settings = settingsRepository,
+        vault = vaultFlow,
+        sync = sync,
+        context = app,
+        newOrgId = { app.orgIdAllocator.next() },
+        fetchTitle = { url -> com.rrajath.grove.capture.PageTitleFetcher.fetch(url, app) },
+        notify = ShareIntake.toaster(app),
+    ),
 ) : ViewModel() {
 
     /** Null until the DataStore emits, so the UI can gate on first load. */
@@ -398,12 +408,12 @@ class AppViewModel(
      * Route content shared into Grove (PRD §10) straight to the configured file:
      * a URL becomes a heading linking the fetched page title; long text becomes
      * an empty heading with the text as the body; short text becomes a heading.
-     * Appended to the bottom of the target file (created if missing).
+     * Inserted at the top or bottom of the target file or heading (created if missing).
      */
     fun consumeSharedContent() {
         val payload = pendingShare.value ?: return
         pendingShare.value = null
-        viewModelScope.launch { ShareIntake.consumeShare(app, payload) }
+        viewModelScope.launch { ShareIntake.consumeShare(shareIntake, payload) }
     }
 
     private suspend fun toast(

@@ -42,11 +42,10 @@ import org.robolectric.annotation.Config
  * operations against a real [Vault] over an in-memory [FakeFileStore] plus their
  * index-row and sync side effects.
  *
- * These operations also re-key icon colours / pin state through the real
- * [SettingsRepository]. That DataStore write is *not* asserted here: it runs on
- * its own `Dispatchers.IO` scope off virtual time, and the tests assert the
- * vault + index effects, which land first. The settings re-keying is
- * [SettingsRepository]'s own responsibility and has direct coverage there.
+ * These operations also re-key icon colours, pins and folder expansion through
+ * the real [SettingsRepository], backed by this test's own
+ * [IsolatedPreferencesDataStore]. Its writes run on `Dispatchers.IO`, off
+ * virtual time, so those assertions poll with [settleUntil].
  * Every VM's scope is cancelled in teardown so its `state` collector and its
  * first-open-defaults write don't leak into the next Robolectric class.
  */
@@ -72,7 +71,8 @@ class NotebooksViewModelIntegrationTest {
     private val db: GroveDatabase =
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
     private val repoScope = CoroutineScope(mainDispatcherRule.dispatcher)
-    private val settingsRepository = SettingsRepository(app, repoScope)
+    private val settingsStore = IsolatedPreferencesDataStore()
+    private val settingsRepository = SettingsRepository(app, repoScope, settingsStore.store)
     private val favoritesStore = IsolatedPreferencesDataStore()
     private val favoritesRepository = FavoritesRepository(favoritesStore.store)
 
@@ -137,6 +137,7 @@ class NotebooksViewModelIntegrationTest {
         repoScope.cancel()
         favoritesStore.close()
         db.close()
+        settingsStore.close()
     }
 
     @Test
@@ -306,5 +307,92 @@ class NotebooksViewModelIntegrationTest {
         settleUntil { (vm.state.value as? NotebooksUiState.Loaded)?.livePins == listOf(work, inbox) }
         vm.movePin(work, -1)
         settleUntil { settingsRepository.settings.first().pinnedItems == listOf(work, stale, inbox) }
+    }
+
+    @Test
+    fun `renameNotebook carries the notebook's colour and pin to the new name`() = runTest {
+        val vm = seededVm()
+        settingsRepository.setNotebookColor("reading-list.org", "sage")
+        settingsRepository.pinNotebook("reading-list.org")
+
+        vm.renameNotebook("reading-list.org", "library")
+        settleUntil {
+            val s = settingsRepository.settings.first()
+            s.notebookColors == mapOf("library.org" to "sage") &&
+                s.pinnedItems == listOf(PinnedItem(PinKind.FILE, "library.org"))
+        }
+    }
+
+    @Test
+    fun `moveNotebook carries the notebook's colour and pin into the target directory`() = runTest {
+        val vm = seededVm()
+        settingsRepository.setNotebookColor("inbox.org", "rust")
+        settingsRepository.pinNotebook("inbox.org")
+
+        vm.moveNotebook("inbox.org", "work")
+        settleUntil {
+            val s = settingsRepository.settings.first()
+            s.notebookColors == mapOf("work/inbox.org" to "rust") &&
+                s.pinnedItems == listOf(PinnedItem(PinKind.FILE, "work/inbox.org"))
+        }
+    }
+
+    @Test
+    fun `renameFolder re-bases colours and pins under the folder`() = runTest {
+        val vm = seededVm()
+        settingsRepository.setFolderColor("work", "sage")
+        settingsRepository.setNotebookColor("work/notes/standup.org", "rust")
+        settingsRepository.setNotebookColor("inbox.org", "ink")
+        settingsRepository.pinFolder("work")
+        settingsRepository.pinNotebook("work/status.org")
+
+        vm.renameFolder("work", "office")
+        settleUntil {
+            val s = settingsRepository.settings.first()
+            s.folderColors == mapOf("office" to "sage") &&
+                s.notebookColors == mapOf("office/notes/standup.org" to "rust", "inbox.org" to "ink") &&
+                s.pinnedItems == listOf(
+                    PinnedItem(PinKind.FOLDER, "office"),
+                    PinnedItem(PinKind.FILE, "office/status.org"),
+                )
+        }
+    }
+
+    @Test
+    fun `deleteFolder drops colours and pins under the folder and keeps the rest`() = runTest {
+        val vm = seededVm()
+        settingsRepository.setFolderColor("work", "sage")
+        settingsRepository.setNotebookColor("work/status.org", "rust")
+        settingsRepository.setNotebookColor("inbox.org", "ink")
+        settingsRepository.pinFolder("work")
+        settingsRepository.pinNotebook("work/notes/standup.org")
+        settingsRepository.pinNotebook("inbox.org")
+
+        vm.deleteFolder("work")
+        settleUntil {
+            val s = settingsRepository.settings.first()
+            s.folderColors.isEmpty() &&
+                s.notebookColors == mapOf("inbox.org" to "ink") &&
+                s.pinnedItems == listOf(PinnedItem(PinKind.FILE, "inbox.org"))
+        }
+    }
+
+    @Test
+    fun `toggleFolder persists the folder's expansion`() = runTest {
+        val vm = seededVm()
+        // Let the first-open heuristic stamp its expanded set first, so it can't
+        // overwrite the toggle below.
+        settleUntil {
+            settingsRepository.settings.first().notebooksTreeDefaultsApplied &&
+                vm.state.value is NotebooksUiState.Loaded
+        }
+        val before = settingsRepository.settings.first().expandedFolders
+        val expected = if ("work" in before) before - "work" else before + "work"
+
+        vm.toggleFolder("work")
+        settleUntil { settingsRepository.settings.first().expandedFolders == expected }
+
+        vm.toggleFolder("work")
+        settleUntil { settingsRepository.settings.first().expandedFolders == before }
     }
 }

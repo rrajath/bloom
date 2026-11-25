@@ -1,12 +1,17 @@
 package com.rrajath.grove.capture
 
+import android.content.Context
 import com.rrajath.grove.GroveApplication
 import com.rrajath.grove.R
 import com.rrajath.grove.org.NotePlacement
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.settings.GroveSettings
+import com.rrajath.grove.settings.SettingsSource
+import com.rrajath.grove.sync.SyncTrigger
+import com.rrajath.grove.vault.Vault
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -44,26 +49,59 @@ object ShareIntake {
     }
 
     /**
+     * Everything [consumeShare] needs from the app, so tests can pass fakes.
+     * [context] is only for string resources; [notify] shows the result to the
+     * user (a toast in production).
+     */
+    class Deps(
+        val settings: SettingsSource,
+        val vault: Flow<Vault?>,
+        val sync: SyncTrigger,
+        val context: Context,
+        val newOrgId: suspend () -> String,
+        val fetchTitle: suspend (url: String) -> String?,
+        val notify: suspend (message: String) -> Unit,
+        val now: () -> LocalDateTime = LocalDateTime::now,
+    ) {
+        companion object {
+            fun forApp(app: GroveApplication) = Deps(
+                settings = app.settingsRepository,
+                vault = app.vault,
+                sync = app.syncManager,
+                context = app,
+                newOrgId = { app.orgIdAllocator.next() },
+                fetchTitle = { url -> PageTitleFetcher.fetch(url, app) },
+                notify = toaster(app),
+            )
+        }
+    }
+
+    /** Production wiring: [consumeShare] against the live [GroveApplication]. */
+    suspend fun consumeShare(app: GroveApplication, payload: SharedPayload) =
+        consumeShare(Deps.forApp(app), payload)
+
+    /**
      * Routes [payload] straight to the configured file or heading (PRD §10):
      * fetches a URL's page title, composes the note, inserts it at the top or
-     * bottom of the target (Settings § Sharing), syncs, and toasts the
-     * result. Not tied to any particular scope — [com.rrajath.grove.ui.AppViewModel.consumeSharedContent]
+     * bottom of the target (Settings § Sharing), syncs, and reports the
+     * result. Not tied to any particular scope: [com.rrajath.grove.ui.AppViewModel.consumeSharedContent]
      * runs this on `viewModelScope` for shares that arrive while the app is on
      * screen; [ShareReceiverActivity] runs it on [GroveApplication.appScope] so
      * the share never has to bring the app's UI to the foreground at all.
      */
-    suspend fun consumeShare(app: GroveApplication, payload: SharedPayload) {
-        val settings = app.settingsRepository.settings.first()
+    suspend fun consumeShare(deps: Deps, payload: SharedPayload) {
+        val context = deps.context
+        val settings = deps.settings.settings.first()
         if (settings.vaultTreeUri == null) {
-            toast(app, app.getString(R.string.share_no_vault, app.getString(R.string.app_name)))
+            deps.notify(context.getString(R.string.share_no_vault, context.getString(R.string.app_name)))
             return
         }
         // On a cold start the vault may still be initializing; await it.
-        val vault = app.vault.filterNotNull().first()
+        val vault = deps.vault.filterNotNull().first()
         // Off → no network at all. composeNote then describes the link with whatever
         // text the sharing app sent (often the page title, via EXTRA_SUBJECT), else the URL.
         val resolvedTitle = if (payload.url.isNotEmpty() && settings.fetchSharedLinkTitles) {
-            PageTitleFetcher.fetch(payload.url, app)
+            deps.fetchTitle(payload.url)
         } else null
         val note = composeNote(payload, resolvedTitle)
         val target = settings.shareTargetFile.trim().ifBlank { GroveSettings.DEFAULT_SHARE_TARGET }
@@ -71,7 +109,7 @@ object ShareIntake {
         if (vault.open(fileName) == null) vault.createNotebook(fileName)
         val doc = vault.open(fileName)
         if (doc == null) {
-            toast(app, app.getString(R.string.location_open_failed, fileName))
+            deps.notify(context.getString(R.string.location_open_failed, fileName))
             return
         }
         val headingPath = settings.shareTargetHeadingPath.split('/').filter { it.isNotEmpty() }
@@ -81,21 +119,20 @@ object ShareIntake {
             settings.shareInsertPlacement,
             note,
             OrgMutations.NewNoteOptions(
-                id = if (settings.addIdToNewNotes) app.orgIdAllocator.next() else null,
-                createdAt = if (settings.addCreatedToNewNotes) LocalDateTime.now() else null,
+                id = if (settings.addIdToNewNotes) deps.newOrgId() else null,
+                createdAt = if (settings.addCreatedToNewNotes) deps.now() else null,
                 body = note.body,
             ),
         )
         vault.save(fileName, placed.text)
-        app.syncManager.requestReindex(fileName, placed.text, "shared note")
+        deps.sync.requestReindex(fileName, placed.text, "shared note")
         val fileLabel = fileName.removeSuffix(".org")
-        toast(
-            app,
+        deps.notify(
             when {
-                headingPath.isEmpty() -> app.getString(R.string.share_saved_to, fileLabel)
+                headingPath.isEmpty() -> context.getString(R.string.share_saved_to, fileLabel)
                 placed.headingFound ->
-                    app.getString(R.string.share_saved_to, (listOf(fileLabel) + headingPath).joinToString(" › "))
-                else -> app.getString(R.string.share_heading_not_found, headingPath.last(), fileLabel)
+                    context.getString(R.string.share_saved_to, (listOf(fileLabel) + headingPath).joinToString(" › "))
+                else -> context.getString(R.string.share_heading_not_found, headingPath.last(), fileLabel)
             },
         )
     }
@@ -121,7 +158,10 @@ object ShareIntake {
         return Placed(text, headingFound = headingPath.isEmpty() || parent != null)
     }
 
-    private suspend fun toast(app: GroveApplication, message: String) = withContext(Dispatchers.Main) {
-        android.widget.Toast.makeText(app, message, android.widget.Toast.LENGTH_SHORT).show()
+    /** A [Deps.notify] that shows a short toast on the main thread. */
+    fun toaster(context: Context): suspend (String) -> Unit = { message ->
+        withContext(Dispatchers.Main) {
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 }

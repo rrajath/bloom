@@ -12,7 +12,8 @@ import java.nio.file.Files
 
 /**
  * A preferences [DataStore] owned by one test, for repositories that take one
- * (`TemplatesRepository(store)`, `FavoritesRepository(store)`).
+ * (`SettingsRepository(context, scope, store)`, `TemplatesRepository(store)`,
+ * `FavoritesRepository(store)`).
  *
  * The production `preferencesDataStore` delegates are process-wide singletons, so
  * every Robolectric test in a JVM fork shares them. DataStore runs each `edit`

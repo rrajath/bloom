@@ -21,6 +21,7 @@ import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.ui.editor.filterLinkSearch
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.testing.support.IsolatedPreferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -83,7 +84,8 @@ class DocumentViewModelIntegrationTest {
     private val db: GroveDatabase =
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
     private val repoScope = CoroutineScope(mainDispatcherRule.dispatcher)
-    private val settingsRepository = SettingsRepository(app, repoScope)
+    private val settingsStore = IsolatedPreferencesDataStore()
+    private val settingsRepository = SettingsRepository(app, repoScope, settingsStore.store)
     private val favoritesRepository = FavoritesRepository(app)
 
     private val liveVms = mutableListOf<DocumentViewModel>()
@@ -113,6 +115,7 @@ class DocumentViewModelIntegrationTest {
         liveVms.forEach { it.viewModelScope.cancel() }
         repoScope.cancel()
         db.close()
+        settingsStore.close()
     }
 
     // --- helpers -----------------------------------------------------------

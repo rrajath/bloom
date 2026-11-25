@@ -3,6 +3,7 @@ package com.rrajath.grove.ui
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.rrajath.grove.GroveApplication
+import com.rrajath.grove.capture.ShareIntake
 import com.rrajath.grove.capture.SharedPayload
 import com.rrajath.grove.data.FavoritesRepository
 import com.rrajath.grove.data.FavoriteNote
@@ -20,6 +21,7 @@ import com.rrajath.grove.testing.OrgFixtures
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.testing.support.IsolatedPreferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -45,12 +47,9 @@ import org.robolectric.annotation.Config
  * Layer-1 integration coverage for [AppViewModel]: the DataStore-backed settings
  * flow, the import-settings success / failure paths, the todo-keyword apply that
  * forces a full re-index, and saved-search mutations streaming back through the
- * exposed flow.
- *
- * `consumeSharedContent` is still deferred — it delegates to
- * `ShareIntake.consumeShare`, which needs a fully wired `GroveApplication`
- * (real vault + sync). `ShareIntake.composeNote` (the routing rule) is covered
- * by `ShareIntakeTest`.
+ * exposed flow, and `consumeSharedContent` handing the pending share to
+ * `ShareIntake.consumeShare` exactly once. The share routing itself is covered by
+ * `ShareIntakeConsumeShareTest` and `ShareIntakeTest`.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -65,7 +64,8 @@ class AppViewModelIntegrationTest {
     private val db: GroveDatabase =
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
     private val repoScope = CoroutineScope(mainDispatcherRule.dispatcher)
-    private val settingsRepository = SettingsRepository(app, repoScope)
+    private val settingsStore = IsolatedPreferencesDataStore()
+    private val settingsRepository = SettingsRepository(app, repoScope, settingsStore.store)
     private val searchRepository = SearchRepository(app)
     private val favoritesRepository = FavoritesRepository(app)
     private val pendingShare = MutableStateFlow<SharedPayload?>(null)
@@ -79,7 +79,21 @@ class AppViewModelIntegrationTest {
      * can sit on empty state on a slow runner. Awaiting the first value primes the
      * shared replay cache, which the VM then reads through the test scheduler.
      */
-    private suspend fun appVm(): AppViewModel {
+    private val shareStore = FakeFileStore(mapOf("inbox.org" to "#+TITLE: Inbox\n"))
+    private val shareMessages = mutableListOf<String>()
+
+    /** Share routing over [shareStore], with fake ID, title and toast hooks. */
+    private fun shareDeps() = ShareIntake.Deps(
+        settings = settingsRepository,
+        vault = MutableStateFlow(Vault(shareStore)),
+        sync = sync,
+        context = app,
+        newOrgId = { "fixed-id" },
+        fetchTitle = { null },
+        notify = { shareMessages += it },
+    )
+
+    private suspend fun appVm(shareIntake: ShareIntake.Deps = shareDeps()): AppViewModel {
         settingsRepository.settings.first()
         return AppViewModel(
             settingsRepository = settingsRepository,
@@ -91,17 +105,19 @@ class AppViewModelIntegrationTest {
             pendingShare = pendingShare,
             dispatchers = mainDispatcherRule.appDispatchers,
             app = app,
+            shareIntake = shareIntake,
         ).also { liveVms += it }
     }
 
     @After
     fun tearDown() {
-        // An uncancelled viewModelScope leaves eager DataStore collectors parked
-        // on a dead test scheduler,
-        // backing up the process-wide DataStore actor and flaking a later test.
+        // An uncancelled viewModelScope leaves eager collectors parked on a dead
+        // test scheduler; the VM still touches process-wide stores (favorites,
+        // saved searches), so cancel it before the next test class runs.
         liveVms.forEach { it.viewModelScope.cancel() }
         repoScope.cancel()
         db.close()
+        settingsStore.close()
     }
 
     /**
@@ -240,5 +256,37 @@ class AppViewModelIntegrationTest {
         favoritesRepository.replaceAll(listOf(FavoriteNote("old/home.org", 3, "Plan", "fav-id")))
         settleUntil { vm.favorites.value.singleOrNull()?.fileName == "new/home.org" }
         assertEquals(7, vm.favorites.value.single().lineIndex)
+    }
+
+    @Test
+    fun `consumeSharedContent with nothing pending writes nothing`() = runTest {
+        val vm = appVm()
+
+        vm.consumeSharedContent()
+        advanceUntilIdle()
+
+        assertTrue(sync.reindexCalls.isEmpty())
+        assertTrue(shareMessages.isEmpty())
+    }
+
+    @Test
+    fun `consumeSharedContent routes the pending share once and clears it`() = runTest {
+        settingsRepository.setVaultTreeUri("content://vault/tree")
+        settleUntil { settingsRepository.settings.first().vaultTreeUri != null }
+        val vm = appVm()
+        pendingShare.value = SharedPayload(text = "Shared while open")
+
+        vm.consumeSharedContent()
+        settleUntil { shareMessages.isNotEmpty() }
+
+        assertEquals(null, pendingShare.value)
+        assertTrue(shareStore.read("inbox.org").contains("* Shared while open"))
+        assertEquals(listOf("inbox.org"), sync.reindexCalls.map { it.fileName })
+        assertEquals(listOf(app.getString(com.rrajath.grove.R.string.share_saved_to, "inbox")), shareMessages)
+
+        // A second call has nothing left to consume.
+        vm.consumeSharedContent()
+        advanceUntilIdle()
+        assertEquals(1, sync.reindexCalls.size)
     }
 }

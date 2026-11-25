@@ -21,6 +21,7 @@ import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.JvmFileStore
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.testing.support.IsolatedPreferencesDataStore
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -96,11 +97,14 @@ class DocumentViewModelAttachmentLinkTest {
         put("notes.org", notebook)
     }
 
+    private val settingsStore = IsolatedPreferencesDataStore()
+
     @After
     fun tearDown() {
         liveVms.forEach { it.viewModelScope.cancel() }
         repoScope.cancel()
         db.close()
+        settingsStore.close()
     }
 
     private fun put(path: String, text: String = "x") =
@@ -117,7 +121,7 @@ class DocumentViewModelAttachmentLinkTest {
     private suspend fun TestScope.loaded(): DocumentViewModel {
         // The real SettingsRepository reads on a real IO thread that advanceUntilIdle()
         // doesn't wait for; prime its replay cache so load() sees settings at once.
-        val settingsRepository = SettingsRepository(app, repoScope)
+        val settingsRepository = SettingsRepository(app, repoScope, settingsStore.store)
         settingsRepository.settings.first()
         val vm = DocumentViewModel(
             vaultFlow = MutableStateFlow(Vault(store, parseDispatcher = mainDispatcherRule.dispatcher)),

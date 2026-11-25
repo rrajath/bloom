@@ -359,6 +359,12 @@ data class GroveSettings(
 class SettingsRepository(
     private val context: Context,
     private val scope: CoroutineScope,
+    /**
+     * The app's process-wide `settings` store by default. Tests pass their own
+     * (`IsolatedPreferencesDataStore`): a coroutine leaked by one test can wedge
+     * the shared store's write actor and hang every later edit in the JVM.
+     */
+    private val dataStore: DataStore<Preferences> = context.settingsDataStore,
 ) : SettingsSource {
 
     private object Keys {
@@ -491,7 +497,7 @@ class SettingsRepository(
      * makes the captured caller context one that always runs.
      */
     private suspend fun editSettings(transform: suspend (MutablePreferences) -> Unit): Preferences =
-        withContext(Dispatchers.IO) { context.settingsDataStore.edit(transform) }
+        withContext(Dispatchers.IO) { dataStore.edit(transform) }
 
     /**
      * Shared, hot: one `GroveSettings` build per DataStore write, fanned out to all
@@ -499,7 +505,7 @@ class SettingsRepository(
      * `replay = 1` with no seed value preserves the "nothing until the first read"
      * semantics that [com.rrajath.grove.ui.AppViewModel] gates first load on.
      */
-    override val settings: Flow<GroveSettings> = context.settingsDataStore.data.map { prefs ->
+    override val settings: Flow<GroveSettings> = dataStore.data.map { prefs ->
         GroveSettings(
             themeSelection = readThemeSelection(prefs),
             syncAppIconWithTheme = prefs[Keys.syncAppIconWithTheme] ?: false,
@@ -1126,27 +1132,27 @@ class SettingsRepository(
     }
 
     suspend fun setAttachPhotoSize(size: AttachPhotoSize) {
-        context.settingsDataStore.edit { it[Keys.attachPhotoSize] = size.storageKey }
+        dataStore.edit { it[Keys.attachPhotoSize] = size.storageKey }
     }
 
     suspend fun setAttachImageWidth(mode: AttachImageWidth) {
-        context.settingsDataStore.edit { it[Keys.attachImageWidth] = mode.storageKey }
+        dataStore.edit { it[Keys.attachImageWidth] = mode.storageKey }
     }
 
     suspend fun setAttachImageWidthPx(px: Int) {
-        context.settingsDataStore.edit { it[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(px) }
+        dataStore.edit { it[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(px) }
     }
 
     /** Stores [folder] normalized; an invalid value is ignored (the dialog validates first). */
     suspend fun setAttachFolder(folder: String) {
         val normalized = AttachFolder.normalize(folder) ?: return
-        context.settingsDataStore.edit { it[Keys.attachFolder] = normalized }
+        dataStore.edit { it[Keys.attachFolder] = normalized }
     }
 
     /** Stores [tag] trimmed (empty for no tag); an invalid value is ignored (the dialog validates first). */
     suspend fun setAttachAutoTag(tag: String) {
         val normalized = AttachAutoTag.normalize(tag) ?: return
-        context.settingsDataStore.edit { it[Keys.attachAutoTag] = normalized }
+        dataStore.edit { it[Keys.attachAutoTag] = normalized }
     }
 
     suspend fun setRoamFeaturesEnabled(enabled: Boolean) {

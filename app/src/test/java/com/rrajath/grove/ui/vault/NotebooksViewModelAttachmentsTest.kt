@@ -14,6 +14,7 @@ import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.JvmFileStore
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.testing.support.IsolatedPreferencesDataStore
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -56,7 +57,8 @@ class NotebooksViewModelAttachmentsTest {
     private val db: GroveDatabase =
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
     private val repoScope = CoroutineScope(mainDispatcherRule.dispatcher)
-    private val settingsRepository = SettingsRepository(app, repoScope)
+    private val settingsStore = IsolatedPreferencesDataStore()
+    private val settingsRepository = SettingsRepository(app, repoScope, settingsStore.store)
     private val sync = FakeSyncTrigger()
     private val liveVms = mutableListOf<NotebooksViewModel>()
 
@@ -105,6 +107,7 @@ class NotebooksViewModelAttachmentsTest {
         liveVms.forEach { it.viewModelScope.cancel() }
         repoScope.cancel()
         db.close()
+        settingsStore.close()
     }
 
     @Test
