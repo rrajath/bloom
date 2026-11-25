@@ -62,6 +62,12 @@ object NewAnchors {
     /** The "Show line numbers" toggle inside Settings § Notes. */
     const val SETTINGS_NOTES_LINE_NUMBERS = "settings.notes.lineNumbers"
 
+    /** The Settings hub row leading to the Backup page. */
+    const val SETTINGS_BACKUP = "settings.backup"
+
+    /** The "Back up automatically" toggle inside Settings § Backup. */
+    const val SETTINGS_BACKUP_AUTO = "settings.backup.auto"
+
     /** The Settings hub row leading to the Capture Templates page. */
     const val SETTINGS_CAPTURE_TEMPLATES = "settings.captureTemplates"
 
@@ -638,5 +644,20 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_SEARCH,
         ),
         destination = NewAnchors.SETTINGS_SEARCH,
+    ),
+    NewFeature(
+        // Settings § Backup gained an Automatic backup group: a settings JSON
+        // file kept up to date in a folder the user picks, plus Restore. `since`
+        // is the versionCode of the release that ships it: bump it to match
+        // `gradle.properties` versionName when cutting the release.
+        id = "automatic-backup",
+        since = 11700,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_BACKUP,
+            NewAnchors.SETTINGS_BACKUP_AUTO,
+        ),
+        destination = NewAnchors.SETTINGS_BACKUP_AUTO,
     ),
 )

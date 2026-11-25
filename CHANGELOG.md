@@ -58,6 +58,7 @@ re-uploads the APKs to the existing release instead of failing.
 ## [Unreleased]
 
 ### Added
+- Settings › Backup › Automatic backup keeps a settings JSON file up to date in a folder you choose.
 - Search settings from the top of the Settings hub, matches highlighted; flip switches right in the results.
 - Settings › Notes › Show line numbers: editors show real file line numbers; tap or drag them to select lines.
 - Capture templates accept `%id`, and each use inserts its own unique ID, e.g. in a `:PROPERTIES:` drawer.

@@ -160,7 +160,12 @@ fun SettingsScreen(
             onClick = onOpenSharing,
             badge = { NewDot(NewAnchors.SETTINGS_SHARING) },
         ),
-        SettingsPage(R.string.settings_page_backup_title, R.string.settings_page_backup_summary, onOpenBackup),
+        SettingsPage(
+            R.string.settings_page_backup_title,
+            R.string.settings_page_backup_summary,
+            onOpenBackup,
+            badge = { NewDot(NewAnchors.SETTINGS_BACKUP) },
+        ),
     )
 
     Scaffold(

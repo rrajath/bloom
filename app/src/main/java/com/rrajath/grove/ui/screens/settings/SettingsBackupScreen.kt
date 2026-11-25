@@ -47,6 +47,9 @@ import androidx.compose.ui.platform.testTag
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
+import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
+import com.rrajath.grove.ui.newbadge.NewAnchors
+import com.rrajath.grove.ui.newbadge.NewDot
 
 /** What Settings > Backup shows for the automatic backup; built from [com.rrajath.grove.settings.GroveSettings]. */
 data class AutoBackupUiState(
@@ -112,10 +115,17 @@ fun SettingsBackupScreen(
     val openPicker = { folderPicker.launch(pickerStart(autoBackup.treeUri ?: vaultTreeUri)) }
 
     SettingsPageScaffold(title = stringResource(R.string.settings_page_backup_title), onBack = onBack) {
+        // Leaving this screen retires the Automatic backup NEW dot from its whole trail.
+        MarkNewFeatureSeen(NewAnchors.SETTINGS_BACKUP_AUTO)
+
         SectionLabel(stringResource(R.string.settings_backup_section_auto))
         SettingsGroup {
             key(pickerCancels) {
-                ToggleRow(spec = SettingSpecs.BackupAuto, checked = autoBackup.enabled) { on ->
+                ToggleRow(
+                    spec = SettingSpecs.BackupAuto,
+                    checked = autoBackup.enabled,
+                    labelBadge = { NewDot(NewAnchors.SETTINGS_BACKUP_AUTO) },
+                ) { on ->
                     if (on && autoBackup.treeUri == null) openPicker() else onSetAutoBackupEnabled(on)
                 }
             }

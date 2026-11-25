@@ -1,6 +1,6 @@
 ---
 title: Backup (Export / Import Settings)
-description: Export or import Bloom's preferences, capture templates, favorites and saved searches as a single JSON file, separate from your .org note files.
+description: Back up Bloom's preferences, capture templates, favorites and saved searches automatically to a folder you choose, or export and import them as a single JSON file, separate from your .org note files.
 ---
 
 import ThemeShot from '../../../components/ThemeShot.astro';
@@ -12,14 +12,29 @@ Settings → Backup covers Bloom's own configuration, not your notes. Your `.org
 <ThemeShot
   light={settingsBackupLight}
   dark={settingsBackupDark}
-  alt="Backup settings screen with Export and Import buttons, and a note that the sync folder isn't included and stays on this device"
+  alt="Backup settings screen with the Automatic backup group (toggle, backup folder, status and Restore button) above the Manual group's Export and Import buttons"
   widths={[340, 680]}
   sizes="340px"
 />
 
+## Automatic backup
+
+Turn on **Back up automatically** and pick a folder. Bloom then keeps one file in that folder, `bloom-settings.json`, up to date on its own: about 2 seconds after you change a setting, a capture template, a favorite or a saved search, it rewrites the file. It holds the same sections as a manual export. Nothing runs in the background when nothing changes, and a change that leaves the file's contents the same doesn't rewrite it.
+
+Pick a folder your sync tool already covers (Syncthing, Nextcloud and so on) and the backup travels off the device with no extra steps. Bloom overwrites the one file in place; it doesn't keep older copies.
+
+- **Backup folder** shows the chosen folder's full path. Tap it to pick a different one. Picking a folder writes the file right away.
+- The status line under it says when the file was last written. If Bloom can no longer write there (the folder was deleted or its access was revoked), it says so in red; tap it to choose the folder again.
+- **Restore from automatic backup** reads the file and opens the same section checklist as [Import](#import). It's available once the file exists.
+- Turning the switch off stops the writes but remembers the folder and leaves the file where it is. While off, the folder, status and Restore are shown greyed out.
+
+If two devices back up into the same synced folder, the last one to write wins: the file mirrors one device, it doesn't merge them. Give each device its own folder if you want separate backups.
+
+Like the sync folder, the backup folder and its status stay on this device and aren't part of the backup file.
+
 ## Export
 
-Tap **Export** to write one JSON file, named `bloom-backup.json` by default, with:
+The **Manual** group works on a file you choose each time. Tap **Export** to write one JSON file, named `bloom-backup.json` by default, with:
 
 - **Settings**: every preference on the Settings pages, such as theme, text sizes, TODO keywords, sync mode, Agenda swipe actions, reminders, sharing and attachment defaults.
 - **Capture templates**: every template, in order.
