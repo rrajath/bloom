@@ -516,6 +516,7 @@ private fun GroveNavigation(
                     onOpenFileProperties = { fileName ->
                         navController.navigate(Routes.drawer(fileName, "fileProps"))
                     },
+                    onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                 )
             }
             screen(Routes.PREFACE) { entry ->
@@ -620,6 +621,7 @@ private fun GroveNavigation(
                         showBacklinks = settings.roamFeaturesEnabled && settings.roamShowBacklinks,
                         roamSuggestionsEnabled = settings.roamSuggestionsActive,
                         onOpenNote = { target -> navController.navigate(Routes.note(target.encode())) },
+                        onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                         viewModel = editorViewModel,
                     )
                 } else {
@@ -657,6 +659,8 @@ private fun GroveNavigation(
                         onPendingBufferChanged = editorViewModel::onBufferChangedExternally,
                         onPendingPersisted = editorViewModel::onBufferPersistedElsewhere,
                         onSavePending = { editorViewModel.save() },
+                        onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
+                        beforeCaptureWrite = { editorViewModel.flushForExternalWrite() },
                     )
                 }
             }
@@ -831,6 +835,7 @@ private fun GroveNavigation(
                             roamSuggestionsEnabled = settings.roamSuggestionsActive,
                             onBack = leaveNote,
                             onSwitchToRead = { editTargetLine = null; mode = "read" },
+                            onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                             viewModel = editorViewModel,
                         )
                     } else {
@@ -886,6 +891,7 @@ private fun GroveNavigation(
                                     popUpTo(entry.destination.route ?: Routes.NOTE) { inclusive = true }
                                 }
                             },
+                            onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                         )
                     }
                 }

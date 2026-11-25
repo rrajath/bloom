@@ -77,4 +77,5 @@
     <string name="ai_quick_required">Describe the task first.</string>
     <string name="ai_quick_generated">Draft ready. Review it below.</string>
     <string name="ai_quick_done">Inserted into %1$s. The note index and sync have been updated.</string>
+    <string name="ai_quick_pending_unsaved">Save your unsaved edits first, then try again.</string>
 </resources>

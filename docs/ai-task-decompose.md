@@ -11,7 +11,9 @@ Bloom 提供两个 AI 入口，共用同一套端点配置、密钥存储与写�
 1. **主界面一句话捕获（默认）**：点顶部栏的星芒按钮弹出底部抽屉，在输入框写一段
    自然语言，例如「下周五 3 点和张三在 302 会议室评审 Q4 规划，高优先级」，一次请求
    转成一条 Org TODO（或一条带 N 个子任务的树），自动抽取地点、截止日期、
-   SCHEDULED 日期与优先级，预览可编辑后写入 `inbox.org`。
+   SCHEDULED 日期与优先级，预览可编辑后写入当前上下文对应的文件。
+  同样的星芒按钮也出现在四个文件页面（笔记阅读/编辑、大纲、整文件阅读/编辑），
+  保存目标按页面固定：**列表页 → `inbox.org`，文件页 → 当前打开的文件**，不可在抽屉内切换。
 2. **四步任务分解向导（可选）**：对复杂任务，从「设置 → AI task breakdown」
    进入，按「澄清 → 对比 → 分段设计 → 生成清单」四步产出子任务树。
 
@@ -28,7 +30,7 @@ Bloom 提供两个 AI 入口，共用同一套端点配置、密钥存储与写�
 | 网络 | 复用 `libs.okhttp` (4.12.0) + `libs.kotlinx.serialization.json` (1.7.3)；HTTPS（仅回环地址允许 HTTP，便于本地模型） |
 | 交互 | 主界面一句话捕获为默认（单轮）；复杂任务可选用四步向导。两者最后都是可编辑的 Org 预览 |
 | Git | **App 内不做**。Bloom 的笔记目录是 SAF tree / WebDAV 镜像，不是 git 工作树，仓库里也没有 JGit 依赖；`commit / pull / push` 由仓库侧技能 `docs/skills/org-decompose.md` 承担（见第 6 节） |
-| 写入目标 | 仅 `inbox.org`；`archive/` 不写；文件不存在则创建 |
+| 写入目标 | 列表页 → `inbox.org`；文件页 → 当前文件；`archive/` 不写；文件不存在则创建 |
 
 ## 3. 分层
 
@@ -115,11 +117,18 @@ SCHEDULED: <2026-11-27 Fri 15:00> DEADLINE: <2026-11-28 Sat>
 沿用 capture 的既有路径，不引入新的文件 I/O：
 
 ```
-InboxAppender.append(existingText, orgSubtree)   // 末尾补一个空行后追加
-  → Vault.save("inbox.org", newText)             // 文件不存在则先 createNotebook
-  → SyncManager.requestReindex("inbox.org", newText, "ai task breakdown")
+targetFile = 列表页 ? "inbox.org" : 当前文件名      // QuickCaptureViewModel.insert(targetFile)
+  → beforeWrite()                                 // 编辑页先在其 saveMutex 内 flush 未保存 buffer
+  → InboxAppender.append(existingText, orgSubtree) // 末尾补一个空行后追加
+  → Vault.save(targetFile, newText)                // 文件不存在则先 createNotebook
+  → SyncManager.requestReindex(targetFile, newText, "ai quick capture")
+  → afterWrite(newText)                            // 编辑页 reload buffer / 读页 reload 文档
   → （既有）WebDAV afterLocalWrite 去抖上传 / Room 增量索引 / widget 刷新
 ```
+
+`beforeWrite` 返回 false（flush 被拒，例如文件已陈旧）时中止插入并提示先保存，
+避免稍后一次保存用旧 buffer 覆盖刚追加的块。子树编辑的未保存内容只写回该子树范围，
+与文件末尾的追加不冲突；整文件编辑（buffer 即整个文件）必须 flush + reload。
 
 `InboxAppender` 只做纯文本拼接，不解析 Org，未触碰的行保持原样。
 `LineEndingFileStore` 负责按目标文件既有约定还原 CRLF；新建文件默认 LF，
@@ -173,12 +182,18 @@ UTF-8 无 BOM。
 - `:app:assembleDebug` **BUILD SUCCESSFUL**；APK `bloom-ai-quick-capture-debug-v2.apk`
   （SHA-256 `244b6fbee2cce77b91fbcf475721c541fa3d5f8db0abca79a324a551f4fe4f8f`）。
 
-**第三版（入口改为顶部按钮 + 底部抽屉，本次）**
-- 主界面不再常驻捕获条；顶部栏新增星芒按钮（仅 `Loaded` 且有 vault 时显示），
-  点按弹出 `ModalBottomSheet`，抽屉内复用 `QuickCaptureBar(embedded = true)`。
-- 草稿在旋转时保留；插入完成后关闭抽屉清空，未完成草稿关闭时保留。
-- `:app:testDebugUnitTest`（同第二版范围）：**76 tests，0 failures / 0 errors / 0 skipped**。
-- `:app:assembleDebug` **BUILD SUCCESSFUL**；APK `bloom-ai-capture-sheet-debug-v3.apk`
+**第三版（入口改为顶部按钮 + 底部抽屉）**
+- 主界面不再常驻捕获条；顶部栏星芒按钮弹出 `ModalBottomSheet`，抽屉内复用 `QuickCaptureBar(embedded = true)`。
+- 草稿旋转时保留、插入完成后关闭清空；APK `bloom-ai-capture-sheet-debug-v3.apk`
   （SHA-256 `2d412b8bf8202015176c8abb685329266a730ae9a7479b4466055b88d59dc03f`）。
-- 新增文本统一 UTF-8 无 BOM + CRLF；本机 `gradle-daemon-jvm.properties` 的 JDK 配置
-  为构建临时改动，验证后已还原，未进入提交。
+
+**第四版（上下文感知的保存目标，本次）**
+- 星芒按钮扩展到全部文件页面：笔记阅读/编辑、大纲、整文件阅读/编辑；共享 `AiCaptureLauncher.kt`
+  （`AiCaptureAction` + `AiCaptureSheet` + `AiCaptureController`）收敛五个页面的样板代码。
+- 保存目标按页面固定：列表页 → `inbox.org`，文件页 → 当前文件名（`QuickCaptureViewModel.insert(targetFile)`）。
+- 编辑页安全性：`EditorViewModel.flushForExternalWrite()` 在其 saveMutex 内 flush 未保存 buffer，
+  返回 false 则中止插入并提示先保存；整文件编辑在写入后 reload buffer，避免旧 buffer 覆盖追加块。
+- `:app:testDebugUnitTest`：**77 tests，0 failures / 0 errors / 0 skipped**（新增 InboxAppender 对当前文件追加用例）。
+- `:app:assembleDebug` **BUILD SUCCESSFUL**；APK `bloom-ai-context-target-debug-v4.apk`
+  （SHA-256 `e36ca9e1dda74e8b208f4a382603f2cb631f74dc7ffb17e5fb23e05f6054747a`）。
+- 新增/改动文本统一 UTF-8 无 BOM + CRLF；本机 `gradle-daemon-jvm.properties` 的临时构建改动已还原。

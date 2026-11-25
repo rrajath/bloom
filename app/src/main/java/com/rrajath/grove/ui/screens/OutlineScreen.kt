@@ -108,6 +108,9 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.os.ConfigurationCompat
 import com.rrajath.grove.R
+import com.rrajath.grove.ui.screens.ai.AiCaptureAction
+import com.rrajath.grove.ui.screens.ai.AiCaptureSheet
+import com.rrajath.grove.ui.screens.ai.rememberAiCapture
 import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
@@ -234,9 +237,12 @@ fun OutlineScreen(
      */
     autoOpenWholeFile: Boolean = false,
     onAutoOpenWholeFile: (fileName: String) -> Unit = {},
+    /** Open the AI model settings (top-bar AI capture entry). */
+    onOpenAiSettings: () -> Unit = {},
     viewModel: DocumentViewModel = viewModel(factory = DocumentViewModel.Factory),
 ) {
     val c = MaterialTheme.grove
+    val aiCapture = rememberAiCapture()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val selectedLines by viewModel.selectedLines.collectAsStateWithLifecycle()
     val allTags by viewModel.allTags.collectAsStateWithLifecycle()
@@ -459,6 +465,7 @@ fun OutlineScreen(
                         }
                     },
                     actions = {
+                        AiCaptureAction(aiCapture)
                         (state as? DocumentUiState.Loaded)?.let { loaded ->
                             val foldable = remember(loaded.document, scopedHeadlines) {
                                 scopedHeadlines
@@ -900,6 +907,12 @@ fun OutlineScreen(
                     GroveToast(
                         toast = toast,
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 150.dp),
+                    )
+                    AiCaptureSheet(
+                        controller = aiCapture,
+                        targetFile = notebookId,
+                        onOpenSettings = onOpenAiSettings,
+                        afterWrite = { viewModel.load(notebookId) },
                     )
                     }
                 }

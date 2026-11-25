@@ -82,20 +82,38 @@ class QuickCaptureViewModel(private val app: GroveApplication) : ViewModel() {
         }
     }
 
-    fun insert() {
+    /**
+     * Append the generated org to [targetFile] (inbox.org from the list screen,
+     * the currently open file from a note/file screen).
+     *
+     * [beforeWrite] flushes an editor's unsaved buffer under its own save lock;
+     * returning false aborts the insert so a stale buffer can never overwrite
+     * what we append. [afterWrite] lets the caller fold the new text back into
+     * its editor buffer / reload its document after the disk write.
+     */
+    fun insert(
+        targetFile: String = InboxAppender.TARGET_FILE,
+        beforeWrite: suspend () -> Boolean = { true },
+        afterWrite: (String) -> Unit = {},
+    ) {
         launchStep {
             val settings = app.settingsRepository.settings.first()
             if (settings.vaultTreeUri == null && !settings.webdavEnabled) {
                 _ui.update { it.copy(status = UiText.res(R.string.ai_wizard_no_vault)) }
                 return@launchStep
             }
+            if (!beforeWrite()) {
+                _ui.update { it.copy(status = UiText.res(R.string.ai_quick_pending_unsaved)) }
+                return@launchStep
+            }
             val vault = app.vault.filterNotNull().first()
-            val target = InboxAppender.TARGET_FILE
+            val target = targetFile.ifBlank { InboxAppender.TARGET_FILE }
             if (vault.open(target) == null) vault.createNotebook(target)
             val current = vault.open(target)?.text.orEmpty()
             val newText = InboxAppender.append(current, _ui.value.orgText)
             vault.save(target, newText)
             app.syncManager.requestReindex(target, newText, "ai quick capture")
+            afterWrite(newText)
             _ui.update {
                 it.copy(
                     inserted = true,

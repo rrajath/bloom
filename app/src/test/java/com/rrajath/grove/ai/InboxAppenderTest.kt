@@ -37,6 +37,17 @@ class InboxAppenderTest {
     }
 
     @Test
+    fun `appends to a currently open file just as it does to inbox`() {
+        // From a note/file screen the capture target is the open file, not
+        // inbox.org. append() is target-agnostic: it preserves that file's
+        // existing headings and adds the new subtree at the end.
+        val currentFile = "* TODO 当前文件已有任务\n** TODO 子任务\n"
+        val result = InboxAppender.append(currentFile, entry)
+        assertTrue(result.startsWith(currentFile.trimEnd('\n') + "\n\n"))
+        assertTrue(result.endsWith(entry + "\n"))
+    }
+
+    @Test
     fun `blank entries are rejected`() {
         try {
             InboxAppender.append("", "   \n\n")
