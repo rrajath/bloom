@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.rrajath.grove.ai.AiConfig
 import com.rrajath.grove.org.NotePlacement
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -138,6 +139,14 @@ data class GroveSettings(
     val webdavEnabled: Boolean = false,
     val webdavUrl: String = "",
     val webdavUsername: String = "",
+    /**
+     * Device-local AI provider settings (Settings > AI task breakdown). The API
+     * key is NOT here: it lives in `ai.AiSecretStore` (Android Keystore), and
+     * like the WebDAV config these values are deliberately left out of
+     * SettingsSerialization so a backup cannot carry provider credentials.
+     */
+    val aiBaseUrl: String = AiConfig.DEFAULT_BASE_URL,
+    val aiModel: String = AiConfig.DEFAULT_MODEL,
     val syncMode: SyncMode = SyncMode.ON_OPEN_CLOSE,
     val periodicSyncMinutes: Int = 30,
     /** Org TODO keyword config, `|` splits done-type ("TODO IN-PROGRESS | DONE CANCELLED"). */
@@ -426,6 +435,9 @@ class SettingsRepository(
         val webdavEnabled = booleanPreferencesKey("webdav_enabled")
         val webdavUrl = stringPreferencesKey("webdav_url")
         val webdavUsername = stringPreferencesKey("webdav_username")
+        /** AI provider endpoint/model only; the API key is stored in Android Keystore. */
+        val aiBaseUrl = stringPreferencesKey("ai_base_url")
+        val aiModel = stringPreferencesKey("ai_model")
         val syncMode = stringPreferencesKey("sync_mode")
         val periodicSyncMinutes = intPreferencesKey("periodic_sync_minutes")
         val todoKeywords = stringPreferencesKey("todo_keywords")
@@ -575,6 +587,8 @@ class SettingsRepository(
             webdavEnabled = prefs[Keys.webdavEnabled] ?: false,
             webdavUrl = prefs[Keys.webdavUrl] ?: "",
             webdavUsername = prefs[Keys.webdavUsername] ?: "",
+            aiBaseUrl = prefs[Keys.aiBaseUrl] ?: AiConfig.DEFAULT_BASE_URL,
+            aiModel = prefs[Keys.aiModel] ?: AiConfig.DEFAULT_MODEL,
             syncMode = SyncMode.fromStorage(prefs[Keys.syncMode]),
             periodicSyncMinutes = prefs[Keys.periodicSyncMinutes] ?: 30,
             todoKeywords = prefs[Keys.todoKeywords] ?: GroveSettings.DEFAULT_TODO_KEYWORDS,
@@ -994,6 +1008,14 @@ class SettingsRepository(
         editSettings {
             it[Keys.webdavUrl] = url
             it[Keys.webdavUsername] = username
+        }
+    }
+
+    /** Store the AI provider's normalized base URL and model (never the API key). */
+    suspend fun setAiConfig(baseUrl: String, model: String) {
+        editSettings {
+            it[Keys.aiBaseUrl] = baseUrl
+            it[Keys.aiModel] = model
         }
     }
 

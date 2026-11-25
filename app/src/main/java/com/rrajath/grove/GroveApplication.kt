@@ -43,6 +43,7 @@ import com.rrajath.grove.vault.LineEndingFileStore
 import com.rrajath.grove.vault.SafFileStore
 import com.rrajath.grove.vault.TestVaultHook
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.ai.AiKeystoreSecretStore
 import com.rrajath.grove.webdav.HttpWebDavClient
 import com.rrajath.grove.webdav.WebDavConfig
 import com.rrajath.grove.webdav.WebDavKeystoreSecretStore
@@ -136,6 +137,9 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
     /** WebDAV password, encrypted with an Android Keystore key (never in DataStore/backups). */
     val webDavSecrets: WebDavKeystoreSecretStore by lazy { WebDavKeystoreSecretStore(this) }
+
+    /** AI provider API key, encrypted with its own Android Keystore key. */
+    val aiSecrets: AiKeystoreSecretStore by lazy { AiKeystoreSecretStore(this) }
 
     /** Base directory holding one mirror subdirectory per WebDAV collection/account. */
     val webDavMirrorBase: File by lazy { File(filesDir, "webdav/mirror").apply { mkdirs() } }

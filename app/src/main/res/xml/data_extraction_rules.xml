@@ -7,8 +7,11 @@
     <cloud-backup>
         <!-- Encrypted WebDAV password + the local mirror of the notes stay on device. -->
         <exclude domain="file" path="webdav/" />
+        <!-- Encrypted AI provider API key stays on device too. -->
+        <exclude domain="file" path="ai/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="webdav/" />
+        <exclude domain="file" path="ai/" />
     </device-transfer>
 </data-extraction-rules>

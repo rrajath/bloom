@@ -81,7 +81,11 @@ import com.rrajath.grove.ui.screens.ReadNoteScreen
 import com.rrajath.grove.ui.screens.RefileSheet
 import com.rrajath.grove.ui.search.SearchScreen
 import com.rrajath.grove.ui.screens.SettingsScreen
+import com.rrajath.grove.ui.screens.ai.DecomposeScreen
+import com.rrajath.grove.ui.screens.ai.DecomposeViewModel
+import com.rrajath.grove.ui.screens.settings.AiSettingsViewModel
 import com.rrajath.grove.ui.screens.settings.SettingsAgendaScreen
+import com.rrajath.grove.ui.screens.settings.SettingsAiScreen
 import com.rrajath.grove.ui.screens.settings.SettingsAppearanceScreen
 import com.rrajath.grove.ui.screens.settings.SettingsBackupScreen
 import com.rrajath.grove.ui.screens.settings.SettingsBugReportScreen
@@ -1012,6 +1016,7 @@ private fun GroveNavigation(
                     onOpenCaptureTemplates = { navController.navigate(Routes.SETTINGS_CAPTURE_TEMPLATES) },
                     onOpenSync = { navController.navigate(Routes.SETTINGS_SYNC) },
                     onOpenWebDav = { navController.navigate(Routes.SETTINGS_WEBDAV) },
+                    onOpenAi = { navController.navigate(Routes.SETTINGS_AI) },
                     onOpenNotes = { navController.navigate(Routes.SETTINGS_NOTES) },
                     onOpenAgenda = { navController.navigate(Routes.SETTINGS_AGENDA) },
                     onOpenWidget = { navController.navigate(Routes.SETTINGS_WIDGET) },
@@ -1089,6 +1094,40 @@ private fun GroveNavigation(
                     onSave = webDavViewModel::save,
                     onTest = webDavViewModel::test,
                     onSyncNow = webDavViewModel::syncNow,
+                )
+            }
+            settingsScreen(Routes.SETTINGS_AI) {
+                val aiViewModel: AiSettingsViewModel = viewModel(factory = AiSettingsViewModel.Factory)
+                val aiState by aiViewModel.ui.collectAsStateWithLifecycle()
+                SettingsAiScreen(
+                    state = aiState,
+                    onBack = { navController.popBackStack() },
+                    onBaseUrlChange = aiViewModel::onBaseUrlChange,
+                    onModelChange = aiViewModel::onModelChange,
+                    onApiKeyChange = aiViewModel::onApiKeyChange,
+                    onSave = aiViewModel::save,
+                    onTest = aiViewModel::test,
+                    onOpenDecompose = { navController.navigate(Routes.AI_DECOMPOSE) },
+                )
+            }
+            screen(Routes.AI_DECOMPOSE) {
+                val decomposeViewModel: DecomposeViewModel = viewModel(factory = DecomposeViewModel.Factory)
+                val decomposeState by decomposeViewModel.ui.collectAsStateWithLifecycle()
+                DecomposeScreen(
+                    state = decomposeState,
+                    onBack = { navController.popBackStack() },
+                    onTitleChange = decomposeViewModel::onTitleChange,
+                    onStart = decomposeViewModel::start,
+                    onAnswerChange = decomposeViewModel::onAnswerChange,
+                    onConfirmAnswers = decomposeViewModel::confirmAnswers,
+                    onSelectApproach = decomposeViewModel::onSelectApproach,
+                    onConfirmApproach = decomposeViewModel::confirmApproach,
+                    onConfirmDesignBlock = decomposeViewModel::confirmDesignBlock,
+                    onOrgTextChange = decomposeViewModel::onOrgTextChange,
+                    onInsert = decomposeViewModel::insert,
+                    onRetry = decomposeViewModel::retry,
+                    onReset = decomposeViewModel::reset,
+                    onOpenSettings = { navController.navigate(Routes.SETTINGS_AI) },
                 )
             }
             settingsScreen(Routes.SETTINGS_NOTES) {

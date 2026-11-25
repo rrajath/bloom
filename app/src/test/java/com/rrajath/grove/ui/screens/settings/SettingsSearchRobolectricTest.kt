@@ -41,7 +41,7 @@ class SettingsSearchRobolectricTest {
             GroveTheme {
                 SettingsScreen(
                     onBack = {}, onOpenAppearance = {}, onOpenNotebooks = {}, onOpenCaptureTemplates = {},
-                    onOpenSync = {}, onOpenWebDav = {}, onOpenNotes = {}, onOpenAgenda = {},
+                    onOpenSync = {}, onOpenWebDav = {}, onOpenAi = {}, onOpenNotes = {}, onOpenAgenda = {},
                     onOpenWidget = {}, onOpenReminders = {},
                     onOpenRoam = {}, onOpenAttachments = {}, onOpenSharing = {}, onOpenBackup = {},
                     onOpenBugReport = {}, onOpenTips = {}, onOpenWhatsNew = {}, onOpenDeveloper = {},
