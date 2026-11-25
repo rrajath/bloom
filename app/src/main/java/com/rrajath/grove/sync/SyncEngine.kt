@@ -19,9 +19,11 @@ import java.util.concurrent.atomic.AtomicInteger
  * Sync state machine (PRD §13): Idle → Checking → Pulling → Done/Conflict/Error.
  * For the v1 Local Directory backend the .org files on disk ARE the source of
  * truth, so "pulling" means re-indexing files whose revision changed (Syncthing
- * or any other tool may rewrite them at any time). Merging/Pushing states exist
- * for the v2 remote backends (WebDAV/Dropbox) which implement [FileStore]
- * against a remote and add an upload leg.
+ * or any other tool may rewrite them at any time). WebDAV uses the same engine:
+ * [com.rrajath.grove.webdav.WebDavVaultSync] reconciles the on-device mirror
+ * with the server before this pass, so from here a remote edit looks exactly
+ * like a local one. Merging/Pushing states exist for a future remote backend
+ * that doesn't keep a full local mirror.
  */
 sealed class SyncState {
     data object Idle : SyncState()

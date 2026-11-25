@@ -66,6 +66,7 @@ fun SettingsScreen(
     onOpenNotebooks: () -> Unit,
     onOpenCaptureTemplates: () -> Unit,
     onOpenSync: () -> Unit,
+    onOpenWebDav: () -> Unit,
     onOpenNotes: () -> Unit,
     onOpenAgenda: () -> Unit,
     onOpenWidget: () -> Unit,
@@ -111,6 +112,7 @@ fun SettingsScreen(
             badge = { NewDot(NewAnchors.SETTINGS_CAPTURE_TEMPLATES) },
         ),
         SettingsPage(R.string.settings_page_sync_title, R.string.settings_page_sync_summary, onOpenSync),
+        SettingsPage(R.string.settings_page_webdav_title, R.string.settings_page_webdav_summary, onOpenWebDav),
         SettingsPage(
             R.string.settings_page_notes_title,
             R.string.settings_page_notes_summary,

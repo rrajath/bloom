@@ -56,6 +56,16 @@ class SyncManager(
      * removals to reconcile against).
      */
     private val onSyncCompleted: suspend (result: SyncResult?) -> Unit = {},
+    /**
+     * Optional remote leg, awaited before every full pass. A WebDAV (or any
+     * future remote backend) pass reconciles files on disk first; then
+     * [SyncEngine] does its usual revision diff. Failures (offline, bad
+     * credentials) are logged but must not stop the local notes from being
+     * indexed — the local mirror is usable offline.
+     */
+    private val beforeSync: (suspend () -> Unit)? = null,
+    /** Schedules a debounced remote push after a single-file in-app edit. */
+    private val afterLocalWrite: (() -> Unit)? = null,
 ) : SyncTrigger {
     private val mutex = Mutex()
     private var engine: SyncEngine? = null
@@ -114,6 +124,10 @@ class SyncManager(
         val engine = engine ?: return
         val messages = java.util.concurrent.ConcurrentLinkedQueue<String>()
         messages.add("sync started ($reason)")  // i18n: sync log, stays English
+        beforeSync?.let { remote ->
+            runCatching { remote() }
+                .onFailure { messages.add("remote sync failed: ${it.message}") }  // i18n: sync log, stays English
+        }
         val result = engine.sync(log = { msg -> messages.add(msg) })
         if (result != null) {
             _lastResult.value = result
@@ -154,6 +168,7 @@ class SyncManager(
                 try {
                     engine.reindexOne(name, text, database.indexDao().conflictFileNameFor(name))
                     messages.add("reindexed $name")  // i18n: sync log, stays English
+                    afterLocalWrite?.invoke()
                 } catch (e: Exception) {
                     messages.add("reindex failed for $name: ${e.message}")  // i18n: sync log, stays English
                 }

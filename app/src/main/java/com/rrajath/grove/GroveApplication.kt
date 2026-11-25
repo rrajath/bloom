@@ -43,7 +43,16 @@ import com.rrajath.grove.vault.LineEndingFileStore
 import com.rrajath.grove.vault.SafFileStore
 import com.rrajath.grove.vault.TestVaultHook
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.webdav.HttpWebDavClient
+import com.rrajath.grove.webdav.WebDavConfig
+import com.rrajath.grove.webdav.WebDavKeystoreSecretStore
+import com.rrajath.grove.webdav.WebDavMirrorFileStore
+import com.rrajath.grove.webdav.WebDavPaths
+import com.rrajath.grove.webdav.WebDavSystemProxy
+import com.rrajath.grove.webdav.WebDavUrl
+import com.rrajath.grove.webdav.WebDavVaultSync
 import com.rrajath.grove.widget.LedgerWidget
+import java.io.File
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -81,6 +90,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * was deleted once every caller of it was migrated.
  */
 private const val LEGACY_IGNORE_FILE_NAME = ".orgzlyignore"
+
+/** Change of WebDAV target is a change of vault, and must rebuild the file store. */
+private data class WebDavStoreKey(val enabled: Boolean, val url: String, val username: String)
 
 open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
@@ -121,6 +133,47 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
     val dispatchers = AppDispatchers()
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this, appScope) }
+
+    /** WebDAV password, encrypted with an Android Keystore key (never in DataStore/backups). */
+    val webDavSecrets: WebDavKeystoreSecretStore by lazy { WebDavKeystoreSecretStore(this) }
+
+    /** Base directory holding one mirror subdirectory per WebDAV collection/account. */
+    val webDavMirrorBase: File by lazy { File(filesDir, "webdav/mirror").apply { mkdirs() } }
+
+    /** Mirror for one configured WebDAV collection; the password is irrelevant to the key. */
+    fun webDavMirrorRoot(config: WebDavConfig): File = WebDavPaths.mirrorRoot(webDavMirrorBase, config)
+
+    private fun webDavMirrorRoot(url: String, username: String): File =
+        webDavMirrorRoot(WebDavConfig(WebDavUrl.normalize(url) ?: url, username, ""))
+
+    /**
+     * Two-way WebDAV sync. Reads its config on every pass, so changing the URL,
+     * credentials or the enable switch takes effect without rebuilding the graph.
+     * Both the baseline and the mirror are keyed by URL+username, so switching
+     * collections never uploads one vault's mirror into another vault.
+     */
+    val webDavSync: WebDavVaultSync by lazy {
+        WebDavVaultSync(
+            scope = appScope,
+            mirrorRoot = webDavMirrorBase,
+            mirrorRootForConfig = { webDavMirrorRoot(it) },
+            stateDir = File(filesDir, "webdav/state"),
+            configProvider = {
+                val settings = settingsRepository.settings.first()
+                if (!settings.webdavEnabled) null
+                else {
+                    val password = runCatching { webDavSecrets.load() }.getOrNull()
+                    val url = WebDavUrl.normalize(settings.webdavUrl)
+                    if (url == null || password.isNullOrEmpty() || settings.webdavUsername.isBlank()) null
+                    else WebDavConfig(url, settings.webdavUsername, password)
+                }
+            },
+            // Honour the Wi-Fi proxy configured in Android settings; without
+            // this OkHttp connects directly even when the browser uses a proxy.
+            clientFactory = { HttpWebDavClient(it, WebDavSystemProxy.current(this)) },
+            onLog = { android.util.Log.i("webdav", it) },
+        )
+    }
 
     val templatesRepository: TemplatesRepository by lazy { TemplatesRepository(this) }
 
@@ -243,6 +296,23 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
                 }
                 widgetRefreshRequests.tryEmit(Unit)
             },
+            // Reconcile the WebDAV mirror with the server BEFORE the local index
+            // pass, so every trigger (foreground/background, periodic work,
+            // continuous poll, manual) both pushes and pulls remote changes.
+            beforeSync = { webDavSync.sync() },
+            // A single-note save uses the cheap reindex path; schedule a debounced
+            // remote push for it. Manual-only mode stays manual: those users push
+            // with the WebDAV page's "Sync now" (or the next explicit sync).
+            afterLocalWrite = {
+                appScope.launch {
+                    val current = settingsRepository.settings.first()
+                    if (current.webdavEnabled &&
+                        current.syncMode != com.rrajath.grove.settings.SyncMode.MANUAL
+                    ) {
+                        webDavSync.requestSync("local edit")
+                    }
+                }
+            },
         )
     }
 
@@ -253,6 +323,12 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
      * store for Maestro / the macrobenchmark module; see `debug.DebugTestVault`.
      */
     val fileStore: StateFlow<FileStore?> by lazy {
+        // One key flow keeps combine() at five typed flows and, more importantly,
+        // makes a URL/account switch emit a brand-new mirror store so the index
+        // is rebuilt from the newly selected collection.
+        val webDavKey = settingsRepository.settings
+            .map { WebDavStoreKey(it.webdavEnabled, it.webdavUrl, it.webdavUsername) }
+            .distinctUntilChanged()
         combine(
             settingsRepository.settings.map { it.vaultTreeUri }.distinctUntilChanged(),
             settingsRepository.settings.map { it.ignoreList }.distinctUntilChanged(),
@@ -261,12 +337,28 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             // SyncManager.attach requests the sync that reindexes under the new shard skip.
             // Null until settings load, so a store never exists under a stand-in config.
             attachConfigSource.config,
-        ) { uriString, ignoreListText, testRoot, attachConfig ->
+            webDavKey,
+        ) { uriString, ignoreListText, testRoot, attachConfig, webdav ->
             val ignore = IgnorePatterns(ignoreListText)
             val attachRoots = attachConfig?.let { com.rrajath.grove.attach.AttachSkipRoots.of(it) }
             when {
                 attachRoots == null -> null
                 testRoot != null -> JvmFileStore(testRoot, ignore, attachRoots = attachRoots)
+                webdav.enabled -> {
+                    val mirrorRoot = webDavMirrorRoot(webdav.url, webdav.username)
+                    WebDavMirrorFileStore(
+                        delegate = JvmFileStore(
+                            mirrorRoot,
+                            ignore,
+                            // The mirror carries attachments too: shard dirs must be visible
+                            // to the app (and to the walker that uploads them).
+                            skipAttachShards = false,
+                            attachRoots = attachRoots,
+                        ),
+                        context = this,
+                        mirrorRoot = mirrorRoot,
+                    )
+                }
                 uriString != null -> SafFileStore(this, uriString.toUri(), ignore, attachRoots = attachRoots)
                 else -> null
             }?.let(::LineEndingFileStore)

@@ -384,7 +384,7 @@ class CaptureViewModel(
         // (Maestro, :macrobenchmark): it feeds GroveApplication.fileStore
         // without ever writing vaultTreeUri, so treat it as a configured vault
         // here too. Always null in release (R8 strips the path).
-        if (currentSettings.vaultTreeUri == null && TestVaultHook.root.value == null) {
+        if (currentSettings.vaultTreeUri == null && !currentSettings.webdavEnabled && TestVaultHook.root.value == null) {
             error("No sync folder configured")
         }
         // On a cold start (e.g. launched via app shortcut) the vault may
@@ -510,7 +510,7 @@ class CaptureViewModel(
         context: CaptureContext,
     ): Pair<String, String> {
         val currentSettings = settings.settings.first()
-        if (currentSettings.vaultTreeUri == null && TestVaultHook.root.value == null) {
+        if (currentSettings.vaultTreeUri == null && !currentSettings.webdavEnabled && TestVaultHook.root.value == null) {
             error("No sync folder configured")
         }
         val vault = vaultFlow.filterNotNull().first()

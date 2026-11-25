@@ -46,6 +46,8 @@ object Routes {
     const val SETTINGS_NOTEBOOKS = "settings/notebooks"
     const val SETTINGS_CAPTURE_TEMPLATES = "settings/templates"
     const val SETTINGS_SYNC = "settings/sync"
+    /** Two-way sync with a WebDAV collection (server, credentials, manual pass). */
+    const val SETTINGS_WEBDAV = "settings/webdav"
     const val SETTINGS_NOTES = "settings/notes"
     const val SETTINGS_AGENDA = "settings/agenda"
     const val SETTINGS_WIDGET = "settings/widget"

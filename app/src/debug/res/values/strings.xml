@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Bloom Debug</string>
+    <!-- Makes the locally built WebDAV test APK unmistakable on a device that
+         may already have another Bloom debug build installed. -->
+    <string name="app_name" translatable="false">Bloom WebDAV</string>
 </resources>

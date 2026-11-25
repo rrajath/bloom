@@ -92,7 +92,8 @@ object ShareIntake {
     suspend fun consumeShare(deps: Deps, payload: SharedPayload) {
         val context = deps.context
         val settings = deps.settings.settings.first()
-        if (settings.vaultTreeUri == null) {
+        // A WebDAV mirror is a vault on its own, so sharing works before a SAF folder is attached.
+        if (settings.vaultTreeUri == null && !settings.webdavEnabled) {
             deps.notify(context.getString(R.string.share_no_vault, context.getString(R.string.app_name)))
             return
         }
