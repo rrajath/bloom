@@ -71,10 +71,10 @@ class QuickCaptureViewModel(private val app: GroveApplication) : ViewModel() {
         }
         launchStep {
             val engine = engine() ?: return@launchStep
-            val plan = engine.capture(text, _ui.value.granularity)
+            val plans = engine.capture(text, _ui.value.granularity)
             _ui.update {
                 it.copy(
-                    orgText = engine.render(plan),
+                    orgText = engine.render(plans),
                     status = UiText.res(R.string.ai_quick_generated),
                     inserted = false,
                 )
@@ -125,6 +125,17 @@ class QuickCaptureViewModel(private val app: GroveApplication) : ViewModel() {
 
     fun clear() {
         _ui.value = UiState(granularity = _ui.value.granularity)
+    }
+
+    /**
+     * Empties the composer after a successful insert but keeps the confirmation
+     * status on screen, so the sheet can stay open and the user can capture the
+     * next item without reopening it.
+     */
+    fun resetAfterInsert() {
+        _ui.update {
+            UiState(granularity = it.granularity, status = it.status)
+        }
     }
 
     private suspend fun engine(): QuickCaptureEngine? {

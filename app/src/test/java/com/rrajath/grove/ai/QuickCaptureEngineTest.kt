@@ -33,6 +33,7 @@ class QuickCaptureEngineTest {
         val engine = QuickCaptureEngine(client, today)
 
         val plan = engine.capture("下周五 3 点和张三在 302 会议室评审 Q4 规划，高优先级", CaptureGranularity.AUTO)
+            .single()
 
         assertEquals("和张三评审 Q4 规划", plan.title)
         assertEquals('A', plan.priority)
@@ -49,7 +50,7 @@ class QuickCaptureEngineTest {
         assertTrue(userTurn.contains("302 会议室"))
         assertTrue(userTurn.contains("自己判断"))
 
-        val org = engine.render(plan)
+        val org = engine.render(listOf(plan))
         val lines = org.lines()
         assertTrue(lines[0].startsWith("* TODO [#A] 和张三评审 Q4 规划 "))
         assertEquals("SCHEDULED: <2026-11-27 Fri 15:00> DEADLINE: <2026-11-28 Sat>", lines[1])
@@ -79,7 +80,7 @@ class QuickCaptureEngineTest {
         """.trimIndent()
         val engine = QuickCaptureEngine(FakeClient(reply), today)
 
-        val plan = engine.capture("准备季度评审", CaptureGranularity.MULTI)
+        val plan = engine.capture("准备季度评审", CaptureGranularity.MULTI).single()
 
         assertEquals("准备季度评审", plan.title)
         assertEquals("<2026-12-02 Wed>", plan.deadlineStamp)
@@ -99,7 +100,7 @@ class QuickCaptureEngineTest {
         val engine = QuickCaptureEngine(client, today)
 
         engine.capture("散步", CaptureGranularity.SINGLE)
-        assertTrue(client.lastMessages.last().content.contains("只输出一条顶层 TODO"))
+        assertTrue(client.lastMessages.last().content.contains("每条事情各输出一条顶层 TODO"))
 
         engine.capture("散步", CaptureGranularity.MULTI)
         assertTrue(client.lastMessages.last().content.contains("3-6 个「** TODO」子任务"))
@@ -108,11 +109,47 @@ class QuickCaptureEngineTest {
     @Test
     fun `no invented dates or checkpoints when the user gave none`() = runBlocking {
         val engine = QuickCaptureEngine(FakeClient("* TODO 买牛奶\n"), today)
-        val plan = engine.capture("买牛奶", CaptureGranularity.AUTO)
+        val plan = engine.capture("买牛奶", CaptureGranularity.AUTO).single()
         assertNull(plan.deadlineStamp)
         assertNull(plan.scheduledStamp)
         assertNull(plan.location)
         assertNull(plan.priority)
         assertTrue(plan.tasks.isEmpty())
+    }
+
+    @Test
+    fun `two lines become two sibling trees instead of one`() = runBlocking {
+        val reply = """
+            * TODO [#A] 去打疫苗 :health:
+            SCHEDULED: <2026-11-25 Wed 14:30>
+
+            * TODO 安装 Bloom 到主力手机 :coding:@computer:
+            ** TODO 确认可安装
+            *** 检查存储空间
+        """.trimIndent()
+        val client = FakeClient(reply)
+        val engine = QuickCaptureEngine(client, today)
+
+        val plans = engine.capture(
+            "下午2:30去打疫苗，高优先级\n一会就将bloom安装到我的主力手机，在真机上使用",
+            CaptureGranularity.AUTO,
+        )
+
+        // The prompt must tell the model that several items stay several trees.
+        assertTrue(client.lastMessages.first().content.contains("必须输出多棵顶层树"))
+        assertEquals(2, plans.size)
+        assertEquals("去打疫苗", plans[0].title)
+        assertEquals("<2026-11-25 Wed 14:30>", plans[0].scheduledStamp)
+        assertEquals('A', plans[0].priority)
+        assertEquals("安装 Bloom 到主力手机", plans[1].title)
+        // The first item's priority must not leak into the second tree.
+        assertNull(plans[1].priority)
+        assertEquals(1, plans[1].tasks.size)
+
+        // Sibling trees land in inbox.org separated by exactly one blank line.
+        val org = engine.render(plans)
+        assertTrue(org.contains("\n\n* TODO 安装 Bloom 到主力手机"))
+        assertTrue(org.endsWith("\n"))
+        assertEquals(2, com.rrajath.grove.org.OrgParser.parse(org).headlines.count { it.level == 1 })
     }
 }

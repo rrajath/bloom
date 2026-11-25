@@ -81,6 +81,7 @@ import com.rrajath.grove.ui.screens.ReadNoteScreen
 import com.rrajath.grove.ui.screens.RefileSheet
 import com.rrajath.grove.ui.search.SearchScreen
 import com.rrajath.grove.ui.screens.SettingsScreen
+import com.rrajath.grove.ui.screens.ai.AiCaptureSheetRoute
 import com.rrajath.grove.ui.screens.ai.DecomposeScreen
 import com.rrajath.grove.ui.screens.ai.DecomposeViewModel
 import com.rrajath.grove.ui.screens.settings.AiSettingsViewModel
@@ -944,6 +945,25 @@ private fun GroveNavigation(
                         closeActivityOnExit = false
                         navController.navigate(Routes.SETTINGS_CAPTURE_TEMPLATES) {
                             popUpTo(Routes.CAPTURE) { inclusive = true }
+                        }
+                    },
+                    onOpenAiCapture = {
+                        closeActivityOnExit = false
+                        navController.navigate(Routes.AI_CAPTURE) {
+                            popUpTo(Routes.CAPTURE) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            screen(Routes.AI_CAPTURE) { entry ->
+                AiCaptureSheetRoute(
+                    onClosed = {
+                        if (entry.isResumed()) navController.popBackStack()
+                    },
+                    onOpenSettings = {
+                        closeActivityOnExit = false
+                        navController.navigate(Routes.SETTINGS_AI) {
+                            popUpTo(Routes.AI_CAPTURE) { inclusive = true }
                         }
                     },
                 )

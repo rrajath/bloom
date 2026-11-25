@@ -50,6 +50,8 @@ object Routes {
     const val SETTINGS_WEBDAV = "settings/webdav"
     /** Provider settings for AI features (endpoint, model, encrypted API key). */
     const val SETTINGS_AI = "settings/ai"
+    /** One-shot natural-language capture sheet, opened from the capture picker. */
+    const val AI_CAPTURE = "ai/capture"
     /** Four-step AI task breakdown wizard, ending in an inbox.org insertion. */
     const val AI_DECOMPOSE = "ai/decompose"
     const val SETTINGS_NOTES = "settings/notes"

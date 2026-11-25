@@ -4,9 +4,9 @@ package com.rrajath.grove.ai
 import java.time.LocalDate
 
 /**
- * One-shot natural-language capture: a single model round produces either one
- * TODO or a TODO with subtasks, carrying any DEADLINE / SCHEDULED / LOCATION /
- * priority the user actually mentioned.
+ * One-shot natural-language capture: a single model round produces one or more
+ * TODOs (one per item the user described), each optionally with subtasks,
+ * carrying any DEADLINE / SCHEDULED / LOCATION / priority the user mentioned.
  *
  * Pure JVM so a fake [AiClient] can drive it in unit tests. The ViewModel may
  * call [capture] again with a different [CaptureGranularity] when the user
@@ -18,7 +18,12 @@ class QuickCaptureEngine(
     private val today: LocalDate = LocalDate.now(),
 ) {
 
-    suspend fun capture(text: String, granularity: CaptureGranularity): DecomposePlan {
+    /**
+     * One plan per top-level TODO the model returned, in input order. A
+     * multi-line note ("打疫苗" on one line, "装 Bloom" on the next) therefore
+     * becomes two sibling trees instead of only the last one surviving.
+     */
+    suspend fun capture(text: String, granularity: CaptureGranularity): List<DecomposePlan> {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) throw AiException("Nothing to capture")
         val reply = client.complete(
@@ -27,8 +32,12 @@ class QuickCaptureEngine(
                 AiMessage.user(QuickCapturePrompts.user(trimmed, granularity, today)),
             ),
         )
-        return AiTagPolicy.enrichQuick(OrgTaskParser.parse(reply, allowSingle = true), trimmed)
+        val plans = OrgTaskParser.parseMany(reply, allowSingle = true)
+        // With several items the full note would mark every tree urgent, so
+        // each tree is scored on its own title instead.
+        val single = plans.size == 1
+        return plans.map { AiTagPolicy.enrichQuick(it, if (single) trimmed else it.title) }
     }
 
-    fun render(plan: DecomposePlan): String = OrgTaskRenderer.render(plan)
+    fun render(plans: List<DecomposePlan>): String = OrgTaskRenderer.render(plans)
 }

@@ -2,6 +2,7 @@ package com.rrajath.grove.ai
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -44,6 +45,30 @@ class OrgTaskParserMetadataTest {
         assertEquals(1, plan.tasks[0].checkpoints.size)
         assertNull(plan.tasks[1].scheduledStamp)
         assertNull(plan.tasks[1].location)
+    }
+
+    @Test
+    fun `sibling top-level trees stay separate`() {
+        val org = """
+            * TODO 去打疫苗 :health:
+            SCHEDULED: <2026-11-25 Wed 14:30>
+
+            * TODO 安装 Bloom 到主力手机
+            ** TODO 备份旧机数据
+            ** TODO 安装并登录
+        """.trimIndent()
+
+        val plans = OrgTaskParser.parseMany(org, allowSingle = true)
+        assertEquals(2, plans.size)
+        assertEquals("去打疫苗", plans[0].title)
+        assertEquals("<2026-11-25 Wed 14:30>", plans[0].scheduledStamp)
+        assertTrue(plans[0].tasks.isEmpty())
+        assertEquals("安装 Bloom 到主力手机", plans[1].title)
+        assertEquals(listOf("备份旧机数据", "安装并登录"), plans[1].tasks.map { it.title })
+        assertNull(plans[1].scheduledStamp)
+
+        // The wizard keeps its single-tree contract by taking the first tree.
+        assertEquals("去打疫苗", OrgTaskParser.parse(org, allowSingle = true).title)
     }
 
     @Test

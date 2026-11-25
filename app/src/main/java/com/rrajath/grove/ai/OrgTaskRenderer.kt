@@ -23,6 +23,15 @@ object OrgTaskRenderer {
         return lines.joinToString("\n") + "\n"
     }
 
+    /**
+     * Renders several top-level trees, separated by exactly one blank line so
+     * each stays a sibling subtree in `inbox.org` rather than a nested child.
+     */
+    fun render(plans: List<DecomposePlan>): String {
+        if (plans.isEmpty()) throw AiException("Nothing to render")
+        return plans.joinToString("\n\n") { render(it).trimEnd('\n') } + "\n"
+    }
+
     private fun planning(scheduled: String?, deadline: String?): String? {
         val parts = buildList {
             scheduled?.let { add("SCHEDULED: $it") }

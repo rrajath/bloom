@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rrajath.grove.ai.InboxAppender
 import com.rrajath.grove.R
 import com.rrajath.grove.ui.screens.IconGlyph
 import com.rrajath.grove.ui.theme.PlexSans
@@ -56,6 +58,25 @@ fun rememberAiCapture(injected: QuickCaptureViewModel? = null): AiCaptureControl
     return remember(vm, ui, open, setOpen) { AiCaptureController(vm, ui, open, setOpen) }
 }
 
+/**
+ * Standalone entry used by the capture picker's AI row. The picker route pops
+ * itself before navigating here, so closing this sheet returns to the list.
+ */
+@Composable
+fun AiCaptureSheetRoute(
+    onClosed: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val controller = rememberAiCapture()
+    LaunchedEffect(Unit) { controller.setOpen(true) }
+    AiCaptureSheet(
+        controller = controller,
+        targetFile = InboxAppender.TARGET_FILE,
+        onOpenSettings = onOpenSettings,
+        onClosed = onClosed,
+    )
+}
+
 /** The sparkle action placed in a screen's [com.rrajath.grove.ui.components.GroveTopBar] actions. */
 @Composable
 fun AiCaptureAction(controller: AiCaptureController) {
@@ -70,6 +91,12 @@ fun AiCaptureAction(controller: AiCaptureController) {
  * The bottom sheet hosting the capture composer. Mount only while
  * [AiCaptureController.open] is true.
  *
+ * A successful insert does not close the sheet: the draft is cleared and the
+ * status line confirms the write, so a run of TODOs is type → generate →
+ * insert → type again. The sheet's drag handle (or a swipe / tap outside)
+ * closes it, and an unfinished draft stays in the page-scoped view model for
+ * the next open.
+ *
  * @param targetFile file to append to — inbox.org on the list screen, the open
  *   file on a note/file screen.
  * @param beforeWrite flush an editor's unsaved buffer under its save lock; when
@@ -77,6 +104,8 @@ fun AiCaptureAction(controller: AiCaptureController) {
  *   the appended block.
  * @param afterWrite re-sync an editor/document after the disk write (e.g. reload
  *   a whole-file buffer so it picks up the appended block).
+ * @param onClosed called when the sheet is dismissed; route hosts use it to pop
+ *   themselves.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,15 +115,20 @@ fun AiCaptureSheet(
     onOpenSettings: () -> Unit,
     beforeWrite: suspend () -> Boolean = { true },
     afterWrite: (String) -> Unit = {},
+    onClosed: () -> Unit = {},
 ) {
     if (!controller.open) return
     val c = MaterialTheme.grove
+    val inserted = controller.ui.inserted
+
+    LaunchedEffect(inserted) {
+        if (inserted) controller.viewModel.resetAfterInsert()
+    }
+
     ModalBottomSheet(
         onDismissRequest = {
             controller.setOpen(false)
-            // A completed capture starts clean next time; an unfinished draft is
-            // kept so it survives an accidental swipe.
-            if (controller.ui.inserted) controller.viewModel.clear()
+            onClosed()
         },
         containerColor = c.surface,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
