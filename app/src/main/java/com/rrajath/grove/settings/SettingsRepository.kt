@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.rrajath.grove.org.NotePlacement
@@ -114,6 +115,19 @@ data class GroveSettings(
     val providerBannerDismissedUri: String? = null,
     /** Persisted SAF tree URI of the sync folder; null until the user picks one. */
     val vaultTreeUri: String? = null,
+    /** Settings > Backup: keep `bloom-settings.json` up to date in [autoBackupTreeUri]. Device-specific: not exported. */
+    val autoBackupEnabled: Boolean = false,
+    /** Persisted SAF tree URI of the automatic-backup folder; kept when the toggle goes off. Device-specific: not exported. */
+    val autoBackupTreeUri: String? = null,
+    /** Epoch millis of the last successful automatic-backup write; drives the status line. Device-specific: not exported. */
+    val autoBackupLastSuccessAt: Long? = null,
+    /** True after a failed automatic-backup write, cleared by the next success. Device-specific: not exported. */
+    val autoBackupLastError: Boolean = false,
+    /**
+     * SHA-256 of the JSON last written by the automatic backup, so a cold start doesn't
+     * rewrite unchanged content. Device-specific: not exported.
+     */
+    val autoBackupLastHash: String? = null,
     val syncMode: SyncMode = SyncMode.ON_OPEN_CLOSE,
     val periodicSyncMinutes: Int = 30,
     /** Org TODO keyword config, `|` splits done-type ("TODO IN-PROGRESS | DONE CANCELLED"). */
@@ -394,6 +408,11 @@ class SettingsRepository(
         val providerWarningAckedUri = stringPreferencesKey("provider_warning_acked_uri")
         val providerBannerDismissedUri = stringPreferencesKey("provider_banner_dismissed_uri")
         val vaultTreeUri = stringPreferencesKey("vault_tree_uri")
+        val autoBackupEnabled = booleanPreferencesKey("auto_backup_enabled")
+        val autoBackupTreeUri = stringPreferencesKey("auto_backup_tree_uri")
+        val autoBackupLastSuccessAt = longPreferencesKey("auto_backup_last_success_at")
+        val autoBackupLastError = booleanPreferencesKey("auto_backup_last_error")
+        val autoBackupLastHash = stringPreferencesKey("auto_backup_last_hash")
         val syncMode = stringPreferencesKey("sync_mode")
         val periodicSyncMinutes = intPreferencesKey("periodic_sync_minutes")
         val todoKeywords = stringPreferencesKey("todo_keywords")
@@ -526,6 +545,11 @@ class SettingsRepository(
             providerWarningAckedUri = prefs[Keys.providerWarningAckedUri],
             providerBannerDismissedUri = prefs[Keys.providerBannerDismissedUri],
             vaultTreeUri = prefs[Keys.vaultTreeUri],
+            autoBackupEnabled = prefs[Keys.autoBackupEnabled] ?: false,
+            autoBackupTreeUri = prefs[Keys.autoBackupTreeUri],
+            autoBackupLastSuccessAt = prefs[Keys.autoBackupLastSuccessAt],
+            autoBackupLastError = prefs[Keys.autoBackupLastError] ?: false,
+            autoBackupLastHash = prefs[Keys.autoBackupLastHash],
             syncMode = SyncMode.fromStorage(prefs[Keys.syncMode]),
             periodicSyncMinutes = prefs[Keys.periodicSyncMinutes] ?: 30,
             todoKeywords = prefs[Keys.todoKeywords] ?: GroveSettings.DEFAULT_TODO_KEYWORDS,
@@ -897,6 +921,40 @@ class SettingsRepository(
 
     suspend fun setVaultTreeUri(uri: String) {
         editSettings { it[Keys.vaultTreeUri] = uri }
+    }
+
+    suspend fun setAutoBackupEnabled(enabled: Boolean) {
+        editSettings { it[Keys.autoBackupEnabled] = enabled }
+    }
+
+    /**
+     * Point the automatic backup at [uri]. A different folder has never been written,
+     * so the status and last-write hash reset: the next write is never skipped as unchanged.
+     */
+    suspend fun setAutoBackupTreeUri(uri: String?) {
+        editSettings { prefs ->
+            if (prefs[Keys.autoBackupTreeUri] == uri) return@editSettings
+            if (uri == null) prefs.remove(Keys.autoBackupTreeUri) else prefs[Keys.autoBackupTreeUri] = uri
+            prefs.remove(Keys.autoBackupLastSuccessAt)
+            prefs.remove(Keys.autoBackupLastHash)
+            prefs[Keys.autoBackupLastError] = false
+        }
+    }
+
+    suspend fun recordAutoBackupSuccess(at: Long, hash: String) {
+        editSettings { prefs ->
+            prefs[Keys.autoBackupLastSuccessAt] = at
+            prefs[Keys.autoBackupLastHash] = hash
+            prefs[Keys.autoBackupLastError] = false
+        }
+    }
+
+    /** A failed write: show the error and forget the hash so the next attempt isn't skipped. */
+    suspend fun recordAutoBackupFailure() {
+        editSettings { prefs ->
+            prefs[Keys.autoBackupLastError] = true
+            prefs.remove(Keys.autoBackupLastHash)
+        }
     }
 
     suspend fun ackProviderWarning(uri: String) {

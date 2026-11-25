@@ -367,6 +367,34 @@ class SettingsSerializationTest {
     }
 
     @Test
+    fun `automatic backup fields are device-local, never exported or overwritten on import`() {
+        val source = sample.copy(
+            autoBackupEnabled = true,
+            autoBackupTreeUri = "content://tree/backup",
+            autoBackupLastSuccessAt = 42L,
+            autoBackupLastError = true,
+            autoBackupLastHash = "deadbeef",
+        )
+        val json = SettingsSerialization.export(source)
+        assertTrue("device-local flags must not be exported", !json.contains("autoBackup"))
+        assertTrue(!json.contains("content://tree/backup") && !json.contains("deadbeef"))
+
+        val base = GroveSettings(
+            autoBackupEnabled = false,
+            autoBackupTreeUri = "content://tree/other",
+            autoBackupLastSuccessAt = 7L,
+            autoBackupLastError = false,
+            autoBackupLastHash = "cafe",
+        )
+        val restored = SettingsSerialization.import(json, base)
+        assertEquals(false, restored.autoBackupEnabled)
+        assertEquals("content://tree/other", restored.autoBackupTreeUri)
+        assertEquals(7L, restored.autoBackupLastSuccessAt)
+        assertEquals(false, restored.autoBackupLastError)
+        assertEquals("cafe", restored.autoBackupLastHash)
+    }
+
+    @Test
     fun `exported document is human-readable json`() {
         val json = SettingsSerialization.export(sample)
         assertTrue(json.contains("\"themeMode\": \"system\""))
