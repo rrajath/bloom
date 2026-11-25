@@ -90,6 +90,8 @@ class AppViewModel(
         fetchTitle = { url -> com.rrajath.grove.capture.PageTitleFetcher.fetch(url, app) },
         notify = ShareIntake.toaster(app),
     ),
+    // Backup folder tree URI to its automatic-backup document URI (null when absent); injectable for tests.
+    private val findAutoBackup: suspend (String) -> String? = { app.autoBackupWriter.find(it) },
 ) : ViewModel() {
 
     /** Null until the DataStore emits, so the UI can gate on first load. */
@@ -750,7 +752,7 @@ class AppViewModel(
             .let { states -> combine(states, autoBackupRefresh) { state, _ -> state } }
             .mapLatest { state ->
                 val exists = state.treeUri != null && withContext(dispatchers.io) {
-                    runCatching { app.autoBackupWriter.find(state.treeUri) != null }.getOrDefault(false)
+                    runCatching { findAutoBackup(state.treeUri) != null }.getOrDefault(false)
                 }
                 state.copy(fileExists = exists)
             }
@@ -793,20 +795,45 @@ class AppViewModel(
 
     /** Read a JSON document from [uri]: apply a settings-only file at once, otherwise ask which sections to import. */
     fun importSettings(uri: android.net.Uri) = viewModelScope.launch {
-        val text = withContext(dispatchers.io) {
-            runCatching {
-                app.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            }.getOrNull()
+        importFromText(readText(uri))
+    }
+
+    /**
+     * Settings > Backup > Restore from automatic backup: read the backup file in the
+     * chosen folder and route it through the same import path (dialog, validation, toasts).
+     * The manager then writes the restored state back, a no-op when the content matches.
+     */
+    fun restoreAutoBackup() = viewModelScope.launch {
+        val treeUri = settingsRepository.settings.first().autoBackupTreeUri
+        val doc = treeUri?.let { tree ->
+            withContext(dispatchers.io) { runCatching { findAutoBackup(tree) }.getOrNull() }
         }
-        if (text == null) {
+        if (doc == null) {
+            // Deleted since the screen checked: re-check so Restore disables itself.
+            refreshAutoBackupFile()
             toast(R.string.settings_backup_read_failed)
             return@launch
+        }
+        importFromText(readText(android.net.Uri.parse(doc)))
+    }
+
+    private suspend fun readText(uri: android.net.Uri): String? = withContext(dispatchers.io) {
+        runCatching {
+            app.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+        }.getOrNull()
+    }
+
+    /** Apply a settings-only [text] at once, otherwise ask which sections to import; null means the read failed. */
+    private suspend fun importFromText(text: String?) {
+        if (text == null) {
+            toast(R.string.settings_backup_read_failed)
+            return
         }
         val current = settingsRepository.settings.first()
         val backup = runCatching { SettingsSerialization.parse(text, current) }.getOrNull()
         if (backup == null) {
             toast(R.string.settings_backup_invalid_file, app.getString(R.string.app_name))
-            return@launch
+            return
         }
         if (backup.sections() == listOf(BackupSection.SETTINGS)) {
             settingsRepository.applyImported(backup.settings)

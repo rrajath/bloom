@@ -93,7 +93,10 @@ class AppViewModelIntegrationTest {
         notify = { shareMessages += it },
     )
 
-    private suspend fun appVm(shareIntake: ShareIntake.Deps = shareDeps()): AppViewModel {
+    private suspend fun appVm(
+        shareIntake: ShareIntake.Deps = shareDeps(),
+        findAutoBackup: suspend (String) -> String? = { null },
+    ): AppViewModel {
         settingsRepository.settings.first()
         return AppViewModel(
             settingsRepository = settingsRepository,
@@ -106,6 +109,7 @@ class AppViewModelIntegrationTest {
             dispatchers = mainDispatcherRule.appDispatchers,
             app = app,
             shareIntake = shareIntake,
+            findAutoBackup = findAutoBackup,
         ).also { liveVms += it }
     }
 
@@ -189,6 +193,44 @@ class AppViewModelIntegrationTest {
         vm.importSettings(uri)
         advanceUntilIdle()
 
+        assertEquals(before, settingsRepository.settings.first())
+    }
+
+    @Test
+    fun `restoreAutoBackup reads the folder's backup file into the import dialog`() = runTest {
+        val tree = "content://test/tree/backups"
+        val doc = "content://test/tree/backups/document/bloom-settings.json"
+        val json = SettingsSerialization.export(
+            settings = GroveSettings(shareTargetFile = "restored-target.org"),
+            captureTemplates = emptyList(),
+            favorites = emptyList(),
+            savedSearches = emptyList(),
+        )
+        Shadows.shadowOf(app.contentResolver)
+            .registerInputStream(android.net.Uri.parse(doc), json.byteInputStream())
+        settingsRepository.setAutoBackupTreeUri(tree)
+        val looked = mutableListOf<String>()
+        val vm = appVm(findAutoBackup = { looked += it; doc })
+        settleUntil { settingsRepository.settings.first().autoBackupTreeUri == tree }
+
+        vm.restoreAutoBackup()
+        settleUntil { vm.pendingImport.value != null }
+
+        assertEquals(listOf(tree), looked)
+        assertEquals("restored-target.org", vm.pendingImport.value!!.settings.shareTargetFile)
+    }
+
+    @Test
+    fun `restoreAutoBackup with no backup file changes nothing`() = runTest {
+        settingsRepository.setAutoBackupTreeUri("content://test/tree/empty")
+        val vm = appVm(findAutoBackup = { null })
+        settleUntil { settingsRepository.settings.first().autoBackupTreeUri != null }
+        val before = settingsRepository.settings.first()
+
+        vm.restoreAutoBackup()
+        advanceUntilIdle()
+
+        assertEquals(null, vm.pendingImport.value)
         assertEquals(before, settingsRepository.settings.first())
     }
 

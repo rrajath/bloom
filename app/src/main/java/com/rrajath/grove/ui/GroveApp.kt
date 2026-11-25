@@ -1250,6 +1250,7 @@ private fun GroveNavigation(
                     vaultTreeUri = settings.vaultTreeUri,
                     onSetAutoBackupEnabled = { viewModel.setAutoBackupEnabled(it) },
                     onAutoBackupFolderPicked = { viewModel.pickAutoBackupFolder(it) },
+                    onRestoreAutoBackup = { viewModel.restoreAutoBackup() },
                 )
                 LaunchedEffect(Unit) { viewModel.refreshAutoBackupFile() }
             }
