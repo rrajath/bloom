@@ -379,7 +379,7 @@ class SettingsRepository(
      * the shared store's write actor and hang every later edit in the JVM.
      */
     private val dataStore: DataStore<Preferences> = context.settingsDataStore,
-) : SettingsSource {
+) : SettingsSource, com.rrajath.grove.settings.backup.AutoBackupStatusSink {
 
     private object Keys {
         /** Retired single-theme key: read only to migrate into [themeMode]/[lightTheme]/[darkTheme]. */
@@ -941,7 +941,7 @@ class SettingsRepository(
         }
     }
 
-    suspend fun recordAutoBackupSuccess(at: Long, hash: String) {
+    override suspend fun recordAutoBackupSuccess(at: Long, hash: String) {
         editSettings { prefs ->
             prefs[Keys.autoBackupLastSuccessAt] = at
             prefs[Keys.autoBackupLastHash] = hash
@@ -950,7 +950,7 @@ class SettingsRepository(
     }
 
     /** A failed write: show the error and forget the hash so the next attempt isn't skipped. */
-    suspend fun recordAutoBackupFailure() {
+    override suspend fun recordAutoBackupFailure() {
         editSettings { prefs ->
             prefs[Keys.autoBackupLastError] = true
             prefs.remove(Keys.autoBackupLastHash)

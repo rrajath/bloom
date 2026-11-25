@@ -128,6 +128,27 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
     val favoritesRepository: FavoritesRepository by lazy { FavoritesRepository(this) }
 
+    /** Writes `bloom-settings.json` into the backup folder (Restore reads it back through [find][com.rrajath.grove.settings.backup.SafBackupWriter.find]). */
+    val autoBackupWriter: com.rrajath.grove.settings.backup.SafBackupWriter by lazy {
+        com.rrajath.grove.settings.backup.SafBackupWriter(
+            com.rrajath.grove.settings.backup.SafBackupDocuments(contentResolver),
+        )
+    }
+
+    /** Settings > Backup > Automatic backup: change-driven, started in [onCreate], flushed on app background. */
+    val autoBackupManager: com.rrajath.grove.settings.backup.AutoBackupManager by lazy {
+        com.rrajath.grove.settings.backup.AutoBackupManager(
+            scope = appScope,
+            settings = settingsRepository,
+            templates = templatesRepository.templates,
+            favorites = favoritesRepository.favorites,
+            savedSearches = searchRepository.savedSearches,
+            writer = autoBackupWriter,
+            status = settingsRepository,
+            dispatchers = dispatchers,
+        )
+    }
+
     /**
      * Content shared into the app (PRD §10). Observed by the UI so it can be
      * routed into the configured file even when the app was already running.
@@ -697,6 +718,8 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
                 }
         }
 
+        autoBackupManager.start()
+
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 appScope.launch {
@@ -716,6 +739,8 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
                 appScope.launch {
                     syncManager.onAppBackground(settingsRepository.settings.first().syncMode)
                 }
+                // A change still inside the 2 s debounce would be lost if the process dies now.
+                appScope.launch { autoBackupManager.flush() }
             }
         })
     }
