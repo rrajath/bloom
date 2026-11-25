@@ -40,6 +40,7 @@ import com.rrajath.grove.ui.components.GroveDropdownMenu
 import com.rrajath.grove.ui.components.NameDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -179,6 +180,10 @@ fun NotebooksScreen(
     var folderRenameTarget by remember { mutableStateOf<String?>(null) }
     var folderColorTarget by remember { mutableStateOf<String?>(null) }
     var folderDeleteTarget by remember { mutableStateOf<String?>(null) }
+    // AI one-shot capture: opened by the sparkle action in the top bar. The
+    // composer state lives in QuickCaptureViewModel so drafts survive rotation;
+    // the sheet itself is only mounted while open.
+    var aiCaptureSheetOpen by remember { mutableStateOf(false) }
     // Drill-down view (variant 1b): the folder currently being browsed as a full
     // screen, or null for the inline tree. A folder with more than
     // FOLDER_DRILL_THRESHOLD files opens here instead of expanding in place.
@@ -273,6 +278,11 @@ fun NotebooksScreen(
                                 modifier = Modifier.padding(end = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
+                                IconGlyph(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = stringResource(R.string.ai_quick_open),
+                                    onClick = { aiCaptureSheetOpen = true },
+                                )
                                 if (loadedState.hasFolders) {
                                     IconGlyph(
                                         if (loadedState.allFoldersCollapsed) Icons.Default.UnfoldMore
@@ -312,20 +322,6 @@ fun NotebooksScreen(
                 is NotebooksUiState.Loaded -> {
                     com.rrajath.grove.ui.vault.ProviderWarningBanner()
                     ReminderPermissionBanner(pendingCount = s.remindersPendingPermission)
-
-                    // Reached only when a vault exists (NoVault is the sibling
-                    // branch), so the AI capture strip can always write here.
-                    QuickCaptureBar(
-                        state = quickCapture,
-                        onTextChange = quickCaptureViewModel::onTextChange,
-                        onGranularityChange = quickCaptureViewModel::onGranularityChange,
-                        onGenerate = quickCaptureViewModel::generate,
-                        onOrgTextChange = quickCaptureViewModel::onOrgTextChange,
-                        onInsert = quickCaptureViewModel::insert,
-                        onClear = quickCaptureViewModel::clear,
-                        onOpenSettings = onOpenAiSettings,
-                    )
-                    Spacer(Modifier.height(10.dp))
 
                     // Read once as primitives instead of inside the row closures below: `s` is
                     // a fresh instance on every sync-pulling tick, and a composable lambda that
@@ -635,6 +631,51 @@ fun NotebooksScreen(
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
+        }
+    }
+
+    if (aiCaptureSheetOpen) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                aiCaptureSheetOpen = false
+                // One-shot: a completed capture starts clean next time; an
+                // unfinished draft is kept so it survives an accidental swipe.
+                if (quickCapture.inserted) quickCaptureViewModel.clear()
+            },
+            containerColor = c.surface,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                topStart = 20.dp,
+                topEnd = 20.dp,
+            ),
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp).padding(bottom = 26.dp)) {
+                Text(
+                    stringResource(R.string.ai_quick_sheet_title),
+                    fontFamily = PlexSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    color = c.ink,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    stringResource(R.string.ai_quick_sheet_subtitle),
+                    fontFamily = PlexSans,
+                    fontSize = 12.sp,
+                    color = c.ink2,
+                )
+                Spacer(Modifier.height(12.dp))
+                QuickCaptureBar(
+                    state = quickCapture,
+                    onTextChange = quickCaptureViewModel::onTextChange,
+                    onGranularityChange = quickCaptureViewModel::onGranularityChange,
+                    onGenerate = quickCaptureViewModel::generate,
+                    onOrgTextChange = quickCaptureViewModel::onOrgTextChange,
+                    onInsert = quickCaptureViewModel::insert,
+                    onClear = quickCaptureViewModel::clear,
+                    onOpenSettings = onOpenAiSettings,
+                    embedded = true,
+                )
+            }
         }
     }
 

@@ -60,7 +60,10 @@
     <string name="ai_wizard_no_key">Set a base URL, model and API key first.</string>
     <string name="ai_open_settings">AI settings</string>
 
-    <!-- Home screen: one-shot natural-language capture -->
+    <!-- Home screen: one-shot natural-language capture (top-bar button + sheet) -->
+    <string name="ai_quick_open">AI capture</string>
+    <string name="ai_quick_sheet_title">✦ AI capture</string>
+    <string name="ai_quick_sheet_subtitle">Describe a task in your own words and turn it into an org TODO.</string>
     <string name="ai_quick_label">✦ AI capture</string>
     <string name="ai_quick_hint">Describe a task in your own words — e.g. “review Q4 plan with Alex next Friday 3pm in room 302, high priority”</string>
     <string name="ai_quick_generate">Generate</string>

@@ -8,8 +8,8 @@
 
 Bloom 提供两个 AI 入口，共用同一套端点配置、密钥存储与写入链路：
 
-1. **主界面一句话捕获（默认）**：在笔记本列表顶部直接输入一段自然语言，
-   例如「下周五 3 点和张三在 302 会议室评审 Q4 规划，高优先级」，一次请求
+1. **主界面一句话捕获（默认）**：点顶部栏的星芒按钮弹出底部抽屉，在输入框写一段
+   自然语言，例如「下周五 3 点和张三在 302 会议室评审 Q4 规划，高优先级」，一次请求
    转成一条 Org TODO（或一条带 N 个子任务的树），自动抽取地点、截止日期、
    SCHEDULED 日期与优先级，预览可编辑后写入 `inbox.org`。
 2. **四步任务分解向导（可选）**：对复杂任务，从「设置 → AI task breakdown」
@@ -50,8 +50,8 @@ com.rrajath.grove.ai                         纯 Kotlin（无 android.* 导入�
 
 ui/screens/settings/      AiSettingsViewModel / SettingsAiScreen
 ui/screens/ai/            DecomposeViewModel / DecomposeScreen（向导）
-                          QuickCaptureViewModel / QuickCaptureBar（主界面捕获条）
-ui/screens/NotebooksScreen.kt  列表顶部嵌入 QuickCaptureBar
+                          QuickCaptureViewModel / QuickCaptureBar（捕获抽屉内容）
+ui/screens/NotebooksScreen.kt  顶部星芒按钮 + ModalBottomSheet 挂载 QuickCaptureBar
 settings/                 GroveSettings 增加 aiBaseUrl / aiModel 两个字段
 ```
 
@@ -72,8 +72,10 @@ settings/                 GroveSettings 增加 aiBaseUrl / aiModel 两个字段
 SCHEDULED / 检查点。粒度切换（单条 ↔ 拆解）会用同一段自然语言重新请求，
 因此原文始终是唯一事实来源，切换不会丢失内容。
 
-捕获条只在有 vault 的主界面 `Loaded` 状态显示；配置端点/模型/Key 通过
-「AI settings」进入设置页，复用向导相同的校验与 Keystore 存储。
+顶部星芒按钮只在有 vault 的主界面 `Loaded` 状态显示；点按弹出 `ModalBottomSheet`，
+抽屉内复用同一个 `QuickCaptureViewModel`，草稿在旋转时保留，插入完成后关闭时清空，
+未完成的草稿则保留。配置端点/模型/Key 通过抽屉内的「AI settings」进入设置页，
+复用向导相同的校验与 Keystore 存储。
 
 ### 生成的 Org 形状（对齐 Bloom 自己的 OrgParser）
 
@@ -164,11 +166,19 @@ UTF-8 无 BOM。
 - AI 包 + i18n / 应用名 / 翻译 / 设置序列化 ratchet：69 tests，0 failures / 0 errors / 0 skipped。
 - `:app:assembleDebug` 成功；APK `bloom-ai-decompose-debug-v1.apk`（36,150,581 bytes，SHA-256 `dfd69f11…551f`）。
 
-**第二版（主界面一句话捕获，本次）**
+**第二版（主界面一句话捕获）**
 - `:app:testDebugUnitTest`（AI 包全部用例 + 三个 ratchet + 设置序列化）：**76 tests，0 failures / 0 errors / 0 skipped**。
 - 新增 `QuickCaptureEngineTest`（单条全元数据 / 多子任务 / 粒度 prompt / 不编造日期）、
   `OrgTaskParserMetadataTest`（组合 planning 行、属性抽屉、子任务元数据隔离、allowSingle 门控）。
 - `:app:assembleDebug` **BUILD SUCCESSFUL**；APK `bloom-ai-quick-capture-debug-v2.apk`
   （SHA-256 `244b6fbee2cce77b91fbcf475721c541fa3d5f8db0abca79a324a551f4fe4f8f`）。
+
+**第三版（入口改为顶部按钮 + 底部抽屉，本次）**
+- 主界面不再常驻捕获条；顶部栏新增星芒按钮（仅 `Loaded` 且有 vault 时显示），
+  点按弹出 `ModalBottomSheet`，抽屉内复用 `QuickCaptureBar(embedded = true)`。
+- 草稿在旋转时保留；插入完成后关闭抽屉清空，未完成草稿关闭时保留。
+- `:app:testDebugUnitTest`（同第二版范围）：**76 tests，0 failures / 0 errors / 0 skipped**。
+- `:app:assembleDebug` **BUILD SUCCESSFUL**；APK `bloom-ai-capture-sheet-debug-v3.apk`
+  （SHA-256 `2d412b8bf8202015176c8abb685329266a730ae9a7479b4466055b88d59dc03f`）。
 - 新增文本统一 UTF-8 无 BOM + CRLF；本机 `gradle-daemon-jvm.properties` 的 JDK 配置
   为构建临时改动，验证后已还原，未进入提交。

@@ -35,9 +35,11 @@ import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.util.asString
 
 /**
- * Compact AI capture strip shown above the notebook list on the home screen.
- * Type a sentence in your own words, optionally pick the tree shape, generate
- * an editable org preview, then insert it into inbox.org.
+ * AI capture composer: type a sentence in your own words, optionally pick the
+ * tree shape, generate an editable org preview, then insert it into inbox.org.
+ *
+ * By default it renders as a self-contained card. Pass [embedded] = true when
+ * hosted inside a BottomSheet, whose own surface already provides the frame.
  */
 @Composable
 fun QuickCaptureBar(
@@ -49,25 +51,34 @@ fun QuickCaptureBar(
     onInsert: () -> Unit,
     onClear: () -> Unit,
     onOpenSettings: () -> Unit,
+    embedded: Boolean = false,
 ) {
     val c = MaterialTheme.grove
+    val frame = if (embedded) {
+        Modifier.padding(horizontal = 2.dp)
+    } else {
+        Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.surface2)
+            .border(1.dp, c.line, RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    }
     Column(
         Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .clip(RoundedCornerShape(14.dp))
-            .background(c.surface2)
-            .border(1.dp, c.line, RoundedCornerShape(14.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .then(frame),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.ai_quick_label),
-                fontFamily = PlexSans,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                fontSize = 12.5.sp,
-                color = c.accent,
-            )
+            if (!embedded) {
+                Text(
+                    stringResource(R.string.ai_quick_label),
+                    fontFamily = PlexSans,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    fontSize = 12.5.sp,
+                    color = c.accent,
+                )
+            }
             Spacer(Modifier.weight(1f))
             Text(
                 stringResource(R.string.ai_open_settings),
