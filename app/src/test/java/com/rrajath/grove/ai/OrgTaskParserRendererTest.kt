@@ -45,7 +45,7 @@ class OrgTaskParserRendererTest {
         val lines = org.lines()
         assertTrue(lines.first().startsWith("* TODO 搭建CI流程 "))
         assertTrue(lines.first().endsWith(":planning:@computer:"))
-        assertTrue(lines.any { it == "  DEADLINE: <2026-12-02 Wed>" })
+        assertTrue(lines.any { it == "DEADLINE: <2026-12-02 Wed>" })
         assertTrue(lines.any { it.startsWith("** TODO 实施与联调") })
         assertTrue(lines.any { it.startsWith("*** 完成联调与功能验证") })
         assertTrue(org.endsWith("\n"))

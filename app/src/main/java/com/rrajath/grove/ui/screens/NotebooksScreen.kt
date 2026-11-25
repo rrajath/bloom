@@ -112,6 +112,8 @@ import com.rrajath.grove.ui.components.monogramPalette
 import com.rrajath.grove.ui.components.nameHashPaletteKey
 import com.rrajath.grove.ui.components.searchIcon
 import com.rrajath.grove.ui.components.SyncedCheckIcon
+import com.rrajath.grove.ui.screens.ai.QuickCaptureBar
+import com.rrajath.grove.ui.screens.ai.QuickCaptureViewModel
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDotBadge
 import com.rrajath.grove.ui.theme.PlexMono
@@ -146,10 +148,13 @@ fun NotebooksScreen(
     onOpenCapture: () -> Unit,
     onOpenNotebook: (String) -> Unit,
     onOpenConflict: (String) -> Unit,
+    onOpenAiSettings: () -> Unit = {},
     viewModel: NotebooksViewModel = viewModel(factory = NotebooksViewModel.Factory),
+    quickCaptureViewModel: QuickCaptureViewModel = viewModel(factory = QuickCaptureViewModel.Factory),
 ) {
     val c = MaterialTheme.grove
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val quickCapture by quickCaptureViewModel.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Macrobenchmark's timeToFullDisplayMs: signal Activity.reportFullyDrawn()
@@ -307,6 +312,20 @@ fun NotebooksScreen(
                 is NotebooksUiState.Loaded -> {
                     com.rrajath.grove.ui.vault.ProviderWarningBanner()
                     ReminderPermissionBanner(pendingCount = s.remindersPendingPermission)
+
+                    // Reached only when a vault exists (NoVault is the sibling
+                    // branch), so the AI capture strip can always write here.
+                    QuickCaptureBar(
+                        state = quickCapture,
+                        onTextChange = quickCaptureViewModel::onTextChange,
+                        onGranularityChange = quickCaptureViewModel::onGranularityChange,
+                        onGenerate = quickCaptureViewModel::generate,
+                        onOrgTextChange = quickCaptureViewModel::onOrgTextChange,
+                        onInsert = quickCaptureViewModel::insert,
+                        onClear = quickCaptureViewModel::clear,
+                        onOpenSettings = onOpenAiSettings,
+                    )
+                    Spacer(Modifier.height(10.dp))
 
                     // Read once as primitives instead of inside the row closures below: `s` is
                     // a fresh instance on every sync-pulling tick, and a composable lambda that

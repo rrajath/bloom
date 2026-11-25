@@ -453,6 +453,7 @@ private fun GroveNavigation(
                     // file under the line limit lands on the whole-file view instead.
                     onOpenNotebook = { id -> navController.navigate(Routes.outline(id, autoOpen = true)) },
                     onOpenConflict = { id -> navController.navigate(Routes.conflict(id)) },
+                    onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                 )
             }
             screen(Routes.OUTLINE) { entry ->

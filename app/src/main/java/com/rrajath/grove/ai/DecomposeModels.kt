@@ -3,6 +3,9 @@ package com.rrajath.grove.ai
 /** The four conversational gates of the decompose wizard, plus the result screens. */
 enum class DecomposeStage { TITLE, CLARIFY, COMPARE, DESIGN, GENERATE, DONE }
 
+/** How the one-shot natural-language capture should shape the org tree. */
+enum class CaptureGranularity { AUTO, SINGLE, MULTI }
+
 data class Qa(val question: String, val answer: String)
 
 data class Approach(val title: String, val detail: String)
@@ -14,6 +17,8 @@ data class DecomposeTask(
     /** Already-formatted org timestamp, e.g. `<2026-12-02 Wed>`. */
     val deadlineStamp: String? = null,
     val checkpoints: List<String> = emptyList(),
+    val scheduledStamp: String? = null,
+    val location: String? = null,
 )
 
 /** A `* TODO` top-level task and its subtasks. */
@@ -23,4 +28,6 @@ data class DecomposePlan(
     val priority: Char? = null,
     val deadlineStamp: String? = null,
     val tasks: List<DecomposeTask> = emptyList(),
+    val scheduledStamp: String? = null,
+    val location: String? = null,
 )

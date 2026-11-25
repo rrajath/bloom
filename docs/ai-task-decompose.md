@@ -1,14 +1,19 @@
-# AI 加持第一期：任务分解
+# AI 加持第一期：自然语言捕获与任务分解
 
 > 分支：`feat/ai-task-decompose`（基线 `webdav-sync`）
-> 范围：App 内四步任务分解向导 + 仓库侧 `org-decompose` 技能文档
+> 范围：主界面一句话 AI 捕获（默认）+ 可选四步任务分解向导 + 仓库侧 `org-decompose` 技能文档
 > 标签规范：[design-tag-system.md](design-tag-system.md)
 
 ## 1. 目标
 
-用户输入一个任务标题（例如「搭建CI流程」），App 通过可配置的 OpenAI 兼容
-大模型端点，按「澄清 → 对比 → 分段设计 → 生成清单」四步，产出可直接执行的
-Org-mode 子任务树，预览确认后追加到 `inbox.org`，并触发重新索引与既有同步链路。
+Bloom 提供两个 AI 入口，共用同一套端点配置、密钥存储与写入链路：
+
+1. **主界面一句话捕获（默认）**：在笔记本列表顶部直接输入一段自然语言，
+   例如「下周五 3 点和张三在 302 会议室评审 Q4 规划，高优先级」，一次请求
+   转成一条 Org TODO（或一条带 N 个子任务的树），自动抽取地点、截止日期、
+   SCHEDULED 日期与优先级，预览可编辑后写入 `inbox.org`。
+2. **四步任务分解向导（可选）**：对复杂任务，从「设置 → AI task breakdown」
+   进入，按「澄清 → 对比 → 分段设计 → 生成清单」四步产出子任务树。
 
 这是「AI 加持」的第一期，但代码结构按可扩展设计：`ai/` 包只依赖一个
 `AiClient` 接口，后续摘要、改写、周报、智能分类等能力可以复用同一套配置、
@@ -21,7 +26,7 @@ Org-mode 子任务树，预览确认后追加到 `inbox.org`，并触发重新�
 | 模型 | 用户自填 OpenAI 兼容 `base URL` + `model` + `API Key`；不绑定任何厂商，不内置 Key |
 | 密钥 | AES-256/GCM + Android Keystore，存 `filesDir/ai/secret.bin`；不进 DataStore、不进备份、不进设置导出 |
 | 网络 | 复用 `libs.okhttp` (4.12.0) + `libs.kotlinx.serialization.json` (1.7.3)；HTTPS（仅回环地址允许 HTTP，便于本地模型） |
-| 交互 | 完整四步向导，每步都要用户确认；最后一步是可编辑的 Org 预览 |
+| 交互 | 主界面一句话捕获为默认（单轮）；复杂任务可选用四步向导。两者最后都是可编辑的 Org 预览 |
 | Git | **App 内不做**。Bloom 的笔记目录是 SAF tree / WebDAV 镜像，不是 git 工作树，仓库里也没有 JGit 依赖；`commit / pull / push` 由仓库侧技能 `docs/skills/org-decompose.md` 承担（见第 6 节） |
 | 写入目标 | 仅 `inbox.org`；`archive/` 不写；文件不存在则创建 |
 
@@ -39,16 +44,57 @@ com.rrajath.grove.ai                         纯 Kotlin（无 android.* 导入�
 ├── AiTagPolicy.kt        标签 / 优先级 / DEADLINE 推断与注入
 ├── OrgTaskParser.kt      模型输出的 Org 文本 → DecomposePlan
 ├── OrgTaskRenderer.kt    DecomposePlan → Org 文本 + InboxAppender
-└── DecomposeEngine.kt    四步编排（每次调用 = 一次 LLM 请求）
+├── DecomposeEngine.kt    四步向导编排（每次调用 = 一次 LLM 请求）
+├── QuickCapturePrompts.kt  一句话捕获的 system/user prompt
+└── QuickCaptureEngine.kt   单轮捕获编排（粒度切换 = 再次单轮请求）
 
 ui/screens/settings/      AiSettingsViewModel / SettingsAiScreen
-ui/screens/ai/            DecomposeViewModel / DecomposeScreen
+ui/screens/ai/            DecomposeViewModel / DecomposeScreen（向导）
+                          QuickCaptureViewModel / QuickCaptureBar（主界面捕获条）
+ui/screens/NotebooksScreen.kt  列表顶部嵌入 QuickCaptureBar
 settings/                 GroveSettings 增加 aiBaseUrl / aiModel 两个字段
 ```
 
-`AiClient` 是唯一的外部依赖边界：单测用内存 fake 驱动整个四步引擎，不需要网络。
+`AiClient` 是唯一的外部依赖边界：单测用内存 fake 驱动两个引擎，不需要网络。
 
-## 4. 四步状态机
+### 主界面一句话捕获：数据流
+
+```
+输入自然语言 + 选粒度（自动 / 单条 / 拆解）
+  → QuickCaptureEngine.capture(text, granularity)      // 一次 LLM 请求
+  → OrgTaskParser.parse(..., allowSingle = true)       // 允许「无子任务」的单条 TODO
+  → AiTagPolicy.enrichQuick                            // 只补标签 + 明确紧急时的 [#A]
+  → OrgTaskRenderer.render                             // 见下方 Org 形状
+  → 可编辑预览 → InboxAppender → Vault.save → requestReindex
+```
+
+`enrichQuick` 与向导的 `enrich` 刻意不同：**不编造**原文没说的 DEADLINE /
+SCHEDULED / 检查点。粒度切换（单条 ↔ 拆解）会用同一段自然语言重新请求，
+因此原文始终是唯一事实来源，切换不会丢失内容。
+
+捕获条只在有 vault 的主界面 `Loaded` 状态显示；配置端点/模型/Key 通过
+「AI settings」进入设置页，复用向导相同的校验与 Keystore 存储。
+
+### 生成的 Org 形状（对齐 Bloom 自己的 OrgParser）
+
+```
+* TODO [#A] 和张三评审 Q4 规划 :meeting:@office:
+SCHEDULED: <2026-11-27 Fri 15:00> DEADLINE: <2026-11-28 Sat>
+:PROPERTIES:
+:LOCATION: 302 会议室
+:END:
+** TODO 收集数据 :coding:@computer:
+*** 拉取上季度报表
+```
+
+- SCHEDULED 与 DEADLINE **共用一行**（Bloom 的 `parsePlanning` 只读标题下第一行）；
+- 地点写进 `:PROPERTIES:` 抽屉的 `:LOCATION:`，Bloom 解析为 headline property；
+- 相对日期（下周五等）由模型按当天日期换算为绝对日期，星期缩写用英文；
+- 标签仍是一个连续尾部组 `:meeting:@office:`（见 design-tag-system.md）。
+
+## 4. 四步向导状态机（可选入口）
+
+主界面一句话捕获是单轮请求，不走下面的状态机；下表仅适用于从设置页进入的向导。
 
 | 阶段 | 输入 | LLM 输出 | App 解析 | 用户动作 |
 | --- | --- | --- | --- | --- |
@@ -114,7 +160,15 @@ UTF-8 无 BOM。
 
 ### 实测结果（2026-11-25）
 
-- `:app:testDebugUnitTest`（AI 包 25 例 + i18n ratchet / 应用名 ratchet / 翻译检查 / 设置序列化）：**69 tests, 0 failures, 0 errors, 0 skipped**。
-- `:app:assembleDebug`：**BUILD SUCCESSFUL**；产物 `bloom-ai-decompose-debug-v1.apk`（36,150,581 bytes，SHA-256 `dfd69f1169670c8b4f6b167ce50ca970cddaa5a81aae80abdde60daccd7a551f`）。
-- 新增文件统一 UTF-8 无 BOM + CRLF；转换后再次跑 `compileDebugKotlin` 与三个 ratchet 测试，仍 BUILD SUCCESSFUL。
-- 本机 `gradle/gradle-daemon-jvm.properties` 的 JDK25 配置为构建临时改动，验证后已还原，未进入提交。
+**首版（四步向导）**
+- AI 包 + i18n / 应用名 / 翻译 / 设置序列化 ratchet：69 tests，0 failures / 0 errors / 0 skipped。
+- `:app:assembleDebug` 成功；APK `bloom-ai-decompose-debug-v1.apk`（36,150,581 bytes，SHA-256 `dfd69f11…551f`）。
+
+**第二版（主界面一句话捕获，本次）**
+- `:app:testDebugUnitTest`（AI 包全部用例 + 三个 ratchet + 设置序列化）：**76 tests，0 failures / 0 errors / 0 skipped**。
+- 新增 `QuickCaptureEngineTest`（单条全元数据 / 多子任务 / 粒度 prompt / 不编造日期）、
+  `OrgTaskParserMetadataTest`（组合 planning 行、属性抽屉、子任务元数据隔离、allowSingle 门控）。
+- `:app:assembleDebug` **BUILD SUCCESSFUL**；APK `bloom-ai-quick-capture-debug-v2.apk`
+  （SHA-256 `244b6fbee2cce77b91fbcf475721c541fa3d5f8db0abca79a324a551f4fe4f8f`）。
+- 新增文本统一 UTF-8 无 BOM + CRLF；本机 `gradle-daemon-jvm.properties` 的 JDK 配置
+  为构建临时改动，验证后已还原，未进入提交。

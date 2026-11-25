@@ -4,16 +4,36 @@ package com.rrajath.grove.ai
 /** Renders a [DecomposePlan] as a single `* / ** / ***` org subtree. */
 object OrgTaskRenderer {
 
+    /**
+     * Emits the metadata in the shape Bloom's own `OrgParser` reads:
+     * SCHEDULED and DEADLINE share one planning line directly under the
+     * headline; LOCATION lives in a `:PROPERTIES:` drawer right after it.
+     */
     fun render(plan: DecomposePlan): String {
         val lines = mutableListOf<String>()
         lines += headline(1, "TODO", plan.priority, plan.title, plan.tags)
-        plan.deadlineStamp?.let { lines += "  DEADLINE: $it" }
+        planning(plan.scheduledStamp, plan.deadlineStamp)?.let { lines += it }
+        properties(plan.location)?.let { lines += it }
         for (task in plan.tasks) {
             lines += headline(2, "TODO", null, task.title, task.tags)
-            task.deadlineStamp?.let { lines += "  DEADLINE: $it" }
+            planning(task.scheduledStamp, task.deadlineStamp)?.let { lines += it }
+            properties(task.location)?.let { lines += it }
             task.checkpoints.forEach { lines += headline(3, null, null, it, emptyList()) }
         }
         return lines.joinToString("\n") + "\n"
+    }
+
+    private fun planning(scheduled: String?, deadline: String?): String? {
+        val parts = buildList {
+            scheduled?.let { add("SCHEDULED: $it") }
+            deadline?.let { add("DEADLINE: $it") }
+        }
+        return parts.joinToString(" ").takeIf { it.isNotEmpty() }
+    }
+
+    private fun properties(location: String?): List<String>? {
+        val value = location?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return listOf(":PROPERTIES:", ":LOCATION: $value", ":END:")
     }
 
     /**

@@ -59,4 +59,19 @@
     <string name="ai_wizard_no_vault">No sync folder configured. Pick a folder in Notebooks first.</string>
     <string name="ai_wizard_no_key">Set a base URL, model and API key first.</string>
     <string name="ai_open_settings">AI settings</string>
+
+    <!-- Home screen: one-shot natural-language capture -->
+    <string name="ai_quick_label">✦ AI capture</string>
+    <string name="ai_quick_hint">Describe a task in your own words — e.g. “review Q4 plan with Alex next Friday 3pm in room 302, high priority”</string>
+    <string name="ai_quick_generate">Generate</string>
+    <string name="ai_quick_mode_auto">Auto</string>
+    <string name="ai_quick_mode_single">One TODO</string>
+    <string name="ai_quick_mode_multi">With subtasks</string>
+    <string name="ai_quick_preview">Org preview — edit before inserting</string>
+    <string name="ai_quick_insert">Insert into inbox.org</string>
+    <string name="ai_quick_clear">Clear</string>
+    <string name="ai_quick_busy">Writing the task…</string>
+    <string name="ai_quick_required">Describe the task first.</string>
+    <string name="ai_quick_generated">Draft ready. Review it below.</string>
+    <string name="ai_quick_done">Inserted into %1$s. The note index and sync have been updated.</string>
 </resources>

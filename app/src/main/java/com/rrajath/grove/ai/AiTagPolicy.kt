@@ -108,6 +108,24 @@ object AiTagPolicy {
         )
     }
 
+    /**
+     * Lighter enrichment for one-shot natural-language capture. Unlike [enrich]
+     * it never invents a DEADLINE or checkpoints: the user's words are the only
+     * source of dates and structure. It only normalises tags and derives a
+     * priority when the text is explicitly urgent.
+     */
+    fun enrichQuick(plan: DecomposePlan, originalText: String): DecomposePlan {
+        val topTags = orderTags(plan.tags + inferTopLevel(plan.title.ifBlank { originalText }))
+        val urgent = isUrgent(originalText) || isUrgent(plan.title)
+        return plan.copy(
+            tags = topTags,
+            priority = plan.priority ?: if (urgent) 'A' else null,
+            tasks = plan.tasks.map { task ->
+                task.copy(tags = orderTags(task.tags + inferSubtask(task.title, topTags)))
+            },
+        )
+    }
+
     private fun fallbackCheckpoints(title: String): List<String> =
         listOf("完成：$title", "验证：$title")
 
