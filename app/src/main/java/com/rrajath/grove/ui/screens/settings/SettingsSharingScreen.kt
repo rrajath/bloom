@@ -46,8 +46,7 @@ fun SettingsSharingScreen(
 
         SettingsGroup {
             SettingsRow(
-                label = stringResource(R.string.settings_share_target),
-                description = stringResource(R.string.settings_share_target_hint, stringResource(R.string.app_name)),
+                spec = SettingSpecs.SharingTarget,
                 onClick = onOpenShareTargetPicker,
             ) {
                 Text(
@@ -61,7 +60,7 @@ fun SettingsSharingScreen(
             }
             RowDivider()
             SettingsRow(
-                label = stringResource(R.string.settings_share_placement),
+                spec = SettingSpecs.SharingPlacement,
                 descriptionContent = {
                     Text(
                         placementDescription(target, toHeading, settings.shareInsertPlacement),
@@ -79,8 +78,7 @@ fun SettingsSharingScreen(
             }
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_share_fetch_titles),
-                description = stringResource(R.string.settings_share_fetch_titles_hint),
+                spec = SettingSpecs.SharingFetchTitles,
                 checked = settings.fetchSharedLinkTitles,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_SHARING_FETCH_TITLES) },
                 onToggle = onSetFetchSharedLinkTitles,

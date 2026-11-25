@@ -58,6 +58,7 @@ re-uploads the APKs to the existing release instead of failing.
 ## [Unreleased]
 
 ### Added
+- Search settings from the top of the Settings hub; flip switches right in the results.
 - Settings › Notes › Show line numbers: editors show real file line numbers; tap or drag them to select lines.
 - Capture templates accept `%id`, and each use inserts its own unique ID, e.g. in a `:PROPERTIES:` drawer.
 - Settings › Attachments › Attachment folder accepts a leading `/` to keep all attachments in one vault-root folder.

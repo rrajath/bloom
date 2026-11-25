@@ -32,6 +32,9 @@ object NewAnchors {
     const val DRAWER_SETTINGS = "drawer.settings"
     const val SETTINGS_TIPS = "settings.tips"
 
+    /** The search field at the top of the Settings hub. */
+    const val SETTINGS_SEARCH = "settings.search"
+
     /** The Settings hub row leading to the Look and Feel page. */
     const val SETTINGS_APPEARANCE = "settings.appearance"
 
@@ -621,5 +624,19 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.SETTINGS_NOTES_LINE_NUMBERS,
         ),
         destination = NewAnchors.SETTINGS_NOTES_LINE_NUMBERS,
+    ),
+    NewFeature(
+        // A search field at the top of the Settings hub finds any setting and
+        // changes toggles and segmented controls in place. Reaching the hub
+        // retires it. `since` is the versionCode of the release that ships it:
+        // bump it to match `gradle.properties` versionName when cutting the release.
+        id = "settings-search",
+        since = 11700,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_SEARCH,
+        ),
+        destination = NewAnchors.SETTINGS_SEARCH,
     ),
 )

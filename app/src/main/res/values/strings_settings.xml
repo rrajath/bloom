@@ -105,6 +105,12 @@
     <string name="settings_badge_experimental">Experimental</string>
     <!-- Pill next to a settings page whose feature is an early preview. -->
     <string name="settings_badge_preview">Preview</string>
+    <!-- Settings search: placeholder in the search field at the top of the Settings hub. -->
+    <string name="settings_search_placeholder">Search settings</string>
+    <!-- Settings search: shown when nothing matches. %1$s = what the user typed. -->
+    <string name="settings_search_no_results">No settings match “%1$s”</string>
+    <!-- Settings search: the result for the Backup page's Export and Import buttons. -->
+    <string name="settings_search_backup_label">Export or import settings</string>
     <!-- Section headers on the Settings hub. Shown in capitals; write them in normal case. -->
     <string name="settings_section_help">Help</string>
     <string name="settings_section_about">About</string>

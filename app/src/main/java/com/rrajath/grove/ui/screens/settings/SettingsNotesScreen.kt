@@ -87,14 +87,14 @@ fun SettingsNotesScreen(
 
         SectionLabel(stringResource(R.string.settings_notes_section_tasks))
         SettingsGroup {
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.NotesTodoKeywords).padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
-                    stringResource(R.string.settings_notes_todo_keywords),
+                    SettingSpecs.NotesTodoKeywords.labelText(),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                 )
                 Text(
-                    stringResource(R.string.settings_notes_todo_keywords_hint),
+                    SettingSpecs.NotesTodoKeywords.descriptionText().orEmpty(),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
@@ -120,10 +120,7 @@ fun SettingsNotesScreen(
                 )
             }
             RowDivider()
-            SettingsRow(
-                label = stringResource(R.string.settings_notes_default_priority),
-                description = stringResource(R.string.settings_notes_default_priority_hint),
-            ) {
+            SettingsRow(spec = SettingSpecs.NotesDefaultPriority) {
                 SegmentedControl(
                     options = listOf(stringResource(R.string.settings_notes_priority_none), "A", "B", "C"),
                     selectedIndex = when (settings.defaultPriority) {
@@ -140,7 +137,7 @@ fun SettingsNotesScreen(
         SectionLabel(stringResource(R.string.settings_notes_section_display))
         SettingsGroup {
             SettingsRow(
-                label = stringResource(R.string.settings_notes_default_mode),
+                spec = SettingSpecs.NotesDefaultMode,
                 description = if (settings.defaultNoteOpenMode == NoteOpenMode.READ) {
                     stringResource(R.string.settings_notes_default_mode_read_hint)
                 } else {
@@ -155,14 +152,14 @@ fun SettingsNotesScreen(
                 )
             }
             RowDivider()
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.NotesFontSize).padding(horizontal = 15.dp, vertical = 12.dp)) {
                 Text(
-                    stringResource(R.string.settings_notes_font_size),
+                    SettingSpecs.NotesFontSize.labelText(),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                 )
                 Text(
-                    stringResource(R.string.settings_notes_font_size_hint),
+                    SettingSpecs.NotesFontSize.descriptionText().orEmpty(),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 2.dp),
                 )
@@ -171,15 +168,13 @@ fun SettingsNotesScreen(
             }
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_notes_show_preface),
-                description = stringResource(R.string.settings_notes_show_preface_hint),
+                spec = SettingSpecs.NotesShowPreface,
                 checked = settings.showPreface,
                 onToggle = onSetShowPreface,
             )
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_notes_show_drawers),
-                description = stringResource(R.string.settings_notes_show_drawers_hint),
+                spec = SettingSpecs.NotesShowDrawers,
                 checked = settings.showPropertyDrawers,
                 onToggle = onSetShowPropertyDrawers,
             )
@@ -189,22 +184,19 @@ fun SettingsNotesScreen(
         SectionLabel(stringResource(R.string.settings_notes_section_new_notes))
         SettingsGroup {
             ToggleRow(
-                label = stringResource(R.string.settings_notes_add_id),
-                description = stringResource(R.string.settings_notes_add_id_hint),
+                spec = SettingSpecs.NotesAddId,
                 checked = settings.addIdToNewNotes,
                 onToggle = onSetAddId,
             )
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_notes_add_created),
-                description = stringResource(R.string.settings_notes_add_created_hint),
+                spec = SettingSpecs.NotesAddCreated,
                 checked = settings.addCreatedToNewNotes,
                 onToggle = onSetAddCreated,
             )
             RowDivider()
             SettingsRow(
-                label = stringResource(R.string.settings_notes_new_note_cursor),
-                description = stringResource(R.string.settings_notes_new_note_cursor_hint),
+                spec = SettingSpecs.NotesNewNoteCursor,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_NEW_NOTE_CURSOR) },
             ) {
                 SegmentedControl(
@@ -219,32 +211,28 @@ fun SettingsNotesScreen(
             }
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_notes_auto_save),
-                description = stringResource(R.string.settings_notes_auto_save_hint),
+                spec = SettingSpecs.NotesAutoSave,
                 checked = settings.autoSaveNotes,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_AUTO_SAVE) },
                 onToggle = onSetAutoSaveNotes,
             )
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_notes_capitalize),
-                description = stringResource(R.string.settings_notes_capitalize_hint),
+                spec = SettingSpecs.NotesCapitalize,
                 checked = settings.capitalizeHeadings,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_CAPITALIZE_HEADINGS) },
                 onToggle = onSetCapitalizeHeadings,
             )
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_notes_highlight_line),
-                description = stringResource(R.string.settings_notes_highlight_line_hint),
+                spec = SettingSpecs.NotesHighlightLine,
                 checked = settings.highlightCurrentLine,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_HIGHLIGHT_LINE) },
                 onToggle = onSetHighlightCurrentLine,
             )
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_notes_line_numbers),
-                description = stringResource(R.string.settings_notes_line_numbers_hint),
+                spec = SettingSpecs.NotesLineNumbers,
                 checked = settings.showLineNumbers,
                 labelBadge = { NewDot(NewAnchors.SETTINGS_NOTES_LINE_NUMBERS) },
                 onToggle = onSetShowLineNumbers,
@@ -255,16 +243,14 @@ fun SettingsNotesScreen(
         SectionLabel(stringResource(R.string.settings_notes_section_archiving))
         SettingsGroup {
             ToggleRow(
-                label = stringResource(R.string.settings_notes_auto_archive),
-                description = stringResource(R.string.settings_notes_auto_archive_hint),
+                spec = SettingSpecs.NotesAutoArchive,
                 checked = settings.autoArchiveDoneItems,
                 onToggle = onSetAutoArchiveDoneItems,
             )
             if (settings.autoArchiveDoneItems) {
                 RowDivider()
                 SettingsRow(
-                    label = stringResource(R.string.settings_notes_archive_location),
-                    description = stringResource(R.string.settings_notes_archive_location_hint),
+                    spec = SettingSpecs.NotesArchiveLocation,
                     onClick = onOpenArchiveLocationPicker,
                 ) {
                     Text(

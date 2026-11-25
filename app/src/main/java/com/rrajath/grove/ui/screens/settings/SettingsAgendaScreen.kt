@@ -54,9 +54,9 @@ fun SettingsAgendaScreen(
     val systemFirstDay = remember { systemFirstDayOfWeek() }
     SettingsPageScaffold(title = stringResource(R.string.settings_page_agenda_title), onBack = onBack) {
         SettingsGroup {
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.AgendaSwipeLeft).padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
-                    stringResource(R.string.settings_agenda_swipe_left),
+                    SettingSpecs.AgendaSwipeLeft.labelText(),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                     modifier = Modifier.padding(bottom = 2.dp),
@@ -74,9 +74,9 @@ fun SettingsAgendaScreen(
                 )
             }
             RowDivider()
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.AgendaSwipeRight).padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Text(
-                    stringResource(R.string.settings_agenda_swipe_right),
+                    SettingSpecs.AgendaSwipeRight.labelText(),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                     modifier = Modifier.padding(bottom = 2.dp),
@@ -95,21 +95,21 @@ fun SettingsAgendaScreen(
             }
             RowDivider()
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
+                Modifier.settingAnchor(SettingSpecs.AgendaDeadlineWarning).fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // End padding keeps the wrapped description off the number field.
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            stringResource(R.string.settings_agenda_deadline_warning),
+                            SettingSpecs.AgendaDeadlineWarning.labelText(),
                             fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                             fontSize = 14.5.sp, color = c.ink,
                         )
                         NewDot(NewAnchors.SETTINGS_AGENDA_DEADLINE_WARNING, Modifier.padding(start = 8.dp))
                     }
                     Text(
-                        stringResource(R.string.settings_agenda_deadline_warning_hint),
+                        SettingSpecs.AgendaDeadlineWarning.descriptionText().orEmpty(),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -117,20 +117,20 @@ fun SettingsAgendaScreen(
                 IntSettingField(settings.agendaDeadlineWarningDays, minValue = 0, onSet = onSetAgendaDeadlineWarningDays)
             }
             RowDivider()
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.AgendaWeekStart).padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Row(
                     Modifier.padding(bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        stringResource(R.string.settings_agenda_week_start),
+                        SettingSpecs.AgendaWeekStart.labelText(),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
                     NewDot(NewAnchors.SETTINGS_AGENDA_WEEK_START, Modifier.padding(start = 8.dp))
                 }
                 Text(
-                    stringResource(R.string.settings_agenda_week_start_hint),
+                    SettingSpecs.AgendaWeekStart.descriptionText().orEmpty(),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     modifier = Modifier.padding(bottom = 10.dp),
                 )

@@ -32,7 +32,6 @@ import com.rrajath.grove.ui.newbadge.NewDot
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.util.asString
-import com.rrajath.grove.ui.vault.WHOLE_FILE_LINE_LIMIT
 import kotlinx.coroutines.delay
 
 /**
@@ -107,31 +106,27 @@ fun SettingsRoamScreen(
         }
         SettingsGroup {
             ToggleRow(
-                label = stringResource(R.string.settings_page_roam_title),
+                spec = SettingSpecs.RoamEnable,
                 checked = settings.roamFeaturesEnabled,
-                description = stringResource(R.string.settings_roam_enable_hint),
                 onToggle = onSetRoamFeaturesEnabled,
             )
             if (settings.roamFeaturesEnabled) {
                 RowDivider()
                 ToggleRow(
-                    label = stringResource(R.string.settings_roam_backlinks),
+                    spec = SettingSpecs.RoamBacklinks,
                     checked = settings.roamShowBacklinks,
-                    description = stringResource(R.string.settings_roam_backlinks_hint),
                     onToggle = onSetRoamShowBacklinks,
                 )
                 RowDivider()
                 ToggleRow(
-                    label = stringResource(R.string.settings_roam_suggestions),
+                    spec = SettingSpecs.RoamSuggestions,
                     checked = settings.roamShowSuggestions,
-                    description = stringResource(R.string.settings_roam_suggestions_hint),
                     onToggle = onSetRoamShowSuggestions,
                 )
                 RowDivider()
                 ToggleRow(
-                    label = stringResource(R.string.settings_roam_whole_file),
+                    spec = SettingSpecs.RoamWholeFile,
                     checked = settings.roamOpenWholeFile,
-                    description = stringResource(R.string.settings_roam_whole_file_hint, WHOLE_FILE_LINE_LIMIT),
                     labelBadge = { NewDot(NewAnchors.SETTINGS_ROAM_WHOLE_FILE, Modifier.padding(start = 6.dp)) },
                     onToggle = onSetRoamOpenWholeFile,
                 )
@@ -142,10 +137,7 @@ fun SettingsRoamScreen(
             Spacer(Modifier.height(20.dp))
             SectionLabel(stringResource(R.string.settings_roam_section_dailies))
             SettingsGroup {
-                SettingsRow(
-                    label = stringResource(R.string.settings_roam_dailies_location),
-                    description = stringResource(R.string.settings_roam_dailies_location_hint),
-                ) {}
+                SettingsRow(spec = SettingSpecs.RoamDailiesLocation) {}
                 Box(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 0.dp)) {
                     com.rrajath.grove.ui.components.DirectoryField(
                         value = dailiesDirectoryText,
@@ -155,10 +147,7 @@ fun SettingsRoamScreen(
                     )
                 }
                 RowDivider()
-                SettingsRow(
-                    label = stringResource(R.string.settings_roam_dailies_pattern),
-                    description = stringResource(R.string.settings_roam_dailies_pattern_hint, "%<%Y-%m-%d>.org"),
-                ) {}
+                SettingsRow(spec = SettingSpecs.RoamDailiesPattern) {}
                 Box(Modifier.fillMaxWidth().padding(horizontal = 15.dp)) {
                     val patternError = com.rrajath.grove.capture.FilenamePattern.errorFor(dailiesPatternText)
                     androidx.compose.material3.OutlinedTextField(
@@ -178,10 +167,7 @@ fun SettingsRoamScreen(
                     )
                 }
                 RowDivider()
-                SettingsRow(
-                    label = stringResource(R.string.settings_roam_dailies_header),
-                    description = stringResource(R.string.settings_roam_dailies_header_hint, "%?"),
-                ) {}
+                SettingsRow(spec = SettingSpecs.RoamDailiesHeader) {}
                 Box(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 6.dp)) {
                     val headerInvalid = remember(dailiesHeaderText) {
                         com.rrajath.grove.capture.PlaceholderExpander.findInvalid(dailiesHeaderText)

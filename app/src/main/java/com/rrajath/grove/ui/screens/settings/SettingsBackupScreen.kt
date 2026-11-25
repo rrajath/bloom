@@ -76,6 +76,7 @@ fun SettingsBackupScreen(
             RowDivider()
             Row(
                 Modifier
+                    .settingAnchor(SettingSpecs.BackupFile)
                     .fillMaxWidth()
                     .padding(horizontal = 15.dp, vertical = 14.dp),
             ) {

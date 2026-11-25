@@ -90,21 +90,19 @@ fun SettingsNotebooksScreen(
         }
         SettingsGroup {
             ToggleRow(
-                label = stringResource(R.string.settings_notebooks_file_icons),
-                description = stringResource(R.string.settings_notebooks_file_icons_hint),
+                spec = SettingSpecs.NotebooksFileIcons,
                 checked = settings.showNotebookFileIcons,
                 onToggle = onSetShowNotebookFileIcons,
             )
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_notebooks_flatten),
-                description = stringResource(R.string.settings_notebooks_flatten_hint),
+                spec = SettingSpecs.NotebooksFlatten,
                 checked = settings.flattenNotebookFolders,
                 onToggle = onSetFlattenNotebookFolders,
             )
             RowDivider()
             SettingsRow(
-                label = stringResource(R.string.settings_notebooks_display_name),
+                spec = SettingSpecs.NotebooksDisplayName,
                 description = if (settings.notebookDisplayNameMode == NotebookDisplayNameMode.FILENAME) {
                     stringResource(R.string.settings_notebooks_display_name_filename_hint)
                 } else {
@@ -122,10 +120,7 @@ fun SettingsNotebooksScreen(
                 )
             }
             RowDivider()
-            SettingsRow(
-                label = stringResource(R.string.settings_notebooks_sort),
-                description = stringResource(R.string.settings_notebooks_sort_hint),
-            ) {
+            SettingsRow(spec = SettingSpecs.NotebooksSort) {
                 SegmentedControl(
                     options = NotebookSortKey.entries.map { stringResource(it.labelRes) },
                     selectedIndex = settings.notebookSortKey.ordinal,
@@ -135,7 +130,7 @@ fun SettingsNotebooksScreen(
             }
             RowDivider()
             SettingsRow(
-                label = stringResource(R.string.settings_notebooks_order),
+                spec = SettingSpecs.NotebooksOrder,
                 description = stringResource(
                     when (settings.notebookSortKey) {
                         NotebookSortKey.ALPHABETICAL ->
@@ -156,20 +151,20 @@ fun SettingsNotebooksScreen(
                 )
             }
             RowDivider()
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.NotebooksIgnoreList).padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        stringResource(R.string.settings_notebooks_ignore_list),
+                        SettingSpecs.NotebooksIgnoreList.labelText(),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
                     NewDot(NewAnchors.SETTINGS_NOTEBOOKS_IGNORE_LIST)
                 }
                 Text(
-                    stringResource(R.string.settings_notebooks_ignore_list_hint),
+                    SettingSpecs.NotebooksIgnoreList.descriptionText().orEmpty(),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 2.dp, bottom = 6.dp),
                 )

@@ -38,13 +38,13 @@ fun SettingsCaptureTemplatesScreen(
                 )
             }
             if (templates.isNotEmpty()) RowDivider()
-            SettingsRow(label = stringResource(R.string.settings_templates_new), onClick = { onEditTemplate(null) }) {}
+            SettingsRow(spec = SettingSpecs.TemplatesNew, onClick = { onEditTemplate(null) }) {}
             RowDivider()
             val notifPermission = androidx.activity.compose.rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
             ) { granted -> if (granted) onSetCaptureNotification(true) }
             ToggleRow(
-                label = stringResource(R.string.settings_templates_notification),
+                spec = SettingSpecs.TemplatesNotification,
                 checked = settings.captureNotification,
             ) { enabled ->
                 when {
