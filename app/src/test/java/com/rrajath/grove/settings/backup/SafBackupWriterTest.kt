@@ -101,6 +101,26 @@ class SafBackupWriterTest {
         const val NAME = "bloom-debug-settings.json"
     }
 
+    @Test
+    fun `bestMatch prefers the newest of the file and its renamed copies`() {
+        val e = { id: String, name: String, t: Long -> SafBackupWriter.Companion.Entry(id, name, t) }
+        val entries = listOf(
+            e("1", NAME, 100),
+            e("2", NAME.removeSuffix(".json") + " (1).json", 300),
+            e("3", "notes.org", 900),
+            e("4", "other-settings.json", 800),
+        )
+        assertEquals("2", SafBackupWriter.bestMatch(NAME, entries)?.id)
+    }
+
+    @Test
+    fun `bestMatch takes the exact name on a tie and ignores look-alikes`() {
+        val e = { id: String, name: String, t: Long -> SafBackupWriter.Companion.Entry(id, name, t) }
+        val stem = NAME.removeSuffix(".json")
+        assertEquals("1", SafBackupWriter.bestMatch(NAME, listOf(e("2", "$stem (2).json", 0), e("1", NAME, 0)))?.id)
+        assertEquals(null, SafBackupWriter.bestMatch(NAME, listOf(e("5", "$stem (x).json", 9), e("6", "$stem.json.bak", 9))))
+    }
+
     private class FakeDocs : BackupDocuments {
         val names = linkedMapOf<String, String>()
         val content = linkedMapOf<String, String>()

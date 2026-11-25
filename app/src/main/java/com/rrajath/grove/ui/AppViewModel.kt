@@ -92,6 +92,9 @@ class AppViewModel(
     ),
     // Backup folder tree URI to its automatic-backup document URI (null when absent); injectable for tests.
     private val findAutoBackup: suspend (String) -> String? = { app.autoBackupWriter.find(it) },
+    // AutoBackupManager.flush(force) and repairIfMissing(); injectable so tests stay off the app's DataStore.
+    private val flushAutoBackup: suspend (Boolean) -> Unit = { app.autoBackupManager.flush(it) },
+    private val repairAutoBackup: suspend () -> Unit = { app.autoBackupManager.repairIfMissing() },
 ) : ViewModel() {
 
     /** Null until the DataStore emits, so the UI can gate on first load. */
@@ -741,7 +744,7 @@ class AppViewModel(
     /** Settings > Backup's automatic-backup state; the file check runs only while the screen collects it. */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val autoBackup: StateFlow<com.rrajath.grove.ui.screens.settings.AutoBackupUiState> =
-        combine(settingsRepository.settings, autoBackupRefresh) { s, _ -> s }
+        settingsRepository.settings
             .map { s -> com.rrajath.grove.ui.screens.settings.AutoBackupUiState(
                 enabled = s.autoBackupEnabled,
                 treeUri = s.autoBackupTreeUri,
@@ -754,6 +757,10 @@ class AppViewModel(
                 val exists = state.treeUri != null && withContext(dispatchers.io) {
                     runCatching { findAutoBackup(state.treeUri) != null }.getOrDefault(false)
                 }
+                // Written before but gone now (deleted in a file manager): write it again.
+                if (!exists && state.enabled && state.lastSuccessAt != null) {
+                    viewModelScope.launch { repairAutoBackup() }
+                }
                 state.copy(fileExists = exists)
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.rrajath.grove.ui.screens.settings.AutoBackupUiState())
@@ -762,27 +769,116 @@ class AppViewModel(
         autoBackupRefresh.value++
     }
 
-    /** Toggle the automatic backup; turning it on writes at once so the status confirms it. */
+    /**
+     * A folder holding a backup that doesn't match this device, waiting on the
+     * Restore / Replace / Cancel dialog. Nothing is written there until the user picks.
+     */
+    private val _autoBackupConflict = MutableStateFlow<String?>(null)
+    val autoBackupConflict: StateFlow<String?> = _autoBackupConflict
+
+    /** The folder a Restore from [autoBackupConflict] adopts once its import is confirmed. */
+    private var adoptAfterImport: String? = null
+
+    /**
+     * Toggle the automatic backup; turning it on writes at once so the status confirms it,
+     * unless the remembered folder holds a different backup (then ask first).
+     */
     fun setAutoBackupEnabled(enabled: Boolean) = viewModelScope.launch {
+        if (enabled) {
+            val tree = settingsRepository.current().autoBackupTreeUri
+            if (tree != null && existingBackupDiffers(tree)) {
+                _autoBackupConflict.value = tree
+                return@launch
+            }
+        }
         settingsRepository.setAutoBackupEnabled(enabled)
-        if (enabled) app.autoBackupManager.flush()
+        if (enabled) flushAutoBackup(false)
     }
 
     /**
-     * The user picked [uri] (grant already persisted): point the backup there, turn it on,
-     * release the previous folder's grant unless it's the vault, and write at once.
+     * The user picked [uri] (grant already persisted). A folder already holding a
+     * different backup asks Restore / Replace first; otherwise adopt it and write at once.
      */
     fun pickAutoBackupFolder(uri: String) = viewModelScope.launch {
-        val old = settingsRepository.settings.first().autoBackupTreeUri
-        settingsRepository.setAutoBackupTreeUri(uri)
+        if (existingBackupDiffers(uri)) _autoBackupConflict.value = uri else adoptAutoBackupFolder(uri)
+    }
+
+    /** The folder picker came back but Android wouldn't persist access to it. */
+    fun autoBackupGrantFailed() = viewModelScope.launch { toast(R.string.settings_auto_backup_grant_failed) }
+
+    /** Overwrite the existing backup in the conflicting folder with this device's state. */
+    fun replaceExistingAutoBackup() = viewModelScope.launch {
+        val uri = _autoBackupConflict.value ?: return@launch
+        _autoBackupConflict.value = null
+        adoptAutoBackupFolder(uri, force = true)
+    }
+
+    /**
+     * Restore the conflicting folder's backup: remember the folder (still off), then import.
+     * Backups start once the import is applied; cancelling it leaves them off and the file untouched.
+     */
+    fun restoreExistingAutoBackup() = viewModelScope.launch {
+        val uri = _autoBackupConflict.value ?: return@launch
+        _autoBackupConflict.value = null
+        switchAutoBackupFolder(uri)
+        adoptAfterImport = uri
+        when (restoreFrom(uri)) {
+            ImportOutcome.APPLIED -> adoptPendingAfterImport()
+            ImportOutcome.PENDING -> Unit
+            ImportOutcome.FAILED -> adoptAfterImport = null
+        }
+    }
+
+    /** Dismiss the conflict: nothing changes, and a newly picked folder's grant is let go. */
+    fun cancelAutoBackupConflict() = viewModelScope.launch {
+        val uri = _autoBackupConflict.value ?: return@launch
+        _autoBackupConflict.value = null
+        // Refuses the current backup folder and the vault, so only a fresh pick is released.
+        com.rrajath.grove.settings.backup.BackupFolderPermissions.releaseIfUnused(
+            app.contentResolver, uri, settingsRepository.current(),
+        )
+    }
+
+    /** Point the backup at [uri], turn it on and write at once ([force]: even when the content matches the last write). */
+    private suspend fun adoptAutoBackupFolder(uri: String, force: Boolean = false) {
+        switchAutoBackupFolder(uri)
         settingsRepository.setAutoBackupEnabled(true)
-        if (old != null) {
-            // Current settings, read now: a vault switched to the old folder meanwhile stays granted.
+        flushAutoBackup(force)
+    }
+
+    /** Make [uri] the backup folder and release the previous folder's grant unless it's the vault. */
+    private suspend fun switchAutoBackupFolder(uri: String) {
+        val old = settingsRepository.current().autoBackupTreeUri
+        settingsRepository.setAutoBackupTreeUri(uri)
+        if (old != null && old != uri) {
+            // Read from storage now: a vault switched to the old folder meanwhile stays granted.
             com.rrajath.grove.settings.backup.BackupFolderPermissions.releaseIfUnused(
-                app.contentResolver, old, settingsRepository.settings.first(),
+                app.contentResolver, old, settingsRepository.current(),
             )
         }
-        app.autoBackupManager.flush()
+    }
+
+    /** Whether [treeUri] holds a backup file whose content differs from what this device would write. */
+    private suspend fun existingBackupDiffers(treeUri: String): Boolean {
+        val doc = withContext(dispatchers.io) { runCatching { findAutoBackup(treeUri) }.getOrNull() } ?: return false
+        // Unreadable counts as different: never overwrite what can't be checked.
+        val existing = readText(android.net.Uri.parse(doc)) ?: return true
+        return existing != currentExport()
+    }
+
+    private suspend fun currentExport(): String = SettingsSerialization.export(
+        settings = settingsRepository.current(),
+        captureTemplates = templatesRepository.templates.first(),
+        favorites = favoritesRepository.favorites.first(),
+        savedSearches = searchRepository.savedSearches.first(),
+    )
+
+    private suspend fun adoptPendingAfterImport() {
+        val uri = adoptAfterImport ?: return
+        adoptAfterImport = null
+        if (settingsRepository.current().autoBackupTreeUri != uri) return
+        settingsRepository.setAutoBackupEnabled(true)
+        flushAutoBackup(true)
     }
 
     /**
@@ -804,17 +900,21 @@ class AppViewModel(
      * The manager then writes the restored state back, a no-op when the content matches.
      */
     fun restoreAutoBackup() = viewModelScope.launch {
-        val treeUri = settingsRepository.settings.first().autoBackupTreeUri
-        val doc = treeUri?.let { tree ->
-            withContext(dispatchers.io) { runCatching { findAutoBackup(tree) }.getOrNull() }
-        }
+        val treeUri = settingsRepository.current().autoBackupTreeUri ?: return@launch
+        restoreFrom(treeUri)
+    }
+
+    private enum class ImportOutcome { APPLIED, PENDING, FAILED }
+
+    private suspend fun restoreFrom(treeUri: String): ImportOutcome {
+        val doc = withContext(dispatchers.io) { runCatching { findAutoBackup(treeUri) }.getOrNull() }
         if (doc == null) {
             // Deleted since the screen checked: re-check so Restore disables itself.
             refreshAutoBackupFile()
             toast(R.string.settings_backup_read_failed)
-            return@launch
+            return ImportOutcome.FAILED
         }
-        importFromText(readText(android.net.Uri.parse(doc)))
+        return importFromText(readText(android.net.Uri.parse(doc)))
     }
 
     private suspend fun readText(uri: android.net.Uri): String? = withContext(dispatchers.io) {
@@ -824,22 +924,24 @@ class AppViewModel(
     }
 
     /** Apply a settings-only [text] at once, otherwise ask which sections to import; null means the read failed. */
-    private suspend fun importFromText(text: String?) {
+    private suspend fun importFromText(text: String?): ImportOutcome {
         if (text == null) {
             toast(R.string.settings_backup_read_failed)
-            return
+            return ImportOutcome.FAILED
         }
         val current = settingsRepository.settings.first()
         val backup = runCatching { SettingsSerialization.parse(text, current) }.getOrNull()
         if (backup == null) {
             toast(R.string.settings_backup_invalid_file, app.getString(R.string.app_name))
-            return
+            return ImportOutcome.FAILED
         }
-        if (backup.sections() == listOf(BackupSection.SETTINGS)) {
+        return if (backup.sections() == listOf(BackupSection.SETTINGS)) {
             settingsRepository.applyImported(backup.settings)
             toast(R.string.settings_backup_settings_imported)
+            ImportOutcome.APPLIED
         } else {
             _pendingImport.value = backup
+            ImportOutcome.PENDING
         }
     }
 
@@ -852,10 +954,13 @@ class AppViewModel(
         if (BackupSection.FAVORITES in sections) backup.favorites?.let { favoritesRepository.replaceAll(it) }
         if (BackupSection.SAVED_SEARCHES in sections) backup.savedSearches?.let { searchRepository.replaceAll(it) }
         toast(R.string.settings_backup_imported)
+        adoptPendingAfterImport()
     }
 
     fun cancelImport() {
         _pendingImport.value = null
+        // A Restore from an existing backup that's dismissed leaves backups off and the file as it was.
+        adoptAfterImport = null
     }
 
     companion object {

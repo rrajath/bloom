@@ -1251,6 +1251,11 @@ private fun GroveNavigation(
                     onSetAutoBackupEnabled = { viewModel.setAutoBackupEnabled(it) },
                     onAutoBackupFolderPicked = { viewModel.pickAutoBackupFolder(it) },
                     onRestoreAutoBackup = { viewModel.restoreAutoBackup() },
+                    onAutoBackupGrantFailed = { viewModel.autoBackupGrantFailed() },
+                    autoBackupConflict = viewModel.autoBackupConflict.collectAsStateWithLifecycle().value,
+                    onRestoreExistingBackup = { viewModel.restoreExistingAutoBackup() },
+                    onReplaceExistingBackup = { viewModel.replaceExistingAutoBackup() },
+                    onCancelBackupConflict = { viewModel.cancelAutoBackupConflict() },
                 )
                 LaunchedEffect(Unit) { viewModel.refreshAutoBackupFile() }
             }

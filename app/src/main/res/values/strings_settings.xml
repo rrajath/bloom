@@ -348,6 +348,18 @@
     <!-- Tapping this line opens the folder picker. %1$s = app name. -->
     <string name="settings_auto_backup_error">%1$s can\'t write to this folder. Choose it again.</string>
     <string name="settings_auto_backup_restore">Restore from automatic backup</string>
+    <!-- Backup folder row while automatic backup is off and no folder was ever picked (the row can't be tapped). -->
+    <string name="settings_auto_backup_folder_off">None</string>
+    <!-- Toast: the folder picker returned a folder, but Android refused to keep access to it. -->
+    <string name="settings_auto_backup_grant_failed">Couldn\'t keep access to that folder. Choose it again.</string>
+    <!-- Dialog when the picked backup folder already holds a backup that differs from this device. -->
+    <string name="settings_auto_backup_exists_title">A backup is already here</string>
+    <!-- %1$s = app name. -->
+    <string name="settings_auto_backup_exists_body">This folder has a %1$s settings backup that doesn\'t match this device. Restore it here, or replace it with this device\'s settings?</string>
+    <!-- Dialog button: import the existing backup onto this device. -->
+    <string name="settings_auto_backup_exists_restore">Restore</string>
+    <!-- Dialog button: overwrite the existing backup file with this device's settings. -->
+    <string name="settings_auto_backup_exists_replace">Replace</string>
     <string name="settings_backup_import_body">Each checked item replaces what\'s on this device.</string>
     <!-- Import dialog: one checkbox per part of the backup file. -->
     <string name="settings_backup_section_settings">Settings</string>

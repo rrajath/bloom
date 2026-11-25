@@ -1,6 +1,7 @@
 package com.rrajath.grove.settings
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Read-only slice of [SettingsRepository] that ViewModels observe. Narrowing the
@@ -14,4 +15,11 @@ interface SettingsSource {
      * current [GroveSettings] on every change (hot, `replay = 1`).
      */
     val settings: Flow<GroveSettings>
+
+    /**
+     * The settings as stored right now, reflecting every edit that has returned.
+     * [settings] can briefly replay the previous value after an edit; read this
+     * instead when acting on a value just written.
+     */
+    suspend fun current(): GroveSettings = settings.first()
 }

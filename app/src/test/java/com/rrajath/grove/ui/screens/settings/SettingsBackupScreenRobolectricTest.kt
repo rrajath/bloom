@@ -57,6 +57,8 @@ class SettingsBackupScreenRobolectricTest {
         }
     }
     private var picked: String? = null
+    private var conflict: String? = null
+    private val conflictChoices = mutableListOf<String>()
 
     private fun show(state: AutoBackupUiState) = showState { state }
 
@@ -72,6 +74,10 @@ class SettingsBackupScreenRobolectricTest {
                         onSetAutoBackupEnabled = { setEnabled = it },
                         onAutoBackupFolderPicked = { picked = it },
                         onRestoreAutoBackup = { restores++ },
+                        autoBackupConflict = conflict,
+                        onRestoreExistingBackup = { conflictChoices += "restore" },
+                        onReplaceExistingBackup = { conflictChoices += "replace" },
+                        onCancelBackupConflict = { conflictChoices += "cancel" },
                         nowMillis = { now },
                     )
                 }
@@ -212,5 +218,29 @@ class SettingsBackupScreenRobolectricTest {
         node(SettingSpecs.BackupAuto).performClick()
         composeRule.waitForIdle()
         assertEquals(folder, picked)
+    }
+
+    @Test
+    fun `with no folder the row invites a tap only while on`() {
+        show(AutoBackupUiState(enabled = true))
+        composeRule.onNodeWithText("tap to choose", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `with no folder and the toggle off the row says None`() {
+        show(AutoBackupUiState(enabled = false))
+        composeRule.onNodeWithText("None", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithText("tap to choose", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an existing backup offers restore and replace`() {
+        conflict = folder
+        show(AutoBackupUiState(treeUri = folder))
+        composeRule.onNodeWithText("A backup is already here").assertExists()
+        composeRule.onNodeWithTag(EXISTING_BACKUP_RESTORE_TAG).performClick()
+        composeRule.onNodeWithTag(EXISTING_BACKUP_REPLACE_TAG).performClick()
+        composeRule.onNodeWithText("Cancel").performClick()
+        assertEquals(listOf("restore", "replace", "cancel"), conflictChoices)
     }
 }

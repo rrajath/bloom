@@ -81,6 +81,13 @@ fun SettingsBackupScreen(
     /** A folder the user picked, its read/write grant already persisted. Turns the backup on. */
     onAutoBackupFolderPicked: (String) -> Unit = {},
     onRestoreAutoBackup: () -> Unit = {},
+    /** The picker returned a folder but its read/write grant couldn't be persisted; the folder isn't adopted. */
+    onAutoBackupGrantFailed: () -> Unit = {},
+    /** A picked or remembered folder that already holds a different backup; non-null shows Restore / Replace. */
+    autoBackupConflict: String? = null,
+    onRestoreExistingBackup: () -> Unit = {},
+    onReplaceExistingBackup: () -> Unit = {},
+    onCancelBackupConflict: () -> Unit = {},
     nowMillis: () -> Long = System::currentTimeMillis,
 ) {
     val c = MaterialTheme.grove
@@ -102,14 +109,20 @@ fun SettingsBackupScreen(
         if (uri == null) {
             pickerCancels++
         } else {
-            runCatching {
+            val granted = runCatching {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
                     android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
+            }.isSuccess
+            // Without a persisted grant the writes would stop at the next app restart.
+            if (granted) {
+                onAutoBackupFolderPicked(uri.toString())
+            } else {
+                pickerCancels++
+                onAutoBackupGrantFailed()
             }
-            onAutoBackupFolderPicked(uri.toString())
         }
     }
     val openPicker = { folderPicker.launch(pickerStart(autoBackup.treeUri ?: vaultTreeUri)) }
@@ -135,7 +148,9 @@ fun SettingsBackupScreen(
                 spec = SettingSpecs.BackupFolder,
                 descriptionContent = {
                     Text(
-                        autoBackup.treeUri?.let { uriDisplayName(it) } ?: stringResource(R.string.settings_auto_backup_folder_none),
+                        autoBackup.treeUri?.let { uriDisplayName(it) } ?: stringResource(
+                            if (autoBackup.enabled) R.string.settings_auto_backup_folder_none else R.string.settings_auto_backup_folder_off,
+                        ),
                         fontFamily = PlexMono, fontSize = 12.sp,
                         color = if (autoBackup.enabled) c.accent else c.ink3,
                     )
@@ -206,6 +221,66 @@ fun SettingsBackupScreen(
     pendingImport?.let { backup ->
         ImportBackupDialog(backup, onConfirm = onConfirmImport, onDismiss = onCancelImport)
     }
+
+    if (autoBackupConflict != null) {
+        // Either way out but Replace leaves the toggle off for now: slide the switch back.
+        ExistingBackupDialog(
+            onRestore = { pickerCancels++; onRestoreExistingBackup() },
+            onReplace = onReplaceExistingBackup,
+            onDismiss = { pickerCancels++; onCancelBackupConflict() },
+        )
+    }
+}
+
+internal const val EXISTING_BACKUP_RESTORE_TAG = "existing_backup_restore"
+internal const val EXISTING_BACKUP_REPLACE_TAG = "existing_backup_replace"
+
+/**
+ * The picked (or remembered) backup folder already holds a backup that differs from this
+ * device: Restore it, Replace it with this device's settings, or Cancel. Styled as
+ * [ImportBackupDialog]; Replace is `red` since it overwrites the file.
+ */
+@Composable
+private fun ExistingBackupDialog(onRestore: () -> Unit, onReplace: () -> Unit, onDismiss: () -> Unit) {
+    val c = MaterialTheme.grove
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        title = {
+            Text(
+                stringResource(R.string.settings_auto_backup_exists_title),
+                fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp, color = c.ink,
+            )
+        },
+        text = {
+            Text(
+                stringResource(R.string.settings_auto_backup_exists_body, stringResource(R.string.app_name)),
+                fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
+            )
+        },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onReplace, modifier = Modifier.testTag(EXISTING_BACKUP_REPLACE_TAG)) {
+                    Text(
+                        stringResource(R.string.settings_auto_backup_exists_replace),
+                        fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.red,
+                    )
+                }
+                TextButton(onClick = onRestore, modifier = Modifier.testTag(EXISTING_BACKUP_RESTORE_TAG)) {
+                    Text(
+                        stringResource(R.string.settings_auto_backup_exists_restore),
+                        fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, color = c.accent,
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel), fontFamily = PlexSans, color = c.ink2)
+            }
+        },
+    )
 }
 
 /** Where the folder picker opens: [treeUri]'s own folder, or the picker's default when null. */

@@ -8,6 +8,7 @@ import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.SettingsSerialization
 import com.rrajath.grove.settings.SettingsSource
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -16,7 +17,10 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -35,7 +39,7 @@ import java.security.MessageDigest
  * skips content already on disk, which covers a cold start. [flush] writes at
  * once for app-background and folder pick.
  */
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class AutoBackupManager(
     private val scope: CoroutineScope,
     private val settings: SettingsSource,
@@ -54,7 +58,15 @@ class AutoBackupManager(
     private val writeMutex = Mutex()
 
     fun start(): Job = scope.launch {
-        combine(settings.settings, templates, favorites, savedSearches, ::snapshotOf)
+        launch { repairIfMissing() }
+        settings.settings
+            .map { it.autoBackupEnabled && it.autoBackupTreeUri != null }
+            .distinctUntilChanged()
+            // Off subscribes to nothing but settings: templates, favorites and searches
+            // are only watched while a backup is being kept.
+            .flatMapLatest { on ->
+                if (on) combine(settings.settings, templates, favorites, savedSearches, ::snapshotOf) else flowOf(null)
+            }
             .flowOn(dispatchers.default)
             .distinctUntilChanged()
             // Off (null) passes straight through, replacing and so cancelling a pending write.
@@ -63,12 +75,28 @@ class AutoBackupManager(
             .collect { writeIfChanged(it) }
     }
 
-    /** Write the current state now if it differs from the last write. No-op while off or without a folder. */
-    suspend fun flush() {
-        val snapshot = withContext(dispatchers.default) {
-            snapshotOf(settings.settings.first(), templates.first(), favorites.first(), savedSearches.first())
-        } ?: return
-        writeIfChanged(snapshot)
+    /**
+     * Write the current state now if it differs from the last write ([force]: regardless,
+     * e.g. replacing a file another device wrote). No-op while off or without a folder.
+     */
+    suspend fun flush(force: Boolean = false) {
+        writeIfChanged(currentSnapshot() ?: return, force)
+    }
+
+    /**
+     * The last write is on record but the file is gone (deleted in a file manager):
+     * write it again. The hash skip would otherwise hold off until the next change.
+     * Runs at start and when Settings > Backup finds the file missing.
+     */
+    suspend fun repairIfMissing() {
+        val s = settings.current()
+        val treeUri = s.autoBackupTreeUri?.takeIf { s.autoBackupEnabled && s.autoBackupLastHash != null } ?: return
+        val exists = withContext(dispatchers.io) { runCatching { writer.exists(treeUri) }.getOrDefault(true) }
+        if (!exists) writeIfChanged(currentSnapshot() ?: return, force = true)
+    }
+
+    private suspend fun currentSnapshot(): Snapshot? = withContext(dispatchers.default) {
+        snapshotOf(settings.current(), templates.first(), favorites.first(), savedSearches.first())
     }
 
     private fun snapshotOf(
@@ -81,16 +109,17 @@ class AutoBackupManager(
         return Snapshot(treeUri, SettingsSerialization.export(s, templates, favorites, searches))
     }
 
-    private suspend fun writeIfChanged(snapshot: Snapshot) = writeMutex.withLock {
-        // Re-read: the toggle, folder or last hash may have moved while this waited.
-        val current = settings.settings.first()
+    private suspend fun writeIfChanged(snapshot: Snapshot, force: Boolean = false) = writeMutex.withLock {
+        // Re-read from storage: the toggle, folder or last hash may have moved while this waited.
+        val current = settings.current()
         if (!current.autoBackupEnabled || current.autoBackupTreeUri != snapshot.treeUri) return@withLock
         val hash = sha256(snapshot.text)
-        if (hash == current.autoBackupLastHash) return@withLock
+        if (!force && hash == current.autoBackupLastHash) return@withLock
         val result = withContext(dispatchers.io) {
             runCatching { writer.write(snapshot.treeUri, snapshot.text).getOrThrow() }
         }
-        if (result.isSuccess) status.recordAutoBackupSuccess(clock(), hash) else status.recordAutoBackupFailure()
+        if (result.isSuccess) status.recordAutoBackupSuccess(snapshot.treeUri, clock(), hash)
+        else status.recordAutoBackupFailure(snapshot.treeUri)
     }
 
     companion object {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.shareIn
 import java.time.LocalTime
 
@@ -524,7 +525,16 @@ class SettingsRepository(
      * `replay = 1` with no seed value preserves the "nothing until the first read"
      * semantics that [com.rrajath.grove.ui.AppViewModel] gates first load on.
      */
-    override val settings: Flow<GroveSettings> = dataStore.data.map { prefs ->
+    override val settings: Flow<GroveSettings> = dataStore.data.map { toSettings(it) }
+        .shareIn(scope, SharingStarted.Eagerly, replay = 1)
+
+    /**
+     * Straight from DataStore, so it reflects every edit that has returned. [settings]
+     * replays through a shared collector that can lag an edit; use this for read-after-write.
+     */
+    override suspend fun current(): GroveSettings = toSettings(dataStore.data.first())
+
+    private fun toSettings(prefs: Preferences): GroveSettings =
         GroveSettings(
             themeSelection = readThemeSelection(prefs),
             syncAppIconWithTheme = prefs[Keys.syncAppIconWithTheme] ?: false,
@@ -637,7 +647,6 @@ class SettingsRepository(
             attachFolder = AttachFolder.sanitize(prefs[Keys.attachFolder]),
             attachAutoTag = AttachAutoTag.sanitize(prefs[Keys.attachAutoTag]),
         )
-    }.shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
     /** `;`-joined directory paths; `;` can't appear in a path, `/` is the separator. */
     private fun decodeFolderSet(raw: String?): Set<String> =
@@ -941,8 +950,10 @@ class SettingsRepository(
         }
     }
 
-    override suspend fun recordAutoBackupSuccess(at: Long, hash: String) {
+    override suspend fun recordAutoBackupSuccess(treeUri: String, at: Long, hash: String) {
         editSettings { prefs ->
+            // A write that finished after the user switched folders isn't this folder's status.
+            if (prefs[Keys.autoBackupTreeUri] != treeUri) return@editSettings
             prefs[Keys.autoBackupLastSuccessAt] = at
             prefs[Keys.autoBackupLastHash] = hash
             prefs[Keys.autoBackupLastError] = false
@@ -950,8 +961,9 @@ class SettingsRepository(
     }
 
     /** A failed write: show the error and forget the hash so the next attempt isn't skipped. */
-    override suspend fun recordAutoBackupFailure() {
+    override suspend fun recordAutoBackupFailure(treeUri: String) {
         editSettings { prefs ->
+            if (prefs[Keys.autoBackupTreeUri] != treeUri) return@editSettings
             prefs[Keys.autoBackupLastError] = true
             prefs.remove(Keys.autoBackupLastHash)
         }

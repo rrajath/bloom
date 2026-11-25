@@ -14,6 +14,7 @@ import com.rrajath.grove.search.SearchRepository
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.settings.SettingsSerialization
+import com.rrajath.grove.settings.sections
 import com.rrajath.grove.testing.FakeFileStore
 import com.rrajath.grove.testing.FakeSyncTrigger
 import com.rrajath.grove.testing.InMemoryGroveDatabase
@@ -73,6 +74,9 @@ class AppViewModelIntegrationTest {
 
     private val liveVms = mutableListOf<AppViewModel>()
 
+    /** Each automatic-backup flush the VM asks for, by its force flag. */
+    private val flushes = mutableListOf<Boolean>()
+
     /**
      * The real [SettingsRepository] reads its DataStore on a real IO thread that
      * `advanceUntilIdle()` doesn't wait for, so a VM built before the first read lands
@@ -110,6 +114,8 @@ class AppViewModelIntegrationTest {
             app = app,
             shareIntake = shareIntake,
             findAutoBackup = findAutoBackup,
+            flushAutoBackup = { force -> flushes += force },
+            repairAutoBackup = {},
         ).also { liveVms += it }
     }
 
@@ -232,6 +238,143 @@ class AppViewModelIntegrationTest {
 
         assertEquals(null, vm.pendingImport.value)
         assertEquals(before, settingsRepository.settings.first())
+    }
+
+    private val pickedTree = "content://test/tree/picked"
+    private val pickedDoc = "content://test/tree/picked/document/bloom-settings.json"
+
+    /** [pickedDoc] reads as [json] on every open (the conflict check and the restore each read it). */
+    private fun existingBackup(json: String) {
+        Shadows.shadowOf(app.contentResolver)
+            .registerInputStreamSupplier(android.net.Uri.parse(pickedDoc)) { json.byteInputStream() }
+    }
+
+    private fun otherDeviceBackup() = SettingsSerialization.export(
+        settings = GroveSettings(shareTargetFile = "other-device.org"),
+        captureTemplates = emptyList(),
+        favorites = emptyList(),
+        savedSearches = emptyList(),
+    )
+
+    @Test
+    fun `picking a folder with a different backup asks first and writes nothing`() = runTest {
+        existingBackup(otherDeviceBackup())
+        val vm = appVm(findAutoBackup = { if (it == pickedTree) pickedDoc else null })
+        settleUntil { vm.settings.value != null }
+
+        vm.pickAutoBackupFolder(pickedTree)
+        settleUntil { vm.autoBackupConflict.value != null }
+
+        assertEquals(pickedTree, vm.autoBackupConflict.value)
+        val s = settingsRepository.current()
+        assertEquals(null, s.autoBackupTreeUri)
+        assertEquals(false, s.autoBackupEnabled)
+        assertTrue(flushes.isEmpty())
+    }
+
+    @Test
+    fun `picking a folder whose backup matches this device adopts it without asking`() = runTest {
+        val vm = appVm(findAutoBackup = { if (it == pickedTree) pickedDoc else null })
+        settleUntil { vm.settings.value != null }
+        existingBackup(
+            SettingsSerialization.export(
+                settings = settingsRepository.current(),
+                captureTemplates = app.templatesRepository.templates.first(),
+                favorites = favoritesRepository.favorites.first(),
+                savedSearches = searchRepository.savedSearches.first(),
+            )
+        )
+
+        vm.pickAutoBackupFolder(pickedTree)
+        settleUntil { flushes.isNotEmpty() }
+
+        assertEquals(null, vm.autoBackupConflict.value)
+        assertEquals(pickedTree, settingsRepository.current().autoBackupTreeUri)
+        assertTrue(settingsRepository.current().autoBackupEnabled)
+        assertEquals(listOf(false), flushes)
+    }
+
+    @Test
+    fun `replace adopts the folder and forces a write`() = runTest {
+        existingBackup(otherDeviceBackup())
+        val vm = appVm(findAutoBackup = { if (it == pickedTree) pickedDoc else null })
+        settleUntil { vm.settings.value != null }
+        vm.pickAutoBackupFolder(pickedTree)
+        settleUntil { vm.autoBackupConflict.value != null }
+
+        vm.replaceExistingAutoBackup()
+        settleUntil { flushes.isNotEmpty() }
+
+        assertEquals(null, vm.autoBackupConflict.value)
+        assertTrue(settingsRepository.current().autoBackupEnabled)
+        assertEquals(listOf(true), flushes)
+    }
+
+    @Test
+    fun `cancel leaves everything as it was`() = runTest {
+        existingBackup(otherDeviceBackup())
+        val vm = appVm(findAutoBackup = { if (it == pickedTree) pickedDoc else null })
+        settleUntil { vm.settings.value != null }
+        val before = settingsRepository.current()
+        vm.pickAutoBackupFolder(pickedTree)
+        settleUntil { vm.autoBackupConflict.value != null }
+
+        vm.cancelAutoBackupConflict()
+        settleUntil { vm.autoBackupConflict.value == null }
+
+        assertEquals(before, settingsRepository.current())
+        assertTrue(flushes.isEmpty())
+    }
+
+    @Test
+    fun `restore from an existing backup imports first and starts backups only once confirmed`() = runTest {
+        existingBackup(otherDeviceBackup())
+        val vm = appVm(findAutoBackup = { if (it == pickedTree) pickedDoc else null })
+        settleUntil { vm.settings.value != null }
+        vm.pickAutoBackupFolder(pickedTree)
+        settleUntil { vm.autoBackupConflict.value != null }
+
+        vm.restoreExistingAutoBackup()
+        settleUntil { vm.pendingImport.value != null }
+        assertEquals(pickedTree, settingsRepository.current().autoBackupTreeUri)
+        assertEquals(false, settingsRepository.current().autoBackupEnabled)
+        assertTrue(flushes.isEmpty())
+
+        vm.confirmImport(vm.pendingImport.value!!.sections().toSet())
+        settleUntil { settingsRepository.current().autoBackupEnabled }
+        assertEquals("other-device.org", settingsRepository.current().shareTargetFile)
+        assertEquals(listOf(true), flushes)
+    }
+
+    @Test
+    fun `dismissing the restore checklist keeps backups off`() = runTest {
+        existingBackup(otherDeviceBackup())
+        val vm = appVm(findAutoBackup = { if (it == pickedTree) pickedDoc else null })
+        settleUntil { vm.settings.value != null }
+        vm.pickAutoBackupFolder(pickedTree)
+        settleUntil { vm.autoBackupConflict.value != null }
+        vm.restoreExistingAutoBackup()
+        settleUntil { vm.pendingImport.value != null }
+
+        vm.cancelImport()
+        advanceUntilIdle()
+
+        assertEquals(false, settingsRepository.current().autoBackupEnabled)
+        assertTrue(flushes.isEmpty())
+    }
+
+    @Test
+    fun `turning backup on with a remembered folder holding a different backup asks first`() = runTest {
+        existingBackup(otherDeviceBackup())
+        settingsRepository.setAutoBackupTreeUri(pickedTree)
+        val vm = appVm(findAutoBackup = { if (it == pickedTree) pickedDoc else null })
+        settleUntil { vm.settings.value != null }
+
+        vm.setAutoBackupEnabled(true)
+        settleUntil { vm.autoBackupConflict.value != null }
+
+        assertEquals(false, settingsRepository.current().autoBackupEnabled)
+        assertTrue(flushes.isEmpty())
     }
 
     @Test

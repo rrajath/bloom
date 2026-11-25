@@ -66,10 +66,11 @@ class AutoBackupSettingsTest {
 
     @Test
     fun `a success records time and hash and clears the error`() = runBlocking {
-        repo.recordAutoBackupFailure()
+        repo.setAutoBackupTreeUri(TREE)
+        repo.recordAutoBackupFailure(TREE)
         assertTrue(after { it.autoBackupLastError }.autoBackupLastError)
 
-        repo.recordAutoBackupSuccess(at = 1234L, hash = "abc")
+        repo.recordAutoBackupSuccess(TREE, at = 1234L, hash = "abc")
         val s = after { it.autoBackupLastSuccessAt != null }
         assertEquals(1234L, s.autoBackupLastSuccessAt)
         assertEquals("abc", s.autoBackupLastHash)
@@ -78,8 +79,9 @@ class AutoBackupSettingsTest {
 
     @Test
     fun `a failure sets the error and drops the hash so the next attempt writes`() = runBlocking {
-        repo.recordAutoBackupSuccess(at = 1L, hash = "abc")
-        repo.recordAutoBackupFailure()
+        repo.setAutoBackupTreeUri(TREE)
+        repo.recordAutoBackupSuccess(TREE, at = 1L, hash = "abc")
+        repo.recordAutoBackupFailure(TREE)
         val s = after { it.autoBackupLastError }
         assertTrue(s.autoBackupLastError)
         assertNull(s.autoBackupLastHash)
@@ -89,13 +91,39 @@ class AutoBackupSettingsTest {
     @Test
     fun `picking a different folder resets the status so the new folder gets written`() = runBlocking {
         repo.setAutoBackupTreeUri("content://tree/a")
-        repo.recordAutoBackupSuccess(at = 1L, hash = "abc")
-        repo.recordAutoBackupFailure()
+        repo.recordAutoBackupSuccess("content://tree/a", at = 1L, hash = "abc")
+        repo.recordAutoBackupFailure("content://tree/a")
         repo.setAutoBackupTreeUri("content://tree/b")
         val s = after { it.autoBackupTreeUri == "content://tree/b" }
         assertEquals("content://tree/b", s.autoBackupTreeUri)
         assertNull(s.autoBackupLastHash)
         assertNull(s.autoBackupLastSuccessAt)
         assertFalse(s.autoBackupLastError)
+    }
+
+    @Test
+    fun `a write that finishes after a folder switch doesn't touch the new folder's status`() = runBlocking {
+        repo.setAutoBackupTreeUri("content://tree/a")
+        repo.setAutoBackupTreeUri("content://tree/b")
+        repo.recordAutoBackupSuccess("content://tree/a", at = 5L, hash = "late")
+        repo.recordAutoBackupFailure("content://tree/a")
+        // A marker write on the same store, so the read below sees everything before it.
+        repo.setAutoBackupEnabled(true)
+        val s = after { it.autoBackupEnabled }
+        assertNull(s.autoBackupLastHash)
+        assertNull(s.autoBackupLastSuccessAt)
+        assertFalse(s.autoBackupLastError)
+    }
+
+    @Test
+    fun `current reflects an edit as soon as it returns`() = runBlocking {
+        repeat(20) { i ->
+            repo.setAutoBackupTreeUri("content://tree/$i")
+            assertEquals("content://tree/$i", repo.current().autoBackupTreeUri)
+        }
+    }
+
+    private companion object {
+        const val TREE = "content://tree/backup"
     }
 }

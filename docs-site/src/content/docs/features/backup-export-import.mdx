@@ -24,7 +24,8 @@ Turn on **Back up automatically** and pick a folder. Bloom then keeps one file i
 Pick a folder your sync tool already covers (Syncthing, Nextcloud and so on) and the backup travels off the device with no extra steps. Bloom overwrites the one file in place; it doesn't keep older copies.
 
 - **Backup folder** shows the chosen folder's full path. Tap it to pick a different one. Picking a folder writes the file right away.
-- The status line under it says when the file was last written. If Bloom can no longer write there (the folder was deleted or its access was revoked), it says so in red; tap it to choose the folder again.
+- If the folder already holds a backup that doesn't match this device (say, on a new phone, or after reinstalling Bloom), nothing is written until you choose: **Restore** brings that backup onto this device (backups start once you confirm the import), **Replace** overwrites it with this device's settings, and **Cancel** leaves both the file and the switch as they were.
+- The status line under it says when the file was last written. If the file goes missing (deleted in a file manager, for example), Bloom writes it again the next time it starts or you open this screen. If Bloom can no longer write there (the folder was deleted or its access was revoked), it says so in red; tap it to choose the folder again.
 - **Restore from automatic backup** reads the file and opens the same section checklist as [Import](#import). It's available once the file exists.
 - Turning the switch off stops the writes but remembers the folder and leaves the file where it is. While off, the folder, status and Restore are shown greyed out.
 

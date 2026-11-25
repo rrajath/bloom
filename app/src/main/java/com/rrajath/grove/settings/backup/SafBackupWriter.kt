@@ -14,7 +14,11 @@ import java.io.OutputStream
  * write/fallback logic runs in plain JVM tests. [SafBackupDocuments] in the app.
  */
 interface BackupDocuments {
-    /** The document named [name] directly inside the folder [treeUri], or null. */
+    /**
+     * The backup document directly inside [treeUri]: [name] itself or a copy the provider
+     * renamed on create (`name (1).json`), whichever was modified last (see
+     * [SafBackupWriter.bestMatch]). Null when there's none.
+     */
     suspend fun find(treeUri: String, name: String): String?
 
     /** Create [name] in [treeUri]; the provider may pick a different name. Null when it refuses. */
@@ -48,6 +52,8 @@ class SafBackupWriter(
 
     /** The backup file in [treeUri], or null when there's none. Used by Restore. */
     suspend fun find(treeUri: String): String? = docs.find(treeUri, fileName)
+
+    override suspend fun exists(treeUri: String): Boolean = find(treeUri) != null
 
     override suspend fun write(treeUri: String, text: String): Result<Unit> {
         val bytes = text.toByteArray(Charsets.UTF_8)
@@ -88,6 +94,23 @@ class SafBackupWriter(
     }
 
     companion object {
+        /** One child document of the backup folder, as [bestMatch] weighs it. */
+        data class Entry(val id: String, val name: String, val lastModified: Long)
+
+        /**
+         * The backup among [entries]: [fileName] or a provider-renamed copy of it
+         * ("bloom-settings (1).json", made when a create raced a stale listing), the most
+         * recently modified first, an exact name winning a tie. Writes go to whichever doc
+         * was resolved, so the newest one holds the latest backup.
+         */
+        fun bestMatch(fileName: String, entries: List<Entry>): Entry? {
+            val stem = fileName.removeSuffix(".json")
+            val renamed = Regex("^" + Regex.escape(stem) + """ \(\d+\)\.json$""")
+            return entries
+                .filter { it.name == fileName || renamed.matches(it.name) }
+                .maxWithOrNull(compareBy<Entry>({ it.lastModified }, { it.name == fileName }))
+        }
+
         /** "Bloom" -> "bloom-settings.json", "Bloom Debug" -> "bloom-debug-settings.json". */
         fun fileNameFor(appName: String): String =
             appName.lowercase(java.util.Locale.ROOT).replace(' ', '-') + "-settings.json" // i18n: file name suffix
@@ -104,6 +127,7 @@ class SafBackupDocuments(private val resolver: ContentResolver) : BackupDocument
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
         )
         // Some providers (Seafile) first answer with an empty "still loading" cursor;
         // creating on that would add a duplicate, so wait for the real listing.
@@ -111,10 +135,15 @@ class SafBackupDocuments(private val resolver: ContentResolver) : BackupDocument
             val cursor = resolver.query(children, projection, null, null, null) ?: return null
             cursor.use { c ->
                 val loading = c.extras?.getBoolean(DocumentsContract.EXTRA_LOADING) == true
-                while (c.moveToNext()) {
-                    if (c.getString(1) == name) {
-                        return DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0)).toString()
+                val entries = buildList {
+                    while (c.moveToNext()) {
+                        val id = c.getString(0) ?: continue
+                        val lastModified = if (c.isNull(2)) 0L else c.getLong(2)
+                        add(SafBackupWriter.Companion.Entry(id, c.getString(1).orEmpty(), lastModified))
                     }
+                }
+                SafBackupWriter.bestMatch(name, entries)?.let {
+                    return DocumentsContract.buildDocumentUriUsingTree(tree, it.id).toString()
                 }
                 if (!loading) return null
             }

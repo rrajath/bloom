@@ -35,11 +35,14 @@ class AutoBackupManagerTest {
 
     /** Mirrors SettingsRepository: recording status is itself a settings emission. */
     private val status = object : AutoBackupStatusSink {
-        override suspend fun recordAutoBackupSuccess(at: Long, hash: String) =
-            settings.update { it.copy(autoBackupLastSuccessAt = at, autoBackupLastHash = hash, autoBackupLastError = false) }
+        override suspend fun recordAutoBackupSuccess(treeUri: String, at: Long, hash: String) = settings.update {
+            if (it.autoBackupTreeUri != treeUri) it
+            else it.copy(autoBackupLastSuccessAt = at, autoBackupLastHash = hash, autoBackupLastError = false)
+        }
 
-        override suspend fun recordAutoBackupFailure() =
-            settings.update { it.copy(autoBackupLastError = true, autoBackupLastHash = null) }
+        override suspend fun recordAutoBackupFailure(treeUri: String) = settings.update {
+            if (it.autoBackupTreeUri != treeUri) it else it.copy(autoBackupLastError = true, autoBackupLastHash = null)
+        }
     }
 
     private fun TestScope.manager(): AutoBackupManager {
@@ -204,15 +207,64 @@ class AutoBackupManagerTest {
         assertFalse(settings.value.autoBackupLastError)
     }
 
+    @Test
+    fun `while off only settings is watched`() = runTest(dispatcher) {
+        settings.value = enabled.copy(autoBackupEnabled = false)
+        manager()
+        settle()
+        assertEquals(0, templates.subscriptionCount.value)
+        assertEquals(0, favorites.subscriptionCount.value)
+        assertEquals(0, searches.subscriptionCount.value)
+
+        settings.update { it.copy(autoBackupEnabled = true) }
+        settle()
+        assertEquals(1, searches.subscriptionCount.value)
+        assertEquals(1, writer.writes.size)
+    }
+
+    @Test
+    fun `a deleted file is written again at start even though the content is unchanged`() = runTest(dispatcher) {
+        val text = SettingsSerialization.export(enabled, emptyList(), emptyList(), emptyList())
+        settings.value = enabled.copy(autoBackupLastHash = AutoBackupManager.sha256(text), autoBackupLastSuccessAt = 1L)
+        writer.present = false
+        manager()
+        settle()
+        assertEquals(listOf("content://tree/backup" to text), writer.writes)
+    }
+
+    @Test
+    fun `a present file with a matching hash is left alone at start`() = runTest(dispatcher) {
+        val text = SettingsSerialization.export(enabled, emptyList(), emptyList(), emptyList())
+        settings.value = enabled.copy(autoBackupLastHash = AutoBackupManager.sha256(text), autoBackupLastSuccessAt = 1L)
+        manager()
+        settle()
+        assertEquals(0, writer.writes.size)
+    }
+
+    @Test
+    fun `forced flush rewrites content matching the last write`() = runTest(dispatcher) {
+        val m = manager()
+        settle()
+        writer.writes.clear()
+        m.flush()
+        assertEquals(0, writer.writes.size)
+        m.flush(force = true)
+        assertEquals(1, writer.writes.size)
+    }
+
     private class FakeBackupWriter : BackupWriter {
         val writes = mutableListOf<Pair<String, String>>()
         var attempts = 0
         var fail = false
+        var present = true
         override suspend fun write(treeUri: String, text: String): Result<Unit> {
             attempts++
             if (fail) return Result.failure(java.io.IOException("boom"))
             writes += treeUri to text
+            present = true
             return Result.success(Unit)
         }
+
+        override suspend fun exists(treeUri: String) = present
     }
 }
