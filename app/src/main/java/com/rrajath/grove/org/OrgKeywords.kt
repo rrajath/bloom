@@ -1,14 +1,21 @@
 package com.rrajath.grove.org
 
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
+
 /**
  * TODO keyword configuration. Settings format mirrors org/Orgzly:
  * `"TODO IN-PROGRESS | DONE CANCELLED"`: keywords after `|` are done-type.
  */
 data class OrgKeywords(
-    val active: List<String>,
-    val done: List<String>,
+    val active: ImmutableList<String>,
+    val done: ImmutableList<String>,
 ) {
-    val all: List<String> = active + done
+    /** Copies plain lists, so a caller can never mutate a value Compose treats as stable. */
+    constructor(active: List<String>, done: List<String>) :
+        this(active.toImmutableList(), done.toImmutableList())
+
+    val all: ImmutableList<String> = (active + done).toImmutableList()
 
     fun isDone(keyword: String): Boolean = keyword in done
 

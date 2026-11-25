@@ -2,6 +2,10 @@ package com.rrajath.grove.sync
 
 import com.rrajath.grove.vault.FileEntry
 import com.rrajath.grove.vault.FileStore
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -29,10 +33,10 @@ sealed class SyncState {
 }
 
 data class SyncResult(
-    val pulled: List<String>,
-    val removed: List<String>,
+    val pulled: ImmutableList<String>,
+    val removed: ImmutableList<String>,
     /** Notebook file name → Syncthing conflict copy file name. */
-    val conflicts: Map<String, String>,
+    val conflicts: ImmutableMap<String, String>,
     val completedAt: Long,
 )
 
@@ -180,9 +184,9 @@ class SyncEngine(
             conflicts.forEach { (base, copy) -> log("conflict: $base vs $copy") }
 
             val result = SyncResult(
-                pulled = changed.map { it.name },
-                removed = removed,
-                conflicts = conflicts,
+                pulled = changed.map { it.name }.toImmutableList(),
+                removed = removed.toImmutableList(),
+                conflicts = conflicts.toImmutableMap(),
                 completedAt = clock(),
             )
             _state.value = SyncState.Done(result)
