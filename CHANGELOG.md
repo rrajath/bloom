@@ -72,6 +72,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Agenda's Overdue card drops "Move to today"; reschedule missed deadlines one at a time instead.
 
 ### Fixed
+- Agenda widget: DONE keywords now get a green pill like in the app, and pills align with task text (#125).
 - Saving a capture template no longer risks being lost when the editor closes before the write finishes.
 - A newly saved capture template now always appears on the templates list right away, without reopening it.
 - In right-to-left languages, the conflict diff now shows file lines in their own direction, keeping punctuation in place.
