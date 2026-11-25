@@ -26,10 +26,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
+import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.NewNoteCursor
 import com.rrajath.grove.settings.NoteOpenMode
+import com.rrajath.grove.ui.components.DropdownPicker
 import com.rrajath.grove.ui.components.SegmentedControl
 import com.rrajath.grove.ui.newbadge.MarkNewFeatureSeen
 import com.rrajath.grove.ui.newbadge.NewAnchors
@@ -58,6 +60,11 @@ fun SettingsNotesScreen(
     onSetHighlightCurrentLine: (Boolean) -> Unit,
     onSetAutoArchiveDoneItems: (Boolean) -> Unit,
     onOpenArchiveLocationPicker: () -> Unit,
+    onSetClockOutWhenDone: (Boolean) -> Unit,
+    onSetDiscardZeroClocks: (Boolean) -> Unit,
+    onSetClockNotification: (Boolean) -> Unit,
+    onSetClockInState: (String?) -> Unit,
+    onSetClockOutState: (String?) -> Unit,
 ) {
     val c = MaterialTheme.grove
     var keywordsText by remember(settings.todoKeywords) {
@@ -265,6 +272,83 @@ fun SettingsNotesScreen(
                 }
             }
         }
+        Spacer(Modifier.height(20.dp))
+
+        SectionLabel(stringResource(R.string.settings_notes_section_clocking))
+        SettingsGroup {
+            val keywords = remember(settings.todoKeywords) { OrgKeywords.parse(settings.todoKeywords) }
+            // A clock-in state is a working state, so only todo-type keywords;
+            // clocking out may close the task, so any keyword.
+            ClockStatePicker(
+                label = stringResource(R.string.settings_clock_in_state),
+                description = stringResource(R.string.settings_clock_in_state_desc),
+                options = keywords.active,
+                selected = settings.clockInState,
+                onSelect = onSetClockInState,
+            )
+            RowDivider()
+            ClockStatePicker(
+                label = stringResource(R.string.settings_clock_out_state),
+                description = stringResource(R.string.settings_clock_out_state_desc),
+                options = keywords.all,
+                selected = settings.clockOutState,
+                onSelect = onSetClockOutState,
+            )
+            RowDivider()
+            ToggleRow(
+                label = stringResource(R.string.settings_clock_out_when_done),
+                description = stringResource(R.string.settings_clock_out_when_done_desc),
+                checked = settings.clockOutWhenDone,
+                onToggle = onSetClockOutWhenDone,
+            )
+            RowDivider()
+            ToggleRow(
+                label = stringResource(R.string.settings_discard_zero_clocks),
+                description = stringResource(R.string.settings_discard_zero_clocks_desc),
+                checked = settings.discardZeroClocks,
+                onToggle = onSetDiscardZeroClocks,
+            )
+            RowDivider()
+            ToggleRow(
+                label = stringResource(R.string.settings_clock_notification),
+                description = stringResource(R.string.settings_clock_notification_desc),
+                checked = settings.clockNotification,
+                onToggle = onSetClockNotification,
+            )
+        }
+    }
+}
+
+/** A keyword picker with an "Unchanged" first option (null). */
+@Composable
+private fun ClockStatePicker(
+    label: String,
+    description: String,
+    options: List<String>,
+    selected: String?,
+    onSelect: (String?) -> Unit,
+) {
+    val c = MaterialTheme.grove
+    Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+        Text(
+            label,
+            fontFamily = PlexSans, fontWeight = FontWeight.Medium,
+            fontSize = 14.5.sp, color = c.ink,
+            modifier = Modifier.padding(bottom = 2.dp),
+        )
+        Text(
+            description,
+            fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        val choices = listOf<String?>(null) + options
+        val unchanged = stringResource(R.string.settings_clock_state_unchanged)
+        DropdownPicker(
+            options = choices.map { it ?: unchanged },
+            selectedIndex = choices.indexOf(selected).coerceAtLeast(0),
+            onSelect = { onSelect(choices[it]) },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

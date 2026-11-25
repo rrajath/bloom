@@ -95,7 +95,7 @@ object AutoArchive {
         newKeyword: String?,
         now: LocalDateTime,
     ): StateChangeResult {
-        val plainText = OrgMutations.changeKeyword(doc, headline, newKeyword, doc.keywords, now)
+        val plainText = OrgMutations.changeKeyword(doc, headline, newKeyword, doc.keywords, now, settings.clockOutPolicy)
         val plainDoc = OrgParser.parse(plainText, doc.keywords)
         fun plain() = StateChangeResult.Plain(fileName, plainText, plainDoc)
 
@@ -193,7 +193,7 @@ object AutoArchive {
             .filter { it.lineIndex in lines && it.keyword != newKeyword }
             .map { it.index }
         val edit = OrgMutations.editEach(doc, lines) { d, h ->
-            if (h.keyword == newKeyword) null else OrgMutations.changeKeyword(d, h, newKeyword, d.keywords, now)
+            if (h.keyword == newKeyword) null else OrgMutations.changeKeyword(d, h, newKeyword, d.keywords, now, settings.clockOutPolicy)
         } ?: return null
         val cur = edit.doc
 

@@ -31,10 +31,10 @@ import java.time.DayOfWeek
 import java.time.format.TextStyle
 
 /**
- * Only these two are offered from the swipe-action pickers below; [AgendaSwipeAction.SET_DEADLINE]
+ * Only these are offered from the swipe-action pickers below; [AgendaSwipeAction.SET_DEADLINE]
  * stays a valid stored value (an older export can still carry it) but is no longer user-selectable.
  */
-private val SWIPE_ACTION_OPTIONS = listOf(AgendaSwipeAction.MARK_DONE, AgendaSwipeAction.SET_SCHEDULED)
+private val SWIPE_ACTION_OPTIONS = listOf(AgendaSwipeAction.MARK_DONE, AgendaSwipeAction.SET_SCHEDULED, AgendaSwipeAction.CLOCK)
 
 /** Settings § Agenda. */
 @Composable
@@ -154,6 +154,8 @@ private fun swipeDescriptionRes(left: Boolean, action: AgendaSwipeAction): Int =
         if (left) R.string.settings_agenda_swipe_left_deadline else R.string.settings_agenda_swipe_right_deadline
     AgendaSwipeAction.MARK_DONE ->
         if (left) R.string.settings_agenda_swipe_left_done else R.string.settings_agenda_swipe_right_done
+    AgendaSwipeAction.CLOCK ->
+        if (left) R.string.settings_agenda_swipe_left_clock else R.string.settings_agenda_swipe_right_clock
 }
 
 /** "System default (Monday)" names the day the device region resolves to, in the app's language. */

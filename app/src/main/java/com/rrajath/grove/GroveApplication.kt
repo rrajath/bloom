@@ -15,6 +15,8 @@ import com.rrajath.grove.attach.onConfigChange
 import com.rrajath.grove.capture.SharedPayload
 import com.rrajath.grove.capture.ShortcutSyncer
 import com.rrajath.grove.capture.TemplatesRepository
+import com.rrajath.grove.clock.ClockNotification
+import com.rrajath.grove.clock.ClockService
 import com.rrajath.grove.data.FavoritesRepository
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.data.RoomNoteIndex
@@ -22,6 +24,9 @@ import com.rrajath.grove.icon.AppIconManager
 import com.rrajath.grove.icon.NotificationAppearance
 import com.rrajath.grove.org.LocalDates
 import com.rrajath.grove.org.OrgKeywords
+import com.rrajath.grove.org.clockTotalStart
+import com.rrajath.grove.org.clockedMinutes
+import com.rrajath.grove.org.clocks
 import com.rrajath.grove.reminders.AlarmScheduler
 import com.rrajath.grove.reminders.ExactAlarmAccessWatcher
 import com.rrajath.grove.reminders.ReminderDigestScheduler
@@ -38,6 +43,7 @@ import com.rrajath.grove.sync.SyncManager
 import com.rrajath.grove.vault.FileStore
 import com.rrajath.grove.vault.IgnorePatterns
 import com.rrajath.grove.widget.CaptureNotification
+import com.rrajath.grove.widget.ClockWidget
 import com.rrajath.grove.vault.JvmFileStore
 import com.rrajath.grove.vault.LineEndingFileStore
 import com.rrajath.grove.vault.SafFileStore
@@ -52,6 +58,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -195,7 +202,7 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
         SyncManager(
             this, appScope, database,
             keywords = { keywords.value },
-            onNotebookIndexed = ::reconcileFileReminders,
+            onNotebookIndexed = ::onFileIndexed,
             onSyncCompleted = { result ->
                 // Only prune on a real directory-diffed pass that actually saw a
                 // removal: a null result means the sync failed (or was a targeted
@@ -427,6 +434,39 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
         com.rrajath.grove.dailies.DailyNoteLookup(vault, settingsRepository, appScope, dispatchers.io)
     }
 
+    private val fileIndexedEvents =
+        MutableSharedFlow<String>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * The name of every file just (re)indexed: by a full sync pass, a
+     * single-file reindex, or [reindexNow]. A screen holding a parsed document
+     * reloads it from here, so a write it didn't make (the clock notification,
+     * the widget, Syncthing) can't be overwritten by its next edit.
+     */
+    val fileIndexed: SharedFlow<String> get() = fileIndexedEvents
+
+    private suspend fun onFileIndexed(fileName: String, doc: com.rrajath.grove.org.OrgDocument) {
+        reconcileFileReminders(fileName, doc)
+        fileIndexedEvents.tryEmit(fileName)
+    }
+
+    /** The one running clock (see `clock` package); every clock edit goes through it. */
+    val clockService: ClockService by lazy {
+        ClockService(
+            vault = vault,
+            runningRows = database.indexDao().runningClocks(),
+            settings = settingsRepository,
+            reindex = { fileName, text ->
+                // Straight into Room, so the notification and widget follow even
+                // before the sync engine attaches; the queued reindex then logs it
+                // and nudges the agenda widget, as the widget's own actions do.
+                reindexNow(fileName, text)
+                syncManager.requestReindex(fileName, text, "clock")
+            },
+            scope = appScope,
+        )
+    }
+
     private suspend fun reconcileFileReminders(fileName: String, doc: com.rrajath.grove.org.OrgDocument) {
         val settings = settingsRepository.settings.first()
         reminderReconciler.reconcileFile(
@@ -464,13 +504,26 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
             ?: return run { android.util.Log.w("GroveWidget", "reindexNow: stat null for $fileName") }
         // stat's name is the real spelling on a case-insensitive store.
         val conflictFileName = database.indexDao().conflictFileNameFor(stat.name)
-        RoomNoteIndex(database, keywords = { keywords.value }, onIndexed = ::reconcileFileReminders).indexNotebook(
+        RoomNoteIndex(database, keywords = { keywords.value }, onIndexed = ::onFileIndexed).indexNotebook(
             fileName = stat.name,
             revision = "${stat.lastModified}:${stat.size}",
             text = text,
             lastModified = stat.lastModified,
             conflictFileName = conflictFileName,
         )
+    }
+
+    /**
+     * Minutes already closed on [clock]'s heading by the mode line's rule
+     * ([clockTotalStart]), which the notification's chronometer adds to the
+     * running span so it reads as Emacs' total does. Zero when the file can't be read.
+     */
+    private suspend fun priorClockMinutes(clock: com.rrajath.grove.clock.RunningClock): Int {
+        val v = vault.value ?: withTimeoutOrNull(5_000) { vault.filterNotNull().first() } ?: return 0
+        val doc = v.open(clock.fileName) ?: return 0
+        val h = doc.headlines.firstOrNull { h -> doc.clocks(h).any { it.isRunning && it.start == clock.start } }
+            ?: return 0
+        return doc.clockedMinutes(h, from = clockTotalStart(h, java.time.LocalDateTime.now()))
     }
 
     override fun onCreate() {
@@ -595,6 +648,25 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
                 .map { it.syncMode to it.periodicSyncMinutes }
                 .distinctUntilChanged()
                 .collect { (mode, minutes) -> syncManager.schedulePeriodic(mode, minutes) }
+        }
+
+        appScope.launch {
+            // The clock notification follows the index's open clocks, wherever
+            // they were started, and the setting; the clock widget redraws too.
+            combine(
+                clockService.running,
+                settingsRepository.settings.map { it.clockNotification }.distinctUntilChanged(),
+            ) { clocks, enabled -> clocks to enabled }
+                .distinctUntilChanged()
+                .collect { (clocks, enabled) ->
+                    val clock = clocks.firstOrNull()
+                    if (!enabled || clock == null) {
+                        ClockNotification.hide(this@GroveApplication)
+                    } else {
+                        ClockNotification.show(this@GroveApplication, clock, priorClockMinutes(clock), clocks.size - 1)
+                    }
+                    ClockWidget().updateAll(this@GroveApplication)
+                }
         }
 
         appScope.launch {

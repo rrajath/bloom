@@ -5,6 +5,7 @@ import com.rrajath.grove.attach.fileAttachDirProperty
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgParser
+import com.rrajath.grove.org.clocks
 import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.sync.KnownNotebook
 import com.rrajath.grove.sync.NoteIndex
@@ -78,6 +79,7 @@ class RoomNoteIndex(
                 lastModified = lastModified,
                 dirProperty = h.attachDirProperty(),
                 propertyKeys = joinPropertyKeys(h.properties.keys),
+                clockStart = doc.clocks(h).filter { it.isRunning }.maxOfOrNull { it.start!! }?.toString(),
             )
         } + introNote(doc, fileName, lastModified)
         dao.replaceNotebook(

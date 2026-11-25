@@ -363,7 +363,10 @@ enum class WeekStart(val storageKey: String, @StringRes val labelRes: Int) {
 enum class AgendaSwipeAction(val storageKey: String, @StringRes val labelRes: Int) {
     SET_SCHEDULED("set_scheduled", R.string.agenda_swipe_action_schedule),
     SET_DEADLINE("set_deadline", R.string.agenda_swipe_action_deadline),
-    MARK_DONE("mark_done", R.string.agenda_swipe_action_done);
+    MARK_DONE("mark_done", R.string.agenda_swipe_action_done),
+
+    /** Clock in on the row's heading, or out when its clock runs (the Emacs agenda's `I` / `O`). */
+    CLOCK("clock", R.string.agenda_swipe_action_clock);
 
     companion object {
         fun fromStorage(value: String?, default: AgendaSwipeAction): AgendaSwipeAction =

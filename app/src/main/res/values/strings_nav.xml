@@ -44,4 +44,10 @@
     <string name="onboarding_step_point">Point %1$s at that folder below: sync is automatic</string>
     <string name="onboarding_choose_folder">Choose a local folder</string>
     <string name="onboarding_later">I\'ll set this up later</string>
+
+    <!-- Drawer row for the running org clock: this label over the heading's title, with the time so far.
+         Written in normal case; the app shows it in capitals. -->
+    <string name="nav_clocked_in">Clocked in</string>
+    <!-- Screen reader label for the row's stop button. -->
+    <string name="nav_clock_out">Clock out</string>
 </resources>

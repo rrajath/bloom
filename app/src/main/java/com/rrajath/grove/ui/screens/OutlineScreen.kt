@@ -82,6 +82,8 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -112,6 +114,7 @@ import com.rrajath.grove.org.INTRO_LINE_INDEX
 import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.runningClock
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.settings.OutlineToggle
 import com.rrajath.grove.ui.components.BrandMarkGlyph
@@ -936,6 +939,8 @@ fun OutlineScreen(
                     )
                 }
 
+                ClockResolveHost(viewModel, doc)
+
                 noteDialogFor?.let { line ->
                     val headline = doc.headlineAtLine(line)
                     if (headline != null) {
@@ -975,6 +980,10 @@ fun OutlineScreen(
                             showFavorite = true,
                             isFavorite = isFavorite,
                             onToggleFavorite = { toggleFavoriteOf(single, isFavorite) },
+                            clockRunning = doc.runningClock(single) != null,
+                            onClockIn = { viewModel.clockIn(single) },
+                            onClockOut = { viewModel.clockOut(single) },
+                            onCancelClock = { viewModel.cancelClock(single) },
                             onDismiss = { metadataOpen = false },
                         )
                     } else {
@@ -1469,15 +1478,30 @@ private fun OutlineNode(
                     )
                     Spacer(Modifier.width(6.dp))
                 }
-                // The title takes the full width; `… N`, tags and star ride its last
-                // line at the row's end, or drop below it when they don't fit (#91).
+                val isClocking = remember(doc, headline) { doc.runningClock(headline) != null }
+                val clockedIn = stringResource(R.string.clock_clocked_in)
+                // The title takes the full width; `… N`, tags, clock and star ride its
+                // last line at the row's end, or drop below it when they don't fit (#91).
                 TitleWithTrailingTags(
                     tags = if (flags.tags) headline.tags else emptyList(),
                     tagStyle = TextStyle(fontFamily = PlexMono, fontSize = 11.sp, color = c.synTag),
                     leading = if (isCollapsed && childCount > 0) {
                         { Text("… $childCount", fontFamily = PlexMono, fontSize = 11.sp, color = c.ink3) }
                     } else null,
-                    trailing = if (isFavorite) { { FavoriteStar() } } else null,
+                    trailing = if (isClocking || isFavorite) {
+                        {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isClocking) {
+                                    Text(
+                                        "◷", fontFamily = PlexMono, fontSize = 12.sp, color = c.accent,
+                                        modifier = Modifier.semantics { contentDescription = clockedIn },
+                                    )
+                                }
+                                if (isClocking && isFavorite) Spacer(Modifier.width(6.dp))
+                                if (isFavorite) FavoriteStar()
+                            }
+                        }
+                    } else null,
                     modifier = Modifier.alignByBaseline().weight(1f, fill = true),
                 ) { onTextLayout ->
                     Text(

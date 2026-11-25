@@ -15,6 +15,7 @@ import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.settings.SettingsRepository
 import com.rrajath.grove.testing.FakeSyncTrigger
+import com.rrajath.grove.testing.TestClockService
 import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.testing.support.MainDispatcherRule
@@ -114,15 +115,18 @@ class DocumentViewModelAttachmentLinkTest {
     }
 
     private fun TestScope.loaded(): DocumentViewModel {
+        val vaultFlow = MutableStateFlow<Vault?>(Vault(store, parseDispatcher = mainDispatcherRule.dispatcher))
+        val settingsRepository = SettingsRepository(app, repoScope)
         val vm = DocumentViewModel(
-            vaultFlow = MutableStateFlow(Vault(store, parseDispatcher = mainDispatcherRule.dispatcher)),
+            vaultFlow = vaultFlow,
             keywordsFlow = MutableStateFlow(OrgKeywords.DEFAULT),
             sync = FakeSyncTrigger(),
             database = db,
-            settingsRepository = SettingsRepository(app, repoScope),
+            settingsRepository = settingsRepository,
             favoritesRepository = FavoritesRepository(app),
             dispatchers = mainDispatcherRule.appDispatchers,
             app = app,
+            clockService = TestClockService.create(vaultFlow, db, store, settingsRepository, repoScope),
         ).also { liveVms += it }
         vm.load("notes.org")
         advanceUntilIdle()

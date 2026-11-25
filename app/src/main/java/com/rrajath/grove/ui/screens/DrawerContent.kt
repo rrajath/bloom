@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.core.os.ConfigurationCompat
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -43,10 +45,13 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rrajath.grove.R
+import com.rrajath.grove.clock.RunningClock
 import com.rrajath.grove.data.FavoriteNote
 import com.rrajath.grove.search.SavedSearch
 import com.rrajath.grove.ui.components.BrandMark
 import com.rrajath.grove.ui.components.agendaIcon
+import com.rrajath.grove.ui.components.orgInlinePlainText
+import com.rrajath.grove.ui.components.rememberMinuteTicker
 import com.rrajath.grove.ui.components.dailiesIcon
 import com.rrajath.grove.ui.components.favoriteIcon
 import com.rrajath.grove.ui.components.notebookIcon
@@ -61,6 +66,8 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.vault.NoteRef
+import com.rrajath.grove.org.OrgClock
+import java.time.Duration
 
 /** Navigation drawer per design spec §3. */
 @Composable
@@ -82,6 +89,9 @@ fun GroveDrawerContent(
     onDeleteFavorite: (FavoriteNote) -> Unit = {},
     onRenameFavorite: (FavoriteNote, String) -> Unit = { _, _ -> },
     onMoveFavorite: (FavoriteNote, Int) -> Unit = { _, _ -> },
+    /** The running clock, if any: a "Clocked in" row on top, `org-clock-goto` on tap. */
+    clock: RunningClock? = null,
+    onClockOut: (RunningClock) -> Unit = {},
 ) {
     val c = MaterialTheme.grove
     var searchMenuTarget by remember { mutableStateOf<SavedSearch?>(null) }
@@ -115,6 +125,15 @@ fun GroveDrawerContent(
                 .verticalScroll(rememberScrollState()),
         ) {
             Spacer(Modifier.height(8.dp))
+
+            clock?.let { running ->
+                ClockedInDrawerRow(
+                    clock = running,
+                    onOpen = { onNavigate(Routes.note(NoteRef(running.fileName, running.lineIndex).encode())) },
+                    onClockOut = { onClockOut(running) },
+                )
+                HorizontalDivider(color = c.line, modifier = Modifier.padding(vertical = 8.dp))
+            }
 
             DrawerItem(icon = searchIcon(), label = stringResource(R.string.nav_search), active = false) { onNavigate(Routes.search()) }
             DrawerItem(icon = notebookIcon(), label = stringResource(R.string.nav_notebooks), active = currentRoute == Routes.NOTEBOOKS) { onNavigate(Routes.NOTEBOOKS) }
@@ -302,6 +321,50 @@ private fun DailiesDrawerRow(todayShortLabel: String, onClick: () -> Unit) {
         Text(stringResource(R.string.nav_dailies), fontFamily = PlexSans, fontSize = 14.5.sp, color = c.ink, modifier = Modifier.weight(1f))
         if (todayShortLabel.isNotBlank()) {
             Text(todayShortLabel, fontFamily = PlexMono, fontSize = 12.sp, color = c.ink3)
+        }
+    }
+}
+
+/**
+ * The running clock, Emacs' mode-line clock in drawer form: its heading (tap
+ * opens it) and the time on this clock so far, with a stop button.
+ */
+@Composable
+private fun ClockedInDrawerRow(clock: RunningClock, onOpen: () -> Unit, onClockOut: () -> Unit) {
+    val c = MaterialTheme.grove
+    val now = rememberMinuteTicker()
+    // Stored in normal case; capitalized here with the UI language's rules, as SectionLabel does.
+    val locale = ConfigurationCompat.getLocales(LocalConfiguration.current)[0] ?: java.util.Locale.ROOT
+    val clockOut = stringResource(R.string.nav_clock_out)
+    val elapsed = Duration.between(clock.start, now).toMinutes().toInt().coerceAtLeast(0)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(c.accentSoft)
+            .clickable(onClick = onOpen)
+            .padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(30.dp)) {
+            Text("◷", fontFamily = PlexMono, fontSize = 18.sp, color = c.accent)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.nav_clocked_in).uppercase(locale),
+                fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 10.sp,
+                letterSpacing = 1.sp, color = c.accent,
+            )
+            Text(
+                orgInlinePlainText(clock.title),
+                fontFamily = PlexSans, fontSize = 14.5.sp, color = c.ink,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+        Text(OrgClock.hmm(elapsed), fontFamily = PlexMono, fontSize = 13.sp, color = c.accent)
+        TextButton(onClick = onClockOut, modifier = Modifier.semantics { contentDescription = clockOut }) {
+            Text("◼", fontFamily = PlexMono, fontSize = 16.sp, color = c.accent)
         }
     }
 }

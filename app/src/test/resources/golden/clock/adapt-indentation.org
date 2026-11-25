@@ -1,0 +1,9 @@
+# options: adapt-indentation
+# ops: in Task 2026-10-30T09:15 | out 2026-10-30T09:47
+* Project
+** TODO Task
+   SCHEDULED: <2026-10-30 Fri>
+   :PROPERTIES:
+   :ID: 5e0c2a6e-0002
+   :END:
+   Body text.

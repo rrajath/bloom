@@ -57,6 +57,11 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+- Org clocking: Clock in, Clock out and Cancel clock in a heading's metadata sheet write `CLOCK:` lines into its `:LOGBOOK:` exactly as Emacs does; one clock runs at a time, marking a task done stops its clock, and Read mode shows the clocked total.
+- The running clock shows in an ongoing notification with Clock out and Cancel, in the navigation drawer, and in a new Clock home-screen widget, including clocks started in Emacs and synced in.
+- An Agenda swipe can be set to Clock In / Out, and Settings › Notes › Clocking can switch a task's state on clock in and clock out, discard 0:00 clocks, and turn the notification off.
+
 ### Changed
 - Settings › Agenda › Start of week now names your region's first weekday in your device language.
 
@@ -64,6 +69,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Saving a capture template no longer risks being lost when the editor closes before the write finishes.
 - A newly saved capture template now always appears on the templates list right away, without reopening it.
 - In right-to-left languages, the conflict diff now shows file lines in their own direction, keeping punctuation in place.
+- The Outline and Read mode reload a file that was changed by a sync, a notification action or a widget, so their next edit can't undo that change.
 
 ## [1.16.0] - 2026-11-18
 

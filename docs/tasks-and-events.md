@@ -43,6 +43,8 @@ On the Agenda, widget, and Search `ad.N`, a repeating bare active timestamp show
 - **No repeater anywhere on it**: the keyword becomes the first configured done-type keyword (usually `DONE`) and a CLOSED timestamp is added. If Settings has auto-archive on, the heading is then refiled to its archive location.
 - **Any active timestamp in the entry repeats** (SCHEDULED, DEADLINE, the dedicated line, an inline body stamp, or one in the heading title; `OrgMutations.isRepeating`, matching Emacs's `org-get-repeat`): the task never reaches a done keyword. Following Emacs's `org-auto-repeat-maybe`, every repeating active timestamp in the entry advances, a SCHEDULED without a repeater and any CLOSED stamp are dropped, the keyword returns to the heading's `REPEAT_TO_STATE` property if it names a keyword, else to the first active keyword (so `NEXT` goes back to `TODO`), and a LOGBOOK state-change note plus a `LAST_REPEAT` property are recorded. Auto-archive never applies here, since there's no done keyword to trigger it. A done-to-done change (DONE to CANCELLED) never repeats.
 
+Either way, a clock running on the task is clocked out first (`org-clock-out-when-done`; Settings › Notes › Clocking can turn this off), from every surface that completes it.
+
 ## Advancing an event's timestamp
 
 An event has no keyword to change, so "completing" it never sets a keyword and never touches LOGBOOK or `LAST_REPEAT`:
