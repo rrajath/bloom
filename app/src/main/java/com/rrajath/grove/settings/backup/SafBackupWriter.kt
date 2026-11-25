@@ -28,7 +28,7 @@ interface BackupDocuments {
 }
 
 /**
- * Writes [FILE_NAME] into the automatic-backup folder, overwriting it in place.
+ * Writes [fileName] (see [fileNameFor]) into the automatic-backup folder, overwriting it in place.
  *
  * Always opens with "wt" (write + truncate): on Android 10+ some providers don't
  * truncate on bare "w", which would leave a stale tail and corrupt the JSON. A
@@ -36,14 +36,18 @@ interface BackupDocuments {
  * "w" on the fresh, empty document; one that can't remove (Seafile) fails into
  * the error status instead of risking a corrupt file.
  */
-class SafBackupWriter(private val docs: BackupDocuments) : BackupWriter {
+class SafBackupWriter(
+    private val docs: BackupDocuments,
+    /** `<app name>-settings.json`, from [fileNameFor]. */
+    val fileName: String,
+) : BackupWriter {
 
     /** Folder tree URI to its backup document URI, from the last successful write. */
     @Volatile
     private var cached: Pair<String, String>? = null
 
     /** The backup file in [treeUri], or null when there's none. Used by Restore. */
-    suspend fun find(treeUri: String): String? = docs.find(treeUri, FILE_NAME)
+    suspend fun find(treeUri: String): String? = docs.find(treeUri, fileName)
 
     override suspend fun write(treeUri: String, text: String): Result<Unit> {
         val bytes = text.toByteArray(Charsets.UTF_8)
@@ -53,13 +57,13 @@ class SafBackupWriter(private val docs: BackupDocuments) : BackupWriter {
             cached = null
         }
         return try {
-            val doc = find(treeUri) ?: create(treeUri) ?: throw IOException("can't create $FILE_NAME")
+            val doc = find(treeUri) ?: create(treeUri) ?: throw IOException("can't create $fileName")
             if (tryWrite(doc, "wt", bytes)) {
                 cached = treeUri to doc
                 return Result.success(Unit)
             }
             if (!docs.remove(doc)) throw IOException("provider supports neither truncate nor remove")
-            val fresh = create(treeUri) ?: throw IOException("can't recreate $FILE_NAME")
+            val fresh = create(treeUri) ?: throw IOException("can't recreate $fileName")
             docs.open(fresh, "w").use { it.write(bytes) }
             cached = treeUri to fresh
             Result.success(Unit)
@@ -71,7 +75,7 @@ class SafBackupWriter(private val docs: BackupDocuments) : BackupWriter {
         }
     }
 
-    private suspend fun create(treeUri: String): String? = docs.create(treeUri, FILE_NAME)
+    private suspend fun create(treeUri: String): String? = docs.create(treeUri, fileName)
 
     private suspend fun tryWrite(doc: String, mode: String, bytes: ByteArray): Boolean = try {
         docs.open(doc, mode).use { it.write(bytes) }
@@ -84,7 +88,9 @@ class SafBackupWriter(private val docs: BackupDocuments) : BackupWriter {
     }
 
     companion object {
-        const val FILE_NAME = "bloom-settings.json"
+        /** "Bloom" -> "bloom-settings.json", "Bloom Debug" -> "bloom-debug-settings.json". */
+        fun fileNameFor(appName: String): String =
+            appName.lowercase(java.util.Locale.ROOT).replace(' ', '-') + "-settings.json" // i18n: file name suffix
         private const val TAG = "AutoBackup" // i18n: log tag
     }
 }

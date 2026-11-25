@@ -14,19 +14,25 @@ class SafBackupWriterTest {
 
     private val tree = "content://tree/backup"
     private val docs = FakeDocs()
-    private val writer = SafBackupWriter(docs)
+    private val writer = SafBackupWriter(docs, NAME)
+
+    @Test
+    fun `the file is named after the app, lowercased with dashes for spaces`() {
+        assertEquals("bloom-settings.json", SafBackupWriter.fileNameFor("Bloom"))
+        assertEquals("bloom-debug-settings.json", SafBackupWriter.fileNameFor("Bloom Debug"))
+    }
 
     @Test
     fun `creates the file when missing and writes with truncate`() = runTest {
         assertTrue(writer.write(tree, "{}").isSuccess)
-        assertEquals(listOf(SafBackupWriter.FILE_NAME), docs.names.values.toList())
+        assertEquals(listOf(NAME), docs.names.values.toList())
         assertEquals("{}", docs.content.values.single())
         assertEquals(listOf("wt"), docs.modes)
     }
 
     @Test
     fun `an existing file is overwritten in place`() = runTest {
-        docs.add("doc1", SafBackupWriter.FILE_NAME, "old content that is long")
+        docs.add("doc1", NAME, "old content that is long")
         assertTrue(writer.write(tree, "new").isSuccess)
         assertEquals(mapOf("doc1" to "new"), docs.content)
         assertEquals(0, docs.creates)
@@ -51,16 +57,16 @@ class SafBackupWriterTest {
 
     @Test
     fun `a renamed document from the provider is used as returned`() = runTest {
-        docs.createName = "bloom-settings (1).json"
+        docs.createName = "bloom-debug-settings (1).json"
         assertTrue(writer.write(tree, "x").isSuccess)
-        assertEquals("bloom-settings (1).json", docs.names.values.single())
+        assertEquals("bloom-debug-settings (1).json", docs.names.values.single())
         writer.write(tree, "y")
         assertEquals("y", docs.content.values.single())
     }
 
     @Test
     fun `a provider rejecting truncate falls back to recreate and plain write`() = runTest {
-        docs.add("doc1", SafBackupWriter.FILE_NAME, "old content that is long")
+        docs.add("doc1", NAME, "old content that is long")
         docs.rejectTruncate = true
         assertTrue(writer.write(tree, "new").isSuccess)
         assertFalse("old doc gone", "doc1" in docs.content)
@@ -70,7 +76,7 @@ class SafBackupWriterTest {
 
     @Test
     fun `no truncate and no removal fails instead of writing a corrupt tail`() = runTest {
-        docs.add("doc1", SafBackupWriter.FILE_NAME, "old content that is long")
+        docs.add("doc1", NAME, "old content that is long")
         docs.rejectTruncate = true
         docs.removeSupported = false
         assertTrue(writer.write(tree, "new").isFailure)
@@ -87,8 +93,12 @@ class SafBackupWriterTest {
     @Test
     fun `find returns the backup file or null`() = runTest {
         assertNull(writer.find(tree))
-        docs.add("doc1", SafBackupWriter.FILE_NAME, "x")
+        docs.add("doc1", NAME, "x")
         assertEquals("doc1", writer.find(tree))
+    }
+
+    private companion object {
+        const val NAME = "bloom-debug-settings.json"
     }
 
     private class FakeDocs : BackupDocuments {
@@ -98,7 +108,7 @@ class SafBackupWriterTest {
         var finds = 0
         var creates = 0
         var next = 0
-        var createName = SafBackupWriter.FILE_NAME
+        var createName = NAME
         var rejectTruncate = false
         var removeSupported = true
         var createSupported = true

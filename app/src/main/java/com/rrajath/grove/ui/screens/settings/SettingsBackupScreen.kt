@@ -41,11 +41,9 @@ import com.rrajath.grove.settings.Backup
 import com.rrajath.grove.settings.BackupSection
 import com.rrajath.grove.settings.sections
 import com.rrajath.grove.ui.components.SyncedCheckIcon
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextOverflow
 import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
@@ -56,7 +54,7 @@ data class AutoBackupUiState(
     val treeUri: String? = null,
     val lastSuccessAt: Long? = null,
     val error: Boolean = false,
-    /** Whether `bloom-settings.json` exists in [treeUri]; gates Restore. */
+    /** Whether `<app name>-settings.json` exists in [treeUri]; gates Restore. */
     val fileExists: Boolean = false,
 )
 
@@ -122,19 +120,19 @@ fun SettingsBackupScreen(
                 }
             }
             RowDivider()
+            // The path sits under the label and wraps (line breaking allows a break after "/"), so it always shows in full.
             SettingsRow(
                 spec = SettingSpecs.BackupFolder,
+                descriptionContent = {
+                    Text(
+                        autoBackup.treeUri?.let { uriDisplayName(it) } ?: stringResource(R.string.settings_auto_backup_folder_none),
+                        fontFamily = PlexMono, fontSize = 12.sp,
+                        color = if (autoBackup.enabled) c.accent else c.ink3,
+                    )
+                },
                 onClick = openPicker,
                 enabled = autoBackup.enabled,
-            ) {
-                Text(
-                    autoBackup.treeUri?.let { uriDisplayName(it) } ?: stringResource(R.string.settings_auto_backup_folder_none),
-                    fontFamily = PlexMono, fontSize = 12.sp,
-                    color = if (autoBackup.enabled) c.accent else c.ink3,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 140.dp),
-                )
-            }
+            ) {}
             RowDivider()
             AutoBackupStatusLine(autoBackup, nowMillis, onErrorTap = openPicker)
             RowDivider()

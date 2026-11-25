@@ -10,9 +10,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.ui.theme.GroveTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -106,9 +109,31 @@ class SettingsBackupScreenRobolectricTest {
     }
 
     @Test
+    fun `a long folder path shows in full, wrapping at folder boundaries`() {
+        val segments = listOf("Documents", "Notes", "Archive", "Backups", "Settings", "Phone", "Bloom", "Automatic", "Exports")
+        val full = segments.joinToString("/")
+        val deep = "content://com.android.externalstorage.documents/tree/primary%3A" + segments.joinToString("%2F")
+        show(AutoBackupUiState(enabled = true, treeUri = deep))
+        composeRule.onNodeWithTag(SettingSpecs.BackupFolder.testTag).performScrollTo()
+        val layout = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        composeRule.onNodeWithText(full, useUnmergedTree = true)
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layout) }
+        val l = layout.single()
+        assertEquals(full, l.layoutInput.text.text)
+        assertTrue("wraps onto several lines", l.lineCount > 1)
+        for (line in 0 until l.lineCount) {
+            assertFalse("line $line ellipsized", l.isLineEllipsized(line))
+            assertTrue("line $line fits", l.getLineRight(line) <= l.size.width)
+            // Each line ends on a folder boundary or at the end of the path.
+            val text = l.layoutInput.text.text.substring(l.getLineStart(line), l.getLineEnd(line))
+            assertTrue("line $line = '$text'", line == l.lineCount - 1 || text.endsWith("/"))
+        }
+    }
+
+    @Test
     fun `the folder row shows the folder name and re-picks on tap`() {
         show(AutoBackupUiState(enabled = true, treeUri = folder))
-        composeRule.onNodeWithText("Documents/Bloom").performScrollTo()
+        composeRule.onNodeWithText("Documents/Bloom", useUnmergedTree = true).assertExists()
         node(SettingSpecs.BackupFolder).performClick()
         assertEquals(1, picks)
     }

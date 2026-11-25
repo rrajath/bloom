@@ -24,7 +24,7 @@ import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 
 /**
- * Keeps `bloom-settings.json` in the user's chosen folder in step with settings,
+ * Keeps `<app name>-settings.json` in the user's chosen folder in step with settings,
  * capture templates, favorites and saved searches.
  *
  * Change-driven, never polled: each emission of the four sources is serialized

@@ -128,10 +128,11 @@ open class GroveApplication : Application(), SingletonImageLoader.Factory {
 
     val favoritesRepository: FavoritesRepository by lazy { FavoritesRepository(this) }
 
-    /** Writes `bloom-settings.json` into the backup folder (Restore reads it back through [find][com.rrajath.grove.settings.backup.SafBackupWriter.find]). */
+    /** Writes `<app name>-settings.json` (`bloom-settings.json`) into the backup folder (Restore reads it back through [find][com.rrajath.grove.settings.backup.SafBackupWriter.find]). */
     val autoBackupWriter: com.rrajath.grove.settings.backup.SafBackupWriter by lazy {
         com.rrajath.grove.settings.backup.SafBackupWriter(
             com.rrajath.grove.settings.backup.SafBackupDocuments(contentResolver),
+            com.rrajath.grove.settings.backup.SafBackupWriter.fileNameFor(getString(R.string.app_name)),
         )
     }
 

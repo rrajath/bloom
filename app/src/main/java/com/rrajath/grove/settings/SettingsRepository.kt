@@ -115,7 +115,7 @@ data class GroveSettings(
     val providerBannerDismissedUri: String? = null,
     /** Persisted SAF tree URI of the sync folder; null until the user picks one. */
     val vaultTreeUri: String? = null,
-    /** Settings > Backup: keep `bloom-settings.json` up to date in [autoBackupTreeUri]. Device-specific: not exported. */
+    /** Settings > Backup: keep `<app name>-settings.json` up to date in [autoBackupTreeUri]. Device-specific: not exported. */
     val autoBackupEnabled: Boolean = false,
     /** Persisted SAF tree URI of the automatic-backup folder; kept when the toggle goes off. Device-specific: not exported. */
     val autoBackupTreeUri: String? = null,
