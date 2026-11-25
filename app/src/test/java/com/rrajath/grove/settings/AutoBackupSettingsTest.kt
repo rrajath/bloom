@@ -9,6 +9,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,6 +37,14 @@ class AutoBackupSettingsTest {
 
     private fun current() = runBlocking { repo.settings.first() }
 
+    /**
+     * [SettingsRepository.settings] is shared with replay 1 and collected on an IO
+     * scope, so right after an edit returns it can still replay the previous value.
+     * Wait for the value carrying the last write instead.
+     */
+    private fun after(lastWrite: (GroveSettings) -> Boolean) =
+        runBlocking { withTimeout(5_000) { repo.settings.first(lastWrite) } }
+
     @Test
     fun `defaults are off with no folder, status or hash`() {
         val s = current()
@@ -50,7 +59,7 @@ class AutoBackupSettingsTest {
     fun `toggle and folder persist`() = runBlocking {
         repo.setAutoBackupEnabled(true)
         repo.setAutoBackupTreeUri("content://tree/backup")
-        val s = current()
+        val s = after { it.autoBackupTreeUri != null }
         assertTrue(s.autoBackupEnabled)
         assertEquals("content://tree/backup", s.autoBackupTreeUri)
     }
@@ -58,10 +67,10 @@ class AutoBackupSettingsTest {
     @Test
     fun `a success records time and hash and clears the error`() = runBlocking {
         repo.recordAutoBackupFailure()
-        assertTrue(current().autoBackupLastError)
+        assertTrue(after { it.autoBackupLastError }.autoBackupLastError)
 
         repo.recordAutoBackupSuccess(at = 1234L, hash = "abc")
-        val s = current()
+        val s = after { it.autoBackupLastSuccessAt != null }
         assertEquals(1234L, s.autoBackupLastSuccessAt)
         assertEquals("abc", s.autoBackupLastHash)
         assertFalse(s.autoBackupLastError)
@@ -71,7 +80,7 @@ class AutoBackupSettingsTest {
     fun `a failure sets the error and drops the hash so the next attempt writes`() = runBlocking {
         repo.recordAutoBackupSuccess(at = 1L, hash = "abc")
         repo.recordAutoBackupFailure()
-        val s = current()
+        val s = after { it.autoBackupLastError }
         assertTrue(s.autoBackupLastError)
         assertNull(s.autoBackupLastHash)
         assertEquals(1L, s.autoBackupLastSuccessAt)
@@ -83,7 +92,7 @@ class AutoBackupSettingsTest {
         repo.recordAutoBackupSuccess(at = 1L, hash = "abc")
         repo.recordAutoBackupFailure()
         repo.setAutoBackupTreeUri("content://tree/b")
-        val s = current()
+        val s = after { it.autoBackupTreeUri == "content://tree/b" }
         assertEquals("content://tree/b", s.autoBackupTreeUri)
         assertNull(s.autoBackupLastHash)
         assertNull(s.autoBackupLastSuccessAt)
