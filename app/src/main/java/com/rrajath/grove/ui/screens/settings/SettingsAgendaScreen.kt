@@ -45,6 +45,8 @@ fun SettingsAgendaScreen(
     onSetAgendaSwipeRightAction: (AgendaSwipeAction) -> Unit,
     onSetAgendaDeadlineWarningDays: (Int) -> Unit,
     onSetWeekStart: (WeekStart) -> Unit,
+    onSetAgendaCalendarShowTimes: (Boolean) -> Unit,
+    onSetAgendaCalendarShowDone: (Boolean) -> Unit,
 ) {
     val c = MaterialTheme.grove
     // Leaving this screen retires the Deadline warning's NEW dot from its whole
@@ -141,6 +143,20 @@ fun SettingsAgendaScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            RowDivider()
+            ToggleRow(
+                label = stringResource(R.string.settings_agenda_calendar_show_times),
+                description = stringResource(R.string.settings_agenda_calendar_show_times_hint),
+                checked = settings.agendaCalendarShowTimes,
+                onToggle = onSetAgendaCalendarShowTimes,
+            )
+            RowDivider()
+            ToggleRow(
+                label = stringResource(R.string.settings_agenda_calendar_show_done),
+                description = stringResource(R.string.settings_agenda_calendar_show_done_hint),
+                checked = settings.agendaCalendarShowDone,
+                onToggle = onSetAgendaCalendarShowDone,
+            )
         }
     }
 }

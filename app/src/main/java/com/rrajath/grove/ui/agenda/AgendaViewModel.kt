@@ -22,11 +22,13 @@ import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.org.orgLocale
 import com.rrajath.grove.search.NoteMeta
+import com.rrajath.grove.settings.AgendaCalendarView
 import com.rrajath.grove.settings.AgendaGrouping
 import com.rrajath.grove.settings.AgendaStateFilter
 import com.rrajath.grove.settings.AgendaSwipeAction
 import com.rrajath.grove.settings.GroveSettings
 import com.rrajath.grove.settings.SettingsRepository
+import com.rrajath.grove.settings.WeekStart
 import com.rrajath.grove.sync.SyncTrigger
 import com.rrajath.grove.ui.util.UiText
 import com.rrajath.grove.ui.util.markedDoneMessage
@@ -45,7 +47,9 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.abs
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -147,8 +151,8 @@ val AgendaRow.hasDoneAffordance: Boolean get() = keyword != null || repeaterKind
 @Immutable
 data class AgendaGroup(val key: String, val label: UiText, val count: Int, val rows: ImmutableList<AgendaRow>)
 
-/** The Today/Upcoming segmented control. Navigational, so it is not persisted. */
-enum class AgendaTab { TODAY, UPCOMING }
+/** The Today/Upcoming/Calendar segmented control. Navigational, so it is not persisted. */
+enum class AgendaTab { TODAY, UPCOMING, CALENDAR }
 
 data class AgendaUiState(
     /** "Wednesday": the big header line. */
@@ -170,6 +174,12 @@ data class AgendaUiState(
     val showTimestamps: Boolean = false,
     val swipeLeftAction: AgendaSwipeAction = AgendaSwipeAction.MARK_DONE,
     val swipeRightAction: AgendaSwipeAction = AgendaSwipeAction.SET_SCHEDULED,
+    val anchor: LocalDate = LocalDate.now(),
+    val calendarView: AgendaCalendarView = AgendaCalendarView.MONTH,
+    val weekStart: WeekStart = WeekStart.SYSTEM,
+    val calendarShowTimes: Boolean = true,
+    /** Rows per day of the calendar grid; filled only while the Calendar tab is showing. */
+    val calendar: ImmutableMap<LocalDate, ImmutableList<AgendaRow>> = persistentMapOf(),
 ) {
     val overdueCount: Int get() = overdue.size
     val isEmpty: Boolean get() = overdue.isEmpty() && groups.isEmpty()
@@ -188,6 +198,10 @@ private data class AgendaPrefs(
     val showTags: Boolean,
     val showFile: Boolean,
     val showTimestamps: Boolean,
+    val calendarView: AgendaCalendarView,
+    val calendarShowTimes: Boolean,
+    val calendarShowDone: Boolean,
+    val weekStart: WeekStart,
     val swipeLeft: AgendaSwipeAction,
     val swipeRight: AgendaSwipeAction,
     val deadlineWarningDays: Int,
@@ -200,6 +214,10 @@ private data class AgendaPrefs(
         s.agendaShowTags,
         s.agendaShowFile,
         s.agendaShowTimestamps,
+        s.agendaCalendarView,
+        s.agendaCalendarShowTimes,
+        s.agendaCalendarShowDone,
+        s.weekStart,
         s.agendaSwipeLeftAction,
         s.agendaSwipeRightAction,
         s.agendaDeadlineWarningDays,
@@ -251,6 +269,11 @@ class AgendaViewModel(
     private var tab = AgendaTab.TODAY
     private var leversOpen = false
     private var overdueOpen = false
+    private var anchor = LocalDate.now()
+
+    // Replaced whenever the index, settings or keywords change, so cached ranges never go stale.
+    @Volatile
+    private var calendarBuckets = AgendaCalendarBuckets()
 
     @Volatile
     private var loadingMore = false
@@ -286,6 +309,7 @@ class AgendaViewModel(
                     prefs = settings
                     keywords = kw
                     matched = notes
+                    calendarBuckets = AgendaCalendarBuckets()
                     _state.value = buildState()
                 }
         }
@@ -296,6 +320,11 @@ class AgendaViewModel(
     fun setTab(next: AgendaTab) {
         tab = next
         recompute()
+    }
+
+    fun setCalendar(anchor: LocalDate, view: AgendaCalendarView) {
+        this.anchor = anchor
+        if (view != prefs.agendaCalendarView) persist { it.setAgendaCalendarView(view) } else recompute()
     }
 
     fun toggleLevers() {
@@ -345,6 +374,7 @@ class AgendaViewModel(
     // --- list construction ---
 
     private fun buildState(): AgendaUiState {
+        val buckets = calendarBuckets
         val today = LocalDate.now()
         val p = prefs
         val active = keywords.active
@@ -353,7 +383,11 @@ class AgendaViewModel(
         // levers), so changing one on Today never re-buckets or re-filters
         // Upcoming, and vice versa.
         val grouping = if (isTodayTab) p.agendaGroupingToday else p.agendaGroupingUpcoming
-        val rawFilter = if (isTodayTab) p.agendaStateFilterToday else p.agendaStateFilterUpcoming
+        val rawFilter = when {
+            tab == AgendaTab.CALENDAR -> if (p.agendaCalendarShowDone) AgendaStateFilter.All else AgendaStateFilter.Open
+            isTodayTab -> p.agendaStateFilterToday
+            else -> p.agendaStateFilterUpcoming
+        }
         // A persisted keyword filter can outlive the keyword itself (the user
         // edited todoKeywords); fall back rather than showing an empty list
         // with no chip selected.
@@ -397,7 +431,7 @@ class AgendaViewModel(
         } else {
             emptyList()
         }
-        val groups = dueSoonGroup + if (grouping == AgendaGrouping.DATE) {
+        val groups = if (tab == AgendaTab.CALENDAR) emptyList<AgendaGroup>() else dueSoonGroup + if (grouping == AgendaGrouping.DATE) {
             dateGroups(visible, plannable, list, today, isTodayTab, windowDays, p)
         } else {
             AgendaBuckets.group(list, today, grouping, isTodayTab)
@@ -423,6 +457,15 @@ class AgendaViewModel(
             showTimestamps = p.agendaShowTimestamps,
             swipeLeftAction = p.agendaSwipeLeftAction,
             swipeRightAction = p.agendaSwipeRightAction,
+            anchor = anchor,
+            calendarView = p.agendaCalendarView,
+            weekStart = p.weekStart,
+            calendarShowTimes = p.agendaCalendarShowTimes,
+            calendar = if (tab == AgendaTab.CALENDAR) {
+                buckets.byDay(visible, plannable, p.agendaCalendarView.weeks(anchor, p.weekStart.firstDay()).flatten().filterNotNull(), today, p)
+            } else {
+                persistentMapOf()
+            },
         )
     }
 
@@ -797,12 +840,9 @@ class AgendaViewModel(
             eventDay: LocalDate? = null,
             placement: RowPlacement? = null,
         ): AgendaRow {
-            val scheduledTs = m.scheduled?.let { OrgTimestamp.parse(it) }
-            val deadlineTs = m.deadline?.let { OrgTimestamp.parse(it) }
-            val allActive = m.active
-                ?.let { OrgTimestamp.parseAll(it).filter { ts -> ts.active } }
-                .orEmpty()
-                .toImmutableList()
+            val scheduledTs = m.scheduledTs
+            val deadlineTs = m.deadlineTs
+            val allActive = m.activeTimestamps.toImmutableList()
 
             if (activeTs != null) {
                 val meta = buildList {

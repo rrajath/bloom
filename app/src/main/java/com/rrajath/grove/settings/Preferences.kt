@@ -388,6 +388,17 @@ enum class AgendaGrouping(val storageKey: String, @StringRes val labelRes: Int) 
     }
 }
 
+/** How many days the Agenda's Calendar tab shows around its anchor date. */
+enum class AgendaCalendarView(val storageKey: String, @StringRes val labelRes: Int) {
+    MONTH("month", R.string.agenda_calendar_month),
+    WEEK("week", R.string.agenda_calendar_week),
+    TWO_WEEKS("two_weeks", R.string.agenda_calendar_two_weeks);
+
+    companion object {
+        fun fromStorage(raw: String?): AgendaCalendarView = entries.firstOrNull { it.storageKey == raw } ?: MONTH
+    }
+}
+
 /**
  * Agenda levers § "Show": which TODO states reach the list.
  *
