@@ -323,7 +323,7 @@ internal fun deleteDetail(inventory: AttachmentInventory): UiText {
 @Composable
 private fun LifecycleSheet(onDismiss: () -> Unit, modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
     val c = MaterialTheme.grove
-    ModalBottomSheet(
+    com.rrajath.grove.ui.components.GroveModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = c.surface,

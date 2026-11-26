@@ -122,6 +122,7 @@ import com.rrajath.grove.ui.components.FavoriteStar
 import com.rrajath.grove.ui.components.GroveDropdownMenu
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.components.ProvideSheetToast
 import com.rrajath.grove.ui.components.GroveUndoSnackbar
 import com.rrajath.grove.ui.components.LinkedReferencesBar
 import com.rrajath.grove.ui.components.LinkedReferencesSheet
@@ -416,6 +417,7 @@ fun OutlineScreen(
     // The command bar takes over the top bar in focus mode; back exits it.
     BackHandler(enabled = selectedLines.isNotEmpty()) { viewModel.clearSelection() }
 
+    ProvideSheetToast(toast) {
     Scaffold(
         containerColor = c.bg,
         topBar = {
@@ -920,12 +922,10 @@ fun OutlineScreen(
                         onUndo = viewModel::undo,
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 86.dp),
                     )
-                    if (!metadataOpen) {
-                        GroveToast(
-                            toast = toast,
-                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 150.dp),
-                        )
-                    }
+                    GroveToast(
+                        toast = toast,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 150.dp),
+                    )
                     }
                 }
 
@@ -1004,7 +1004,6 @@ fun OutlineScreen(
                                 metadataOpen = false
                                 requestDeleteSelected()
                             },
-                            toast = toast,
                             onDismiss = { metadataOpen = false },
                         )
                     } else {
@@ -1043,7 +1042,6 @@ fun OutlineScreen(
                                     metadataOpen = false
                                     requestDeleteSelected()
                                 },
-                                toast = toast,
                                 onDismiss = { metadataOpen = false },
                             )
                         }
@@ -1133,6 +1131,7 @@ fun OutlineScreen(
                 }
             }
         }
+    }
     }
 }
 

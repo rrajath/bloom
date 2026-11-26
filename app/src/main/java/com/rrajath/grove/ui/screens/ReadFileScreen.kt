@@ -57,6 +57,7 @@ import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
 import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.components.ProvideSheetToast
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.LinkedReferencesBar
 import com.rrajath.grove.ui.components.LinkedReferencesSheet
@@ -185,6 +186,7 @@ fun ReadFileScreen(
     // Reaching this screen retires the NEW badge on the Outline's "View file" item.
     MarkNewFeatureSeen(NewAnchors.OUTLINE_VIEW_FILE)
 
+    ProvideSheetToast(toast) {
     Scaffold(
         containerColor = c.bg,
         topBar = {
@@ -311,6 +313,7 @@ fun ReadFileScreen(
             },
             onDismiss = { linkedRefsOpen = false },
         )
+    }
     }
 }
 

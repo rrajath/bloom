@@ -115,6 +115,7 @@ import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.components.CollapsibleLogSection
 import com.rrajath.grove.ui.components.FavoriteStar
 import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.components.ProvideSheetToast
 import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.attach.ParagraphSegment
 import com.rrajath.grove.attach.attrOrgWidth
@@ -303,6 +304,7 @@ fun ReadNoteScreen(
     // document.
     LaunchedEffect(noteRef.fileName, pendingEdit) { viewModel.load(noteRef.fileName) }
 
+    ProvideSheetToast(toast) {
     Scaffold(
         containerColor = c.bg,
         topBar = {
@@ -481,15 +483,13 @@ fun ReadNoteScreen(
                 .padding(padding)
                 .padding(bottom = 16.dp),
         )
-        if (!metadataOpen) {
-            GroveToast(
-                toast = toast,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(padding)
-                    .padding(bottom = 16.dp),
-            )
-        }
+        GroveToast(
+            toast = toast,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(padding)
+                .padding(bottom = 16.dp),
+        )
         }
     }
 
@@ -553,7 +553,6 @@ fun ReadNoteScreen(
                 isFavorite = favorites.any { it.lineIndex == INTRO_LINE_INDEX },
                 onToggleFavorite = { viewModel.toggleIntroFavorite() },
                 targetLabel = stringResource(R.string.read_intro_metadata_target),
-                toast = toast,
                 onDismiss = { metadataOpen = false },
             )
         } else if (headline != null && doc != null) {
@@ -579,7 +578,6 @@ fun ReadNoteScreen(
                         if (inv.isEmpty) confirmDelete = true else deleteInventory = inv
                     }
                 },
-                toast = toast,
                 onDismiss = { metadataOpen = false },
             )
         }
@@ -649,6 +647,7 @@ fun ReadNoteScreen(
             onPickLastUsed = { refileAwaitingLeave = true; viewModel.refileToLastUsed() },
             onSelectSearchResult = viewModel::refileSelectSearchResult,
         )
+    }
     }
 }
 

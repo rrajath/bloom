@@ -40,7 +40,7 @@ fun StatePickerSheet(
     onDismiss: () -> Unit,
 ) {
     val c = MaterialTheme.grove
-    ModalBottomSheet(
+    GroveModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = c.surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),

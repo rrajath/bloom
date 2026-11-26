@@ -56,7 +56,7 @@ fun DailyDatePickerSheet(
     val today = LocalDate.now()
     val firstDay = rememberFirstDayOfWeek()
 
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surface) {
+    com.rrajath.grove.ui.components.GroveModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surface) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(
                 Modifier.fillMaxWidth(),

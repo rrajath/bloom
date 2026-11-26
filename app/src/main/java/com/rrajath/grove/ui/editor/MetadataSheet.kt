@@ -36,7 +36,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -75,7 +74,7 @@ import com.rrajath.grove.org.OrgTags
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.ui.components.FlyUpPositionProvider
-import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.components.GroveModalBottomSheet
 import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.components.orgInlinePlainText
 import com.rrajath.grove.ui.screens.NoteDialog
@@ -86,7 +85,6 @@ import com.rrajath.grove.ui.theme.priorityColor
 import com.rrajath.grove.ui.theme.prioritySoftColor
 import com.rrajath.grove.ui.util.asString
 import com.rrajath.grove.ui.util.text
-import com.rrajath.grove.ui.vault.OutlineToast
 import kotlinx.coroutines.launch
 
 /**
@@ -138,8 +136,6 @@ fun MetadataSheet(
     onIdCopied: () -> Unit = {},
     /** When non-null, shows the destructive Delete tile in the action grid. */
     onDelete: (() -> Unit)? = null,
-    /** In-sheet toast overlay: ModalBottomSheet is its own window, so screen toasts sit behind it. */
-    toast: OutlineToast? = null,
 ) {
     val c = MaterialTheme.grove
     val clipboard = LocalClipboard.current
@@ -153,13 +149,12 @@ fun MetadataSheet(
 
     // Open fully: the half-expanded state cut the action row off below the fold,
     // behind the nav bar with 3-button navigation, so its taps hit Home.
-    ModalBottomSheet(
+    GroveModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = c.surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
     ) {
-        Box {
         Column(
             Modifier
                 .verticalScroll(rememberScrollState())
@@ -462,9 +457,6 @@ fun MetadataSheet(
                     }
                 }
             }
-        }
-        // The sheet is its own window, so toasts triggered while it is open draw above it.
-        GroveToast(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
         }
     }
 
