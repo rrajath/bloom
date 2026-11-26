@@ -137,7 +137,7 @@
     <string name="metadata_favorite">Favorite</string>
     <string name="metadata_unfavorite">Favorited</string>
     <!-- org-id is the org-mode ID property; keep the term. -->
-    <string name="metadata_generate_id">Org-ID</string>
+    <string name="metadata_generate_id">Generate org-id</string>
     <string name="metadata_copy_id">Copy ID</string>
     <string name="metadata_toast_org_id_copied">Org-ID copied</string>
     <!-- Placeholder when a heading has no dates. -->

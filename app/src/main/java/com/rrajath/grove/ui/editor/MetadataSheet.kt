@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -73,6 +75,7 @@ import com.rrajath.grove.org.OrgTags
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.ui.components.FlyUpPositionProvider
+import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.components.orgInlinePlainText
 import com.rrajath.grove.ui.screens.NoteDialog
@@ -83,6 +86,7 @@ import com.rrajath.grove.ui.theme.priorityColor
 import com.rrajath.grove.ui.theme.prioritySoftColor
 import com.rrajath.grove.ui.util.asString
 import com.rrajath.grove.ui.util.text
+import com.rrajath.grove.ui.vault.OutlineToast
 import kotlinx.coroutines.launch
 
 /**
@@ -134,6 +138,8 @@ fun MetadataSheet(
     onIdCopied: () -> Unit = {},
     /** When non-null, shows the destructive Delete tile in the action grid. */
     onDelete: (() -> Unit)? = null,
+    /** In-sheet toast overlay: ModalBottomSheet is its own window, so screen toasts sit behind it. */
+    toast: OutlineToast? = null,
 ) {
     val c = MaterialTheme.grove
     val clipboard = LocalClipboard.current
@@ -153,6 +159,7 @@ fun MetadataSheet(
         containerColor = c.surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
     ) {
+        Box {
         Column(
             Modifier
                 .verticalScroll(rememberScrollState())
@@ -436,13 +443,17 @@ fun MetadataSheet(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 actions.chunked(3).forEach { rowItems ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         rowItems.forEach { action ->
                             MetadataActionTile(
                                 action = action,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
                             )
                         }
                         repeat(3 - rowItems.size) {
@@ -451,6 +462,9 @@ fun MetadataSheet(
                     }
                 }
             }
+        }
+        // The sheet is its own window, so toasts triggered while it is open draw above it.
+        GroveToast(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
         }
     }
 
@@ -689,8 +703,9 @@ private fun MetadataActionTile(
             fontFamily = PlexSans,
             fontWeight = FontWeight.SemiBold,
             fontSize = 11.5.sp,
+            lineHeight = 14.sp,
             color = labelColor,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
         )

@@ -920,10 +920,12 @@ fun OutlineScreen(
                         onUndo = viewModel::undo,
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 86.dp),
                     )
-                    GroveToast(
-                        toast = toast,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 150.dp),
-                    )
+                    if (!metadataOpen) {
+                        GroveToast(
+                            toast = toast,
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 150.dp),
+                        )
+                    }
                     }
                 }
 
@@ -1002,6 +1004,7 @@ fun OutlineScreen(
                                 metadataOpen = false
                                 requestDeleteSelected()
                             },
+                            toast = toast,
                             onDismiss = { metadataOpen = false },
                         )
                     } else {
@@ -1040,6 +1043,7 @@ fun OutlineScreen(
                                     metadataOpen = false
                                     requestDeleteSelected()
                                 },
+                                toast = toast,
                                 onDismiss = { metadataOpen = false },
                             )
                         }

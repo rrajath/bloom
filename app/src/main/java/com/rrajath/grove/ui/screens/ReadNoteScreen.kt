@@ -481,13 +481,15 @@ fun ReadNoteScreen(
                 .padding(padding)
                 .padding(bottom = 16.dp),
         )
-        GroveToast(
-            toast = toast,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(padding)
-                .padding(bottom = 16.dp),
-        )
+        if (!metadataOpen) {
+            GroveToast(
+                toast = toast,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(padding)
+                    .padding(bottom = 16.dp),
+            )
+        }
         }
     }
 
@@ -551,6 +553,7 @@ fun ReadNoteScreen(
                 isFavorite = favorites.any { it.lineIndex == INTRO_LINE_INDEX },
                 onToggleFavorite = { viewModel.toggleIntroFavorite() },
                 targetLabel = stringResource(R.string.read_intro_metadata_target),
+                toast = toast,
                 onDismiss = { metadataOpen = false },
             )
         } else if (headline != null && doc != null) {
@@ -576,6 +579,7 @@ fun ReadNoteScreen(
                         if (inv.isEmpty) confirmDelete = true else deleteInventory = inv
                     }
                 },
+                toast = toast,
                 onDismiss = { metadataOpen = false },
             )
         }
