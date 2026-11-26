@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -527,6 +528,16 @@ private fun tipGroups(appName: String, res: Resources): List<TipGroup> {
                     // i18n: "%s" is org's archive-location placeholder for the current file
                     s(R.string.tip_archive_location_title), s(R.string.tip_archive_location_body, "%s"),
                     newAnchor = NewAnchors.tipsItem("capture-automation", "archive-location"),
+                ),
+            ),
+        ),
+        TipGroup(
+            "clocking",
+            s(R.string.tips_group_clocking),
+            listOf(
+                Tip(
+                    "clock", Icons.Default.Timer, s(R.string.tip_clock_title), s(R.string.tip_clock_body),
+                    listOf(s(R.string.tip_clock_step_1), s(R.string.tip_clock_step_2)),
                 ),
             ),
         ),

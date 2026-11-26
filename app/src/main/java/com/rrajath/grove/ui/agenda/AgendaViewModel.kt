@@ -9,6 +9,11 @@ import com.rrajath.grove.attach.AttachmentFollow
 import com.rrajath.grove.attach.FileRewrite
 import com.rrajath.grove.attach.FollowAction
 import com.rrajath.grove.attach.rewritesFor
+import com.rrajath.grove.clock.ClockFix
+import com.rrajath.grove.clock.ClockResult
+import com.rrajath.grove.clock.ClockService
+import com.rrajath.grove.clock.RunningClock
+import com.rrajath.grove.data.NoteKey
 import com.rrajath.grove.data.GroveDatabase
 import com.rrajath.grove.data.toNoteMeta
 import com.rrajath.grove.org.LocalDates
@@ -45,11 +50,16 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.abs
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
@@ -228,11 +238,23 @@ class AgendaViewModel(
     private val vaultFlow: StateFlow<Vault?>,
     private val sync: SyncTrigger,
     private val dispatchers: AppDispatchers,
+    private val clockService: ClockService,
     private val attachFollow: AttachmentFollow = AttachmentFollow.None,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AgendaUiState())
     val state: StateFlow<AgendaUiState> = _state
+
+    /** Headings with an open clock, by index key, like the rows themselves. */
+    val clocking: StateFlow<ImmutableSet<NoteKey>> = clockService.running
+        .map { clocks -> clocks.map { NoteKey(it.fileName, it.lineIndex) }.toImmutableSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), persistentSetOf())
+
+    /** Clocking in on a row waits on how to close these dangling clocks; see [toggleClock]. */
+    private val _clockResolve = MutableStateFlow<Pair<NoteKey, List<RunningClock>>?>(null)
+    val clockResolve: StateFlow<Pair<NoteKey, List<RunningClock>>?> = _clockResolve
+
+    fun dismissClockResolve() { _clockResolve.value = null }
 
     /** Undo snackbar for the mutating actions (design spec: ~4.2s with an UNDO action). */
     private val _snack = MutableStateFlow<OutlineSnack?>(null)
@@ -648,6 +670,29 @@ class AgendaViewModel(
         }
     }
 
+    /**
+     * Swipe panel's "Clock" action, the agenda's `I` / `O`: clock out the row's
+     * heading when its clock runs, else clock in on it, closing whatever runs
+     * elsewhere. [fixes] answers [clockResolve].
+     */
+    fun toggleClock(fileName: String, lineIndex: Int, fixes: Map<RunningClock, ClockFix> = emptyMap()) {
+        _clockResolve.value = null
+        viewModelScope.launch {
+            val open = clockService.running.value.firstOrNull { it.fileName == fileName && it.lineIndex == lineIndex }
+            val result = if (open != null) clockService.clockOut(open) else clockService.clockIn(fileName, lineIndex, fixes = fixes)
+            when (result) {
+                is ClockResult.Done -> {
+                    undoSnapshot = result.writes.map { FileSnapshot(it.fileName, it.before) }
+                    showSnack(UiText.res(if (open != null) R.string.agenda_snack_clocked_out else R.string.agenda_snack_clocked_in))
+                }
+                is ClockResult.NeedsResolution -> _clockResolve.value = NoteKey(fileName, lineIndex) to result.clocks
+                ClockResult.Continues -> showSnack(UiText.res(R.string.agenda_snack_clock_continues))
+                // The row's line went stale; the next index pass redraws the agenda.
+                ClockResult.NotFound -> showSnack(UiText.res(R.string.agenda_snack_heading_changed))
+            }
+        }
+    }
+
     /** Swipe panel's "Note" action: org's C-c C-z, logged into the LOGBOOK drawer. */
     fun addNote(fileName: String, lineIndex: Int, note: String) {
         if (note.isBlank()) return
@@ -751,7 +796,7 @@ class AgendaViewModel(
     companion object {
         val Factory = factory {
             AgendaViewModel(
-                it.settingsRepository, it.keywords, it.database, it.vault, it.syncManager, it.dispatchers,
+                it.settingsRepository, it.keywords, it.database, it.vault, it.syncManager, it.dispatchers, it.clockService,
                 attachFollow = it.attachmentFollow,
             )
         }

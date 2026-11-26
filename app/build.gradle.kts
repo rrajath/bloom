@@ -405,6 +405,9 @@ dependencies {
     // even though no fixture is a @Composable.
     testFixturesImplementation(platform(libs.androidx.compose.bom))
     testFixturesImplementation(libs.androidx.compose.runtime)
+    // TestClockService reads GroveDatabase's DAOs, and K2 needs RoomDatabase (its
+    // supertype) on the classpath to resolve them.
+    testFixturesImplementation(libs.androidx.room.runtime)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

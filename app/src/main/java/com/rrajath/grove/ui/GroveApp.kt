@@ -369,6 +369,8 @@ private fun GroveNavigation(
         }
     }
 
+    val runningClocks by viewModel.runningClocks.collectAsStateWithLifecycle()
+
     CompositionLocalProvider(LocalNewBadges provides newBadges) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -395,6 +397,8 @@ private fun GroveNavigation(
                     onDeleteFavorite = { viewModel.removeFavorite(it.fileName, it.lineIndex, it.customId) },
                     onRenameFavorite = { fav, title -> viewModel.renameFavorite(fav.fileName, fav.lineIndex, title, fav.customId) },
                     onMoveFavorite = { fav, delta -> viewModel.moveFavorite(fav.fileName, fav.lineIndex, delta, fav.customId) },
+                    clock = runningClocks.firstOrNull(),
+                    onClockOut = { clock -> viewModel.clockOut(clock) },
                 )
             }
         },
@@ -1070,6 +1074,11 @@ private fun GroveNavigation(
                     onSetHighlightCurrentLine = viewModel::setHighlightCurrentLine,
                     onSetAutoArchiveDoneItems = viewModel::setAutoArchiveDoneItems,
                     onOpenArchiveLocationPicker = viewModel::startArchiveLocationPick,
+                    onSetClockOutWhenDone = viewModel::setClockOutWhenDone,
+                    onSetDiscardZeroClocks = viewModel::setDiscardZeroClocks,
+                    onSetClockNotification = viewModel::setClockNotification,
+                    onSetClockInState = viewModel::setClockInState,
+                    onSetClockOutState = viewModel::setClockOutState,
                 )
                 val locationPicker by viewModel.locationPicker.collectAsStateWithLifecycle()
                 locationPicker?.let { picker ->

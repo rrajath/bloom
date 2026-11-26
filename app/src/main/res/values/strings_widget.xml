@@ -3,6 +3,7 @@
     <!-- Home-screen widget picker descriptions (res/xml widget info). -->
     <string name="widget_description">One-tap capture into your org notes</string>
     <string name="ledger_widget_description">Agenda ledger: overdue and upcoming tasks grouped by day</string>
+    <string name="clock_widget_description">The running org clock, with a button to clock out</string>
 
     <!-- Capture widget (widget/CaptureWidget.kt): the label on the one-tap capture pill. -->
     <string name="widget_capture_label">Capture</string>
@@ -70,4 +71,22 @@
     <string name="widget_quick_add_added">Added to %1$s</string>
     <!-- Toast when the target heading is gone. %1$s is the heading title, %2$s the notebook name. -->
     <string name="widget_quick_add_heading_missing">Heading \"%1$s\" not found. Added to the bottom of %2$s</string>
+
+    <!-- Clock widget (widget/ClockWidget.kt): shown when no org clock is running. -->
+    <string name="widget_clock_not_clocked_in">Not clocked in</string>
+    <!-- Screen reader label for the widget's stop button. -->
+    <string name="widget_clock_out">Clock out</string>
+
+    <!-- Running-clock notification (clock/ClockNotification.kt). The channel name shows in
+         Android's notification settings for the app. -->
+    <string name="clock_notification_channel">Clock</string>
+    <!-- %1$s is when the clock started: a time ("9:05 AM"), or a date and time on another day. -->
+    <string name="clock_notification_since">Clocked in since %1$s</string>
+    <!-- Appended when other clocks are open too. %1$s is clock_notification_since, %2$d how many others. -->
+    <plurals name="clock_notification_others">
+        <item quantity="one">%1$s · %2$d other open clock</item>
+        <item quantity="other">%1$s · %2$d other open clocks</item>
+    </plurals>
+    <!-- Notification buttons. -->
+    <string name="clock_notification_clock_out">Clock out</string>
 </resources>

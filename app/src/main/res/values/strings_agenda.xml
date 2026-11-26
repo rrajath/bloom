@@ -6,6 +6,8 @@
     <!-- Add or change the task's DEADLINE date. -->
     <string name="agenda_swipe_action_deadline">Set Deadline</string>
     <string name="agenda_swipe_action_done">Mark as Done</string>
+    <!-- Start the org clock on the task, or stop it when its clock is already running. -->
+    <string name="agenda_swipe_action_clock">Clock In / Out</string>
 
     <!-- Agenda "Group by" chips (AgendaGrouping). Short chips in one row. -->
     <string name="agenda_group_by_date">Date</string>
@@ -70,11 +72,22 @@
     <string name="agenda_swipe_scheduled">Sched</string>
     <!-- Short for "Deadline". -->
     <string name="agenda_swipe_deadline">Deadl</string>
+    <!-- Start the org clock on the task (Settings > Agenda swipe action "Clock In / Out"). -->
+    <string name="agenda_swipe_clock_in">Clock</string>
+    <!-- Stop the task's running org clock. Short for "Clock out". -->
+    <string name="agenda_swipe_clock_out">Out</string>
 
     <!-- Agenda snackbars. -->
     <!-- A done task was set back to an open state. -->
     <string name="agenda_snack_reopened">Reopened</string>
     <string name="agenda_snack_note_added">Note added</string>
+    <!-- After the Clock In / Out swipe. -->
+    <string name="agenda_snack_clocked_in">Clocked in</string>
+    <string name="agenda_snack_clocked_out">Clocked out</string>
+    <!-- Clock in on a task whose clock already runs: nothing changes. -->
+    <string name="agenda_snack_clock_continues">Clock continues</string>
+    <!-- The swiped task was edited elsewhere (a sync) before the clock could be written. -->
+    <string name="agenda_snack_heading_changed">That heading changed on disk</string>
     <plurals name="agenda_snack_moved_to_today">
         <item quantity="one">Moved %d item to today</item>
         <item quantity="other">Moved %d items to today</item>

@@ -168,6 +168,8 @@
     <string name="settings_notes_section_display">Display</string>
     <string name="settings_notes_section_new_notes">New notes &amp; editing</string>
     <string name="settings_notes_section_archiving">Archiving</string>
+    <!-- Org clocking (time tracking, Emacs' org-clock). -->
+    <string name="settings_notes_section_clocking">Clocking</string>
     <!-- TODO is an org-mode keyword; keep it as is. -->
     <string name="settings_notes_todo_keywords">TODO keywords</string>
     <!-- "|" is the literal separator character typed in the field. -->
@@ -395,6 +397,8 @@
     <string name="settings_agenda_swipe_right_scheduled">Swiping an agenda item right will open the scheduled-date picker</string>
     <string name="settings_agenda_swipe_right_deadline">Swiping an agenda item right will open the deadline picker</string>
     <string name="settings_agenda_swipe_right_done">Swiping an agenda item right will mark it done</string>
+    <string name="settings_agenda_swipe_left_clock">Swiping an agenda item left will clock in on it, or out when its clock is running</string>
+    <string name="settings_agenda_swipe_right_clock">Swiping an agenda item right will clock in on it, or out when its clock is running</string>
     <string name="settings_agenda_deadline_warning">Deadline warning</string>
     <!-- "Due soon" and "Today" name Agenda sections; -3d is org syntax, keep it as is. -->
     <string name="settings_agenda_deadline_warning_hint">Days before a deadline that it shows under Due soon on Today. A warning on the deadline itself, like -3d, wins. 0 turns this off.</string>
@@ -425,4 +429,20 @@
     <!-- What's New dialog (ui/screens/WhatsNewDialog.kt): heading for changes not yet in a release.
          The dialog title reuses settings_page_whats_new_title. -->
     <string name="whats_new_latest_changes">Latest changes</string>
+
+    <!-- Settings › Notes › Clocking. The two state pickers list the TODO keywords set in
+         Settings › Notes; those keywords are org syntax and never translated. -->
+    <string name="settings_clock_in_state">State while clocked in</string>
+    <string name="settings_clock_in_state_desc">A heading switches to this state when you clock in on it</string>
+    <string name="settings_clock_out_state">State after clocking out</string>
+    <string name="settings_clock_out_state_desc">A heading switches to this state when you clock out of it</string>
+    <!-- First choice in both state pickers: leave the heading's state as it is. -->
+    <string name="settings_clock_state_unchanged">Unchanged</string>
+    <string name="settings_clock_out_when_done">Clock out when marked done</string>
+    <string name="settings_clock_out_when_done_desc">Marking a heading done stops a clock running on it</string>
+    <!-- "0:00" is a clock duration in hours:minutes. -->
+    <string name="settings_discard_zero_clocks">Discard 0:00 clocks</string>
+    <string name="settings_discard_zero_clocks_desc">A clock stopped in the same minute it started is deleted instead of logged</string>
+    <string name="settings_clock_notification">Clock notification</string>
+    <string name="settings_clock_notification_desc">Shows the running clock, with Clock out and Cancel, in the notification shade</string>
 </resources>

@@ -134,6 +134,12 @@
     <!-- Actions under the dates. Keep the leading symbol. -->
     <string name="metadata_add_note">+ Add note</string>
     <string name="metadata_refile">Refile</string>
+    <!-- Org clocking (Emacs' org-clock-in / org-clock-out / org-clock-cancel): start or stop
+         timing the heading. Keep the leading symbol. -->
+    <string name="metadata_clock_in">◷ Clock in</string>
+    <string name="metadata_clock_out">◼ Clock out</string>
+    <!-- Stops the clock without logging any time. -->
+    <string name="metadata_clock_cancel">✕ Cancel clock</string>
     <string name="metadata_favorite">★ Favorite</string>
     <string name="metadata_unfavorite">★ Unfavorite</string>
     <!-- org-id is the org-mode ID property; keep the term. -->
@@ -142,4 +148,40 @@
     <string name="metadata_set_date">set date…</string>
     <!-- After SCHEDULED / DEADLINE when several headings are selected and their dates differ. -->
     <string name="metadata_multiple">multiple</string>
+
+    <!-- Org clocking: messages after Clock in / Clock out / Cancel clock (Outline, Read mode). -->
+    <string name="clock_snack_clocked_in">Clocked in</string>
+    <string name="clock_snack_clocked_out">Clocked out</string>
+    <!-- %1$s is the time logged on that clock as hours:minutes, e.g. "1:05". -->
+    <string name="clock_snack_clocked_out_after">Clocked out after %1$s</string>
+    <!-- The running clock was stopped without logging any time. -->
+    <string name="clock_snack_canceled">Clock canceled</string>
+    <!-- Clock in on a heading whose clock already runs: nothing changes. -->
+    <string name="clock_toast_continues">Clock continues</string>
+    <string name="clock_toast_changed_on_disk">That clock changed on disk; reloaded</string>
+    <!-- A notification or widget button stopped a clock that a sync had already closed. -->
+    <string name="clock_toast_already_stopped">That clock was already stopped</string>
+    <!-- Screen reader label for the ◷ mark on a heading whose clock is running. -->
+    <string name="clock_clocked_in">Clocked in</string>
+
+    <!-- Dialog before clocking in while other clocks look forgotten (several open at once, or one
+         running for 12 hours or more), after Emacs' org-resolve-clocks (ui/components/ClockResolveDialog.kt). -->
+    <plurals name="clock_resolve_title">
+        <item quantity="one">A clock is still running</item>
+        <item quantity="other">%1$d clocks are still running</item>
+    </plurals>
+    <!-- Under each open clock's heading. %1$s is when it started ("9:05 AM", or "Mon, Nov 24 9:05 AM"
+         on another day); %2$s how long it has run as hours:minutes, e.g. "13:20". -->
+    <string name="clock_resolve_since">Since %1$s · %2$s</string>
+    <!-- Choices for each open clock. Short chips in a wrapping row. -->
+    <string name="clock_resolve_out_now">Out now</string>
+    <!-- Opens a time picker for when the clock should have stopped. -->
+    <string name="clock_resolve_out_at_pick">Out at…</string>
+    <!-- After a time was picked. %1$s is that time, formatted as in clock_resolve_since. -->
+    <string name="clock_resolve_out_at">Out at %1$s</string>
+    <!-- Delete the open clock without logging its time. -->
+    <string name="clock_resolve_cancel_it">Cancel it</string>
+    <string name="clock_resolve_leave_open">Leave open</string>
+    <!-- Confirm button: applies the choices, then clocks in on the new heading. -->
+    <string name="clock_resolve_confirm">Clock in</string>
 </resources>

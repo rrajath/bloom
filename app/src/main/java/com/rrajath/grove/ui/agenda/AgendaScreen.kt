@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.TimerOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -78,6 +80,7 @@ import com.rrajath.grove.settings.AgendaGrouping
 import com.rrajath.grove.settings.AgendaStateFilter
 import com.rrajath.grove.settings.AgendaSwipeAction
 import com.rrajath.grove.ui.components.GroveUndoSnackbar
+import com.rrajath.grove.ui.components.ClockResolveDialog
 import com.rrajath.grove.ui.components.PlanningDatesScreen
 import com.rrajath.grove.ui.components.SwipeAction
 import com.rrajath.grove.ui.components.SwipeCommitRow
@@ -90,6 +93,12 @@ import com.rrajath.grove.ui.theme.PlexMono
 import com.rrajath.grove.ui.theme.PlexSans
 import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.vault.NoteRef
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.rrajath.grove.data.NoteKey
+import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentSetOf
+import java.time.LocalDateTime
 
 /**
  * A pending swipe-left/swipe-right date pick, before the user confirms. The
@@ -132,6 +141,8 @@ fun AgendaScreen(
     val c = MaterialTheme.grove
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snack by viewModel.snack.collectAsStateWithLifecycle()
+    val clocking by viewModel.clocking.collectAsStateWithLifecycle()
+    val clockResolve by viewModel.clockResolve.collectAsStateWithLifecycle()
     // One scroll position per tab: sharing a single state carried Today's
     // offset over to Upcoming. Picked by state.tab, which flips in the same
     // emission as the list contents, so a tab never renders with the other's offset.
@@ -220,6 +231,8 @@ fun AgendaScreen(
                     onOpenDatePicker = openDatePicker,
                     onOpenNoteDialog = { row -> noteDialogFor = row },
                     onShowInNotebook = onShowInNotebook,
+                    clocking = clocking,
+                    onToggleClock = { row -> viewModel.toggleClock(row.fileName, row.lineIndex) },
                 )
 
                 val nearBottom by remember(listState) {
@@ -265,6 +278,16 @@ fun AgendaScreen(
                 viewModel.addNote(row.fileName, row.lineIndex, note)
                 noteDialogFor = null
             },
+        )
+    }
+
+    clockResolve?.let { (key, clocks) ->
+        val now = remember(key, clocks) { LocalDateTime.now().withSecond(0).withNano(0) }
+        ClockResolveDialog(
+            clocks = clocks,
+            now = now,
+            onResolve = { fixes -> viewModel.toggleClock(key.fileName, key.lineIndex, fixes) },
+            onDismiss = viewModel::dismissClockResolve,
         )
     }
 }
@@ -495,6 +518,8 @@ private fun AgendaList(
     onOpenDatePicker: (AgendaRow, PlanningKind) -> Unit,
     onOpenNoteDialog: (AgendaRow) -> Unit,
     onShowInNotebook: (NoteRef) -> Unit,
+    clocking: ImmutableSet<NoteKey> = persistentSetOf(),
+    onToggleClock: (AgendaRow) -> Unit = {},
 ) {
     val c = MaterialTheme.grove
     // At most one row's swipe panel stays open at a time (mirrors the Outline
@@ -510,6 +535,8 @@ private fun AgendaList(
         scheduled = stringResource(R.string.agenda_swipe_scheduled),
         deadline = stringResource(R.string.agenda_swipe_deadline),
         done = stringResource(R.string.swipe_done),
+        clockIn = stringResource(R.string.agenda_swipe_clock_in),
+        clockOut = stringResource(R.string.agenda_swipe_clock_out),
     )
     LazyColumn(
         state = listState,
@@ -558,11 +585,18 @@ private fun AgendaList(
                 // full swipe still commits the configured action. On an event (a
                 // heading with no TODO keyword) the Done side is dropped and that
                 // side offers Add-note alone instead.
-                val (leftPrimary, leftSecondary) = remember(row, state.swipeLeftAction, c, swipeLabels) {
-                    agendaSwipeActions(state.swipeLeftAction, row, c, swipeLabels, icNote, icNotebook, onOpenDatePicker, onToggleDone, onOpenNoteDialog, onShowInNotebook)
+                val isClocking = NoteKey(row.fileName, row.lineIndex) in clocking
+                val (leftPrimary, leftSecondary) = remember(row, state.swipeLeftAction, c, swipeLabels, isClocking) {
+                    agendaSwipeActions(
+                        state.swipeLeftAction, row, c, swipeLabels, icNote, icNotebook, onOpenDatePicker, onToggleDone,
+                        onOpenNoteDialog, onShowInNotebook, isClocking, onToggleClock,
+                    )
                 }
-                val (rightPrimary, rightSecondary) = remember(row, state.swipeRightAction, c, swipeLabels) {
-                    agendaSwipeActions(state.swipeRightAction, row, c, swipeLabels, icNote, icNotebook, onOpenDatePicker, onToggleDone, onOpenNoteDialog, onShowInNotebook)
+                val (rightPrimary, rightSecondary) = remember(row, state.swipeRightAction, c, swipeLabels, isClocking) {
+                    agendaSwipeActions(
+                        state.swipeRightAction, row, c, swipeLabels, icNote, icNotebook, onOpenDatePicker, onToggleDone,
+                        onOpenNoteDialog, onShowInNotebook, isClocking, onToggleClock,
+                    )
                 }
                 // derivedStateOf: openRowKey changes on every open/close, but only the
                 // previously- and newly-open row's forceClose value actually flips.
@@ -580,7 +614,7 @@ private fun AgendaList(
                     onTap = { onOpenNote(NoteRef(row.fileName, row.lineIndex)) },
                     shape = RoundedCornerShape(12.dp),
                 ) {
-                    AgendaRowContent(row, onToggleDone = { onToggleDone(row) })
+                    AgendaRowContent(row, onToggleDone = { onToggleDone(row) }, clocking = isClocking)
                 }
             }
             item("gap-${group.key}") { Spacer(Modifier.height(14.dp)) }
@@ -672,7 +706,7 @@ private fun OverdueCard(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AgendaRowContent(row: AgendaRow, onToggleDone: () -> Unit) {
+private fun AgendaRowContent(row: AgendaRow, onToggleDone: () -> Unit, clocking: Boolean = false) {
     val c = MaterialTheme.grove
     val titleText = remember(row.title, c) { annotateOrgInline(row.title, c) }
     // An RTL title mirrors the row, like Outline rows: checkbox and state chip on
@@ -711,7 +745,16 @@ private fun AgendaRowContent(row: AgendaRow, onToggleDone: () -> Unit) {
                     fontSize = 14.sp, lineHeight = 1.35.em,
                     color = if (row.isDone) c.ink3 else c.ink,
                     textDecoration = if (row.isDone) TextDecoration.LineThrough else null,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (clocking) {
+                    Spacer(Modifier.width(6.dp))
+                    val clockedIn = stringResource(R.string.clock_clocked_in)
+                    Text(
+                        "◷", fontFamily = PlexMono, fontSize = 13.sp, color = c.accent,
+                        modifier = Modifier.semantics { contentDescription = clockedIn },
+                    )
+                }
             }
             if (row.meta.isNotEmpty()) {
                 FlowRow(
@@ -862,6 +905,8 @@ internal fun GroveColors.metaColor(tone: AgendaMetaTone): Color = when (tone) {
  *   heading with no TODO keyword and no repeater to advance): there is
  *   nothing to complete, so the Done cell is dropped and the side becomes a
  *   plain swipe-to-commit "Add note".
+ * - `CLOCK`: "Clock" primary, or "Out" while [clocking], with "Add note"
+ *   alongside, the way org's agenda clocks a task from its line.
  */
 /** Swipe-cell labels, resolved once per composition so [agendaSwipeActions] can stay non-composable. */
 @Immutable
@@ -871,6 +916,8 @@ private data class AgendaSwipeLabels(
     val scheduled: String,
     val deadline: String,
     val done: String,
+    val clockIn: String,
+    val clockOut: String,
 )
 
 private fun agendaSwipeActions(
@@ -884,6 +931,8 @@ private fun agendaSwipeActions(
     onToggleDone: (AgendaRow) -> Unit,
     onOpenNoteDialog: (AgendaRow) -> Unit,
     onShowInNotebook: (NoteRef) -> Unit,
+    clocking: Boolean,
+    onToggleClock: (AgendaRow) -> Unit,
 ): Pair<SwipeAction?, SwipeAction?> {
     val note = SwipeAction(
         label = labels.note,
@@ -912,5 +961,12 @@ private fun agendaSwipeActions(
                     onToggleDone(row)
                 } to note
             }
+        AgendaSwipeAction.CLOCK ->
+            SwipeAction(
+                label = if (clocking) labels.clockOut else labels.clockIn,
+                fg = c.accent,
+                bg = c.accentSoft,
+                icon = if (clocking) Icons.Outlined.TimerOff else Icons.Outlined.Timer,
+            ) { onToggleClock(row) } to note
     }
 }

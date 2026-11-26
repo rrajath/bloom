@@ -1,0 +1,6 @@
+# ops: in Task 2026-10-30T09:15
+* TODO Task
+DEADLINE: <2026-11-02 Mon>
+:LOGBOOK:
+CLOCK: [2026-10-30 Fri 09:15]
+:END:

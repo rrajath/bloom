@@ -181,14 +181,16 @@ class OrgSyntaxHighlight(
         }
     }
 
+    // A CLOCK line reads like a planning line: keyword, then timestamps.
     private fun isPlanning(line: String): Boolean {
         val t = line.trimStart()
-        return t.startsWith("SCHEDULED:") || t.startsWith("DEADLINE:") || t.startsWith("CLOSED:")
+        return t.startsWith("SCHEDULED:") || t.startsWith("DEADLINE:") || t.startsWith("CLOSED:") ||
+            t.startsWith("CLOCK:")
     }
 
     private fun isDrawerLine(line: String): Boolean {
         val t = line.trim()
-        return t.equals(":PROPERTIES:", true) || t.equals(":END:", true)
+        return t.equals(":PROPERTIES:", true) || t.equals(":LOGBOOK:", true) || t.equals(":END:", true)
     }
 
     companion object {
@@ -196,7 +198,7 @@ class OrgSyntaxHighlight(
         // Same tag charset as OrgParser.TAGS_AT_END: org's [[:alnum:]_@#%] in any script.
         private val TAGS_AT_END = Regex("""\s+(:[\p{L}\p{M}\p{N}_@#%-]+(?::[\p{L}\p{M}\p{N}_@#%-]+)*:)\s*$""")
         private val TIMESTAMP = Regex("""[<\[][^>\]]*[>\]]""")
-        private val PLANNING_KW = Regex("""(SCHEDULED|DEADLINE|CLOSED):""")
+        private val PLANNING_KW = Regex("""(SCHEDULED|DEADLINE|CLOSED|CLOCK):""")
         private val PROPERTY = Regex("""^\s*:([^:\s]+):\s*(.*)$""")
         private val PRIORITY = Regex("""^\[#[A-Za-z0-9]\]\s*""")
         /** U+0640 ARABIC TATWEEL: bidi class AL, so it sets an RTL paragraph direction. */

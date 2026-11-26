@@ -1,0 +1,7 @@
+# options: remove-zero
+# ops: in Task 2026-10-30T09:15 | out 2026-10-30T09:15
+* TODO Task
+:LOGBOOK:
+- Note taken on [2026-10-29 Thu 18:00] \\
+  Waiting on review.
+:END:

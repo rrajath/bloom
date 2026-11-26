@@ -72,7 +72,8 @@ class ReminderActionReceiver : BroadcastReceiver() {
                         kind?.let { OrgMutations.advanceRepeatingPlanning(doc, headline, it, LocalDateTime.now()) }
                     }
                     else -> app.keywords.value.done.firstOrNull()?.let { doneKeyword ->
-                        OrgMutations.changeKeyword(doc, headline, doneKeyword, doc.keywords, LocalDateTime.now())
+                        val clock = app.settingsRepository.settings.first().clockOutPolicy
+                        OrgMutations.changeKeyword(doc, headline, doneKeyword, doc.keywords, LocalDateTime.now(), clock)
                     }
                 }
             }

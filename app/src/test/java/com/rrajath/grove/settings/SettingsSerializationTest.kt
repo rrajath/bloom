@@ -3,6 +3,7 @@ package com.rrajath.grove.settings
 import com.rrajath.grove.org.NotePlacement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -71,6 +72,11 @@ class SettingsSerializationTest {
         autoArchiveDoneItems = true,
         autoArchiveFile = "archive.org",
         autoArchiveHeadingPath = "Done/2026",
+        clockOutWhenDone = false,
+        discardZeroClocks = false,
+        clockNotification = false,
+        clockInState = "NEXT",
+        clockOutState = "DONE",
         quickAddTargetFile = "tasks.org",
         quickAddHeadingPath = "Work/Inbox",
         shareTargetHeadingPath = "Projects/Reading",
@@ -150,6 +156,11 @@ class SettingsSerializationTest {
         assertEquals(sample.autoArchiveDoneItems, restored.autoArchiveDoneItems)
         assertEquals(sample.autoArchiveFile, restored.autoArchiveFile)
         assertEquals(sample.autoArchiveHeadingPath, restored.autoArchiveHeadingPath)
+        assertEquals(sample.clockOutWhenDone, restored.clockOutWhenDone)
+        assertEquals(sample.discardZeroClocks, restored.discardZeroClocks)
+        assertEquals(sample.clockNotification, restored.clockNotification)
+        assertEquals(sample.clockInState, restored.clockInState)
+        assertEquals(sample.clockOutState, restored.clockOutState)
         assertEquals(sample.quickAddTargetFile, restored.quickAddTargetFile)
         assertEquals(sample.quickAddHeadingPath, restored.quickAddHeadingPath)
         assertEquals(sample.shareTargetHeadingPath, restored.shareTargetHeadingPath)
@@ -431,6 +442,15 @@ class SettingsSerializationTest {
         val json = """{ "theme": "dark" }"""
         val restored = SettingsSerialization.import(json, GroveSettings())
         assertEquals("", restored.ignoreList)
+    }
+
+    @Test
+    fun `a pre-v19 export without clocking fields imports at their defaults`() {
+        val restored = SettingsSerialization.import("""{"version": 18}""")
+        assertEquals(GroveSettings().clockOutPolicy, restored.clockOutPolicy)
+        assertTrue(restored.clockNotification)
+        assertNull(restored.clockInState)
+        assertNull(restored.clockOutState)
     }
 
     @Test

@@ -97,6 +97,13 @@
          keep both %1$s, the `backtick` spans and the {{file:…}} names as-is. -->
     <string name="tip_archive_location_body">Set an <xliff:g id="markup">`ARCHIVE`</xliff:g> property on a heading or in the file\'s top properties drawer, or a <xliff:g id="markup">`#+ARCHIVE:`</xliff:g> line. <xliff:g id="markup">`%1$s`</xliff:g> stands for the current file, so <xliff:g id="markup">`%1$s_archive::`</xliff:g> archives <xliff:g id="markup">{{file:agenda.org}}</xliff:g> into <xliff:g id="markup">{{file:agenda.org_archive}}</xliff:g>. The nearest one wins over the Settings location.</string>
 
+    <!-- Group: Clocking (org-mode time tracking, Emacs' org-clock-in / org-clock-out). -->
+    <string name="tips_group_clocking">Clocking</string>
+    <string name="tip_clock_title">Clock your time on a task</string>
+    <string name="tip_clock_body">Open a heading\'s metadata sheet and tap Clock in. The time goes into its <xliff:g id="markup">:LOGBOOK:</xliff:g> drawer as a <xliff:g id="markup">CLOCK</xliff:g> line, exactly as Emacs writes it, and only one clock runs at a time: clocking in elsewhere stops the last one. Stop it from the notification, the drawer, the Clock widget, or by marking the task done.</string>
+    <string name="tip_clock_step_1">Settings › Agenda can set a swipe to Clock In / Out</string>
+    <string name="tip_clock_step_2">Settings › Notes › Clocking can switch the task\'s state when you clock in or out</string>
+
     <!-- Settings › Help › Report a bug (ui/screens/settings/SettingsBugReportScreen.kt). The report
          itself (email body) stays English for the developer; only the screen is translated. -->
     <string name="bug_report_intro">Tell us what happened. Everything below is optional except the description. Either button copies the report to your clipboard, then opens your mail app or GitHub; nothing is filed until you send the email or submit the issue.</string>
