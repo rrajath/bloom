@@ -24,6 +24,9 @@
     <string name="agenda_calendar_week">Week</string>
     <string name="agenda_calendar_two_weeks">2 weeks</string>
     <string name="agenda_calendar_range">%1$s – %2$s</string>
+    <string name="calendar_week_widget_description">This week\'s events from your agenda.</string>
+    <string name="calendar_two_weeks_widget_description">The next two weeks of events from your agenda.</string>
+    <string name="calendar_month_widget_description">This month\'s events from your agenda.</string>
     <!-- Settings § Agenda: the Calendar tab. -->
     <string name="settings_agenda_calendar_show_times">Show times on events</string>
     <string name="settings_agenda_calendar_show_times_hint">Put each event\'s start time under its title.</string>

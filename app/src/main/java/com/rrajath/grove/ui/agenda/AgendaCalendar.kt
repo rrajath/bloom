@@ -212,9 +212,9 @@ private fun EventLine(row: AgendaRow, expanded: Boolean, showTimes: Boolean, onO
     }
 }
 
-private fun AgendaRow.startTime(): LocalTime? = activeTs?.time ?: (scheduledTs ?: deadlineTs)?.time
+internal fun AgendaRow.startTime(): LocalTime? = activeTs?.time ?: (scheduledTs ?: deadlineTs)?.time
 
-private fun fitCount(rows: List<AgendaRow>, available: Float, expanded: Boolean, showTimes: Boolean): Int {
+internal fun fitCount(rows: List<AgendaRow>, available: Float, expanded: Boolean, showTimes: Boolean): Int {
     val heights = rows.map { (if (expanded) 24f else 12f) + (if (showTimes && it.startTime() != null) 10f else 0f) + 6f }
     var used = heights.sum()
     var n = rows.size

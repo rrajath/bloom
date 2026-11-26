@@ -749,7 +749,7 @@ private fun stateChipColors(colors: GroveColors, keyword: String) = when (keywor
     else -> colors.synTodo to colors.amberSoft
 }
 
-private fun noteUri(row: AgendaRow) = run {
+internal fun noteUri(row: AgendaRow) = run {
     val noteId = Routes.encode(NoteRef(row.fileName, row.lineIndex).encode())
     DeepLinks.note(noteId, mode = "read", isNew = false).toUri()
 }
