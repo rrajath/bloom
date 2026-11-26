@@ -31,6 +31,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.animation.AnimatedContentScope
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import com.rrajath.grove.ui.nav.screen
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -87,6 +90,7 @@ import com.rrajath.grove.ui.screens.settings.SettingsDeveloperScreen
 import com.rrajath.grove.ui.screens.settings.SettingsNotebooksScreen
 import com.rrajath.grove.ui.screens.settings.SettingsNotesScreen
 import com.rrajath.grove.ui.screens.settings.SettingsRemindersScreen
+import com.rrajath.grove.ui.attach.AttachFolderMoveSheet
 import com.rrajath.grove.ui.screens.settings.SettingsAttachmentsScreen
 import com.rrajath.grove.ui.screens.settings.SettingsRoamScreen
 import com.rrajath.grove.ui.screens.settings.SettingsSharingScreen
@@ -94,6 +98,9 @@ import com.rrajath.grove.ui.screens.settings.SettingsSyncScreen
 import com.rrajath.grove.ui.screens.settings.SettingsTipsScreen
 import com.rrajath.grove.ui.screens.settings.SettingsWhatsNewScreen
 import com.rrajath.grove.ui.screens.settings.SettingsWidgetScreen
+import com.rrajath.grove.ui.screens.settings.LocalSettingsHighlight
+import com.rrajath.grove.ui.screens.settings.SettingKind
+import com.rrajath.grove.ui.screens.settings.inlineControls
 import com.rrajath.grove.ui.screens.SyncLogScreen
 import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.PendingEdit
@@ -510,6 +517,7 @@ private fun GroveNavigation(
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
                     highlightCurrentLine = settings.highlightCurrentLine,
+                    showLineNumbers = settings.showLineNumbers,
                 )
             }
             screen(Routes.DRAWER) { entry ->
@@ -528,6 +536,7 @@ private fun GroveNavigation(
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
                     highlightCurrentLine = settings.highlightCurrentLine,
+                    showLineNumbers = settings.showLineNumbers,
                 )
             }
             screen(Routes.BLOCK) { entry ->
@@ -540,6 +549,7 @@ private fun GroveNavigation(
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
                     highlightCurrentLine = settings.highlightCurrentLine,
+                    showLineNumbers = settings.showLineNumbers,
                 )
             }
             screen(Routes.FILE) { entry ->
@@ -597,6 +607,7 @@ private fun GroveNavigation(
                         editModeFontSize = settings.editModeFontSize,
                         capitalizeHeadings = settings.capitalizeHeadings,
                         highlightCurrentLine = settings.highlightCurrentLine,
+                        showLineNumbers = settings.showLineNumbers,
                         showBacklinks = settings.roamFeaturesEnabled && settings.roamShowBacklinks,
                         roamSuggestionsEnabled = settings.roamSuggestionsActive,
                         onOpenNote = { target -> navController.navigate(Routes.note(target.encode())) },
@@ -660,6 +671,7 @@ private fun GroveNavigation(
                     editModeFontSize = settings.editModeFontSize,
                     capitalizeHeadings = settings.capitalizeHeadings,
                     highlightCurrentLine = settings.highlightCurrentLine,
+                    showLineNumbers = settings.showLineNumbers,
                     onOpenImage = { path, name -> navController.navigate(Routes.attachmentViewer(path, name)) },
                 )
             }
@@ -795,6 +807,7 @@ private fun GroveNavigation(
                             editModeFontSize = settings.editModeFontSize,
                             capitalizeHeadings = settings.capitalizeHeadings,
                             highlightCurrentLine = settings.highlightCurrentLine,
+                            showLineNumbers = settings.showLineNumbers,
                         )
                     } else if (mode == "edit") {
                         EditNoteScreen(
@@ -805,6 +818,7 @@ private fun GroveNavigation(
                             newNoteCursor = settings.newNoteCursor,
                             capitalizeHeadings = settings.capitalizeHeadings,
                             highlightCurrentLine = settings.highlightCurrentLine,
+                            showLineNumbers = settings.showLineNumbers,
                             roamSuggestionsEnabled = settings.roamSuggestionsActive,
                             onBack = leaveNote,
                             onSwitchToRead = { editTargetLine = null; mode = "read" },
@@ -1006,9 +1020,15 @@ private fun GroveNavigation(
                     onOpenWhatsNew = { navController.navigate(Routes.SETTINGS_WHATS_NEW) },
                     onOpenDeveloper = { navController.navigate(Routes.SETTINGS_DEVELOPER) },
                     whatsNewHasUnseen = whatsNewHasUnseen,
+                    settings = settings,
+                    inlineControls = remember(viewModel) { inlineControls(viewModel) },
+                    onOpenSetting = { spec ->
+                        val highlight = spec.id.takeIf { spec.kind != SettingKind.PAGE }
+                        navController.navigate(Routes.settingsPage(spec.page.route, highlight))
+                    },
                 )
             }
-            screen(Routes.SETTINGS_APPEARANCE) {
+            settingsScreen(Routes.SETTINGS_APPEARANCE) {
                 SettingsAppearanceScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1019,7 +1039,7 @@ private fun GroveNavigation(
                     onSetAppFontSize = viewModel::setAppFontSize,
                 )
             }
-            screen(Routes.SETTINGS_NOTEBOOKS) {
+            settingsScreen(Routes.SETTINGS_NOTEBOOKS) {
                 SettingsNotebooksScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1031,7 +1051,7 @@ private fun GroveNavigation(
                     onSetIgnoreList = viewModel::setIgnoreList,
                 )
             }
-            screen(Routes.SETTINGS_CAPTURE_TEMPLATES) {
+            settingsScreen(Routes.SETTINGS_CAPTURE_TEMPLATES) {
                 SettingsCaptureTemplatesScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1041,7 +1061,7 @@ private fun GroveNavigation(
                     onSetCaptureNotification = viewModel::setCaptureNotification,
                 )
             }
-            screen(Routes.SETTINGS_SYNC) {
+            settingsScreen(Routes.SETTINGS_SYNC) {
                 SettingsSyncScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1051,7 +1071,7 @@ private fun GroveNavigation(
                     onSetVaultUri = viewModel::setVaultTreeUri,
                 )
             }
-            screen(Routes.SETTINGS_NOTES) {
+            settingsScreen(Routes.SETTINGS_NOTES) {
                 SettingsNotesScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1068,6 +1088,7 @@ private fun GroveNavigation(
                     onSetAutoSaveNotes = viewModel::setAutoSaveNotes,
                     onSetCapitalizeHeadings = viewModel::setCapitalizeHeadings,
                     onSetHighlightCurrentLine = viewModel::setHighlightCurrentLine,
+                    onSetShowLineNumbers = viewModel::setShowLineNumbers,
                     onSetAutoArchiveDoneItems = viewModel::setAutoArchiveDoneItems,
                     onOpenArchiveLocationPicker = viewModel::startArchiveLocationPick,
                 )
@@ -1091,7 +1112,7 @@ private fun GroveNavigation(
                     )
                 }
             }
-            screen(Routes.SETTINGS_AGENDA) {
+            settingsScreen(Routes.SETTINGS_AGENDA) {
                 SettingsAgendaScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1103,7 +1124,7 @@ private fun GroveNavigation(
                     onSetAgendaCalendarShowDone = viewModel::setAgendaCalendarShowDone,
                 )
             }
-            screen(Routes.SETTINGS_WIDGET) {
+            settingsScreen(Routes.SETTINGS_WIDGET) {
                 SettingsWidgetScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1136,7 +1157,7 @@ private fun GroveNavigation(
                     )
                 }
             }
-            screen(Routes.SETTINGS_REMINDERS) {
+            settingsScreen(Routes.SETTINGS_REMINDERS) {
                 SettingsRemindersScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1147,7 +1168,7 @@ private fun GroveNavigation(
                     onSetReminderLeadTime = viewModel::setReminderLeadTime,
                 )
             }
-            screen(Routes.SETTINGS_SHARING) {
+            settingsScreen(Routes.SETTINGS_SHARING) {
                 SettingsSharingScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1176,7 +1197,7 @@ private fun GroveNavigation(
                     )
                 }
             }
-            screen(Routes.SETTINGS_ROAM) {
+            settingsScreen(Routes.SETTINGS_ROAM) {
                 SettingsRoamScreen(
                     settings = settings,
                     directories = viewModel.directories.collectAsStateWithLifecycle().value,
@@ -1198,7 +1219,7 @@ private fun GroveNavigation(
                     onClose = { navController.popBackStack() },
                 )
             }
-            screen(Routes.SETTINGS_ATTACHMENTS) {
+            settingsScreen(Routes.SETTINGS_ATTACHMENTS) {
                 SettingsAttachmentsScreen(
                     settings = settings,
                     onBack = { navController.popBackStack() },
@@ -1208,8 +1229,18 @@ private fun GroveNavigation(
                     onSetAttachFolder = viewModel::setAttachFolder,
                     onSetAttachAutoTag = viewModel::setAttachAutoTag,
                 )
+                viewModel.attachFolderMove.collectAsStateWithLifecycle().value?.let { offer ->
+                    AttachFolderMoveSheet(
+                        from = offer.from,
+                        to = offer.to,
+                        found = offer.found,
+                        moving = offer.moving,
+                        onMove = viewModel::moveAttachFolder,
+                        onKeep = viewModel::keepAttachFolder,
+                    )
+                }
             }
-            screen(Routes.SETTINGS_BACKUP) {
+            settingsScreen(Routes.SETTINGS_BACKUP) {
                 SettingsBackupScreen(
                     onBack = { navController.popBackStack() },
                     onExportSettings = viewModel::exportSettings,
@@ -1217,7 +1248,18 @@ private fun GroveNavigation(
                     pendingImport = viewModel.pendingImport.collectAsStateWithLifecycle().value,
                     onConfirmImport = { viewModel.confirmImport(it) },
                     onCancelImport = viewModel::cancelImport,
+                    autoBackup = viewModel.autoBackup.collectAsStateWithLifecycle().value,
+                    vaultTreeUri = settings.vaultTreeUri,
+                    onSetAutoBackupEnabled = { viewModel.setAutoBackupEnabled(it) },
+                    onAutoBackupFolderPicked = { viewModel.pickAutoBackupFolder(it) },
+                    onRestoreAutoBackup = { viewModel.restoreAutoBackup() },
+                    onAutoBackupGrantFailed = { viewModel.autoBackupGrantFailed() },
+                    autoBackupConflict = viewModel.autoBackupConflict.collectAsStateWithLifecycle().value,
+                    onRestoreExistingBackup = { viewModel.restoreExistingAutoBackup() },
+                    onReplaceExistingBackup = { viewModel.replaceExistingAutoBackup() },
+                    onCancelBackupConflict = { viewModel.cancelAutoBackupConflict() },
                 )
+                LaunchedEffect(Unit) { viewModel.refreshAutoBackupFile() }
             }
             screen(Routes.SETTINGS_BUG_REPORT) {
                 SettingsBugReportScreen(onBack = { navController.popBackStack() })
@@ -1331,5 +1373,21 @@ private fun GroveNavigation(
             },
             onUseAnyway = { viewModel.ackProviderWarning(warnUri) },
         )
+    }
+}
+
+/**
+ * A settings page that Settings search can open on one setting: registers
+ * [Routes.settingsPagePattern] and hands the page its `highlight` argument
+ * (read by `SettingsPageScaffold`) through [LocalSettingsHighlight].
+ */
+private fun NavGraphBuilder.settingsScreen(
+    route: String,
+    content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
+) {
+    screen(Routes.settingsPagePattern(route)) { entry ->
+        CompositionLocalProvider(LocalSettingsHighlight provides entry.arguments?.getString("highlight")) {
+            content(entry)
+        }
     }
 }

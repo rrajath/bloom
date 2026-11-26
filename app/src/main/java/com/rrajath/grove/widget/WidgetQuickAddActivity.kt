@@ -61,7 +61,6 @@ import com.rrajath.grove.org.OrgDocument
 import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgKeywords
 import com.rrajath.grove.org.OrgMutations
-import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
@@ -379,6 +378,7 @@ private suspend fun submitQuickAdd(
     if (vault.open(notebook) == null) vault.createNotebook(notebook)
     val settings = app.settingsRepository.settings.first()
     val orgKeywords = OrgKeywords.parse(settings.todoKeywords)
+    val newId = if (settings.addIdToNewNotes) app.orgIdAllocator.next() else null
     val (text, headingFound) = withContext(Dispatchers.Default) {
         composeQuickAdd(
             baseText = vault.open(notebook)?.text ?: "",
@@ -387,7 +387,7 @@ private suspend fun submitQuickAdd(
             keywords = orgKeywords,
             priority = priority,
             date = date,
-            id = if (settings.addIdToNewNotes) newOrgId() else null,
+            id = newId,
             createdAt = if (settings.addCreatedToNewNotes) LocalDateTime.now() else null,
         )
     }

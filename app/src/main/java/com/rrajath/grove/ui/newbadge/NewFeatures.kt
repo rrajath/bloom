@@ -32,6 +32,9 @@ object NewAnchors {
     const val DRAWER_SETTINGS = "drawer.settings"
     const val SETTINGS_TIPS = "settings.tips"
 
+    /** The search field at the top of the Settings hub. */
+    const val SETTINGS_SEARCH = "settings.search"
+
     /** The Settings hub row leading to the Look and Feel page. */
     const val SETTINGS_APPEARANCE = "settings.appearance"
 
@@ -55,6 +58,15 @@ object NewAnchors {
 
     /** The "Highlight current line" toggle inside Settings § Notes. */
     const val SETTINGS_NOTES_HIGHLIGHT_LINE = "settings.notes.highlightLine"
+
+    /** The "Show line numbers" toggle inside Settings § Notes. */
+    const val SETTINGS_NOTES_LINE_NUMBERS = "settings.notes.lineNumbers"
+
+    /** The Settings hub row leading to the Backup page. */
+    const val SETTINGS_BACKUP = "settings.backup"
+
+    /** The "Back up automatically" toggle inside Settings § Backup. */
+    const val SETTINGS_BACKUP_AUTO = "settings.backup.auto"
 
     /** The Settings hub row leading to the Capture Templates page. */
     const val SETTINGS_CAPTURE_TEMPLATES = "settings.captureTemplates"
@@ -603,5 +615,49 @@ val NEW_FEATURES: List<NewFeature> = listOf(
             NewAnchors.tipsItem("writing", "property-keys"),
         ),
         destination = NewAnchors.tipsItem("writing", "property-keys"),
+    ),
+    NewFeature(
+        // Settings § Notes gained a "Show line numbers" switch (off by default):
+        // the file-backed editors show the buffer's real file line numbers in a
+        // gutter. `since` is the versionCode of the release that ships it: bump it
+        // to match `gradle.properties` versionName when cutting the release.
+        id = "notes-line-numbers",
+        since = 11700,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_NOTES,
+            NewAnchors.SETTINGS_NOTES_LINE_NUMBERS,
+        ),
+        destination = NewAnchors.SETTINGS_NOTES_LINE_NUMBERS,
+    ),
+    NewFeature(
+        // A search field at the top of the Settings hub finds any setting and
+        // changes toggles and segmented controls in place. Reaching the hub
+        // retires it. `since` is the versionCode of the release that ships it:
+        // bump it to match `gradle.properties` versionName when cutting the release.
+        id = "settings-search",
+        since = 11700,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_SEARCH,
+        ),
+        destination = NewAnchors.SETTINGS_SEARCH,
+    ),
+    NewFeature(
+        // Settings § Backup gained an Automatic backup group: a settings JSON
+        // file kept up to date in a folder the user picks, plus Restore. `since`
+        // is the versionCode of the release that ships it: bump it to match
+        // `gradle.properties` versionName when cutting the release.
+        id = "automatic-backup",
+        since = 11700,
+        anchors = setOf(
+            NewAnchors.TOPBAR_MENU,
+            NewAnchors.DRAWER_SETTINGS,
+            NewAnchors.SETTINGS_BACKUP,
+            NewAnchors.SETTINGS_BACKUP_AUTO,
+        ),
+        destination = NewAnchors.SETTINGS_BACKUP_AUTO,
     ),
 )

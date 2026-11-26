@@ -55,22 +55,21 @@ fun SettingsRemindersScreen(
         if (settings.remindersEnabled) ReminderAccessSection()
         SettingsGroup {
             ToggleRow(
-                label = stringResource(R.string.settings_reminders_enable),
-                description = stringResource(R.string.settings_reminders_enable_hint, "<2026-10-30 Thu 09:00>"), // i18n: org timestamp syntax
+                spec = SettingSpecs.RemindersEnable,
                 checked = settings.remindersEnabled,
                 onToggle = onSetRemindersEnabled,
             )
             if (settings.remindersEnabled) {
                 RowDivider()
-                Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+                Column(Modifier.settingAnchor(SettingSpecs.RemindersLeadTime).padding(horizontal = 15.dp, vertical = 10.dp)) {
                     Text(
-                        stringResource(R.string.settings_reminders_notify_me),
+                        SettingSpecs.RemindersLeadTime.labelText(),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                         modifier = Modifier.padding(bottom = 2.dp),
                     )
                     Text(
-                        stringResource(R.string.settings_reminders_notify_me_hint),
+                        SettingSpecs.RemindersLeadTime.descriptionText().orEmpty(),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.padding(bottom = 10.dp),
                     )
@@ -83,8 +82,7 @@ fun SettingsRemindersScreen(
                 }
                 RowDivider()
                 ToggleRow(
-                    label = stringResource(R.string.settings_reminders_untimed),
-                    description = stringResource(R.string.settings_reminders_untimed_hint),
+                    spec = SettingSpecs.RemindersUntimed,
                     checked = settings.notifyUntimedTasks,
                     labelBadge = { NewDot(NewAnchors.SETTINGS_REMINDERS_UNTIMED) },
                     onToggle = onSetNotifyUntimedTasks,
@@ -92,16 +90,14 @@ fun SettingsRemindersScreen(
             }
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_reminders_morning_brief),
-                description = stringResource(R.string.settings_reminders_morning_brief_hint),
+                spec = SettingSpecs.RemindersMorningBrief,
                 checked = settings.morningBriefEnabled,
                 onToggle = onSetMorningBriefEnabled,
             )
             if (settings.morningBriefEnabled || settings.notifyUntimedTasks) {
                 RowDivider()
                 SettingsRow(
-                    label = stringResource(R.string.settings_reminders_send_at),
-                    description = stringResource(R.string.settings_reminders_send_at_hint),
+                    spec = SettingSpecs.RemindersSendAt,
                     onClick = { showReminderTimePicker = true },
                 ) {
                     Text(

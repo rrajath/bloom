@@ -11,8 +11,8 @@ import com.rrajath.grove.search.SavedSearch
  *
  * Each card runs its [QuickStartOverrides] row's query when one exists (the
  * user overwrote the card from the save dropdown), otherwise its built-in
- * search. Built-ins are either query text (Overdue, an OR across two date
- * fields that [SearchFilters] can't express) or a [SearchFilters] preset (the
+ * search. Built-ins are either query text (Overdue, an OR across the todo
+ * keywords that [SearchFilters] can't pair with "any heading") or a [SearchFilters] preset (the
  * other three, so the Search screen can light up the matching Filters chips).
  * [builtInQuery] names the exact query text a preset mirrors to (see
  * [FilterExpression]), which is what the widget runs.
@@ -54,17 +54,17 @@ object QuickStarts {
 
     /**
      * The card's built-in search as query text. "Overdue" is open tasks whose
-     * scheduled OR deadline date has passed: equivalent to
-     * "(i.KW1 OR i.KW2 OR ...) AND (s.overdue OR d.overdue)", expanded into the
+     * DEADLINE has passed (a past SCHEDULED date alone is not overdue, issue
+     * #116): "(i.KW1 OR i.KW2 OR ...) AND d.overdue", expanded into the
      * grammar's flat OR-of-AND-groups since it has no parens. The others are
      * their [builtInFilters] mirrored to query text.
      */
     fun builtInQuery(card: Card, activeStates: List<String>): String =
         builtInFilters(card, activeStates)?.let { FilterExpression.of(it) }
             ?: if (activeStates.isEmpty()) {
-                "s.overdue OR d.overdue" // i18n: query syntax
+                "d.overdue" // i18n: query syntax
             } else {
-                activeStates.flatMap { kw -> listOf("i.$kw s.overdue", "i.$kw d.overdue") }.joinToString(" OR ")
+                activeStates.joinToString(" OR ") { kw -> "i.$kw d.overdue" }
             }
 
     /** What [card] searches for right now: its override, else its built-in query. */

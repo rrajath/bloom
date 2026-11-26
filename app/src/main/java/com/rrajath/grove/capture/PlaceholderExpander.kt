@@ -2,6 +2,7 @@
 package com.rrajath.grove.capture
 
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.orgLocale
 import java.time.LocalDateTime
 import java.time.format.TextStyle
@@ -15,8 +16,18 @@ data class CaptureContext(
     val sharedUrl: String = "",
     /** Answers for `%^{prompt}` placeholders, keyed by prompt text. */
     val promptValues: Map<String, String> = emptyMap(),
-    /** `%(id)` value — generated once per capture, not regenerated per [PlaceholderExpander.expand] call. */
+    /**
+     * The first `%id` / `%(id)` occurrence's value: generated once per capture, not
+     * per [PlaceholderExpander.expand] call. A Roam node and a daily note also
+     * use it as the file-level `:ID:`.
+     */
     val id: String = "",
+    /**
+     * Values for the second, third, ... `%id` / `%(id)` occurrence, so two
+     * property drawers in one template never share an `:ID:`. Callers allocate
+     * [PlaceholderExpander.idCount] minus one of them up front.
+     */
+    val extraIds: List<String> = emptyList(),
 )
 
 data class ExpandedTemplate(
@@ -44,12 +55,39 @@ object PlaceholderExpander {
     // Shared with findInvalid so the two can never disagree about what's supported.
     private val SIMPLE_KEYS = listOf(
         "%shared_text", "%shared_url", "%clipboard", "%cursor", "%month", "%date",
-        "%time", "%year", "%day", "%t", "%T", "%u", "%U", "%?", "%(id)",
+        "%time", "%year", "%day", "%t", "%T", "%u", "%U", "%?", "%(id)", "%id",
     )
+
+    private val ID_KEYS = setOf("%(id)", "%id")
 
     /** Prompts the UI must collect (in order, deduplicated) before expanding. */
     fun prompts(template: String): List<String> =
         PROMPT.findAll(template).map { it.groupValues[1] }.distinct().toList()
+
+    /**
+     * How many `%id` / `%(id)` placeholders [template] holds, tokenized like
+     * [expand] (so `%idea` counts and a prompt label's text doesn't): each one
+     * gets its own ID.
+     */
+    fun idCount(template: String): Int {
+        var count = 0
+        var i = 0
+        while (i < template.length) {
+            if (template[i] != '%') {
+                i++
+                continue
+            }
+            val promptMatch = PROMPT.matchAt(template, i)
+            if (promptMatch != null) {
+                i += promptMatch.value.length
+                continue
+            }
+            val key = SIMPLE_KEYS.firstOrNull { template.startsWith(it, i) }
+            if (key in ID_KEYS) count++
+            i += key?.length ?: 1
+        }
+        return count
+    }
 
     fun expand(template: String, ctx: CaptureContext): ExpandedTemplate {
         val date = ctx.now.toLocalDate()
@@ -57,6 +95,11 @@ object PlaceholderExpander {
         val dateStamp = OrgTimestamp(date)
         val dateTimeStamp = OrgTimestamp(date, time = time.withSecond(0).withNano(0))
         val timeText = "%d:%02d".format(Locale.ROOT, time.hour, time.minute)
+        var idsUsed = 0
+        fun nextId(): String {
+            val n = idsUsed++
+            return if (n == 0) ctx.id else ctx.extraIds.getOrNull(n - 1) ?: newOrgId()
+        }
 
         val values: Map<String, (() -> String)?> = mapOf(
             "%shared_text" to { ctx.sharedText },
@@ -75,7 +118,11 @@ object PlaceholderExpander {
             "%u" to { dateStamp.copy(active = false).format() },
             "%U" to { dateTimeStamp.copy(active = false).format() },
             "%?" to null,
-            "%(id)" to { ctx.id },
+            // The nth ID placeholder: ctx.id first, then ctx.extraIds in order. A
+            // caller that under-counted gets a raw (unchecked) ID rather than a
+            // duplicate, which would break [[id:]] links outright.
+            "%(id)" to { nextId() },
+            "%id" to { nextId() },
         )
 
         val sb = StringBuilder()

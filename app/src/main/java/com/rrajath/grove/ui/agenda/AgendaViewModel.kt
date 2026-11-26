@@ -399,19 +399,21 @@ class AgendaViewModel(
         // heading's events and deadline prewarning still count.
         val plannable = visible.filterNot { AgendaBuckets.delayed(it, today) }
 
-        val todayItems = AgendaBuckets.onDay(plannable, today)
+        val todayItems = AgendaBuckets.plannedToday(plannable, today)
+        // Past SCHEDULED, deadline not missed: rolls onto today after today's own rows.
+        val carriedItems = AgendaBuckets.carriedOver(plannable, today)
         val overdueItems = AgendaBuckets.overdue(plannable, today)
         val futureItems = AgendaBuckets.upcoming(plannable, today, windowDays)
         // Events (bare active timestamps) dated today, for the Today tab and the count.
         val todayEvents = AgendaBuckets.activeEventsOn(visible, today)
         // Deadlines coming up, minus headings already on today's list or in
         // the overdue card: one row per heading per day.
-        val onTodayKeys = (todayItems + overdueItems + todayEvents.map { it.first })
+        val onTodayKeys = (todayItems + carriedItems + overdueItems + todayEvents.map { it.first })
             .map { it.fileName to it.lineIndex }.toSet()
         val dueSoonItems = AgendaBuckets.dueSoon(visible, today, p.agendaDeadlineWarningDays)
             .filter { (it.fileName to it.lineIndex) !in onTodayKeys }
 
-        val list = if (isTodayTab) todayItems else futureItems
+        val list = if (isTodayTab) todayItems + carriedItems else futureItems
         // Date grouping already puts the day in the section header; every other
         // grouping mixes days together, so the rows have to carry it themselves.
         val showDate = grouping != AgendaGrouping.DATE && !isTodayTab
@@ -431,8 +433,8 @@ class AgendaViewModel(
         } else {
             emptyList()
         }
-        val groups = if (tab == AgendaTab.CALENDAR) emptyList<AgendaGroup>() else dueSoonGroup + if (grouping == AgendaGrouping.DATE) {
-            dateGroups(visible, plannable, list, today, isTodayTab, windowDays, p)
+      val groups = if (tab == AgendaTab.CALENDAR) emptyList<AgendaGroup>() else dueSoonGroup + if (grouping == AgendaGrouping.DATE) {
+            dateGroups(visible, plannable, if (isTodayTab) todayItems else list, carriedItems, today, isTodayTab, windowDays, p)
         } else {
             AgendaBuckets.group(list, today, grouping, isTodayTab)
                 .map { b ->
@@ -443,7 +445,7 @@ class AgendaViewModel(
         return AgendaUiState(
             headerDay = today.dayOfWeek.getDisplayName(TextStyle.FULL, orgLocale()),
             headerDate = today.format(HEADER_DATE),
-            todayCount = todayItems.size + todayEvents.size,
+            todayCount = todayItems.size + carriedItems.size + todayEvents.size,
             tab = tab,
             leversOpen = leversOpen,
             overdueOpen = overdueOpen,
@@ -497,20 +499,31 @@ class AgendaViewModel(
      * DEADLINE ([AgendaBuckets.repeatsOn]) from [plannable], the headings whose
      * plan isn't held back by a delay cookie. A preview takes the heading's one
      * row for that day, so an event of the same heading on that day is dropped.
+     *
+     * On Today, [carried] (past SCHEDULED, see [AgendaBuckets.carriedOver])
+     * follows the day's own time-sorted rows, already oldest first; a carried
+     * heading also suppresses its own event occurrence today.
      */
     private fun dateGroups(
         visible: List<NoteMeta>,
         plannable: List<NoteMeta>,
         planned: List<NoteMeta>,
+        carried: List<NoteMeta>,
         today: LocalDate,
         isTodayTab: Boolean,
         windowDays: Int,
         p: GroveSettings,
     ): List<AgendaGroup> {
-        fun bucket(key: String, label: UiText, day: LocalDate, entries: List<DayEntry>): AgendaGroup {
+        fun bucket(
+            key: String,
+            label: UiText,
+            day: LocalDate,
+            entries: List<DayEntry>,
+            trailing: List<NoteMeta> = emptyList(),
+        ): AgendaGroup {
             val sorted = entries.sortedWith(
                 compareBy<DayEntry> { it.sortTime() }.thenBy { it.meta.title.lowercase() },
-            )
+            ) + trailing.map { DayEntry.Planned(it) }
             val rows = sorted.map { e ->
                 when (e) {
                     is DayEntry.Planned -> row(e.meta, today, showDate = false, p = p)
@@ -532,10 +545,16 @@ class AgendaViewModel(
         }
 
         if (isTodayTab) {
-            val events = eventsNotAlreadyPlanned(AgendaBuckets.activeEventsOn(visible, today), planned)
+            val events = eventsNotAlreadyPlanned(AgendaBuckets.activeEventsOn(visible, today), planned + carried)
             val entries = planned.map { DayEntry.Planned(it) } + events.map { DayEntry.Event(it.first, it.second) }
-            return if (entries.isEmpty()) emptyList() else listOf(
-                bucket(AgendaBuckets.SCHEDULED_TODAY_KEY, UiText.res(R.string.agenda_section_scheduled_today), today, entries),
+            return if (entries.isEmpty() && carried.isEmpty()) emptyList() else listOf(
+                bucket(
+                    AgendaBuckets.SCHEDULED_TODAY_KEY,
+                    UiText.res(R.string.agenda_section_scheduled_today),
+                    today,
+                    entries,
+                    trailing = carried,
+                ),
             )
         }
 
@@ -710,59 +729,6 @@ class AgendaViewModel(
             vault.save(fileName, newText)
             sync.requestReindex(fileName, newText, "agenda note added")
             showSnack(UiText.res(R.string.agenda_snack_note_added))
-        }
-    }
-
-    /**
-     * The overdue card's "Move to today": rewrites each overdue heading's
-     * SCHEDULED to today, or its DEADLINE when that is the only date it has.
-     * Time of day, repeater, and warning cookies all survive the move.
-     *
-     * Headings are rewritten highest-line-first within a file and the document
-     * re-parsed between edits, since adding a planning line shifts every line
-     * index below it.
-     */
-    fun moveOverdueToToday() {
-        val rows = _state.value.overdue
-        if (rows.isEmpty()) return
-        viewModelScope.launch {
-            val vault = vaultFlow.value ?: return@launch
-            val today = LocalDate.now()
-            val snapshots = mutableListOf<FileSnapshot>()
-            var moved = 0
-
-            for ((fileName, fileRows) in rows.groupBy { it.fileName }) {
-                val doc = vault.open(fileName) ?: continue
-                val original = doc.text
-                var text = original
-                withContext(dispatchers.default) {
-                    for (r in fileRows.sortedByDescending { it.lineIndex }) {
-                        val parsed = OrgParser.parse(text, doc.keywords)
-                        val h = parsed.headlineAtLine(r.lineIndex) ?: continue
-                        val scheduled = h.planning.scheduled
-                        val deadline = h.planning.deadline
-                        text = when {
-                            scheduled != null && scheduled.date.isBefore(today) ->
-                                OrgMutations.setScheduled(parsed, h, scheduled.copy(date = today))
-                            scheduled == null && deadline != null && deadline.date.isBefore(today) ->
-                                OrgMutations.setDeadline(parsed, h, deadline.copy(date = today))
-                            else -> continue
-                        }
-                        moved++
-                    }
-                }
-                if (text != original) {
-                    snapshots += FileSnapshot(fileName, original)
-                    vault.save(fileName, text)
-                    sync.requestReindex(fileName, text, "agenda move overdue")
-                }
-            }
-
-            if (snapshots.isEmpty()) return@launch
-            undoSnapshot = snapshots
-            overdueOpen = false
-            recompute()
-            showSnack(UiText.plural(R.plurals.agenda_snack_moved_to_today, moved))
         }
     }
 
@@ -947,44 +913,65 @@ class AgendaViewModel(
                 )
             }
 
+            // Issue #116: a missed DEADLINE is overdue (red "late"), whatever the
+            // SCHEDULED date; a past SCHEDULED with no missed deadline is carried
+            // onto today with a calm "Nd ago" chip, since it only marks when the
+            // work was meant to start.
+            val deadlineMissed = deadlineTs != null && deadlineTs.date.isBefore(today)
+            val carried = !deadlineMissed && scheduledTs != null && scheduledTs.date.isBefore(today)
             // The timestamp that decides which day the row lands on.
-            val anchor = scheduledTs ?: deadlineTs
+            val anchor = if (deadlineMissed) deadlineTs else scheduledTs ?: deadlineTs
             val anchorDate = anchor?.date
-            val overdue = anchorDate != null && anchorDate.isBefore(today)
             // Deadline-only: the row's own date *is* the deadline, so it reads red.
             val deadlineOnly = deadlineTs != null && scheduledTs == null
 
             val meta = buildList {
-                // agendaShowTimestamps adds the SCHEDULED date chip even under
-                // Date grouping (where the day section already names the day) —
-                // but never for a deadline-only row, whose "⚑ due" already covers it.
-                if ((showDate || (p.agendaShowTimestamps && scheduledTs != null)) && anchorDate != null) {
-                    val late = ChronoUnit.DAYS.between(anchorDate, today)
-                    val dateText = if (overdue) {
-                        val lateText = UiText.plural(R.plurals.agenda_meta_days_late, late.toInt())
-                        UiText.res(R.string.agenda_meta_late, anchorDate.format(AgendaBuckets.SHORT_DATE), lateText)
-                    } else {
-                        AgendaBuckets.dayLabel(anchorDate, today)
+                when {
+                    deadlineMissed -> {
+                        val dl = deadlineTs!!
+                        val lateText = UiText.plural(R.plurals.agenda_meta_days_late, ChronoUnit.DAYS.between(dl.date, today).toInt())
+                        add(AgendaMeta(flagged(UiText.res(R.string.agenda_meta_late, dl.date.format(AgendaBuckets.SHORT_DATE), lateText)), AgendaMetaTone.DANGER))
+                        // The plan rides along, quietly: it no longer decides where the row goes.
+                        scheduledTs?.let {
+                            add(AgendaMeta(UiText.raw(it.date.format(AgendaBuckets.SHORT_DATE)), AgendaMetaTone.MUTED, icon = AgendaMetaIcon.CALENDAR))
+                        }
                     }
-                    val text = if (deadlineOnly) flagged(dateText) else dateText
-                    // Only a plain scheduled date (not overdue, not deadline-only)
-                    // gets the calendar-icon treatment; overdue/deadline chips stay
-                    // plain red text, unchanged.
-                    add(
-                        AgendaMeta(
-                            text,
-                            if (overdue || deadlineOnly) AgendaMetaTone.DANGER else AgendaMetaTone.NORMAL,
-                            icon = if (overdue || deadlineOnly) AgendaMetaIcon.NONE else AgendaMetaIcon.CALENDAR,
-                        ),
-                    )
-                } else if (deadlineOnly) {
-                    add(AgendaMeta(flagged(UiText.res(R.string.agenda_meta_due)), AgendaMetaTone.DANGER))
+                    carried -> {
+                        // Always shown, even under Today's own section: how long ago
+                        // the work was meant to start is the row's whole point.
+                        val ago = UiText.plural(R.plurals.agenda_meta_days_ago, ChronoUnit.DAYS.between(scheduledTs!!.date, today).toInt())
+                        add(AgendaMeta(ago, AgendaMetaTone.NORMAL, icon = AgendaMetaIcon.CALENDAR))
+                    }
+                    // agendaShowTimestamps adds the SCHEDULED date chip even under
+                    // Date grouping (where the day section already names the day) —
+                    // but never for a deadline-only row, whose "⚑ due" already covers it.
+                    (showDate || (p.agendaShowTimestamps && scheduledTs != null)) && anchorDate != null -> {
+                        val dateText = AgendaBuckets.dayLabel(anchorDate, today)
+                        add(
+                            if (deadlineOnly) AgendaMeta(flagged(dateText), AgendaMetaTone.DANGER)
+                            else AgendaMeta(dateText, AgendaMetaTone.NORMAL, icon = AgendaMetaIcon.CALENDAR),
+                        )
+                    }
+                    deadlineOnly -> add(AgendaMeta(flagged(UiText.res(R.string.agenda_meta_due)), AgendaMetaTone.DANGER))
                 }
                 anchor?.time?.let { start ->
                     val range = start.format(CLOCK) + (anchor.endTime?.let { "–${it.format(CLOCK)}" } ?: "")
                     add(AgendaMeta(range, AgendaMetaTone.NORMAL))
                 }
-                if (deadlineTs != null && scheduledTs != null) {
+                if (carried && deadlineTs != null) {
+                    // How close the real promise is: "⚑ due" today, else "⚑ Nov 26 · in 3d".
+                    val left = ChronoUnit.DAYS.between(today, deadlineTs.date)
+                    val text = if (left == 0L) {
+                        UiText.res(R.string.agenda_meta_due)
+                    } else {
+                        UiText.res(
+                            R.string.agenda_meta_due_soon,
+                            deadlineTs.date.format(AgendaBuckets.SHORT_DATE),
+                            UiText.plural(R.plurals.agenda_meta_in_days, left.toInt()),
+                        )
+                    }
+                    add(AgendaMeta(flagged(text), AgendaMetaTone.DANGER))
+                } else if (!deadlineMissed && deadlineTs != null && scheduledTs != null) {
                     add(AgendaMeta("⚑ ${deadlineTs.date.format(AgendaBuckets.SHORT_DATE)}", AgendaMetaTone.DANGER))
                 }
                 (scheduledTs?.repeater ?: deadlineTs?.repeater)?.let {

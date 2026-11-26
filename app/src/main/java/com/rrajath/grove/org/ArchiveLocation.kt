@@ -1,7 +1,13 @@
 package com.rrajath.grove.org
 
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
+
 /** A parsed `:ARCHIVE:`/`#+ARCHIVE:` value: destination file plus an optional nested heading path. */
-data class ArchiveTarget(val fileName: String, val headingPath: List<String>)
+data class ArchiveTarget(val fileName: String, val headingPath: ImmutableList<String>) {
+    /** Copies a plain list, so a caller can never mutate a value Compose treats as stable. */
+    constructor(fileName: String, headingPath: List<String>) : this(fileName, headingPath.toImmutableList())
+}
 
 /**
  * Parses and resolves org's `ARCHIVE` property/keyword, and locates (or

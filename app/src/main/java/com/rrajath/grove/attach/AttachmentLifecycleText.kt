@@ -3,8 +3,14 @@ package com.rrajath.grove.attach
 import com.rrajath.grove.R
 import com.rrajath.grove.ui.util.UiText
 
-/** `Notes/data/` (or `data/` at the vault root): where [orgFile]'s `:ID:` attachments live under [config]. */
-fun attachDirLabel(orgFile: String, config: AttachConfig): String = folderLabel(config.rootFor(orgFile))
+/**
+ * `Notes/data/` (or `data/` at the vault root): where [orgFile]'s `:ID:`
+ * attachments live under [config]. A vault-root folder reads `/attach/`, so it
+ * isn't mistaken for one next to the note.
+ */
+fun attachDirLabel(orgFile: String, config: AttachConfig): String =
+    if (config.isVaultRoot) "/" + folderLabel(config.rootFor(orgFile)).trimStart('/')
+    else folderLabel(config.rootFor(orgFile))
 
 /** `Archive/` (or the vault root's display, `/`). */
 fun folderLabel(dir: String): String = if (dir.trim('/').isEmpty()) "/" else "${dir.trim('/')}/"

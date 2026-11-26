@@ -37,7 +37,12 @@ import kotlin.math.abs
  * exception: they are *events*, not plans. One heading with N active dates is
  * N separate agenda entries, each shown on its own day (and on every repeat of
  * a repeating stamp) via [activeEventsOn], and an event never ages into
- * [overdue] the way a past SCHEDULED does.
+ * [overdue] the way a past DEADLINE does.
+ *
+ * Two exceptions to "its SCHEDULED date" (issue #116): a heading whose
+ * DEADLINE has passed is [overdue] whatever its SCHEDULED date, and a past
+ * SCHEDULED date with no missed deadline rolls forward onto today
+ * ([carriedOver]), the way the Emacs agenda carries it as `Sched. Nx:`.
  *
  * Two more ways a heading reaches a day other than its stored one, both from
  * the Emacs agenda: a repeating SCHEDULED or DEADLINE previews each later
@@ -69,7 +74,7 @@ internal object AgendaBuckets {
     /**
      * Whether a SCHEDULED delay cookie still holds this heading's plan back on
      * [today]: `SCHEDULED: <2026-11-03 Tue -2d>` stays off the agenda until
-     * Nov 5, then shows as overdue (Emacs). Callers drop delayed headings from
+     * Nov 5, then carries over onto today (Emacs). Callers drop delayed headings from
      * their planned rows; the heading's events and deadline prewarning stay.
      */
     fun delayed(m: NoteMeta, today: LocalDate): Boolean {
@@ -129,14 +134,42 @@ internal object AgendaBuckets {
                 .thenBy { it.title.lowercase() }
         )
 
-    /** Past-dated headings, oldest first, then priority, then title. */
+    /**
+     * Whether [m]'s DEADLINE is before [today]: the only thing that makes a
+     * heading overdue (issue #116). A DEADLINE is when the work is due; a
+     * SCHEDULED date is only when it was meant to start, so a past one rolls
+     * forward instead ([carriedOver]), as in the Emacs agenda.
+     */
+    fun deadlinePassed(m: NoteMeta, today: LocalDate): Boolean = m.deadlineDate?.isBefore(today) == true
+
+    /**
+     * Headings whose DEADLINE has passed, whatever their SCHEDULED date: oldest
+     * deadline first, then priority, then title.
+     */
     fun overdue(notes: List<NoteMeta>, today: LocalDate): List<NoteMeta> =
-        notes.filter { whenDate(it)?.isBefore(today) == true }
+        notes.filter { deadlinePassed(it, today) }
             .sortedWith(
-                compareBy<NoteMeta> { whenDate(it) ?: LocalDate.MAX }
+                compareBy<NoteMeta> { it.deadlineDate }
                     .thenBy { it.priority ?: NO_PRIORITY_SORT_KEY }
                     .thenBy { it.title.lowercase() }
             )
+
+    /**
+     * Headings whose SCHEDULED date has passed but whose DEADLINE (if any) has
+     * not: started-but-unfinished work that rolls onto today rather than into
+     * [overdue]. Oldest scheduled date first, then priority, then title.
+     */
+    fun carriedOver(notes: List<NoteMeta>, today: LocalDate): List<NoteMeta> =
+        notes.filter { it.scheduledDate?.isBefore(today) == true && !deadlinePassed(it, today) }
+            .sortedWith(
+                compareBy<NoteMeta> { it.scheduledDate }
+                    .thenBy { it.priority ?: NO_PRIORITY_SORT_KEY }
+                    .thenBy { it.title.lowercase() }
+            )
+
+    /** Headings planned for [today] itself, minus any whose deadline has already passed (those are [overdue]). */
+    fun plannedToday(notes: List<NoteMeta>, today: LocalDate): List<NoteMeta> =
+        onDay(notes, today).filterNot { deadlinePassed(it, today) }
 
     fun onDay(notes: List<NoteMeta>, day: LocalDate): List<NoteMeta> =
         notes.filter { whenDate(it) == day }
@@ -156,12 +189,16 @@ internal object AgendaBuckets {
                 .map { ts -> m to ts }
         }
 
-    /** Everything after today, out to a [windowDays]-wide horizon starting today. */
+    /**
+     * Everything after today, out to a [windowDays]-wide horizon starting
+     * today. A heading whose deadline has passed stays in [overdue] even when
+     * its SCHEDULED date is still ahead.
+     */
     fun upcoming(notes: List<NoteMeta>, today: LocalDate, windowDays: Int): List<NoteMeta> {
         val horizon = today.plusDays((windowDays - 1).coerceAtLeast(0).toLong())
         return notes.filter {
             val d = whenDate(it)
-            d != null && d.isAfter(today) && !d.isAfter(horizon)
+            d != null && d.isAfter(today) && !d.isAfter(horizon) && !deadlinePassed(it, today)
         }
     }
 

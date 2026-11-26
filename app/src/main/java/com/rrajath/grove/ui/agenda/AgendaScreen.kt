@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -220,7 +221,6 @@ fun AgendaScreen(
                         else viewModel.advanceRepeater(row)
                     },
                     onToggleOverdue = viewModel::toggleOverdue,
-                    onMoveOverdue = viewModel::moveOverdueToToday,
                     onOpenDatePicker = openDatePicker,
                     onOpenNoteDialog = { row -> noteDialogFor = row },
                     onShowInNotebook = onShowInNotebook,
@@ -497,7 +497,6 @@ private fun AgendaList(
     onOpenNote: (NoteRef) -> Unit,
     onToggleDone: (AgendaRow) -> Unit,
     onToggleOverdue: () -> Unit,
-    onMoveOverdue: () -> Unit,
     onOpenDatePicker: (AgendaRow, PlanningKind) -> Unit,
     onOpenNoteDialog: (AgendaRow) -> Unit,
     onShowInNotebook: (NoteRef) -> Unit,
@@ -548,7 +547,6 @@ private fun AgendaList(
                 OverdueCard(
                     state = state,
                     onToggle = onToggleOverdue,
-                    onMoveAll = onMoveOverdue,
                     onOpenNote = onOpenNote,
                     onToggleDone = onToggleDone,
                 )
@@ -615,12 +613,15 @@ internal fun GroupHeader(label: String, count: Int) {
     }
 }
 
-/** The red collapsible card above the day's list, with its bulk reschedule. */
+/**
+ * The red collapsible card above the day's list: tasks whose DEADLINE has
+ * passed. No bulk reschedule: a missed deadline is a promise to someone else
+ * and needs a decision per task (issue #116).
+ */
 @Composable
 private fun OverdueCard(
     state: AgendaUiState,
     onToggle: () -> Unit,
-    onMoveAll: () -> Unit,
     onOpenNote: (NoteRef) -> Unit,
     onToggleDone: (AgendaRow) -> Unit,
 ) {
@@ -635,7 +636,8 @@ private fun OverdueCard(
             .padding(start = 12.dp, top = 11.dp, end = 12.dp, bottom = 12.dp),
     ) {
         Row(
-            Modifier.fillMaxWidth().clickable(onClick = onToggle),
+            // Keeps the header the height it had beside the retired "Move to today" pill.
+            Modifier.fillMaxWidth().heightIn(min = 27.dp).clickable(onClick = onToggle),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(if (state.overdueOpen) "▾" else "▸", fontFamily = PlexSans, fontSize = 12.sp, color = c.red)
@@ -645,19 +647,6 @@ private fun OverdueCard(
                 fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = c.ink,
                 modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(9.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(c.surface)
-                    .clickable(onClick = onMoveAll)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    stringResource(R.string.agenda_move_to_today),
-                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = c.red,
-                )
-            }
         }
         if (state.overdueOpen) {
             Spacer(Modifier.height(4.dp))
@@ -756,13 +745,14 @@ private fun AgendaRowContent(row: AgendaRow, onToggleDone: () -> Unit) {
  * A meta entry that carries an [AgendaMetaIcon]: the same icon + colored-text
  * pairing as Read mode's `PlanningChip` (`ReadNoteScreen`), minus its pill
  * background — blue calendar for a scheduled date, violet dot for a bare
- * active-timestamp day.
+ * active-timestamp day. A [AgendaMetaTone.MUTED] calendar (the scheduled date
+ * riding along on an overdue row) drops to `ink2`.
  */
 @Composable
 private fun MetaIconChip(meta: AgendaMeta) {
     val c = MaterialTheme.grove
     val tint = when (meta.icon) {
-        AgendaMetaIcon.CALENDAR -> c.blue
+        AgendaMetaIcon.CALENDAR -> if (meta.tone == AgendaMetaTone.MUTED) c.ink2 else c.blue
         AgendaMetaIcon.EVENT_DOT -> c.violet
         AgendaMetaIcon.NONE -> c.metaColor(meta.tone)
     }

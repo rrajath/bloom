@@ -49,7 +49,6 @@ import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.advancedRepeatingPlanning
-import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.nextRepeatOccurrence
 import com.rrajath.grove.settings.NotebookDisplayNameMode
 import com.rrajath.grove.settings.NotebookSortKey
@@ -837,6 +836,8 @@ class DocumentViewModel(
     private val favoritesRepository: FavoritesRepository,
     private val dispatchers: AppDispatchers,
     private val app: GroveApplication,
+    /** [count] fresh vault-unique IDs ([com.rrajath.grove.org.OrgIdAllocator] in the app). */
+    private val orgIds: suspend (count: Int) -> List<String> = { n -> List(n) { com.rrajath.grove.org.newOrgId() } },
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<DocumentUiState>(DocumentUiState.Loading)
@@ -1456,7 +1457,7 @@ class DocumentViewModel(
         mutate {
             val h = this.headline(headline) ?: return@mutate onResolved(null)
             (h.id ?: h.customId)?.let { return@mutate onResolved(it) }
-            val newId = newOrgId()
+            val newId = orgIds(1).single()
             val newText = withContext(dispatchers.default) {
                 OrgMutations.upsertProperty(loaded.document, h, "ID", newId)
             }
@@ -1754,7 +1755,7 @@ class DocumentViewModel(
             val (newText, lineIndex) = insert(
                 loaded.document,
                 OrgMutations.NewNoteOptions(
-                    id = if (settings.addIdToNewNotes) newOrgId() else null,
+                    id = if (settings.addIdToNewNotes) orgIds(1).single() else null,
                     createdAt = if (settings.addCreatedToNewNotes) LocalDateTime.now() else null,
                 ),
             ) ?: return@mutate
@@ -1963,8 +1964,9 @@ class DocumentViewModel(
         vaultFlow.value ?: return
         mutate {
             val headline = this.headline(headline) ?: return@mutate
+            val newId = orgIds(1).single()
             val (newText, newDoc) = withContext(dispatchers.default) {
-                val text = OrgMutations.upsertProperty(loaded.document, headline, "ID", newOrgId())
+                val text = OrgMutations.upsertProperty(loaded.document, headline, "ID", newId)
                 text to OrgParser.parse(text, loaded.document.keywords)
             }
             publish(loaded.fileName, loaded.document, newDoc)
@@ -2089,11 +2091,25 @@ class DocumentViewModel(
     }
 
     /** A fresh `:ID:` for each heading that has none yet. */
-    fun generateIdEach(lines: Set<Int>) =
-        // i18n: sync-log reason
-        editEach(lines, "org-id generated", { UiText.plural(R.plurals.outline_bulk_org_id, it) }) { d, h ->
-            if (h.id != null) null else OrgMutations.upsertProperty(d, h, "ID", newOrgId())
+    fun generateIdEach(lines: Set<Int>) {
+        viewModelScope.launch {
+            // editEach's reparsing fallback re-runs the edit for every heading, so
+            // allocate for both passes; IDs a discarded pass used are never written.
+            val ids = ArrayDeque(orgIds(lines.size * 2))
+            // i18n: sync-log reason
+            editEach(lines, "org-id generated", { UiText.plural(R.plurals.outline_bulk_org_id, it) }) { d, h ->
+                if (h.id != null) null else OrgMutations.upsertProperty(d, h, "ID", ids.removeFirst())
+            }
         }
+    }
+
+    /** Read mode's "Generate org-id" on a note's intro: promotes it to a heading carrying a fresh `:ID:`. */
+    fun generateIntroId(describe: String) {
+        viewModelScope.launch {
+            val id = orgIds(1).single()
+            withIntroHeading(describe) { d, h -> OrgMutations.upsertProperty(d, h, "ID", id) }
+        }
+    }
 
     /**
      * Apply a section-local [edit] to each heading at [lines] (see
@@ -2543,6 +2559,7 @@ class DocumentViewModel(
             DocumentViewModel(
                 it.vault, it.keywords, it.syncManager, it.database,
                 it.settingsRepository, it.favoritesRepository, it.dispatchers, it,
+                it.orgIdAllocator::allocate,
             )
         }
     }

@@ -81,6 +81,8 @@
     <!-- Text / link shared into the app from another app. -->
     <string name="placeholder_doc_shared_text">Shared text</string>
     <string name="placeholder_doc_shared_url">Shared URL</string>
+    <!-- %id / %(id): an org-mode :ID: value, e.g. inside a template's :PROPERTIES: drawer. "ID" is the org property name. -->
+    <string name="placeholder_doc_id">Unique ID, new for each use</string>
     <string name="placeholder_doc_cursor">Place cursor here</string>
     <string name="placeholder_doc_prompt">Ask for user input</string>
 

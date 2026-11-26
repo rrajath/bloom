@@ -35,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -75,6 +77,8 @@ internal fun SettingsPageScaffold(
     val c = MaterialTheme.grove
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
+    val reveal = rememberSettingsReveal()
+    SettingsRevealEffect(reveal, scrollState)
     Scaffold(
         containerColor = c.bg,
         topBar = {
@@ -103,12 +107,14 @@ internal fun SettingsPageScaffold(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .onSizeChanged { reveal.viewportHeight = it.height }
                 .verticalScroll(scrollState)
+                .onGloballyPositioned { reveal.content = it }
                 .imePadding()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
-            content(scrollState)
+            ProvideSettingsReveal(reveal) { content(scrollState) }
         }
     }
 }
@@ -163,11 +169,14 @@ internal fun SettingsRow(
     descriptionContent: (@Composable () -> Unit)? = null,
     labelBadge: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    /** False draws the label and description in `ink3` and drops [onClick]. */
+    enabled: Boolean = true,
     trailing: @Composable () -> Unit,
 ) {
-    val clickMod = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    val clickMod = if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .then(clickMod)
             .padding(horizontal = 15.dp, vertical = 14.dp),
@@ -178,7 +187,7 @@ internal fun SettingsRow(
                 Text(
                     label,
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
-                    fontSize = 14.5.sp, color = MaterialTheme.grove.ink,
+                    fontSize = 14.5.sp, color = if (enabled) MaterialTheme.grove.ink else MaterialTheme.grove.ink3,
                 )
                 if (labelBadge != null) {
                     Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) { labelBadge() }
@@ -189,7 +198,7 @@ internal fun SettingsRow(
             } else if (description != null) {
                 Text(
                     description,
-                    fontFamily = PlexSans, fontSize = 12.sp, color = MaterialTheme.grove.ink2,
+                    fontFamily = PlexSans, fontSize = 12.sp, color = if (enabled) MaterialTheme.grove.ink2 else MaterialTheme.grove.ink3,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -205,20 +214,15 @@ internal fun ToggleRow(
     checked: Boolean,
     description: String? = null,
     labelBadge: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
     onToggle: (Boolean) -> Unit,
 ) {
     val c = MaterialTheme.grove
-    // The `checked` source is a DataStore-backed StateFlow, so it only flips a few
-    // frames after the tap (coroutine hop + disk write + emit + recompose). Driving
-    // the Switch straight off it makes the thumb snap late instead of sliding. Track
-    // the state locally for an instant, smooth animation and let the store catch up.
-    var shown by remember { mutableStateOf(checked) }
-    LaunchedEffect(checked) { shown = checked }
-    val setChecked: (Boolean) -> Unit = { shown = it; onToggle(it) }
+    val switch = rememberSettingsSwitchState(checked, onToggle)
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
-            .clickable { setChecked(!shown) }
+            .clickable { switch.set(!switch.shown) }
             .padding(horizontal = 15.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -242,17 +246,84 @@ internal fun ToggleRow(
             }
         }
         Spacer(Modifier.width(12.dp))
-        androidx.compose.material3.Switch(
-            checked = shown,
-            onCheckedChange = setChecked,
-            colors = androidx.compose.material3.SwitchDefaults.colors(
-                checkedTrackColor = c.accent,
-                checkedThumbColor = c.accentInk,
-                uncheckedTrackColor = c.surface3,
-                uncheckedThumbColor = c.surface,
-            ),
-        )
+        SettingsSwitch(switch)
     }
+}
+
+/** [ToggleRow] for a searchable setting: label and description come from [spec]. */
+@Composable
+internal fun ToggleRow(
+    spec: SettingSpec,
+    checked: Boolean,
+    description: String? = spec.descriptionText(),
+    labelBadge: (@Composable () -> Unit)? = null,
+    onToggle: (Boolean) -> Unit,
+) = ToggleRow(
+    label = spec.labelText(),
+    checked = checked,
+    description = description,
+    labelBadge = labelBadge,
+    modifier = Modifier.settingAnchor(spec),
+    onToggle = onToggle,
+)
+
+/** [SettingsRow] for a searchable setting: label and description come from [spec]. */
+@Composable
+internal fun SettingsRow(
+    spec: SettingSpec,
+    description: String? = spec.descriptionText(),
+    descriptionContent: (@Composable () -> Unit)? = null,
+    labelBadge: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    trailing: @Composable () -> Unit,
+) = SettingsRow(
+    label = spec.labelText(),
+    description = description,
+    descriptionContent = descriptionContent,
+    labelBadge = labelBadge,
+    onClick = onClick,
+    modifier = Modifier.settingAnchor(spec),
+    enabled = enabled,
+    trailing = trailing,
+)
+
+/**
+ * A switch's shown state. The `checked` source is a DataStore-backed StateFlow, so it
+ * only flips a few frames after the tap (coroutine hop + disk write + emit + recompose).
+ * Driving the Switch straight off it makes the thumb snap late instead of sliding, so
+ * the state is tracked locally for an instant, smooth animation while the store catches up.
+ */
+internal class SettingsSwitchState(initial: Boolean, private val onToggle: (Boolean) -> Unit) {
+    var shown by mutableStateOf(initial)
+    fun set(value: Boolean) {
+        shown = value
+        onToggle(value)
+    }
+}
+
+@Composable
+internal fun rememberSettingsSwitchState(checked: Boolean, onToggle: (Boolean) -> Unit): SettingsSwitchState {
+    val latest by androidx.compose.runtime.rememberUpdatedState(onToggle)
+    val state = remember { SettingsSwitchState(checked) { latest(it) } }
+    LaunchedEffect(checked) { state.shown = checked }
+    return state
+}
+
+/** The settings-styled Switch shared by [ToggleRow] and Settings search results. */
+@Composable
+internal fun SettingsSwitch(state: SettingsSwitchState) {
+    val c = MaterialTheme.grove
+    androidx.compose.material3.Switch(
+        checked = state.shown,
+        onCheckedChange = state::set,
+        colors = androidx.compose.material3.SwitchDefaults.colors(
+            checkedTrackColor = c.accent,
+            checkedThumbColor = c.accentInk,
+            uncheckedTrackColor = c.surface3,
+            uncheckedThumbColor = c.surface,
+        ),
+    )
 }
 
 @Composable

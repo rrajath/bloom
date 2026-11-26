@@ -36,8 +36,36 @@ class SearchAgendaTest {
             layout(
                 note("Later", scheduled = "<2025-06-13 Fri>"),
                 note("Now", deadline = "<2025-06-11 Wed>"),
-                note("Old", scheduled = "<2025-06-02 Mon>"),
+                note("Old", deadline = "<2025-06-02 Mon>"),
             ),
+        )
+    }
+
+    @Test
+    fun `a past scheduled date is carried onto today after today's own entries, oldest first`() {
+        assertEquals(
+            listOf("Today, Jun 11" to listOf("Now", "Started long ago", "Started yesterday")),
+            layout(
+                note("Started yesterday", scheduled = "<2025-06-10 Tue>"),
+                note("Now", scheduled = "<2025-06-11 Wed>"),
+                note("Started long ago", scheduled = "<2025-06-02 Mon>"),
+            ),
+        )
+    }
+
+    @Test
+    fun `a carried-over entry opens today's section even when nothing else is on it`() {
+        assertEquals(
+            listOf("Today, Jun 11" to listOf("Started"), "Friday, Jun 13" to listOf("Later")),
+            layout(note("Later", scheduled = "<2025-06-13 Fri>"), note("Started", scheduled = "<2025-06-02 Mon>")),
+        )
+    }
+
+    @Test
+    fun `a missed deadline is overdue whatever the scheduled date`() {
+        assertEquals(
+            listOf("Overdue" to listOf("Late")),
+            layout(note("Late", scheduled = "<2025-06-12 Thu>", deadline = "<2025-06-09 Mon>")),
         )
     }
 

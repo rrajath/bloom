@@ -21,12 +21,27 @@ Capture template bodies support placeholder tokens that get expanded at capture 
 | `%clipboard` | Current clipboard contents |
 | `%shared_text` | Text passed in via the Android share sheet |
 | `%shared_url` | The URL from a shared link (see [Share Intake](/features/share-intake)) |
+| `%id` / `%(id)` | A new unique ID, e.g. `3F2A9C1E-...`, for an `:ID:` property (see [IDs](#ids)) |
 | `%^{prompt}` | Pauses capture and asks the user for input before inserting it: shown as a dialog with the text between the braces as the label |
 | `%?` / `%cursor` | Where the cursor lands once the capture editor opens |
 
 ## Prompt placeholders
 
 A template using `%^{Title}` shows a dialog asking for "Title" before the capture editor even opens, useful for templates where one piece of information should always be filled in deliberately rather than typed into the body afterward.
+
+## IDs
+
+Put `%id` (or org-roam's `%(id)`, which works the same) in a template's `:PROPERTIES:` drawer to give every captured heading its own `:ID:`, so you can link to it with `[[id:...]]` from anywhere in your vault:
+
+```org
+* TODO %^{Task}
+:PROPERTIES:
+:ID: %id
+:END:
+%?
+```
+
+Each `%id` in a template gets a different ID, so a template that creates two headings never gives them the same `:ID:`. Before using an ID, Bloom checks that no `:ID:` or `:CUSTOM_ID:` anywhere in your vault already has it. The same check covers every ID Bloom adds for you, such as **Generate org-id**, attachments, and new notes.
 
 ## Related
 

@@ -1,6 +1,7 @@
 package com.rrajath.grove.capture
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 
@@ -126,5 +127,43 @@ class PlaceholderExpanderTest {
     @Test
     fun `id placeholder is blank when context has no id`() {
         assertEquals("", expand("%(id)").text)
+    }
+
+    @Test
+    fun `percent-id is an alias for percent-paren-id`() {
+        val idCtx = ctx.copy(id = "ABCD-1234")
+        assertEquals(":ID: ABCD-1234", PlaceholderExpander.expand(":ID: %id", idCtx).text)
+    }
+
+    @Test
+    fun `each id placeholder gets its own id, the context id first`() {
+        val idCtx = ctx.copy(id = "FIRST", extraIds = listOf("SECOND", "THIRD"))
+        val template = "* A\n:PROPERTIES:\n:ID: %id\n:END:\n* B\n:PROPERTIES:\n:ID: %(id)\n:END:\n[[id:%id]]"
+        assertEquals(
+            "* A\n:PROPERTIES:\n:ID: FIRST\n:END:\n* B\n:PROPERTIES:\n:ID: SECOND\n:END:\n[[id:THIRD]]",
+            PlaceholderExpander.expand(template, idCtx).text,
+        )
+    }
+
+    @Test
+    fun `expanding the same context twice yields the same ids`() {
+        val idCtx = ctx.copy(id = "FIRST", extraIds = listOf("SECOND"))
+        val template = "%id %id"
+        assertEquals(PlaceholderExpander.expand(template, idCtx).text, PlaceholderExpander.expand(template, idCtx).text)
+        assertEquals("FIRST SECOND", PlaceholderExpander.expand(template, idCtx).text)
+    }
+
+    @Test
+    fun `an id placeholder past the allocated ones still gets a distinct id`() {
+        val idCtx = ctx.copy(id = "FIRST")
+        val (first, second) = PlaceholderExpander.expand("%id %id", idCtx).text.split(" ")
+        assertEquals("FIRST", first)
+        assertTrue(second.isNotBlank() && second != first)
+    }
+
+    @Test
+    fun `idCount counts both spellings but not prompt labels`() {
+        assertEquals(0, PlaceholderExpander.idCount("* %^{Your %id} %U"))
+        assertEquals(3, PlaceholderExpander.idCount(":ID: %id\n:ID: %(id)\n%idea"))
     }
 }

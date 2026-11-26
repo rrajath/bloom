@@ -13,7 +13,8 @@ import java.time.ZoneId
  *
  * X must agree with what the Agenda screen shows for today (overdue + due
  * today), so this mirrors its rule: a heading belongs to exactly one day, its
- * SCHEDULED date if it has one, otherwise its DEADLINE. A heading carrying
+ * SCHEDULED date if it has one, otherwise its DEADLINE, except that a missed
+ * DEADLINE makes it overdue whatever its SCHEDULED date (issue #116). A heading carrying
  * both a SCHEDULED and a DEADLINE reminder is therefore collapsed to one task
  * here too, even though the reminders table tracks them as two distinct rows.
  * Bare active timestamps are the exception: they are events, counted per stamp
@@ -40,13 +41,9 @@ object ReminderDigest {
         // a time-of-day still anchors there, and a DEADLINE must not stand in for
         // it, or the heading gets counted here on a date it would never appear
         // under in the Agenda.
-        val anchors = planning
+        val headings = planning
             .groupBy { Triple(it.fileName, it.headingPath, it.headingLevel) }
-            .mapNotNull { (_, entries) ->
-                val scheduled = entries.firstOrNull { it.planningType == PlanningType.SCHEDULED.storageKey }
-                val deadline = entries.firstOrNull { it.planningType == PlanningType.DEADLINE.storageKey }
-                scheduled ?: deadline
-            }
+            .values
 
         // Every overdue anchor plus every anchor due today, regardless of whether
         // it fires its own notification (see [ReminderEntity.firesOwnNotification]).
@@ -54,7 +51,13 @@ object ReminderDigest {
         // fires its own notification later (ReminderAlarmReceiver) - that's
         // intentional, not a double-count bug, so this total always matches what
         // the Agenda screen shows for today.
-        val planningCount = anchors.count { !dateOf(it).isAfter(today) }
+        val planningCount = headings.count { entries ->
+            val scheduled = entries.firstOrNull { it.planningType == PlanningType.SCHEDULED.storageKey }
+            val deadline = entries.firstOrNull { it.planningType == PlanningType.DEADLINE.storageKey }
+            val anchor = scheduled ?: deadline ?: return@count false
+            // A missed deadline is overdue even when the SCHEDULED date is still ahead.
+            !dateOf(anchor).isAfter(today) || deadline?.let { dateOf(it).isBefore(today) } == true
+        }
 
         // Active timestamps are events on their exact date, never overdue
         // (matching Agenda), so only ones landing on today count. Each is its

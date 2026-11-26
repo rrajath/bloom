@@ -60,16 +60,28 @@ class SettingsAttachFolderDialogRobolectricTest {
     fun invalidFolderDisablesSaveAndAValidOneIsStoredNormalized() {
         content()
         composeRule.onNodeWithText("Attachment folder").performScrollTo().performClick()
-        composeRule.onNodeWithText("Relative to each note's folder. Files already in data/ keep opening.").assertExists()
+        composeRule.onNodeWithText(
+            "attach/ goes next to each note. /attach/ is one folder at the vault root. Files already in data/ keep opening.",
+        ).assertExists()
         composeRule.onNodeWithTag("name_dialog_field").performTextReplacement("../attach")
-        composeRule.onNodeWithText("Use a folder inside each note's folder; .. isn't supported.").assertExists()
+        composeRule.onNodeWithText("Use a folder inside the vault; .. isn't supported.").assertExists()
         composeRule.onNodeWithText("Save").assertIsNotEnabled()
-        composeRule.onNodeWithTag("name_dialog_field").performTextReplacement("/attach")
+        composeRule.onNodeWithTag("name_dialog_field").performTextReplacement("/")
         composeRule.onNodeWithText("Save").assertIsNotEnabled()
         composeRule.onNodeWithTag("name_dialog_field").performTextReplacement(" media//files ")
         composeRule.onNodeWithText("Save").assertIsEnabled().performClick()
         assertEquals(listOf("media/files/"), stored)
         composeRule.onNodeWithTag("attach_folder_value", useUnmergedTree = true).assertTextEquals("media/files/")
+    }
+
+    @Test
+    fun aLeadingSlashStoresAVaultRootFolder() {
+        content()
+        composeRule.onNodeWithText("Attachment folder").performScrollTo().performClick()
+        composeRule.onNodeWithTag("name_dialog_field").performTextReplacement("/attach")
+        composeRule.onNodeWithText("Save").assertIsEnabled().performClick()
+        assertEquals(listOf("/attach/"), stored)
+        composeRule.onNodeWithTag("attach_folder_value", useUnmergedTree = true).assertTextEquals("/attach/")
     }
 
     @Test

@@ -23,12 +23,12 @@ class QuickStartsTest {
     }
 
     @Test
-    fun `overdue built-in ORs every active keyword across scheduled and deadline`() {
+    fun `overdue built-in ORs every active keyword over a missed deadline only`() {
         assertEquals(
-            "i.TODO s.overdue OR i.TODO d.overdue OR i.NEXT s.overdue OR i.NEXT d.overdue",
+            "i.TODO d.overdue OR i.NEXT d.overdue",
             QuickStarts.builtInQuery(QuickStarts.Card.OVERDUE, states),
         )
-        assertEquals("s.overdue OR d.overdue", QuickStarts.builtInQuery(QuickStarts.Card.OVERDUE, emptyList()))
+        assertEquals("d.overdue", QuickStarts.builtInQuery(QuickStarts.Card.OVERDUE, emptyList()))
         assertNull(QuickStarts.builtInFilters(QuickStarts.Card.OVERDUE, states))
     }
 

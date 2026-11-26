@@ -52,12 +52,13 @@ class AgendaBucketsTest {
     }
 
     @Test
-    fun `a heading scheduled today with a past deadline is not overdue`() {
-        // The old QueryMatcher.agenda called this overdue because *either* date
-        // was past. The screen now anchors on the scheduled date only.
+    fun `a past deadline makes a heading overdue even when it is scheduled today`() {
+        // Issue #116: only a missed DEADLINE is overdue, and it decides over
+        // the SCHEDULED date. The heading leaves today's list for the card.
         val note = note("PastDeadline", scheduled = "<2025-06-11 Wed>", deadline = "<2025-06-01 Sun>")
-        assertTrue(AgendaBuckets.overdue(listOf(note), today).isEmpty())
-        assertEquals(listOf("PastDeadline"), AgendaBuckets.onDay(listOf(note), today).map { it.title })
+        assertEquals(listOf("PastDeadline"), AgendaBuckets.overdue(listOf(note), today).map { it.title })
+        assertTrue(AgendaBuckets.plannedToday(listOf(note), today).isEmpty())
+        assertTrue(AgendaBuckets.carriedOver(listOf(note), today).isEmpty())
     }
 
     // --- bare active timestamps (events) ---
@@ -120,27 +121,69 @@ class AgendaBucketsTest {
     // --- sections ---
 
     @Test
-    fun `overdue is separate from today and upcoming`() {
-        val overdue = note("Overdue", keyword = "TODO", scheduled = "<2025-06-01 Sun>")
+    fun `overdue, carried over, today and upcoming are disjoint`() {
+        val missed = note("Missed", keyword = "TODO", deadline = "<2025-06-01 Sun>")
+        val started = note("Started", keyword = "TODO", scheduled = "<2025-06-01 Sun>")
         val todayNote = note("Today", deadline = "<2025-06-11 Wed>")
         val thursday = note("Thursday", scheduled = "<2025-06-12 Thu>")
         val nextWeek = note("NextWeek", scheduled = "<2025-06-25 Wed>")
-        val all = listOf(overdue, todayNote, thursday, nextWeek)
+        val all = listOf(missed, started, todayNote, thursday, nextWeek)
 
-        assertEquals(listOf("Overdue"), AgendaBuckets.overdue(all, today).map { it.title })
-        assertEquals(listOf("Today"), AgendaBuckets.onDay(all, today).map { it.title })
+        assertEquals(listOf("Missed"), AgendaBuckets.overdue(all, today).map { it.title })
+        assertEquals(listOf("Started"), AgendaBuckets.carriedOver(all, today).map { it.title })
+        assertEquals(listOf("Today"), AgendaBuckets.plannedToday(all, today).map { it.title })
         assertEquals(listOf("Thursday"), AgendaBuckets.upcoming(all, today, 7).map { it.title })
     }
 
     @Test
-    fun `overdue sorted oldest first then priority then title`() {
-        val recentB = note("RecentB", scheduled = "<2025-06-10 Tue>", priority = "B")
-        val tiedA = note("TiedA", scheduled = "<2025-06-01 Sun>", priority = "A")
+    fun `a past scheduled date is carried over, not overdue`() {
+        val started = note("Started", keyword = "TODO", scheduled = "<2025-06-09 Mon>")
+        assertTrue(AgendaBuckets.overdue(listOf(started), today).isEmpty())
+        assertEquals(listOf("Started"), AgendaBuckets.carriedOver(listOf(started), today).map { it.title })
+    }
+
+    @Test
+    fun `a past scheduled date with a deadline still ahead is carried over`() {
+        val q4 = note("Q4", scheduled = "<2025-06-09 Mon>", deadline = "<2025-06-14 Sat>")
+        assertTrue(AgendaBuckets.overdue(listOf(q4), today).isEmpty())
+        assertEquals(listOf("Q4"), AgendaBuckets.carriedOver(listOf(q4), today).map { it.title })
+    }
+
+    @Test
+    fun `a past scheduled date with a deadline due today is carried over`() {
+        val dueToday = note("DueToday", scheduled = "<2025-06-09 Mon>", deadline = "<2025-06-11 Wed>")
+        assertTrue(AgendaBuckets.overdue(listOf(dueToday), today).isEmpty())
+        assertEquals(listOf("DueToday"), AgendaBuckets.carriedOver(listOf(dueToday), today).map { it.title })
+    }
+
+    @Test
+    fun `a past deadline is overdue even when the scheduled date is still ahead`() {
+        val late = note("Late", scheduled = "<2025-06-20 Fri>", deadline = "<2025-06-05 Thu>")
+        assertEquals(listOf("Late"), AgendaBuckets.overdue(listOf(late), today).map { it.title })
+        assertTrue(AgendaBuckets.upcoming(listOf(late), today, 14).isEmpty())
+    }
+
+    @Test
+    fun `overdue sorted by deadline oldest first then priority then title`() {
+        val recentB = note("RecentB", deadline = "<2025-06-10 Tue>", priority = "B")
+        // The scheduled date is ignored: the deadline orders the card.
+        val tiedA = note("TiedA", scheduled = "<2025-05-01 Thu>", deadline = "<2025-06-01 Sun>", priority = "A")
         val tiedB = note("TiedB", deadline = "<2025-06-01 Sun>", priority = "B")
-        val tiedNone = note("TiedNone", scheduled = "<2025-06-01 Sun>")
+        val tiedNone = note("TiedNone", deadline = "<2025-06-01 Sun>")
 
         val ordered = AgendaBuckets.overdue(listOf(recentB, tiedA, tiedB, tiedNone), today)
         assertEquals(listOf("TiedA", "TiedB", "TiedNone", "RecentB"), ordered.map { it.title })
+    }
+
+    @Test
+    fun `carried over sorted by scheduled date oldest first then priority then title`() {
+        val recent = note("Recent", scheduled = "<2025-06-10 Tue>", priority = "A")
+        val tiedB = note("TiedB", scheduled = "<2025-06-01 Sun>", priority = "B")
+        val tiedNone = note("TiedNone", scheduled = "<2025-06-01 Sun>")
+        val tiedA = note("TiedA", scheduled = "<2025-06-01 Sun>", priority = "A")
+
+        val ordered = AgendaBuckets.carriedOver(listOf(recent, tiedB, tiedNone, tiedA), today)
+        assertEquals(listOf("TiedA", "TiedB", "TiedNone", "Recent"), ordered.map { it.title })
     }
 
     @Test

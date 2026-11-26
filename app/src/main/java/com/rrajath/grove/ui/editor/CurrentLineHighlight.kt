@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import com.rrajath.grove.ui.theme.grove
 
 /**
@@ -25,9 +26,9 @@ import com.rrajath.grove.ui.theme.grove
  * visible without a line-number gutter. Shown only while the field is focused.
  *
  * Chain it on a `BasicTextField`'s modifier *after* its padding, so this node's
- * bounds are the text area: the band then bleeds [bleed] into the side padding on
- * both sides (symmetric, so RTL needs nothing extra) and is clipped vertically to
- * the visible text area. [layout] is the field's latest `onTextLayout` result,
+ * bounds are the text area: the band then bleeds [bleed] into the end padding and
+ * [startBleed] into the start padding (wider when a [LineNumberGutter] sits there;
+ * start is the right side in RTL), and is clipped vertically to the visible text area. [layout] is the field's latest `onTextLayout` result,
  * scrolled by [scrollState] (the field scrolls itself).
  */
 @Composable
@@ -37,6 +38,7 @@ fun Modifier.currentLineHighlight(
     scrollState: ScrollState,
     layout: () -> TextLayoutResult?,
     bleed: Dp,
+    startBleed: Dp = bleed,
 ): Modifier {
     if (!enabled) return this
     val color = MaterialTheme.grove.surface2
@@ -48,12 +50,14 @@ fun Modifier.currentLineHighlight(
             val result = layout() ?: return@drawBehind
             val (top, bottom) = currentLineBand(textState.text, textState.selection, result)
                 ?: return@drawBehind
-            val bleedPx = bleed.toPx()
-            clipRect(left = -bleedPx, top = 0f, right = size.width + bleedPx, bottom = size.height) {
+            val ltr = layoutDirection == LayoutDirection.Ltr
+            val leftPx = (if (ltr) startBleed else bleed).toPx()
+            val rightPx = (if (ltr) bleed else startBleed).toPx()
+            clipRect(left = -leftPx, top = 0f, right = size.width + rightPx, bottom = size.height) {
                 drawRect(
                     color = color,
-                    topLeft = Offset(-bleedPx, top - scrollState.value),
-                    size = Size(size.width + 2 * bleedPx, bottom - top),
+                    topLeft = Offset(-leftPx, top - scrollState.value),
+                    size = Size(size.width + leftPx + rightPx, bottom - top),
                 )
             }
         }

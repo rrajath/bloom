@@ -109,7 +109,6 @@ import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
-import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.orgLocale
 import com.rrajath.grove.ui.components.EditorFabMorphMillis
 import com.rrajath.grove.ui.components.ReadEditToggle
@@ -266,6 +265,13 @@ fun CaptureEditorScreen(
     if (template == null) return
 
     val now = remember { LocalDateTime.now() }
+    // Vault-unique IDs for the capture: one per %id / %(id), and always at least
+    // one (a Roam node's file :ID:). Allocated off the main thread, which takes a
+    // few ms against the index, so the editor holds its first frame until then.
+    val captureIds by androidx.compose.runtime.produceState<List<String>?>(null, template) {
+        val body = if (template.kind == TemplateKind.ROAM_NODE) template.newFileTemplate else template.template
+        value = app.orgIdAllocator.allocate(maxOf(1, PlaceholderExpander.idCount(body)))
+    }
     val prompts = remember(template) {
         val body = if (template.kind == TemplateKind.ROAM_NODE) template.newFileTemplate else template.template
         PlaceholderExpander.prompts(body)
@@ -280,8 +286,9 @@ fun CaptureEditorScreen(
         )
         return
     }
+    val ids = captureIds ?: return
 
-    val context = remember(template, promptValues) {
+    val context = remember(template, promptValues, ids) {
         val share = app.pendingShare.value
         val body = if (template.kind == TemplateKind.ROAM_NODE) template.newFileTemplate else template.template
         // Only read the clipboard when the template actually uses %clipboard.
@@ -306,8 +313,9 @@ fun CaptureEditorScreen(
             sharedText = share?.text ?: "",
             sharedUrl = share?.url ?: "",
             promptValues = promptValues ?: emptyMap(),
-            // Generated once per capture, not regenerated on every expand() call.
-            id = newOrgId(),
+            // Allocated once per capture, not regenerated on every expand() call.
+            id = ids.first(),
+            extraIds = ids.drop(1),
         )
     }
     // The share payload is one-shot: consumed by this capture.
@@ -1207,7 +1215,10 @@ fun CaptureEditorScreen(
                 mutateDraft { d, h -> OrgMutations.appendLogbookNote(d, h, note.trim(), stamp) }
             },
             onGenerateId = {
-                mutateDraft { d, h -> OrgMutations.upsertProperty(d, h, "ID", newOrgId()) }
+                coroutineScope.launch {
+                    val id = app.orgIdAllocator.next()
+                    mutateDraft { d, h -> OrgMutations.upsertProperty(d, h, "ID", id) }
+                }
             },
             onRefile = {},
             showRefile = false,

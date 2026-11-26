@@ -64,10 +64,10 @@ fun SettingsWidgetScreen(
             mutableFloatStateOf(settings.agendaWidgetTransparency)
         }
         SettingsGroup {
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.WidgetTransparency).padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(R.string.settings_widget_transparency),
+                        SettingSpecs.WidgetTransparency.labelText(),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                         modifier = Modifier.weight(1f),
@@ -78,7 +78,7 @@ fun SettingsWidgetScreen(
                     )
                 }
                 Text(
-                    stringResource(R.string.settings_widget_transparency_hint),
+                    SettingSpecs.WidgetTransparency.descriptionText().orEmpty(),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                 )
                 Slider(
@@ -95,17 +95,17 @@ fun SettingsWidgetScreen(
             }
             RowDivider()
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
+                Modifier.settingAnchor(SettingSpecs.WidgetDaysAhead).fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
-                        stringResource(R.string.settings_widget_days_ahead),
+                        SettingSpecs.WidgetDaysAhead.labelText(),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
                     Text(
-                        stringResource(R.string.settings_widget_days_ahead_hint),
+                        SettingSpecs.WidgetDaysAhead.descriptionText().orEmpty(),
                         fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -114,28 +114,25 @@ fun SettingsWidgetScreen(
             }
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_widget_show_filename),
+                spec = SettingSpecs.WidgetShowFileName,
                 checked = settings.agendaWidgetShowFileName,
-                description = stringResource(R.string.settings_widget_show_filename_hint),
                 onToggle = onSetAgendaWidgetShowFileName,
             )
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_widget_show_tags),
+                spec = SettingSpecs.WidgetShowTags,
                 checked = settings.agendaWidgetShowTags,
-                description = stringResource(R.string.settings_widget_show_tags_hint),
                 onToggle = onSetAgendaWidgetShowTags,
             )
             RowDivider()
             ToggleRow(
-                label = stringResource(R.string.settings_widget_show_priority),
+                spec = SettingSpecs.WidgetShowPriority,
                 checked = settings.agendaWidgetShowPriority,
-                description = stringResource(R.string.settings_widget_show_priority_hint),
                 onToggle = onSetAgendaWidgetShowPriority,
             )
             RowDivider()
             SettingsRow(
-                label = stringResource(R.string.settings_widget_quick_add_target),
+                spec = SettingSpecs.WidgetQuickAddTarget,
                 description = if (settings.quickAddTargetFile == null) {
                     stringResource(R.string.settings_widget_quick_add_target_default_hint)
                 } else {
@@ -152,9 +149,9 @@ fun SettingsWidgetScreen(
                 )
             }
             RowDivider()
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.WidgetFontSize).padding(horizontal = 15.dp, vertical = 12.dp)) {
                 Text(
-                    stringResource(R.string.settings_widget_font_size),
+                    SettingSpecs.WidgetFontSize.labelText(),
                     fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, color = c.ink,
                     modifier = Modifier.padding(bottom = 10.dp),

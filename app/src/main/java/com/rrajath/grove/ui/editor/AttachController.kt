@@ -205,6 +205,8 @@ class AttachController internal constructor(
         (suspend (orgFile: String, owner: AttachOwner.Heading, id: String?, tag: String) -> DiskHeadingMarks?)? = null,
     /** Settings § Attachments' attachment tag (blank for none), read when a picker returns. */
     private val autoTag: suspend () -> String = { AttachAutoTag.DEFAULT },
+    /** A fresh vault-unique `:ID:` for an owner that has neither `:ID:` nor `:DIR:`. */
+    private val orgIds: suspend () -> String = { newOrgId() },
 ) {
     var sheet by mutableStateOf<AttachSheetModel?>(null)
         private set
@@ -569,7 +571,7 @@ class AttachController internal constructor(
                 uris.map { describe(context, it) }
             }
         }
-        val newId = if (owner.id == null && owner.dirProperty == null) newOrgId() else null
+        val newId = if (owner.id == null && owner.dirProperty == null) orgIds() else null
         val writeOwner = when (owner) {
             is AttachOwner.Heading -> owner.copy(id = owner.id ?: newId)
             is AttachOwner.File -> owner.copy(id = owner.id ?: newId)
@@ -855,6 +857,7 @@ fun rememberAttachController(
         onOwnerAttached = onOwnerAttached,
         fileContext = fileContext,
         markDiskHeading = markDiskHeading,
+        orgIds = { app?.orgIdAllocator?.next() ?: newOrgId() },
     )
 }
 
@@ -872,6 +875,7 @@ internal fun rememberAttachController(
     fileContext: (suspend () -> AttachFileContext?)? = null,
     markDiskHeading: (suspend (orgFile: String, owner: AttachOwner.Heading, id: String?, tag: String) -> DiskHeadingMarks?)? = null,
     autoTag: suspend () -> String = { AttachAutoTag.DEFAULT },
+    orgIds: suspend () -> String = { newOrgId() },
     attachConfig: () -> AttachConfig,
     storeProvider: () -> FileStore?,
 ): AttachController {
@@ -880,7 +884,7 @@ internal fun rememberAttachController(
     val controller = remember(textState, orgFile) {
         AttachController(
             context, scope, textState, orgFile, manager, storeProvider, attachConfig, indexedOwners, addDiskFileId, pendingFileId,
-            introOfFile, onOwnerAttached, fileContext, markDiskHeading, autoTag,
+            introOfFile, onOwnerAttached, fileContext, markDiskHeading, autoTag, orgIds,
         )
     }
     // Saved as JSON so it survives process death without the parcelize plugin.

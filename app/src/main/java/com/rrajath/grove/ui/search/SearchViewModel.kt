@@ -160,7 +160,6 @@ data class SearchResult(
     val isDone: Boolean,
     val priority: String?,
     val scheduledLabel: String?,
-    val scheduledOverdue: Boolean,
     val deadlineLabel: String?,
     val deadlineOverdue: Boolean,
     /** Every bare active timestamp as a row pill label, earliest first, each with its time when set. */
@@ -912,7 +911,9 @@ class SearchViewModel(
     }
 
     private fun toResult(meta: NoteMeta, today: LocalDate): SearchResult {
-        val (scheduledLabel, scheduledOverdue) = dateLabel(meta.scheduledTs, today)
+        // A past SCHEDULED date only marks when work was meant to start: it
+        // reads "3d ago", never red "overdue" (issue #116).
+        val (scheduledLabel, _) = dateLabel(meta.scheduledTs, today, pastIsOverdue = false)
         val (deadlineLabel, deadlineOverdue) = dateLabel(meta.deadlineTs, today)
         return SearchResult(
             fileName = meta.fileName,
@@ -922,7 +923,6 @@ class SearchViewModel(
             isDone = meta.isDoneKeyword,
             priority = meta.priority,
             scheduledLabel = scheduledLabel,
-            scheduledOverdue = scheduledOverdue,
             deadlineLabel = deadlineLabel,
             deadlineOverdue = deadlineOverdue,
             activeLabels = activeStampLabels(meta.activeTimestamps, today),
@@ -934,16 +934,17 @@ class SearchViewModel(
     }
 
     /** A SCHEDULED/DEADLINE pill: the day, plus its time-of-day (and end
-     *  time) when set, like the event pills ("today 23:00"). An overdue one
-     *  reads "3d overdue" with no time: the day count is what matters. */
-    private fun dateLabel(ts: OrgTimestamp?, today: LocalDate): Pair<String?, Boolean> {
+     *  time) when set, like the event pills ("today 23:00"). A past one
+     *  reads "3d overdue" (or "3d ago" when not [pastIsOverdue]) with no
+     *  time: the day count is what matters. */
+    private fun dateLabel(ts: OrgTimestamp?, today: LocalDate, pastIsOverdue: Boolean = true): Pair<String?, Boolean> {
         if (ts == null) return null to false
         val n = ChronoUnit.DAYS.between(today, ts.date)
-        val overdue = n < 0
         val day = when {
             n == 0L -> "today"
             n == 1L -> "tomorrow"
-            overdue -> return "${-n}d overdue" to true
+            n < 0 && pastIsOverdue -> return "${-n}d overdue" to true
+            n < 0 -> return "${-n}d ago" to false
             else -> ts.date.format(DAY_FORMAT)
         }
         return day + clockLabel(ts) to false
@@ -997,7 +998,8 @@ class SearchViewModel(
         val overrides = savedSearches.filter { it.id in QuickStartOverrides.ids }.associateBy { it.id }
 
         val overdue = overrides[QuickStartOverrides.OVERDUE_ID]?.let { overrideCount(it.query) } ?: notes.count {
-            !it.isDone && ((it.scheduledDate?.isBefore(today) == true) || (it.deadlineDate?.isBefore(today) == true))
+            // Only a missed DEADLINE is overdue (issue #116); matches QuickStarts.builtInQuery.
+            !it.isDone && it.deadlineDate?.isBefore(today) == true
         }
         val dueToday = overrides[QuickStartOverrides.TODAY_ID]?.let { overrideCount(it.query) }
             ?: notes.count { it.scheduledDate == today || it.deadlineDate == today }

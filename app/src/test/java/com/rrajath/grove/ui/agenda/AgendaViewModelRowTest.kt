@@ -287,13 +287,57 @@ class AgendaViewModelRowTest {
         assertEquals(AgendaMetaIcon.EVENT_DOT, chip.icon)
     }
 
+    // --- issue #116: past SCHEDULED is carried over, past DEADLINE is late ---
+
+    private fun plain(scheduled: String? = null, deadline: String? = null) =
+        note(title = "Task", tags = emptyList(), inheritedTags = emptyList(), scheduled = scheduled, deadline = deadline)
+
     @Test
-    fun `an overdue scheduled chip stays plain danger text with no calendar icon`() {
-        val meta = note(title = "Late task", tags = emptyList(), inheritedTags = emptyList(), scheduled = "<2025-06-09 Mon>")
+    fun `a carried-over row shows a calm calendar ago chip, never red`() {
+        val row = AgendaViewModel.row(plain(scheduled = "<2025-06-09 Mon>"), today, showDate = false, p = GroveSettings())
 
-        val row = AgendaViewModel.row(meta, today, showDate = true, p = GroveSettings())
+        val chip = row.meta.single()
+        assertEquals("2d ago", chip.text.english())
+        assertEquals(AgendaMetaTone.NORMAL, chip.tone)
+        assertEquals(AgendaMetaIcon.CALENDAR, chip.icon)
+    }
 
-        val chip = row.meta.single { it.tone == AgendaMetaTone.DANGER }
-        assertEquals(AgendaMetaIcon.NONE, chip.icon)
+    @Test
+    fun `a carried-over row with a deadline ahead shows how far off it is`() {
+        val row = AgendaViewModel.row(
+            plain(scheduled = "<2025-06-09 Mon>", deadline = "<2025-06-14 Sat>"), today, showDate = false, p = GroveSettings(),
+        )
+
+        assertEquals(listOf("2d ago", "⚑ Jun 14 · in 3d"), row.meta.map { it.text.english() })
+        assertEquals(AgendaMetaTone.DANGER, row.meta[1].tone)
+    }
+
+    @Test
+    fun `a carried-over row with a deadline today says due`() {
+        val row = AgendaViewModel.row(
+            plain(scheduled = "<2025-06-09 Mon>", deadline = "<2025-06-11 Wed>"), today, showDate = false, p = GroveSettings(),
+        )
+
+        assertEquals(listOf("2d ago", "⚑ due"), row.meta.map { it.text.english() })
+    }
+
+    @Test
+    fun `a missed deadline row reads late with the scheduled date as a muted calendar chip`() {
+        val row = AgendaViewModel.row(
+            plain(scheduled = "<2025-06-05 Thu>", deadline = "<2025-06-09 Mon>"), today, showDate = true, p = GroveSettings(),
+        )
+
+        assertEquals(listOf("⚑ Jun 9 · 2d late", "Jun 5"), row.meta.map { it.text.english() })
+        assertEquals(AgendaMetaTone.DANGER, row.meta[0].tone)
+        assertEquals(AgendaMetaIcon.NONE, row.meta[0].icon)
+        assertEquals(AgendaMetaTone.MUTED, row.meta[1].tone)
+        assertEquals(AgendaMetaIcon.CALENDAR, row.meta[1].icon)
+    }
+
+    @Test
+    fun `a deadline-only missed row reads late with no scheduled chip`() {
+        val row = AgendaViewModel.row(plain(deadline = "<2025-06-08 Sun>"), today, showDate = true, p = GroveSettings())
+
+        assertEquals(listOf("⚑ Jun 8 · 3d late"), row.meta.map { it.text.english() })
     }
 }

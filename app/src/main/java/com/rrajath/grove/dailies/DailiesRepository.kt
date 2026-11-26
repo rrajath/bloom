@@ -64,6 +64,10 @@ class DailiesRepository(private val store: FileStore) {
         return before.minusDays(1)
     }
 
-    fun expandHeaderTemplate(template: String, date: LocalDate): ExpandedTemplate =
-        PlaceholderExpander.expand(template, CaptureContext(now = date.atStartOfDay(), id = newOrgId()))
+    /** [ids] feed the template's `%id` / `%(id)` placeholders in order (see [CaptureContext.extraIds]). */
+    fun expandHeaderTemplate(template: String, date: LocalDate, ids: List<String> = listOf(newOrgId())): ExpandedTemplate =
+        PlaceholderExpander.expand(
+            template,
+            CaptureContext(now = date.atStartOfDay(), id = ids.firstOrNull() ?: newOrgId(), extraIds = ids.drop(1)),
+        )
 }

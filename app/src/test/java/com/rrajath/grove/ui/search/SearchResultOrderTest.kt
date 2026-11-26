@@ -21,9 +21,10 @@ class SearchResultOrderTest {
         scheduled: String? = null,
         active: String? = null,
         lastModified: Long = 0L,
+        deadline: String? = null,
     ) = NoteMeta(
         fileName, lineIndex, title, "TODO", false, null, emptyList(), emptyList(),
-        scheduled, null, null, active, null, lastModified, title,
+        scheduled, deadline, null, active, null, lastModified, title,
     )
 
     private fun titles(notes: List<NoteMeta>) = notes.map { it.title }
@@ -65,7 +66,7 @@ class SearchResultOrderTest {
     fun `agenda-day queries flatten day by day with each note listed once`() {
         val matched = listOf(
             note("tomorrow", "a.org", 1, scheduled = "<2025-06-12 Thu>"),
-            note("overdue", "a.org", 2, scheduled = "<2025-06-01 Sun>"),
+            note("overdue", "a.org", 2, deadline = "<2025-06-01 Sun>"),
             note("ranged", "b.org", 1, active = "<2025-06-11 Wed>--<2025-06-13 Fri>"),
         )
         val out = SearchResultOrder.flatHeadings(matched, QueryParser.parse("ad.3"), today)
