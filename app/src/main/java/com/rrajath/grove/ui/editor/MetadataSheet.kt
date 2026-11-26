@@ -1,5 +1,6 @@
 package com.rrajath.grove.ui.editor
 
+import android.content.ClipData
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,12 +17,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -31,11 +42,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -43,6 +59,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -65,8 +82,8 @@ import com.rrajath.grove.ui.theme.grove
 import com.rrajath.grove.ui.theme.priorityColor
 import com.rrajath.grove.ui.theme.prioritySoftColor
 import com.rrajath.grove.ui.util.asString
-import com.rrajath.grove.ui.util.forwardArrowGlyph
 import com.rrajath.grove.ui.util.text
+import kotlinx.coroutines.launch
 
 /**
  * Note metadata sheet (PRD §5.2): state, priority, tags, SCHEDULED, DEADLINE.
@@ -113,8 +130,14 @@ fun MetadataSheet(
      * "3 headings" for a multi-select, or the intro's not-yet-created heading.
      */
     targetLabel: String? = null,
+    /** Called after tapping "Copy ID" puts the heading's existing `:ID:` on the clipboard. */
+    onIdCopied: () -> Unit = {},
+    /** When non-null, shows the destructive Delete tile in the action grid. */
+    onDelete: (() -> Unit)? = null,
 ) {
     val c = MaterialTheme.grove
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     val untitled = stringResource(R.string.metadata_untitled_heading)
     val header = targetLabel
         ?: headline?.let { h -> orgInlinePlainText(h.title).trim().ifEmpty { untitled } }
@@ -338,51 +361,94 @@ fun MetadataSheet(
             )
 
             Spacer(Modifier.height(16.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    stringResource(R.string.metadata_add_note),
-                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp, color = c.accent,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { noteDialogOpen = true }
-                        .padding(vertical = 6.dp),
+            HorizontalDivider(color = c.line)
+            Spacer(Modifier.height(14.dp))
+
+            val idClipLabel = stringResource(R.string.metadata_generate_id)
+            val existingId = headline?.id
+            val actions = buildList {
+                add(
+                    MetadataAction(
+                        icon = Icons.Default.Add,
+                        label = stringResource(R.string.metadata_add_note),
+                        testTag = "metadata_action_add_note",
+                        onClick = { noteDialogOpen = true },
+                    ),
                 )
                 if (showRefile) {
-                    Text(
-                        "${forwardArrowGlyph()} ${stringResource(R.string.metadata_refile)}",
-                        fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp, color = c.accent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onRefile)
-                            .padding(vertical = 6.dp),
+                    add(
+                        MetadataAction(
+                            icon = Icons.AutoMirrored.Filled.ArrowForward,
+                            label = stringResource(R.string.metadata_refile),
+                            testTag = "metadata_action_refile",
+                            onClick = onRefile,
+                        ),
                     )
                 }
                 if (showFavorite) {
-                    Text(
-                        stringResource(if (isFavorite) R.string.metadata_unfavorite else R.string.metadata_favorite),
-                        fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp, color = c.accent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onToggleFavorite)
-                            .padding(vertical = 6.dp),
+                    add(
+                        MetadataAction(
+                            icon = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                            label = stringResource(if (isFavorite) R.string.metadata_unfavorite else R.string.metadata_favorite),
+                            tone = if (isFavorite) ActionTileTone.FAVORITE else ActionTileTone.DEFAULT,
+                            testTag = "metadata_action_favorite",
+                            onClick = onToggleFavorite,
+                        ),
                     )
                 }
-                if (headline?.id == null) {
-                    Text(
-                        stringResource(R.string.metadata_generate_id),
-                        fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp, color = c.accent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onGenerateId)
-                            .padding(vertical = 6.dp),
+                if (existingId != null) {
+                    add(
+                        MetadataAction(
+                            icon = Icons.Outlined.ContentCopy,
+                            label = stringResource(R.string.metadata_copy_id),
+                            testTag = "metadata_action_copy_id",
+                            onClick = {
+                                scope.launch {
+                                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(idClipLabel, existingId)))
+                                    onIdCopied()
+                                }
+                            },
+                        ),
                     )
+                } else {
+                    add(
+                        MetadataAction(
+                            icon = Icons.Default.Tag,
+                            label = stringResource(R.string.metadata_generate_id),
+                            testTag = "metadata_action_org_id",
+                            onClick = onGenerateId,
+                        ),
+                    )
+                }
+                if (onDelete != null) {
+                    add(
+                        MetadataAction(
+                            icon = Icons.Outlined.Delete,
+                            label = stringResource(R.string.action_delete),
+                            tone = ActionTileTone.DESTRUCTIVE,
+                            testTag = "metadata_action_delete",
+                            onClick = onDelete,
+                        ),
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                actions.chunked(3).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        rowItems.forEach { action ->
+                            MetadataActionTile(
+                                action = action,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        repeat(3 - rowItems.size) {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
@@ -567,4 +633,66 @@ private fun MultipleLine(label: String, color: Color) {
         },
         fontFamily = PlexMono, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
     )
+}
+
+private enum class ActionTileTone { DEFAULT, FAVORITE, DESTRUCTIVE }
+
+private class MetadataAction(
+    val icon: ImageVector,
+    val label: String,
+    val tone: ActionTileTone = ActionTileTone.DEFAULT,
+    val testTag: String,
+    val onClick: () -> Unit,
+)
+
+/** Squircle icon-above-label tile for the 3-column action grid at the bottom of the metadata sheet. */
+@Composable
+private fun MetadataActionTile(
+    action: MetadataAction,
+    modifier: Modifier = Modifier,
+) {
+    val c = MaterialTheme.grove
+    val bg = when (action.tone) {
+        ActionTileTone.DEFAULT -> c.surface2
+        ActionTileTone.FAVORITE -> c.amberSoft
+        ActionTileTone.DESTRUCTIVE -> c.redSoft
+    }
+    val iconTint = when (action.tone) {
+        ActionTileTone.DEFAULT -> c.accent
+        ActionTileTone.FAVORITE -> c.amber
+        ActionTileTone.DESTRUCTIVE -> c.red
+    }
+    val labelColor = when (action.tone) {
+        ActionTileTone.DEFAULT -> c.ink
+        ActionTileTone.FAVORITE -> c.amber
+        ActionTileTone.DESTRUCTIVE -> c.red
+    }
+    Column(
+        modifier = modifier
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(bg)
+            .clickable(onClick = action.onClick)
+            .padding(horizontal = 6.dp, vertical = 10.dp)
+            .testTag(action.testTag),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+    ) {
+        Icon(
+            imageVector = action.icon,
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = action.label,
+            fontFamily = PlexSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 11.5.sp,
+            color = labelColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+    }
 }

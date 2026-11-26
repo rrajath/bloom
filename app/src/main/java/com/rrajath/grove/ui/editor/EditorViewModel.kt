@@ -10,6 +10,9 @@ import com.rrajath.grove.attach.AttachFileContext
 import com.rrajath.grove.attach.AttachMoveOutcome
 import com.rrajath.grove.attach.AttachOwner
 import com.rrajath.grove.attach.AttachmentFollow
+import com.rrajath.grove.attach.AttachmentInventory
+import com.rrajath.grove.attach.AttachmentLifecycle
+import com.rrajath.grove.attach.orgIdsIn
 import com.rrajath.grove.attach.FileRewrite
 import com.rrajath.grove.attach.FollowAction
 import com.rrajath.grove.attach.applyMoveOutcomeText
@@ -167,6 +170,7 @@ class EditorViewModel(
     private val templatesRepository: TemplatesRepository,
     private val attachFollow: AttachmentFollow = AttachmentFollow.None,
     private val attachDirMoves: AttachDirMoves = AttachDirMoves.None,
+    private val attachmentLifecycle: () -> AttachmentLifecycle? = { null },
     /** A fresh vault-unique `:ID:` ([com.rrajath.grove.org.OrgIdAllocator] in the app). */
     private val orgIds: suspend () -> String = { newOrgId() },
 ) : ViewModel() {
@@ -970,10 +974,30 @@ class EditorViewModel(
     fun isCurrentHeadingBlank(): Boolean = currentHeadline?.title.isNullOrBlank()
 
     /**
-     * Remove the edited subtree from the file without saving the buffer.
-     * Used when the user discards a freshly created note that still has no heading.
+     * Attachment folders owned by the edited subtree on disk, for the Delete
+     * confirmation sheet. Empty when attachments are off or none exist.
      */
-    fun deleteSubtree(onDeleted: () -> Unit = {}) {
+    suspend fun headingDeleteAttachments(): AttachmentInventory {
+        val lifecycle = attachmentLifecycle() ?: return AttachmentInventory.Empty
+        val s = _state.value
+        val vault = vaultFlow.value ?: return AttachmentInventory.Empty
+        return withContext(dispatchers.io) {
+            val doc = vault.open(s.fileName) ?: return@withContext AttachmentInventory.Empty
+            val span = ownedSpanIn(doc, s, vault.revision(s.fileName))
+                ?: doc.headlines.firstOrNull { it.lineIndex == s.lineIndex }
+                    ?.let { it.lineIndex until doc.subtreeEndLine(it) }
+                ?: return@withContext AttachmentInventory.Empty
+            runCatching { lifecycle.inventoryForSubtrees(s.fileName, doc, setOf(span.first)) }
+                .getOrDefault(AttachmentInventory.Empty)
+        }
+    }
+
+    /**
+     * Remove the edited subtree from the file without saving the buffer.
+     * Used when discarding a freshly created blank note or deleting a heading
+     * from the editor's metadata sheet.
+     */
+    fun deleteSubtree(attachments: AttachmentInventory? = null, onDeleted: () -> Unit = {}) {
         val s = _state.value
         viewModelScope.launch {
             val vault = vaultFlow.value ?: run { onDeleted(); return@launch }
@@ -984,7 +1008,18 @@ class EditorViewModel(
             if (span != null) {
                 val newText = doc.lines.filterIndexed { i, _ -> i !in span }.joinToString("\n")
                 vault.save(s.fileName, newText)
-                sync.requestReindex(s.fileName, newText, "empty note discarded")
+                sync.requestReindex(s.fileName, newText, "note deleted")
+                val lifecycle = attachmentLifecycle()
+                if (lifecycle != null && attachments != null && !attachments.isEmpty) {
+                    withContext(dispatchers.io) {
+                        val remainingIds = orgIdsIn(newText)
+                        runCatching {
+                            lifecycle.deleteDirs(s.fileName, attachments) { id ->
+                                id in remainingIds || lifecycle.heldInDir(s.fileName, id)
+                            }
+                        }
+                    }
+                }
             }
             onDeleted()
         }
@@ -1165,6 +1200,7 @@ class EditorViewModel(
                 it.templatesRepository,
                 attachFollow = it.attachmentFollow,
                 attachDirMoves = it.attachDirMoves,
+                attachmentLifecycle = it::attachmentLifecycle,
                 orgIds = it.orgIdAllocator::next,
             )
         }

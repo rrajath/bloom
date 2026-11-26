@@ -349,8 +349,30 @@ fun OutlineScreen(
     var noteDialogFor by remember { mutableStateOf<Int?>(null) }
     // The command bar's metadata sheet, acting on every selected headline.
     var metadataOpen by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    // Non-null when the selected subtrees own attachment folders: the 1n-style
+    // sheet shows instead of the plain dialog (design 10.4).
+    var deleteInventory by remember { mutableStateOf<AttachmentInventory?>(null) }
+    var deleteTitle by remember { mutableStateOf<String?>(null) }
+    val deleteScope = rememberCoroutineScope()
     val selectionEmpty = selectedLines.isEmpty()
     LaunchedEffect(selectionEmpty) { if (selectionEmpty) metadataOpen = false }
+    fun requestDeleteSelected() {
+        deleteScope.launch {
+            val lines = viewModel.selectedLines.value
+            if (lines.isEmpty()) return@launch
+            val inv = viewModel.headingDeleteAttachments(lines)
+            if (inv.isEmpty) {
+                confirmDelete = true
+            } else {
+                deleteTitle = (viewModel.state.value as? DocumentUiState.Loaded)
+                    ?.document?.headlines
+                    ?.firstOrNull { it.lineIndex == lines.singleOrNull() }
+                    ?.title
+                deleteInventory = inv
+            }
+        }
+    }
 
     // Hoisted to screen scope so every row's swipe panel shares one call instead of
     // one per row per recomposition (vectorResource can't be called inside remember{}
@@ -402,6 +424,7 @@ fun OutlineScreen(
                     selectedCount = selectedLines.size,
                     onExit = { viewModel.clearSelection() },
                     onMetadata = { metadataOpen = true },
+                    onDelete = ::requestDeleteSelected,
                     viewModel = viewModel,
                 )
             } else {
@@ -974,6 +997,11 @@ fun OutlineScreen(
                             showFavorite = true,
                             isFavorite = isFavorite,
                             onToggleFavorite = { toggleFavoriteOf(single, isFavorite) },
+                            onIdCopied = { viewModel.showToast(resources.getString(R.string.metadata_toast_org_id_copied)) },
+                            onDelete = {
+                                metadataOpen = false
+                                requestDeleteSelected()
+                            },
                             onDismiss = { metadataOpen = false },
                         )
                     } else {
@@ -1007,10 +1035,66 @@ fun OutlineScreen(
                                 stateMixed = summary.stateMixed,
                                 priorityMixed = summary.priorityMixed,
                                 targetLabel = countLabel(R.plurals.count_headings, selected.size),
+                                onIdCopied = { viewModel.showToast(resources.getString(R.string.metadata_toast_org_id_copied)) },
+                                onDelete = {
+                                    metadataOpen = false
+                                    requestDeleteSelected()
+                                },
                                 onDismiss = { metadataOpen = false },
                             )
                         }
                     }
+                }
+
+                deleteInventory?.let { inv ->
+                    HeadingDeleteAttachmentsSheet(
+                        title = deleteTitle,
+                        count = selectedLines.size,
+                        inventory = inv,
+                        onDelete = { deleteAttachments ->
+                            viewModel.deleteNotes(viewModel.selectedLines.value, inv.takeIf { deleteAttachments })
+                            deleteInventory = null
+                            viewModel.clearSelection()
+                        },
+                        onDismiss = { deleteInventory = null },
+                    )
+                }
+
+                if (confirmDelete) {
+                    val count = selectedLines.size
+                    AlertDialog(
+                        onDismissRequest = { confirmDelete = false },
+                        containerColor = c.surface,
+                        title = {
+                            Text(
+                                if (count > 1) {
+                                    pluralStringResource(R.plurals.outline_delete_many_title, count, count)
+                                } else {
+                                    stringResource(R.string.outline_delete_one_title)
+                                },
+                                fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp, color = c.ink,
+                            )
+                        },
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (count > 1) R.string.outline_delete_many_body else R.string.outline_delete_one_body,
+                                ),
+                                fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                viewModel.deleteNotes(viewModel.selectedLines.value)
+                                confirmDelete = false
+                                viewModel.clearSelection()
+                            }) { Text(stringResource(R.string.action_delete), color = c.red, fontWeight = FontWeight.SemiBold) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
+                        },
+                    )
                 }
 
                 refileState?.let { refile ->
@@ -1133,15 +1217,10 @@ private fun StructureCommandBar(
     selectedCount: Int,
     onExit: () -> Unit,
     onMetadata: () -> Unit,
+    onDelete: () -> Unit,
     viewModel: DocumentViewModel,
 ) {
     val c = MaterialTheme.grove
-    var confirmDelete by remember { mutableStateOf(false) }
-    // Non-null when the selected subtrees own attachment folders: the 1n-style
-    // sheet shows instead of the plain dialog (design 10.4).
-    var deleteInventory by remember { mutableStateOf<AttachmentInventory?>(null) }
-    var deleteTitle by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
     val selected = { viewModel.selectedLines.value }
     // Background first so the accentSoft wash extends behind the status bar,
     // then the inset padding (Scaffold does not pad the topBar slot).
@@ -1178,72 +1257,10 @@ private fun StructureCommandBar(
                 CommandButton(Icons.AutoMirrored.Filled.FormatIndentIncrease, stringResource(R.string.outline_demote), c.ink) { viewModel.demote(selected()) }
                 // ☰, like read mode's metadata button: state, priority, tags, dates.
                 CommandButton(Icons.Default.Menu, stringResource(R.string.outline_metadata), c.ink, onClick = onMetadata)
-                CommandButton(Icons.Default.Delete, stringResource(R.string.action_delete), c.red) {
-                    scope.launch {
-                        val lines = selected()
-                        val inv = viewModel.headingDeleteAttachments(lines)
-                        if (inv.isEmpty) {
-                            confirmDelete = true
-                        } else {
-                            deleteTitle = (viewModel.state.value as? DocumentUiState.Loaded)
-                                ?.document?.headlines
-                                ?.firstOrNull { it.lineIndex == lines.singleOrNull() }
-                                ?.title
-                            deleteInventory = inv
-                        }
-                    }
-                }
+                CommandButton(Icons.Default.Delete, stringResource(R.string.action_delete), c.red, onClick = onDelete)
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
-    }
-    deleteInventory?.let { inv ->
-        HeadingDeleteAttachmentsSheet(
-            title = deleteTitle,
-            count = selectedCount,
-            inventory = inv,
-            onDelete = { deleteAttachments ->
-                viewModel.deleteNotes(selected(), inv.takeIf { deleteAttachments })
-                deleteInventory = null
-                onExit()
-            },
-            onDismiss = { deleteInventory = null },
-        )
-    }
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            containerColor = c.surface,
-            title = {
-                Text(
-                    if (selectedCount > 1) {
-                        pluralStringResource(R.plurals.outline_delete_many_title, selectedCount, selectedCount)
-                    } else {
-                        stringResource(R.string.outline_delete_one_title)
-                    },
-                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp, color = c.ink,
-                )
-            },
-            text = {
-                Text(
-                    stringResource(
-                        if (selectedCount > 1) R.string.outline_delete_many_body else R.string.outline_delete_one_body,
-                    ),
-                    fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteNotes(selected())
-                    confirmDelete = false
-                    onExit()
-                }) { Text(stringResource(R.string.action_delete), color = c.red, fontWeight = FontWeight.SemiBold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel), color = c.ink2) }
-            },
-        )
     }
 }
 

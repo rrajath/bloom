@@ -66,6 +66,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Switching to a vault-root attachment folder offers to move attachments found next to notes into it.
 
 ### Changed
+- Metadata sheet actions now use a 3-column icon-tile grid with Copy ID and Delete.
 - Every new org ID Bloom generates is checked against your vault so it never duplicates an existing one.
 - Settings › Agenda › Start of week now names your region's first weekday in your device language.
 - Agenda: only missed deadlines are overdue; past scheduled tasks stay on Today with "3d ago" (#116).
