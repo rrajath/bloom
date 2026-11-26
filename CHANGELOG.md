@@ -57,10 +57,22 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+### Added
+- Settings › Backup › Automatic backup keeps a settings JSON file up to date in a folder you choose.
+- Search settings from the top of the Settings hub, matches highlighted; flip switches right in the results.
+- Settings › Notes › Show line numbers: editors show real file line numbers; tap or drag them to select lines.
+- Capture templates accept `%id`, and each use inserts its own unique ID, e.g. in a `:PROPERTIES:` drawer.
+- Settings › Attachments › Attachment folder accepts a leading `/` to keep all attachments in one vault-root folder.
+- Switching to a vault-root attachment folder offers to move attachments found next to notes into it.
+
 ### Changed
+- Every new org ID Bloom generates is checked against your vault so it never duplicates an existing one.
 - Settings › Agenda › Start of week now names your region's first weekday in your device language.
+- Agenda: only missed deadlines are overdue; past scheduled tasks stay on Today with "3d ago" (#116).
+- Agenda's Overdue card drops "Move to today"; reschedule missed deadlines one at a time instead.
 
 ### Fixed
+- Agenda widget: DONE keywords now get a green pill like in the app, and pills align with task text (#125).
 - Saving a capture template no longer risks being lost when the editor closes before the write finishes.
 - A newly saved capture template now always appears on the templates list right away, without reopening it.
 - In right-to-left languages, the conflict diff now shows file lines in their own direction, keeping punctuation in place.

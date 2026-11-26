@@ -134,5 +134,15 @@ object Routes {
         "reminder/${encode(fileName)}?headingPath=${encode(headingPath)}&level=$level"
     fun attachmentViewer(path: String, title: String) =
         "attachment/view?path=${encode(path)}&title=${encode(title)}"
+    /**
+     * A settings page, optionally scrolled to and flashing one setting (Settings search):
+     * [highlight] is a `SettingSpec` id. [route] is one of the `SETTINGS_*` constants.
+     */
+    fun settingsPage(route: String, highlight: String? = null) =
+        if (highlight == null) route else "$route?highlight=${encode(highlight)}"
+
+    /** The NavHost pattern for [settingsPage]: [route] plus an optional `highlight` argument. */
+    fun settingsPagePattern(route: String) = "$route?highlight={highlight}"
+
     fun dailies(date: String? = null) ="dailies" + (date?.let { "?date=${encode(it)}" } ?: "")
 }

@@ -1,6 +1,6 @@
 ---
 title: Notes Behavior
-description: Custom TODO keyword sets, default priority, default note mode, read/edit-mode font size, read-mode display toggles, note IDs, and auto-archiving (Settings → Notes).
+description: Custom TODO keyword sets, default priority, default note mode, read/edit-mode font size, read-mode display toggles, note IDs, editor line numbers, and auto-archiving (Settings → Notes).
 ---
 
 import ThemeShot from '../../../components/ThemeShot.astro';
@@ -54,6 +54,12 @@ Both are display-only; turning them off hides that element from the view without
 ## Highlight current line
 
 **Highlight current line** (on by default) shades the whole line the cursor is on in edit mode, including every row it wraps onto. That makes a long wrapped line easy to tell apart from several short ones, without spending screen space on line numbers. The shading shows only while the editor has focus and hides while text is selected. It applies to every editor: notes, whole files, the preface and other scoped editors, Dailies and capture.
+
+## Show line numbers
+
+**Show line numbers** (off by default) adds a narrow, muted column of line numbers beside the text in edit mode. The numbers are the lines' real positions in the `.org` file, not a count from 1: editing a heading that starts on line 120 shows 120 next to it, so you can match what you see with Emacs or a diff. A line that wraps is numbered once, on its first row, and the line the cursor is on is shown a little brighter.
+
+Tap a number to select that whole line, ready to cut, copy or type over. Drag up or down the numbers to select every line you pass; dragging past the top or bottom edge scrolls the editor. It applies to every editor tied to a file: notes, whole files, the preface and other scoped editors, and Dailies. Capture doesn't show numbers, since its text isn't in a file until you save it.
 
 ## Auto-archive
 

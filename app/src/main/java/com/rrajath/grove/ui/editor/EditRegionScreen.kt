@@ -105,11 +105,13 @@ fun EditPrefaceScreen(
     capitalizeHeadings: Boolean = true,
     /** Settings § Notes: tint the logical line holding the caret. */
     highlightCurrentLine: Boolean = true,
+    /** Settings § Notes: gutter of real file line numbers. */
+    showLineNumbers: Boolean = false,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.PREFACE, noteId = null, onBack = onBack,
     editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings,
-    highlightCurrentLine = highlightCurrentLine, viewModel = viewModel,
+    highlightCurrentLine = highlightCurrentLine, showLineNumbers = showLineNumbers, viewModel = viewModel,
 )
 
 /**
@@ -126,11 +128,13 @@ fun EditIntroScreen(
     capitalizeHeadings: Boolean = true,
     /** Settings § Notes: tint the logical line holding the caret. */
     highlightCurrentLine: Boolean = true,
+    /** Settings § Notes: gutter of real file line numbers. */
+    showLineNumbers: Boolean = false,
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) = EditRegionScreen(
     fileName, EditRegion.INTRO, noteId = null, onBack = onBack,
     editModeFontSize = editModeFontSize, capitalizeHeadings = capitalizeHeadings,
-    highlightCurrentLine = highlightCurrentLine, viewModel = viewModel,
+    highlightCurrentLine = highlightCurrentLine, showLineNumbers = showLineNumbers, viewModel = viewModel,
 )
 
 /**
@@ -215,6 +219,8 @@ fun EditRegionScreen(
     capitalizeHeadings: Boolean = true,
     /** Settings § Notes: tint the logical line holding the caret. */
     highlightCurrentLine: Boolean = true,
+    /** Settings § Notes: gutter of real file line numbers. */
+    showLineNumbers: Boolean = false,
     /**
      * When set, the top bar carries the [ReadEditToggle] (Edit selected), and both it
      * and Back call this. Neither saves: the FILE route hoists [viewModel] so its
@@ -498,6 +504,7 @@ fun EditRegionScreen(
                 editModeFontSize = editModeFontSize,
                 capitalizeHeadings = capitalizeHeadings,
                 highlightCurrentLine = highlightCurrentLine,
+                showLineNumbers = showLineNumbers,
                 showBacklinks = showBacklinks,
                 isRoamFile = isRoamFile,
                 linkedCount = linkedReferences.linkedCount,
@@ -600,6 +607,7 @@ internal fun WholeFileEditorBody(
     editModeFontSize: FontSizePreference,
     capitalizeHeadings: Boolean,
     highlightCurrentLine: Boolean,
+    showLineNumbers: Boolean,
     showBacklinks: Boolean,
     isRoamFile: Boolean,
     linkedCount: Int,
@@ -692,6 +700,14 @@ internal fun WholeFileEditorBody(
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             ContentFontScale(editModeFontSize) {
+                val lineNumbers = rememberLineNumberGutter(
+                    enabled = showLineNumbers,
+                    textState = textState,
+                    scrollState = scrollState,
+                    layout = { textLayout },
+                    firstLineNumber = state.bufferFirstFileLine + 1,
+                    focusRequester = focusRequester,
+                )
                 BasicTextField(
                     state = textState,
                     inputTransformation = remember(state.keywords, capitalizeHeadings) {
@@ -712,13 +728,18 @@ internal fun WholeFileEditorBody(
                         .fillMaxSize()
                         // Scrolls away like Read mode's top contentPadding (see EditNoteScreen).
                         .scrollAwareTopInset(scrollState, 18.dp)
+                        .then(lineNumbers?.inputModifier ?: Modifier)
                         // With the suggestion slot below, the space above the strip's 32dp
                         // chips (in its 50dp height) is the gap under the last line, so no more here.
                         .padding(
-                            start = 18.dp, end = 18.dp,
+                            start = lineNumbers?.startPadding ?: 18.dp, end = 18.dp,
                             bottom = if (suggestionSlotShown) 0.dp else bottomClearance,
                         )
-                        .currentLineHighlight(highlightCurrentLine, textState, scrollState, { textLayout }, bleed = 18.dp)
+                        .currentLineHighlight(
+                            highlightCurrentLine, textState, scrollState, { textLayout },
+                            bleed = 18.dp, startBleed = lineNumbers?.startPadding ?: 18.dp,
+                        )
+                        .then(lineNumbers?.drawModifier ?: Modifier)
                         .focusRequester(focusRequester),
                 )
             }

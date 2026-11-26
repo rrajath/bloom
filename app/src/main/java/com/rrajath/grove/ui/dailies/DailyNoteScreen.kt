@@ -93,6 +93,7 @@ import com.rrajath.grove.ui.vault.NoteRef
 import com.rrajath.grove.ui.vault.PendingEdit
 import com.rrajath.grove.ui.vault.headlineAtLine
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -112,6 +113,7 @@ fun DailyNoteScreen(
     editModeFontSize: FontSizePreference,
     capitalizeHeadings: Boolean,
     highlightCurrentLine: Boolean,
+    showLineNumbers: Boolean = false,
     /** Opens an inline image in the full-screen viewer. */
     onOpenImage: ((path: String, name: String) -> Unit)? = null,
     dailiesViewModel: DailiesViewModel = viewModel(factory = DailiesViewModel.Factory),
@@ -127,6 +129,8 @@ fun DailyNoteScreen(
     // survive every swipe -- see DailiesViewModel.
     var date by rememberSaveable { mutableStateOf(initialDate) }
     var mode by rememberSaveable(date) { mutableStateOf("read") }
+    val seedScope = androidx.compose.runtime.rememberCoroutineScope()
+    var seedingHeader by remember { mutableStateOf(false) }
     val editState by editorViewModel.state.collectAsStateWithLifecycle()
     val docState by documentViewModel.state.collectAsStateWithLifecycle()
     val linkedReferences by documentViewModel.linkedReferences.collectAsStateWithLifecycle()
@@ -196,8 +200,23 @@ fun DailyNoteScreen(
     // day's buffer must be seeded exactly once, not clobbered on a later toggle.
     fun startEditing(n: DailiesNavState) {
         if (!n.exists && editorViewModel.state.value.fileName != n.fileName) {
-            val expanded = dailiesViewModel.expandedHeaderFor(date)
-            editorViewModel.loadNewWholeFile(n.fileName, expanded.text, expanded.cursorOffset)
+            // The header's %id needs a vault-unique ID, allocated off the main
+            // thread (a few ms); a second tap meanwhile mustn't seed it twice.
+            if (seedingHeader) return
+            seedingHeader = true
+            val day = date
+            seedScope.launch {
+                try {
+                    val expanded = dailiesViewModel.expandedHeaderFor(day)
+                    if (date == day && editorViewModel.state.value.fileName != n.fileName) {
+                        editorViewModel.loadNewWholeFile(n.fileName, expanded.text, expanded.cursorOffset)
+                        mode = "edit"
+                    }
+                } finally {
+                    seedingHeader = false
+                }
+            }
+            return
         }
         mode = "edit"
     }
@@ -596,6 +615,7 @@ fun DailyNoteScreen(
                         editModeFontSize = editModeFontSize,
                         capitalizeHeadings = capitalizeHeadings,
                         highlightCurrentLine = highlightCurrentLine,
+                        showLineNumbers = showLineNumbers,
                         showBacklinks = false, // this screen's own bottom bar owns Backlinks (Task 17)
                         isRoamFile = false,
                         linkedCount = 0,

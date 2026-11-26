@@ -26,6 +26,7 @@ class SettingsSerializationTest {
         newNoteCursor = NewNoteCursor.HEADING,
         capitalizeHeadings = false,
         highlightCurrentLine = false,
+        showLineNumbers = true,
         // Nested vault paths are valid keys now the vault is a tree.
         notebookModes = mapOf("work.org" to "edit", "projects/clients/acme.org" to "read"),
         notebookColors = mapOf("work.org" to "green", "projects/clients/acme.org" to "amber"),
@@ -112,6 +113,7 @@ class SettingsSerializationTest {
         assertEquals(sample.newNoteCursor, restored.newNoteCursor)
         assertEquals(sample.capitalizeHeadings, restored.capitalizeHeadings)
         assertEquals(sample.highlightCurrentLine, restored.highlightCurrentLine)
+        assertEquals(sample.showLineNumbers, restored.showLineNumbers)
         assertEquals(sample.notebookModes, restored.notebookModes)
         assertEquals(sample.notebookColors, restored.notebookColors)
         assertEquals(sample.folderColors, restored.folderColors)
@@ -216,8 +218,14 @@ class SettingsSerializationTest {
     }
 
     @Test
+    fun `a vault root attachment folder survives an export then import`() {
+        val json = SettingsSerialization.export(GroveSettings(attachFolder = "/attach/"))
+        assertEquals("/attach/", SettingsSerialization.import(json, GroveSettings()).attachFolder)
+    }
+
+    @Test
     fun `an invalid attachment folder imports as data`() {
-        for (bad in listOf("../attach", "/attach", "~/attach", "")) {
+        for (bad in listOf("../attach", "/../attach", "/", "~/attach", "")) {
             val json = SettingsSerialization.export(GroveSettings(attachFolder = "x/"))
                 .replace("\"attachFolder\": \"x/\"", "\"attachFolder\": \"$bad\"")
             assertTrue(bad, json.contains("\"attachFolder\": \"$bad\""))
@@ -359,6 +367,34 @@ class SettingsSerializationTest {
     }
 
     @Test
+    fun `automatic backup fields are device-local, never exported or overwritten on import`() {
+        val source = sample.copy(
+            autoBackupEnabled = true,
+            autoBackupTreeUri = "content://tree/backup",
+            autoBackupLastSuccessAt = 42L,
+            autoBackupLastError = true,
+            autoBackupLastHash = "deadbeef",
+        )
+        val json = SettingsSerialization.export(source)
+        assertTrue("device-local flags must not be exported", !json.contains("autoBackup"))
+        assertTrue(!json.contains("content://tree/backup") && !json.contains("deadbeef"))
+
+        val base = GroveSettings(
+            autoBackupEnabled = false,
+            autoBackupTreeUri = "content://tree/other",
+            autoBackupLastSuccessAt = 7L,
+            autoBackupLastError = false,
+            autoBackupLastHash = "cafe",
+        )
+        val restored = SettingsSerialization.import(json, base)
+        assertEquals(false, restored.autoBackupEnabled)
+        assertEquals("content://tree/other", restored.autoBackupTreeUri)
+        assertEquals(7L, restored.autoBackupLastSuccessAt)
+        assertEquals(false, restored.autoBackupLastError)
+        assertEquals("cafe", restored.autoBackupLastHash)
+    }
+
+    @Test
     fun `exported document is human-readable json`() {
         val json = SettingsSerialization.export(sample)
         assertTrue(json.contains("\"themeMode\": \"system\""))
@@ -454,6 +490,12 @@ class SettingsSerializationTest {
         val json = """{ "theme": "light", "futureField": 42 }"""
         val restored = SettingsSerialization.import(json, GroveSettings())
         assertEquals(ThemeSelection.fromLegacy(ThemePreference.LIGHT), restored.themeSelection)
+    }
+
+    @Test
+    fun `an export from before line numbers imports them off`() {
+        val restored = SettingsSerialization.import("""{ "version": 18 }""", GroveSettings(showLineNumbers = true))
+        assertEquals(false, restored.showLineNumbers)
     }
 
     @Test

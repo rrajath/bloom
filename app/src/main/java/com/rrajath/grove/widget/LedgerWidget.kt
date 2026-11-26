@@ -597,19 +597,13 @@ class LoadMoreAction : ActionCallback {
     }
 }
 
-/**
- * Approximate rendered line-height of the row's 13sp title text. Glance can't
- * report real text-layout metrics, so the circle and the keyword pill are each
- * centered inside a box of this fixed height, anchored to the top of the row —
- * i.e. the same band the title's first line occupies — rather than centered
- * against the title's full (possibly 2-line) height or the row's own top edge.
- */
-private val LEDGER_LINE_HEIGHT = 18.dp
-
 @Composable
 private fun LedgerRow(context: Context, colors: GroveColors, row: AgendaRow, fontScale: Float) {
     val openIntent = Intent(Intent.ACTION_VIEW, noteUri(row))
         .setClass(context, MainActivity::class.java)
+    // Glance has no baseline alignment, so everything on the first line is
+    // top-aligned and pushed down by offsets derived from the real fonts.
+    val metrics = remember(fontScale) { LedgerRowMetrics.measure(context, fontScale) }
     Row(
         modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Top,
@@ -619,7 +613,8 @@ private fun LedgerRow(context: Context, colors: GroveColors, row: AgendaRow, fon
         // spacer) used to compensate for a stale-render bug that made mark-done
         // look unresponsive, but the real fix was the collectAsState move above.
         Box(
-            modifier = GlanceModifier.height(LEDGER_LINE_HEIGHT).width(14.dp),
+            modifier = GlanceModifier.width(14.dp)
+                .padding(top = (metrics.centerY - 7f).coerceAtLeast(0f).dp),
             contentAlignment = Alignment.Center,
         ) {
             // A saved search can list headings that are already done; they get
@@ -629,7 +624,7 @@ private fun LedgerRow(context: Context, colors: GroveColors, row: AgendaRow, fon
                 // by centering a smaller surface-colored circle over a light-grey one.
                 // The clickable + cornerRadius(7dp) live on this 14dp square so the
                 // system tap ripple clips to the circle instead of spilling into the
-                // taller line-height band the outer Box occupies for alignment.
+                // outer Box's alignment padding.
                 Box(
                     modifier = GlanceModifier
                         .size(14.dp)
@@ -657,14 +652,16 @@ private fun LedgerRow(context: Context, colors: GroveColors, row: AgendaRow, fon
         Column(modifier = GlanceModifier.defaultWeight().clickable(actionStartActivity(openIntent))) {
             Row(verticalAlignment = Alignment.Top) {
                 if (row.keyword != null) {
-                    val (fg, bg) = stateChipColors(colors, row.keyword)
-                    Box(
-                        modifier = GlanceModifier.height(LEDGER_LINE_HEIGHT),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                    val (fg, bg) = stateChipColors(colors, row.keyword, row.isDone)
+                    Box(modifier = GlanceModifier.padding(top = metrics.chipOffset.dp)) {
                         Box(
                             modifier = GlanceModifier.cornerRadius(4.dp).background(ColorProvider(bg))
-                                .padding(horizontal = 5.dp, vertical = 2.dp),
+                                .padding(
+                                    start = 5.dp,
+                                    end = 5.dp,
+                                    top = metrics.chipPaddingTop.dp,
+                                    bottom = metrics.chipPaddingBottom.dp,
+                                ),
                         ) {
                             Text(
                                 row.keyword,
@@ -681,6 +678,7 @@ private fun LedgerRow(context: Context, colors: GroveColors, row: AgendaRow, fon
                 }
                 Text(
                     orgInlinePlainText(row.title),
+                    modifier = GlanceModifier.padding(top = metrics.titleOffset.dp),
                     maxLines = 2,
                     style = TextStyle(color = ColorProvider(colors.ink), fontSize = sp(13f, fontScale), fontWeight = FontWeight.Medium),
                 )
@@ -704,7 +702,8 @@ private fun LedgerRow(context: Context, colors: GroveColors, row: AgendaRow, fon
         if (row.priority != null) {
             Spacer(modifier = GlanceModifier.width(6.dp))
             Box(
-                modifier = GlanceModifier.size(16.dp).cornerRadius(5.dp).background(ColorProvider(colors.surface2)),
+                modifier = GlanceModifier.padding(top = (metrics.centerY - 8f).coerceAtLeast(0f).dp)
+                    .size(16.dp).cornerRadius(5.dp).background(ColorProvider(colors.surface2)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -743,9 +742,10 @@ private fun MetaChip(colors: GroveColors, meta: AgendaMeta, fontScale: Float) {
 }
 
 /** Foreground/background pair for the keyword pill, mirroring `AgendaScreen`'s `StateChip`. */
-private fun stateChipColors(colors: GroveColors, keyword: String) = when (keyword) {
-    "NEXT" -> colors.green to colors.greenSoft
-    "WAITING" -> colors.ink3 to colors.surface2
+internal fun stateChipColors(colors: GroveColors, keyword: String, isDone: Boolean) = when {
+    isDone -> colors.green to colors.greenSoft
+    keyword == "NEXT" -> colors.green to colors.greenSoft
+    keyword == "WAITING" -> colors.ink3 to colors.surface2
     else -> colors.synTodo to colors.amberSoft
 }
 

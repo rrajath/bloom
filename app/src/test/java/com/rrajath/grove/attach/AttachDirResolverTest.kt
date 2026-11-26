@@ -88,6 +88,30 @@ class AttachDirResolverTest {
         assertEquals("attachments/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C", r.writeDir("deep/nested/x.org", heading(uuid)))
     }
 
+    @Test fun `vault rooted id dir falls back to data next to the org file`() = runBlocking {
+        val config = AttachConfig(idDir = "/attach/")
+        val legacy = "projects/data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C"
+        assertEquals(legacy, AttachDirResolver(FakeDirs(legacy), config).readDir("projects/work.org", heading(uuid)))
+        val central = "attach/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C"
+        assertEquals(central, AttachDirResolver(FakeDirs(legacy, central), config).readDir("projects/work.org", heading(uuid)))
+        assertEquals(central, AttachDirResolver(FakeDirs(), config).writeDir("projects/work.org", heading(uuid)))
+    }
+
+    @Test fun `vault rooted data dir still falls back to data next to the org file`() = runBlocking {
+        val config = AttachConfig(idDir = "/data/")
+        val legacy = "projects/data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C"
+        val r = AttachDirResolver(FakeDirs(legacy), config)
+        assertEquals(legacy, r.readDir("projects/work.org", heading(uuid)))
+        assertEquals("data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C", AttachDirResolver(FakeDirs(), config).writeDir("projects/work.org", heading(uuid)))
+        // At the vault root the fallback is the same dir, so it's listed once.
+        assertEquals(1, r.candidates("inbox.org", heading(uuid)).count { it == "data/8B/41D2F0-1C9A-4E57-9A0B-6D2E3F4A5B6C" })
+    }
+
+    @Test fun `vault rooted id dir leaves dir properties relative to the org file`() = runBlocking {
+        val r = AttachDirResolver(FakeDirs(), AttachConfig(idDir = "/attach/"))
+        assertEquals("projects/photos", r.writeDir("projects/work.org", heading(uuid, dir = "photos")))
+    }
+
     @Test fun `no id and no dir has no attach dir`() = runBlocking {
         val r = AttachDirResolver(FakeDirs(), AttachConfig.Default)
         assertNull(r.writeDir("a.org", heading()))

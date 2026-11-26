@@ -68,6 +68,18 @@ class AttachShardSkipTest {
     }
 
     @Test
+    fun `a vault root folder matches only at the vault root`() {
+        val roots = AttachSkipRoots.of(AttachConfig(idDir = "/attach/"))
+        assertTrue(isSkippedVaultDir("3F", "attach", roots))
+        assertFalse(isSkippedVaultDir("3F", "Work/attach", roots))
+        assertTrue(isSkippedVaultDir("3F", "Work/data", roots))
+        assertTrue(isSkippedVaultDir("3F", "data", roots))
+        val nested = AttachSkipRoots.of(AttachConfig(idDir = "/media/files/"))
+        assertTrue(isSkippedVaultDir("3F", "media/files", nested))
+        assertFalse(isSkippedVaultDir("3F", "Work/media/files", nested))
+    }
+
+    @Test
     fun `the default config skips only data`() {
         val roots = AttachSkipRoots.of(AttachConfig.Default)
         assertTrue(isSkippedVaultDir("3F", "data", roots))

@@ -77,7 +77,9 @@ fun PickerSearchField(
     ) {
         Icon(searchIcon(), contentDescription = null, tint = c.ink3, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(9.dp))
-        Box(Modifier.weight(1f)) {
+        // Centered: the placeholder's line box is taller than the field's, so a top-aligned
+        // field would ride up (cursor above the hint text) until something is typed.
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,

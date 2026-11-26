@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.rrajath.grove.org.NotePlacement
@@ -17,6 +18,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.shareIn
 import java.time.LocalTime
 
@@ -114,6 +116,19 @@ data class GroveSettings(
     val providerBannerDismissedUri: String? = null,
     /** Persisted SAF tree URI of the sync folder; null until the user picks one. */
     val vaultTreeUri: String? = null,
+    /** Settings > Backup: keep `<app name>-settings.json` up to date in [autoBackupTreeUri]. Device-specific: not exported. */
+    val autoBackupEnabled: Boolean = false,
+    /** Persisted SAF tree URI of the automatic-backup folder; kept when the toggle goes off. Device-specific: not exported. */
+    val autoBackupTreeUri: String? = null,
+    /** Epoch millis of the last successful automatic-backup write; drives the status line. Device-specific: not exported. */
+    val autoBackupLastSuccessAt: Long? = null,
+    /** True after a failed automatic-backup write, cleared by the next success. Device-specific: not exported. */
+    val autoBackupLastError: Boolean = false,
+    /**
+     * SHA-256 of the JSON last written by the automatic backup, so a cold start doesn't
+     * rewrite unchanged content. Device-specific: not exported.
+     */
+    val autoBackupLastHash: String? = null,
     val syncMode: SyncMode = SyncMode.ON_OPEN_CLOSE,
     val periodicSyncMinutes: Int = 30,
     /** Org TODO keyword config, `|` splits done-type ("TODO IN-PROGRESS | DONE CANCELLED"). */
@@ -166,6 +181,11 @@ data class GroveSettings(
      * soft-wraps reads as one line. On by default.
      */
     val highlightCurrentLine: Boolean = true,
+    /**
+     * Whether the file-backed editors show a gutter of the buffer's real file line
+     * numbers (tap one to select its line, drag to select a range). Off by default.
+     */
+    val showLineNumbers: Boolean = false,
     /** Per-notebook last-used note mode overrides: "file.org" → "read"/"edit". */
     val notebookModes: Map<String, String> = emptyMap(),
     /** Per-notebook monogram color overrides: "file.org" → palette key ("green"…). */
@@ -360,7 +380,13 @@ data class GroveSettings(
 class SettingsRepository(
     private val context: Context,
     private val scope: CoroutineScope,
-) : SettingsSource {
+    /**
+     * The app's process-wide `settings` store by default. Tests pass their own
+     * (`IsolatedPreferencesDataStore`): a coroutine leaked by one test can wedge
+     * the shared store's write actor and hang every later edit in the JVM.
+     */
+    private val dataStore: DataStore<Preferences> = context.settingsDataStore,
+) : SettingsSource, com.rrajath.grove.settings.backup.AutoBackupStatusSink {
 
     private object Keys {
         /** Retired single-theme key: read only to migrate into [themeMode]/[lightTheme]/[darkTheme]. */
@@ -389,6 +415,11 @@ class SettingsRepository(
         val providerWarningAckedUri = stringPreferencesKey("provider_warning_acked_uri")
         val providerBannerDismissedUri = stringPreferencesKey("provider_banner_dismissed_uri")
         val vaultTreeUri = stringPreferencesKey("vault_tree_uri")
+        val autoBackupEnabled = booleanPreferencesKey("auto_backup_enabled")
+        val autoBackupTreeUri = stringPreferencesKey("auto_backup_tree_uri")
+        val autoBackupLastSuccessAt = longPreferencesKey("auto_backup_last_success_at")
+        val autoBackupLastError = booleanPreferencesKey("auto_backup_last_error")
+        val autoBackupLastHash = stringPreferencesKey("auto_backup_last_hash")
         val syncMode = stringPreferencesKey("sync_mode")
         val periodicSyncMinutes = intPreferencesKey("periodic_sync_minutes")
         val todoKeywords = stringPreferencesKey("todo_keywords")
@@ -403,6 +434,7 @@ class SettingsRepository(
         val autoSaveNotes = booleanPreferencesKey("auto_save_notes")
         val capitalizeHeadings = booleanPreferencesKey("capitalize_headings")
         val highlightCurrentLine = booleanPreferencesKey("highlight_current_line")
+        val showLineNumbers = booleanPreferencesKey("show_line_numbers")
         val notebookModes = stringPreferencesKey("notebook_modes")
 
         /**
@@ -494,7 +526,7 @@ class SettingsRepository(
      * makes the captured caller context one that always runs.
      */
     private suspend fun editSettings(transform: suspend (MutablePreferences) -> Unit): Preferences =
-        withContext(Dispatchers.IO) { context.settingsDataStore.edit(transform) }
+        withContext(Dispatchers.IO) { dataStore.edit(transform) }
 
     /**
      * Shared, hot: one `GroveSettings` build per DataStore write, fanned out to all
@@ -502,7 +534,16 @@ class SettingsRepository(
      * `replay = 1` with no seed value preserves the "nothing until the first read"
      * semantics that [com.rrajath.grove.ui.AppViewModel] gates first load on.
      */
-    override val settings: Flow<GroveSettings> = context.settingsDataStore.data.map { prefs ->
+    override val settings: Flow<GroveSettings> = dataStore.data.map { toSettings(it) }
+        .shareIn(scope, SharingStarted.Eagerly, replay = 1)
+
+    /**
+     * Straight from DataStore, so it reflects every edit that has returned. [settings]
+     * replays through a shared collector that can lag an edit; use this for read-after-write.
+     */
+    override suspend fun current(): GroveSettings = toSettings(dataStore.data.first())
+
+    private fun toSettings(prefs: Preferences): GroveSettings =
         GroveSettings(
             themeSelection = readThemeSelection(prefs),
             syncAppIconWithTheme = prefs[Keys.syncAppIconWithTheme] ?: false,
@@ -523,6 +564,11 @@ class SettingsRepository(
             providerWarningAckedUri = prefs[Keys.providerWarningAckedUri],
             providerBannerDismissedUri = prefs[Keys.providerBannerDismissedUri],
             vaultTreeUri = prefs[Keys.vaultTreeUri],
+            autoBackupEnabled = prefs[Keys.autoBackupEnabled] ?: false,
+            autoBackupTreeUri = prefs[Keys.autoBackupTreeUri],
+            autoBackupLastSuccessAt = prefs[Keys.autoBackupLastSuccessAt],
+            autoBackupLastError = prefs[Keys.autoBackupLastError] ?: false,
+            autoBackupLastHash = prefs[Keys.autoBackupLastHash],
             syncMode = SyncMode.fromStorage(prefs[Keys.syncMode]),
             periodicSyncMinutes = prefs[Keys.periodicSyncMinutes] ?: 30,
             todoKeywords = prefs[Keys.todoKeywords] ?: GroveSettings.DEFAULT_TODO_KEYWORDS,
@@ -537,6 +583,7 @@ class SettingsRepository(
             autoSaveNotes = prefs[Keys.autoSaveNotes] ?: true,
             capitalizeHeadings = prefs[Keys.capitalizeHeadings] ?: true,
             highlightCurrentLine = prefs[Keys.highlightCurrentLine] ?: true,
+            showLineNumbers = prefs[Keys.showLineNumbers] ?: false,
             notebookModes = decodeModes(prefs[Keys.notebookModes]),
             notebookColors = decodeModes(prefs[Keys.notebookColors]),
             folderColors = decodeModes(prefs[Keys.folderColors]),
@@ -612,7 +659,6 @@ class SettingsRepository(
             attachFolder = AttachFolder.sanitize(prefs[Keys.attachFolder]),
             attachAutoTag = AttachAutoTag.sanitize(prefs[Keys.attachAutoTag]),
         )
-    }.shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
     /** `;`-joined directory paths; `;` can't appear in a path, `/` is the separator. */
     private fun decodeFolderSet(raw: String?): Set<String> =
@@ -696,6 +742,7 @@ class SettingsRepository(
             p[Keys.autoSaveNotes] = s.autoSaveNotes
             p[Keys.capitalizeHeadings] = s.capitalizeHeadings
             p[Keys.highlightCurrentLine] = s.highlightCurrentLine
+            p[Keys.showLineNumbers] = s.showLineNumbers
             p[Keys.notebookModes] = encodeModes(s.notebookModes)
             p[Keys.notebookColors] = encodeModes(s.notebookColors)
             p[Keys.folderColors] = encodeModes(s.folderColors)
@@ -825,6 +872,10 @@ class SettingsRepository(
         editSettings { it[Keys.highlightCurrentLine] = enabled }
     }
 
+    suspend fun setShowLineNumbers(enabled: Boolean) {
+        editSettings { it[Keys.showLineNumbers] = enabled }
+    }
+
     /**
      * [seenChangelogBuild], when given, is stamped in the *same* transaction as
      * [onboardingDone]. Onboarding completion is the one moment we want both flags
@@ -893,6 +944,43 @@ class SettingsRepository(
 
     suspend fun setVaultTreeUri(uri: String) {
         editSettings { it[Keys.vaultTreeUri] = uri }
+    }
+
+    suspend fun setAutoBackupEnabled(enabled: Boolean) {
+        editSettings { it[Keys.autoBackupEnabled] = enabled }
+    }
+
+    /**
+     * Point the automatic backup at [uri]. A different folder has never been written,
+     * so the status and last-write hash reset: the next write is never skipped as unchanged.
+     */
+    suspend fun setAutoBackupTreeUri(uri: String?) {
+        editSettings { prefs ->
+            if (prefs[Keys.autoBackupTreeUri] == uri) return@editSettings
+            if (uri == null) prefs.remove(Keys.autoBackupTreeUri) else prefs[Keys.autoBackupTreeUri] = uri
+            prefs.remove(Keys.autoBackupLastSuccessAt)
+            prefs.remove(Keys.autoBackupLastHash)
+            prefs[Keys.autoBackupLastError] = false
+        }
+    }
+
+    override suspend fun recordAutoBackupSuccess(treeUri: String, at: Long, hash: String) {
+        editSettings { prefs ->
+            // A write that finished after the user switched folders isn't this folder's status.
+            if (prefs[Keys.autoBackupTreeUri] != treeUri) return@editSettings
+            prefs[Keys.autoBackupLastSuccessAt] = at
+            prefs[Keys.autoBackupLastHash] = hash
+            prefs[Keys.autoBackupLastError] = false
+        }
+    }
+
+    /** A failed write: show the error and forget the hash so the next attempt isn't skipped. */
+    override suspend fun recordAutoBackupFailure(treeUri: String) {
+        editSettings { prefs ->
+            if (prefs[Keys.autoBackupTreeUri] != treeUri) return@editSettings
+            prefs[Keys.autoBackupLastError] = true
+            prefs.remove(Keys.autoBackupLastHash)
+        }
     }
 
     suspend fun ackProviderWarning(uri: String) {
@@ -1140,27 +1228,27 @@ class SettingsRepository(
     }
 
     suspend fun setAttachPhotoSize(size: AttachPhotoSize) {
-        context.settingsDataStore.edit { it[Keys.attachPhotoSize] = size.storageKey }
+        dataStore.edit { it[Keys.attachPhotoSize] = size.storageKey }
     }
 
     suspend fun setAttachImageWidth(mode: AttachImageWidth) {
-        context.settingsDataStore.edit { it[Keys.attachImageWidth] = mode.storageKey }
+        dataStore.edit { it[Keys.attachImageWidth] = mode.storageKey }
     }
 
     suspend fun setAttachImageWidthPx(px: Int) {
-        context.settingsDataStore.edit { it[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(px) }
+        dataStore.edit { it[Keys.attachImageWidthPx] = AttachImageWidth.clampPx(px) }
     }
 
     /** Stores [folder] normalized; an invalid value is ignored (the dialog validates first). */
     suspend fun setAttachFolder(folder: String) {
         val normalized = AttachFolder.normalize(folder) ?: return
-        context.settingsDataStore.edit { it[Keys.attachFolder] = normalized }
+        dataStore.edit { it[Keys.attachFolder] = normalized }
     }
 
     /** Stores [tag] trimmed (empty for no tag); an invalid value is ignored (the dialog validates first). */
     suspend fun setAttachAutoTag(tag: String) {
         val normalized = AttachAutoTag.normalize(tag) ?: return
-        context.settingsDataStore.edit { it[Keys.attachAutoTag] = normalized }
+        dataStore.edit { it[Keys.attachAutoTag] = normalized }
     }
 
     suspend fun setRoamFeaturesEnabled(enabled: Boolean) {

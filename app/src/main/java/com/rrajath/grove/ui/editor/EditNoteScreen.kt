@@ -132,6 +132,8 @@ fun EditNoteScreen(
     capitalizeHeadings: Boolean = true,
     /** Settings § Notes: tint the logical line holding the caret. */
     highlightCurrentLine: Boolean = true,
+    /** Settings § Notes: gutter of real file line numbers. */
+    showLineNumbers: Boolean = false,
     /** Settings § Roam Features (experimental) suggestions
      *  ([com.rrajath.grove.settings.GroveSettings.roamSuggestionsActive]): gates the Roam
      *  providers (file/heading link chips, roam-node chips) only. The suggestion strip slot
@@ -505,6 +507,14 @@ fun EditNoteScreen(
                 // bottom edge, and keeps the cursor visible when the keyboard
                 // shrinks the viewport.
                 ContentFontScale(editModeFontSize) {
+                    val lineNumbers = rememberLineNumberGutter(
+                        enabled = showLineNumbers,
+                        textState = textState,
+                        scrollState = scrollState,
+                        layout = { textLayout },
+                        firstLineNumber = state.bufferFirstFileLine + 1,
+                        focusRequester = focusRequester,
+                    )
                     BasicTextField(
                         state = textState,
                         inputTransformation = remember(state.keywords, capitalizeHeadings) {
@@ -526,6 +536,7 @@ fun EditNoteScreen(
                             // Scrolls away like Read mode's top contentPadding, so
                             // scrolled text reaches the top bar (no dead strip).
                             .scrollAwareTopInset(scrollState, 18.dp)
+                            .then(lineNumbers?.inputModifier ?: Modifier)
                             // Extra bottom room so the last lines scroll clear of the
                             // floating EditorMenuFab (54dp + 16dp inset) instead of
                             // sitting under it. With the keyboard up the FAB lives in
@@ -533,10 +544,14 @@ fun EditNoteScreen(
                             // strip and the text runs right down to its hairline.
                             // Mirrors CaptureEditorScreen's field.
                             .padding(
-                                start = 18.dp, end = 18.dp,
+                                start = lineNumbers?.startPadding ?: 18.dp, end = 18.dp,
                                 bottom = if (imeVisible) SuggestionSlotHeight else 80.dp,
                             )
-                            .currentLineHighlight(highlightCurrentLine, textState, scrollState, { textLayout }, bleed = 18.dp)
+                            .currentLineHighlight(
+                                highlightCurrentLine, textState, scrollState, { textLayout },
+                                bleed = 18.dp, startBleed = lineNumbers?.startPadding ?: 18.dp,
+                            )
+                            .then(lineNumbers?.drawModifier ?: Modifier)
                             .focusRequester(focusRequester)
                             .testTag("edit_note_field"),
                     )

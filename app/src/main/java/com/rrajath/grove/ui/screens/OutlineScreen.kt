@@ -114,6 +114,7 @@ import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.org.PlanningKind
 import com.rrajath.grove.settings.OutlineToggle
+import com.rrajath.grove.ui.components.playRevealHighlight
 import com.rrajath.grove.ui.components.BrandMarkGlyph
 import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.components.FabShadowColor
@@ -654,9 +655,7 @@ fun OutlineScreen(
                     snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > listIndex }
                     listState.scrollToItem(listIndex)
                     revealedLine = line
-                    revealHighlight.snapTo(1f)
-                    delay(REVEAL_HOLD_MS)
-                    revealHighlight.animateTo(0f, tween(REVEAL_FADE_MS))
+                    revealHighlight.playRevealHighlight()
                     revealedLine = null
                 }
                 // A file can hold real content before its first heading (or
@@ -1597,6 +1596,3 @@ private fun OutlineNode(
     }
 }
 
-/** Search's "show in notebook" landing wash: held, then faded out. */
-private const val REVEAL_HOLD_MS = 300L
-private const val REVEAL_FADE_MS = 1200

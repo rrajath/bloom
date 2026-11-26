@@ -12,17 +12,26 @@ package com.rrajath.grove.attach
  * never is (see [resolveOwnerAtLine]); neither is configurable.
  */
 data class AttachConfig(
-    /** `org-attach-id-dir`: relative to the org file's directory, with one trailing `/`. */
+    /**
+     * `org-attach-id-dir`, with one trailing `/`: relative to the org file's
+     * directory (`attach/`), or with a leading `/` one folder at the vault root
+     * (`/attach/`, what an absolute `org-attach-id-dir` is in Emacs).
+     */
     val idDir: String = "data/",
     /** `org-attach-id-to-path-function-list`, in order. */
     val idPathFormats: List<IdPathFormat> = listOf(IdPathFormat.Uuid, IdPathFormat.Ts, IdPathFormat.Fallback),
 ) {
+    /** True when [idDir] is one folder at the vault root (`/attach/`) rather than one next to each note. */
+    val isVaultRoot: Boolean get() = idDir.startsWith("/")
+
     /**
      * The vault-relative attach root for [orgFile]'s `:ID:` dirs (`Notes/data`
-     * for `Notes/a.org` under the default; `data` at the vault root).
+     * for `Notes/a.org` under the default; `data` at the vault root). A
+     * [isVaultRoot] folder is the same for every file (`attach` for `/attach/`).
      */
     fun rootFor(orgFile: String): String =
-        normalizeVaultPath(joinPath(dirOf(orgFile), idDir)) ?: idDir.trim('/')
+        if (isVaultRoot) normalizeVaultPath(idDir) ?: idDir.trim('/')
+        else normalizeVaultPath(joinPath(dirOf(orgFile), idDir)) ?: idDir.trim('/')
 
     companion object {
         val Default = AttachConfig()

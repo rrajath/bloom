@@ -46,14 +46,19 @@ object RoamNodeCreator {
         selectedTitle: String,
         autoLinkIndex: List<AutoLinkSuggestion>,
         now: LocalDateTime,
+        /** A fresh vault-unique ID ([com.rrajath.grove.org.OrgIdAllocator] in the app). */
+        orgIds: suspend () -> String = { newOrgId() },
     ): RoamNodeResult {
         val titleLower = selectedTitle.lowercase()
         autoLinkIndex.firstOrNull { it.titleLower == titleLower }?.let {
             return RoamNodeResult.Linked(it.id, it.title)
         }
 
-        val id = newOrgId()
-        val expanded = PlaceholderExpander.expand(template.newFileTemplate, CaptureContext(now = now, id = id))
+        val id = orgIds()
+        val extraIds = List(maxOf(0, PlaceholderExpander.idCount(template.newFileTemplate) - 1)) { orgIds() }
+        val expanded = PlaceholderExpander.expand(
+            template.newFileTemplate, CaptureContext(now = now, id = id, extraIds = extraIds),
+        )
         // The file-level :ID: is always the generated one, whatever the template says.
         val fullText = RoamFileId.withFileId(
             expanded.text.substring(0, expanded.cursorOffset) +

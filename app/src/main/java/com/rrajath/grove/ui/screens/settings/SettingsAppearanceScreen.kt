@@ -67,14 +67,14 @@ fun SettingsAppearanceScreen(
         MarkNewFeatureSeen(NewAnchors.SETTINGS_APPEARANCE_TEXT_SIZE)
         MarkNewFeatureSeen(NewAnchors.SETTINGS_APPEARANCE_THEME)
         SettingsGroup {
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 10.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.AppearanceTheme).padding(horizontal = 15.dp, vertical = 10.dp)) {
                 Row(
                     modifier = Modifier.padding(bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        stringResource(R.string.settings_appearance_theme),
+                        SettingSpecs.AppearanceTheme.labelText(),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
@@ -131,20 +131,20 @@ fun SettingsAppearanceScreen(
                 )
             }
             RowDivider()
-            Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
+            Column(Modifier.settingAnchor(SettingSpecs.AppearanceTextSize).padding(horizontal = 15.dp, vertical = 12.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        stringResource(R.string.settings_appearance_text_size),
+                        SettingSpecs.AppearanceTextSize.labelText(),
                         fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                         fontSize = 14.5.sp, color = c.ink,
                     )
                     NewDot(NewAnchors.SETTINGS_APPEARANCE_TEXT_SIZE)
                 }
                 Text(
-                    stringResource(R.string.settings_appearance_text_size_hint),
+                    SettingSpecs.AppearanceTextSize.descriptionText().orEmpty(),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink3,
                     modifier = Modifier.padding(top = 2.dp),
                 )
@@ -177,7 +177,7 @@ private fun SyncAppIconRow(
 ) {
     val c = MaterialTheme.grove
     val previewColors = if (checked) com.rrajath.grove.ui.theme.groveColorsFor(theme) else com.rrajath.grove.ui.theme.GroveBloomLightColors
-    Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
+    Column(Modifier.settingAnchor(SettingSpecs.AppearanceSyncIcon).padding(horizontal = 15.dp, vertical = 12.dp)) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -185,7 +185,7 @@ private fun SyncAppIconRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                stringResource(R.string.settings_appearance_sync_icon),
+                SettingSpecs.AppearanceSyncIcon.labelText(),
                 fontFamily = PlexSans, fontWeight = FontWeight.Medium,
                 fontSize = 14.5.sp, color = c.ink,
                 modifier = Modifier.weight(1f),

@@ -71,6 +71,8 @@ class CaptureViewModel(
     private val vaultFlow: StateFlow<Vault?>,
     private val settings: SettingsSource,
     private val dispatchers: AppDispatchers,
+    /** A fresh vault-unique `:ID:` ([com.rrajath.grove.org.OrgIdAllocator] in the app). */
+    private val orgIds: suspend () -> String = { com.rrajath.grove.org.newOrgId() },
 ) : ViewModel() {
 
     val templates: StateFlow<List<CaptureTemplate>> = templatesRepository.templates
@@ -151,7 +153,7 @@ class CaptureViewModel(
         // See EditorViewModel.createOrLinkRoamNode: built on demand if the eager load hasn't landed.
         val index = autoLinkIndex.value ?: fetchAutoLinkIndex()
         val result = RoamNodeCreator.createOrLink(
-            vault, sync, template, selectedTitle, index, LocalDateTime.now(),
+            vault, sync, template, selectedTitle, index, LocalDateTime.now(), orgIds,
         )
         if (result is RoamNodeResult.Created) {
             database.headingOutlines.invalidate()
@@ -616,6 +618,7 @@ class CaptureViewModel(
                     app.vault,
                     app.settingsRepository,
                     app.dispatchers,
+                    app.orgIdAllocator::next,
                 ) as T
             }
         }

@@ -16,7 +16,6 @@ class DayRowKeysTest {
         isDone = false,
         priority = null,
         scheduledLabel = null,
-        scheduledOverdue = false,
         deadlineLabel = null,
         deadlineOverdue = false,
         tagLine = "",

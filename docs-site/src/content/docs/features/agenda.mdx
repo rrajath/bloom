@@ -14,19 +14,19 @@ Agenda pulls every SCHEDULED and DEADLINE item across your whole vault into a si
 <ThemeShot
   light={agendaLight}
   dark={agendaDark}
-  alt='Agenda Today view for Monday, October 19, with a "2 overdue" card expanded listing "Book Kyoto ryokan" and "Call the dentist to reschedule" with date/tag metadata and a Move to today action, followed by three items scheduled today'
+  alt='Agenda Today view for Monday, October 19, with a "2 overdue" card expanded listing "Book Kyoto ryokan" and "Call the dentist to reschedule" with date/tag metadata, followed by three items scheduled today'
   widths={[340, 680]}
   sizes="340px"
 />
 
 ## Today / Upcoming tabs
 
-- **Today**: everything scheduled or due today, plus an **Overdue** card for anything past its date. Events only ever appear on their own day, never in the Overdue card
+- **Today**: everything scheduled or due today, plus an **Overdue** card for tasks whose deadline has passed. A task whose SCHEDULED date has passed (but whose deadline hasn't) stays on Today's list, after today's own items, with a "3d ago" chip. Events only ever appear on their own day, never in the Overdue card
 - **Upcoming**: an infinite-scroll timeline of future days, grouped under day headers like "Tuesday, Jul 28 · Today"
 
-A recurring task (`SCHEDULED: <2026-10-21 Wed +1w>`) also shows on each of its future repeats in Upcoming, the way the Emacs agenda previews them. The date written in the file stays the one that counts: if it has passed, the task still sits in the Overdue card, and marking any of its rows done advances the task itself. A repeating DEADLINE previews the same way, and a heading never shows twice on one day. Done tasks don't preview, and previews appear only under the Date grouping.
+A recurring task (`SCHEDULED: <2026-10-21 Wed +1w>`) also shows on each of its future repeats in Upcoming, the way the Emacs agenda previews them. The date written in the file stays the one that counts: if it has passed, the task stays on Today (or in the Overdue card, for a missed deadline), and marking any of its rows done advances the task itself. A repeating DEADLINE previews the same way, and a heading never shows twice on one day. Done tasks don't preview, and previews appear only under the Date grouping.
 
-A SCHEDULED date with a delay (`SCHEDULED: <2026-11-03 Tue -2d>`) keeps the task off the Agenda until that many days after the date, then shows it as overdue. On a recurring task a single dash (`-2d`) delays every repeat, while a double dash (`--2d`) delays only the date written in the file.
+A SCHEDULED date with a delay (`SCHEDULED: <2026-11-03 Tue -2d>`) keeps the task off the Agenda until that many days after the date, then shows it on Today with how many days ago it was scheduled. On a recurring task a single dash (`-2d`) delays every repeat, while a double dash (`--2d`) delays only the date written in the file.
 
 ## Due soon
 
@@ -36,11 +36,15 @@ Swipe left on the list's empty space to go from Today to Upcoming, and right to 
 
 ## Overdue card
 
-Collapsible by default; expanding it lists every overdue item with a **Move to today** bulk action to reschedule everything at once.
+Org-mode treats the two planning dates differently: SCHEDULED is when you plan to start a task, DEADLINE is when it must be finished. Only a missed DEADLINE makes a task overdue. The card is collapsible and lists each one as "⚑ Nov 20 · 3d late", oldest deadline first, with its SCHEDULED date (if any) as a quieter chip beside it. A missed deadline wins even when the task is scheduled for today or later.
+
+A task whose SCHEDULED date has passed is not overdue: it rolls onto Today like the Emacs agenda's `Sched. 3x:` lines, with a blue "3d ago" chip and, when it has a deadline still ahead, how far off that is ("⚑ Nov 26 · in 3d").
+
+To reschedule a missed deadline, swipe its row and pick a new date, or mark it done.
 
 ## Row anatomy
 
-Each row shows a priority-tinted checkbox (tap to mark done), the TODO/keyword chip, the title, a metadata line (date, "Xd late" for overdue items, tags), and a priority badge on the trailing edge. Tapping the row opens the note; tapping the checkbox toggles DONE in place.
+Each row shows a priority-tinted checkbox (tap to mark done), the TODO/keyword chip, the title, a metadata line (date, "Xd late" for a missed deadline, "Xd ago" for a past SCHEDULED date, tags), and a priority badge on the trailing edge. Tapping the row opens the note; tapping the checkbox toggles DONE in place.
 
 A heading with no TODO keyword is an event, not a task, whether it lands on the day by a bare active `<date>` timestamp, a SCHEDULED date, or a DEADLINE. A plain event shows no checkbox and no "mark done" swipe. But when that same keyword-less timestamp carries a repeater cookie (`+1w`, `++1d`, `.+1m`), the row still gets the checkbox and swipe — tapping it advances the timestamp to its next occurrence instead of setting a DONE keyword, the same as completing it from a notification. Marking any recurring item done shows a snackbar with the new date, for example "Marked done. Next occurrence Jun 5th" (with the year added when it rolls into the next year). A heading that carries a keyword is still a task and keeps the ordinary checkbox/swipe, even when it also has an active timestamp. A repeating active timestamp (`<2026-10-28 Wed 12:00-14:00 +1w>`) shows on its own date and on every later occurrence, the way the Emacs agenda shows it, whether it sits on its own line or inside a sentence. When an event sits under a day heading, its metadata line drops the day (the heading already shows it) and keeps just the time range, if any.
 
@@ -74,7 +78,7 @@ Mark as Done rides with an **Add note** cell, and Schedule with a **Reveal** cel
 
 Settings → Widget is a dedicated page for the home-screen Agenda ledger widget (not the [quick-capture widget](/features/widget)): background Transparency, how many Days ahead to show, per-row Filename/Tags/Priority toggles, and a Small/Medium/Large Font size, with a live preview below the controls that updates as you change them. These are independent of the in-app Levers panel above — changing how the widget looks never changes the Agenda screen. A shown filename contracts each nested folder to its first letter (`Work/Projects/notes.org` → `W/P/notes.org`); the file's own name stays whole.
 
-The widget lists the same rows as the Today/Upcoming view: scheduled and deadline items (with the future repeats of recurring ones), an Overdue section, and bare active `<date>` events on each day they fall. Due soon is an Agenda-screen section only. Plain event rows carry no mark-done circle, since an event is not a task, and no repeated day label under the row. A keyword-less row with a repeater still gets the circle — tapping it advances the timestamp, same as in the Agenda screen.
+The widget lists the same rows as the Today/Upcoming view: scheduled and deadline items (with the future repeats of recurring ones), an Overdue section for missed deadlines, past SCHEDULED items at the end of today, and bare active `<date>` events on each day they fall. Due soon is an Agenda-screen section only. Plain event rows carry no mark-done circle, since an event is not a task, and no repeated day label under the row. A keyword-less row with a repeater still gets the circle — tapping it advances the timestamp, same as in the Agenda screen.
 
 In the widget's header, tapping the "Agenda" title (or the counts under it) opens the Agenda screen directly; tapping the app icon beside it opens Bloom wherever you left it.
 

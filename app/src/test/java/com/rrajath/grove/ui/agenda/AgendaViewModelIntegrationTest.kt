@@ -13,6 +13,7 @@ import com.rrajath.grove.testing.InMemoryGroveDatabase
 import com.rrajath.grove.testing.TestVaultSeeder
 import com.rrajath.grove.testing.support.MainDispatcherRule
 import com.rrajath.grove.vault.Vault
+import com.rrajath.grove.testing.support.IsolatedPreferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,7 +44,8 @@ class AgendaViewModelIntegrationTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    // A note scheduled yesterday is always overdue, whatever day the test runs.
+    // A deadline of yesterday is always overdue, and a SCHEDULED date of
+    // yesterday always carried onto today, whatever day the test runs.
     private val yesterday = LocalDate.now().minusDays(1)
 
     private fun orgDate(d: LocalDate): String =
@@ -57,6 +59,8 @@ class AgendaViewModelIntegrationTest {
         #+TITLE: Agenda fixture
 
         * TODO Renew the domain
+        DEADLINE: ${orgDate(yesterday)}
+        * TODO Clean out the garage
         SCHEDULED: ${orgDate(yesterday)}
         * TODO Undated idea
     """.trimIndent() + "\n"
@@ -88,9 +92,11 @@ class AgendaViewModelIntegrationTest {
     private val keywords = MutableStateFlow(OrgKeywords.DEFAULT)
     private val db: GroveDatabase =
         InMemoryGroveDatabase.create(queryCoroutineContext = mainDispatcherRule.dispatcher)
+    private val settingsStore = IsolatedPreferencesDataStore()
     private val settingsRepository = SettingsRepository(
         ApplicationProvider.getApplicationContext<Application>(),
         CoroutineScope(mainDispatcherRule.dispatcher),
+        settingsStore.store,
     )
 
     /**
@@ -114,10 +120,11 @@ class AgendaViewModelIntegrationTest {
     @After
     fun tearDown() {
         db.close()
+        settingsStore.close()
     }
 
     @Test
-    fun `a note scheduled in the past lands in the overdue bucket`() = runTest {
+    fun `a missed deadline is overdue and a past scheduled date is carried onto today`() = runTest {
         TestVaultSeeder.index(db, store)
         advanceUntilIdle()
 
@@ -125,8 +132,11 @@ class AgendaViewModelIntegrationTest {
         advanceUntilIdle()
 
         val overdueTitles = vm.state.value.overdue.map { it.title }
-        assertTrue("expected 'Renew the domain' in overdue, was $overdueTitles",
-            overdueTitles.contains("Renew the domain"))
+        assertEquals(listOf("Renew the domain"), overdueTitles)
+        val todayTitles = vm.state.value.groups.flatMap { it.rows }.map { it.title }
+        assertTrue("expected 'Clean out the garage' carried onto today, was $todayTitles",
+            todayTitles.contains("Clean out the garage"))
+        assertEquals(1, vm.state.value.todayCount)
         // The undated heading is excluded by the plannedNotes SQL narrowing.
         val everyTitle = (vm.state.value.overdue + vm.state.value.groups.flatMap { it.rows })
             .map { it.title }
@@ -357,23 +367,6 @@ class AgendaViewModelIntegrationTest {
     }
 
     @Test
-    fun `moveOverdueToToday rewrites the overdue SCHEDULED date and requests a sync`() = runTest {
-        TestVaultSeeder.index(db, store)
-        advanceUntilIdle()
-        val vm = agenda()
-        advanceUntilIdle()
-        assertTrue(vm.state.value.overdue.any { it.title == "Renew the domain" })
-
-        vm.moveOverdueToToday()
-        advanceUntilIdle()
-
-        val text = store.read("agenda.org")
-        assertTrue("SCHEDULED should now be today ($today):\n$text", text.contains("SCHEDULED: <$today"))
-        assertFalse("the old date should be gone", text.contains(yesterday.toString()))
-        assertTrue(sync.reindexCalls.any { it.reason == "agenda move overdue" })
-    }
-
-    @Test
     fun `setPlanningDates writes the new SCHEDULED date to the file and requests a sync`() = runTest {
         TestVaultSeeder.index(db, store)
         advanceUntilIdle()
@@ -434,8 +427,9 @@ class AgendaViewModelIntegrationTest {
         assertEquals(listOf("File taxes"), dueSoon.rows.map { it.title })
         val everyTitle = (vm.state.value.overdue + vm.state.value.groups.flatMap { it.rows }).map { it.title }
         assertFalse("a -3d delay holds yesterday's plan back", everyTitle.contains("Held back"))
-        // The overdue weekly task stays in the overdue card, once.
-        assertEquals(1, vm.state.value.overdue.count { it.title == "Weekly review" })
+        // The weekly task left undone is carried onto today, once, and is not overdue.
+        assertEquals(0, vm.state.value.overdue.count { it.title == "Weekly review" })
+        assertEquals(1, vm.state.value.groups.flatMap { it.rows }.count { it.title == "Weekly review" })
     }
 
     @Test

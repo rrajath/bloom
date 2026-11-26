@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,8 @@ internal fun NameDialog(
     validate: ((String) -> UiText?)? = null,
     // Persistent hint under the field, shown while there's no validation error.
     helperText: String? = null,
+    // The same hint with inline styling (e.g. folder names in PlexMono); wins over helperText.
+    styledHelperText: AnnotatedString? = null,
     // A fixed extension (e.g. ".org") shown as a non-editable suffix inside the
     // field; the field then holds just the stem, and it's re-appended on confirm.
     filenameSuffix: String? = null,
@@ -89,9 +92,10 @@ internal fun NameDialog(
                 )
                 // Below the field rather than in supportingText, which M3 insets
                 // 16dp; this keeps the hint flush with the field's start edge.
-                if (error != null || helperText != null) {
+                val helper = styledHelperText ?: helperText?.let(::AnnotatedString)
+                if (error != null || helper != null) {
                     Text(
-                        error?.asString() ?: helperText!!,
+                        error?.asString()?.let(::AnnotatedString) ?: helper!!,
                         fontFamily = PlexSans, fontSize = 12.sp,
                         color = if (error != null) c.red else c.ink3,
                         modifier = Modifier.padding(top = 4.dp),

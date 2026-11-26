@@ -58,4 +58,9 @@ class PlaceholderValidationTest {
         // %shared_text must not register %s as a stray invalid token.
         assertTrue(invalidTokens("%shared_text").isEmpty())
     }
+
+    @Test
+    fun `both id spellings are valid`() {
+        assertTrue(invalidTokens(":ID: %id\n:ID: %(id)").isEmpty())
+    }
 }

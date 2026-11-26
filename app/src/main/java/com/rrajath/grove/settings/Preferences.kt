@@ -276,9 +276,11 @@ enum class AttachImageWidth(val storageKey: String, @StringRes val labelRes: Int
 }
 
 /**
- * Settings § Attachments: the attachment folder (`org-attach-id-dir`), always
- * relative to each note's folder. One or more plain folder names (`attach/`,
- * `.attach/`, `media/files/`); no vault-rooted or climbing paths.
+ * Settings § Attachments: the attachment folder (`org-attach-id-dir`). One or
+ * more plain folder names, relative to each note's folder (`attach/`,
+ * `.attach/`, `media/files/`), or with a leading `/` one folder at the vault
+ * root (`/attach/`, see [com.rrajath.grove.attach.AttachConfig.isVaultRoot]).
+ * No climbing or home-relative paths.
  */
 object AttachFolder {
     const val DEFAULT = "data/"
@@ -289,7 +291,6 @@ object AttachFolder {
         val segments = v.split('/').filter { it.isNotEmpty() }
         val id = when {
             v.isEmpty() -> R.string.settings_attach_folder_error_empty
-            v.startsWith("/") -> R.string.settings_attach_folder_error_leading_slash
             '~' in v -> R.string.settings_attach_folder_error_tilde
             '\\' in v -> R.string.settings_attach_folder_error_backslash
             segments.isEmpty() -> R.string.settings_attach_folder_error_empty
@@ -301,10 +302,16 @@ object AttachFolder {
         return UiText.res(id)
     }
 
-    /** [raw] trimmed, repeated `/` collapsed, one trailing `/`; null when [error] rejects it. */
-    fun normalize(raw: String): String? =
-        if (error(raw) != null) null
-        else raw.trim().split('/').filter { it.isNotEmpty() }.joinToString("/") + "/"
+    /**
+     * [raw] trimmed, repeated `/` collapsed, one trailing `/`, and one leading
+     * `/` kept for a vault-root folder; null when [error] rejects it.
+     */
+    fun normalize(raw: String): String? {
+        if (error(raw) != null) return null
+        val v = raw.trim()
+        val root = if (v.startsWith("/")) "/" else ""
+        return root + v.split('/').filter { it.isNotEmpty() }.joinToString("/") + "/"
+    }
 
     /** A stored or imported value, falling back to [DEFAULT] when missing or invalid. */
     fun sanitize(raw: String?): String = raw?.let(::normalize) ?: DEFAULT

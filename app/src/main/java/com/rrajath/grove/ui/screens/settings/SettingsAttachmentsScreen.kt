@@ -87,10 +87,10 @@ fun SettingsAttachmentsScreen(
         )
         SectionLabel(stringResource(R.string.settings_attach_section_attachments))
         SettingsGroup {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp)) {
-                RowTitle(stringResource(R.string.settings_attach_photo_size))
+            Column(Modifier.settingAnchor(SettingSpecs.AttachPhotoSize).fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp)) {
+                RowTitle(SettingSpecs.AttachPhotoSize.labelText())
                 Text(
-                    stringResource(R.string.settings_attach_photo_size_hint),
+                    SettingSpecs.AttachPhotoSize.descriptionText().orEmpty(),
                     fontFamily = PlexSans, fontSize = 12.sp, color = c.ink2,
                     modifier = Modifier.padding(top = 2.dp, bottom = 11.dp),
                 )
@@ -109,8 +109,8 @@ fun SettingsAttachmentsScreen(
                 )
             }
             RowDivider()
-            Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp)) {
-                RowTitle(stringResource(R.string.settings_attach_image_width))
+            Column(Modifier.settingAnchor(SettingSpecs.AttachImageWidth).fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp)) {
+                RowTitle(SettingSpecs.AttachImageWidth.labelText())
                 Text(
                     withStyledArgs(
                         stringResource(R.string.settings_attach_image_width_hint),
@@ -137,7 +137,7 @@ fun SettingsAttachmentsScreen(
         SectionLabel(stringResource(R.string.settings_attach_section_org_attach))
         SettingsGroup {
             SettingsRow(
-                label = stringResource(R.string.settings_attach_folder),
+                spec = SettingSpecs.AttachFolder,
                 descriptionContent = {
                     Text(
                         withStyledArgs(
@@ -162,7 +162,7 @@ fun SettingsAttachmentsScreen(
             }
             RowDivider()
             SettingsRow(
-                label = stringResource(R.string.settings_attach_tag),
+                spec = SettingSpecs.AttachTag,
                 descriptionContent = {
                     val tag = settings.attachAutoTag
                     Text(
@@ -207,7 +207,12 @@ fun SettingsAttachmentsScreen(
             confirmLabel = stringResource(R.string.action_save),
             placeholder = AttachFolder.DEFAULT,
             validate = { AttachFolder.error(it) },
-            helperText = stringResource(R.string.settings_attach_folder_helper),
+            styledHelperText = withStyledArgs(
+                stringResource(R.string.settings_attach_folder_helper),
+                StyledArg("attach/", SpanStyle(fontFamily = PlexMono)), // i18n: example folder value
+                StyledArg("/attach/", SpanStyle(fontFamily = PlexMono)), // i18n: example folder value
+                StyledArg(AttachFolder.DEFAULT, SpanStyle(fontFamily = PlexMono)),
+            ),
             onDismiss = { editingFolder = false },
             onConfirm = { raw ->
                 editingFolder = false

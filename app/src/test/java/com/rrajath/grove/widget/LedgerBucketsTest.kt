@@ -43,7 +43,7 @@ class LedgerBucketsTest {
     @Test
     fun `section keys are stable and untranslated`() {
         val notes = listOf(
-            note("Ancient", scheduled = "<2025-01-01 Wed>"),
+            note("Ancient", deadline = "<2025-01-01 Wed>"),
             note("Today task", scheduled = "<2025-06-11 Wed>"),
         )
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
@@ -54,7 +54,7 @@ class LedgerBucketsTest {
     @Test
     fun `overdue section always comes first and is unbounded by the window`() {
         val notes = listOf(
-            note("Ancient", scheduled = "<2025-01-01 Wed>"),
+            note("Ancient", deadline = "<2025-01-01 Wed>"),
             note("Today task", scheduled = "<2025-06-11 Wed>"),
         )
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
@@ -65,7 +65,7 @@ class LedgerBucketsTest {
 
     @Test
     fun `overdue header does not repeat the count in the label`() {
-        val notes = listOf(note("Ancient", scheduled = "<2025-01-01 Wed>"))
+        val notes = listOf(note("Ancient", deadline = "<2025-01-01 Wed>"))
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
         assertEquals("Overdue", sections.first().label.english())
     }
@@ -153,9 +153,32 @@ class LedgerBucketsTest {
     }
 
     @Test
+    fun `a past scheduled date trails today's section instead of going overdue`() {
+        val notes = listOf(
+            note("Started long ago", scheduled = "<2025-06-02 Mon>"),
+            note("Started yesterday", scheduled = "<2025-06-10 Tue>", priority = "A"),
+            note("Today task", scheduled = "<2025-06-11 Wed>"),
+        )
+        val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
+        assertEquals(listOf("2025-06-11"), sections.map { it.key })
+        // Today's own rows first, then the carried ones oldest first, even past a priority.
+        assertEquals(
+            listOf("Today task", "Started long ago", "Started yesterday"),
+            sections.single().rows.map { it.title },
+        )
+    }
+
+    @Test
+    fun `a missed deadline is overdue even when the scheduled date is still ahead`() {
+        val notes = listOf(note("Late", scheduled = "<2025-06-13 Fri>", deadline = "<2025-06-09 Mon>"))
+        val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
+        assertEquals(listOf("overdue"), sections.map { it.key })
+    }
+
+    @Test
     fun `an event never appears in the Overdue section`() {
         val notes = listOf(
-            note("Ancient task", scheduled = "<2025-01-01 Wed>"),
+            note("Ancient task", deadline = "<2025-01-01 Wed>"),
             note("Past party", keyword = null, active = "<2025-01-01 Wed>"),
         )
         val sections = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings)
@@ -177,7 +200,7 @@ class LedgerBucketsTest {
 
     @Test
     fun `truncate keeps everything and reports zero hidden when under the cap`() {
-        val notes = listOf(note("Ancient", scheduled = "<2025-01-01 Wed>"))
+        val notes = listOf(note("Ancient", deadline = "<2025-01-01 Wed>"))
         val rows = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings).first().rows
         val (visible, hidden) = LedgerBuckets.truncate(rows, max = 20)
         assertEquals(rows, visible)
@@ -191,7 +214,7 @@ class LedgerBucketsTest {
         // uncapped LazyColumn ships every row inline over a single binder call
         // and Android's ~1MB transaction limit turns that into a silent
         // "Can't show content" placeholder with nothing logged.
-        val notes = (1..443).map { note("Overdue #$it", scheduled = "<2025-01-01 Wed>") }
+        val notes = (1..443).map { note("Overdue #$it", deadline = "<2025-01-01 Wed>") }
         val rows = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings).first().rows
         assertEquals(443, rows.size)
 
@@ -205,7 +228,7 @@ class LedgerBucketsTest {
 
     @Test
     fun `truncate at exactly the cap reports zero hidden`() {
-        val notes = (1..20).map { note("Overdue #$it", scheduled = "<2025-01-01 Wed>") }
+        val notes = (1..20).map { note("Overdue #$it", deadline = "<2025-01-01 Wed>") }
         val rows = LedgerBuckets.build(notes, today, windowDays = 14, settings = settings).first().rows
         val (visible, hidden) = LedgerBuckets.truncate(rows, max = 20)
         assertEquals(20, visible.size)

@@ -65,9 +65,11 @@ object LedgerBuckets {
         compareBy<DayEntry> { it.priorityKey() }.thenBy { it.sortTime() }.thenBy { it.meta.title.lowercase() }
 
     /**
-     * Overdue (unbounded, oldest-first — same as the Agenda screen) first, then
-     * one section per day from [today] through [today] + [windowDays] - 1 that
-     * actually has something on it, in date order. Bare active-timestamp events
+     * Overdue (missed DEADLINEs, unbounded, oldest-first — same as the Agenda
+     * screen) first, then one section per day from [today] through [today] +
+     * [windowDays] - 1 that actually has something on it, in date order. A
+     * past SCHEDULED date with no missed deadline trails today's section
+     * ([AgendaBuckets.carriedOver]) rather than counting as overdue. Bare active-timestamp events
      * are woven into their day alongside planned headings (a multi-day event
      * shows on each day it spans); an event never ages into Overdue. Later
      * days also carry each future repeat of a repeating SCHEDULED/DEADLINE
@@ -85,22 +87,25 @@ object LedgerBuckets {
             rows = overdueNotes.map { widgetRow(it, today, showDate = true, settings) },
         )
 
+        // Past SCHEDULED with no missed deadline: trails today's section, oldest first.
+        val carried = AgendaBuckets.carriedOver(plannable, today)
         val horizon = today.plusDays((windowDays - 1).coerceAtLeast(0).toLong())
         val plannedByDay = plannable
             .filter {
                 val d = AgendaBuckets.whenDate(it)
-                d != null && !d.isBefore(today) && !d.isAfter(horizon)
+                d != null && !d.isBefore(today) && !d.isAfter(horizon) && !AgendaBuckets.deadlinePassed(it, today)
             }
             .groupBy { AgendaBuckets.whenDate(it)!! }
 
         val daySections = generateSequence(today) { it.plusDays(1) }
             .takeWhile { !it.isAfter(horizon) }
             .mapNotNull { day ->
+                val trailing = if (day == today) carried else emptyList()
                 val entries = (
                     plannedByDay[day].orEmpty().map { DayEntry.Planned(it) } +
                         AgendaBuckets.repeatsOn(plannable, day, today).map { DayEntry.Repeat(it.meta, it.kind, it.ts) } +
                         AgendaBuckets.activeEventsOn(notes, day).map { DayEntry.Event(it.first, it.second) }
-                    ).sortedWith(BY_DAY)
+                    ).sortedWith(BY_DAY) + trailing.map { DayEntry.Planned(it) }
                 if (entries.isEmpty()) return@mapNotNull null
                 Section(
                     day = day,

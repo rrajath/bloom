@@ -105,6 +105,12 @@
     <string name="settings_badge_experimental">Experimental</string>
     <!-- Pill next to a settings page whose feature is an early preview. -->
     <string name="settings_badge_preview">Preview</string>
+    <!-- Settings search: placeholder in the search field at the top of the Settings hub. -->
+    <string name="settings_search_placeholder">Search settings</string>
+    <!-- Settings search: shown when nothing matches. %1$s = what the user typed. -->
+    <string name="settings_search_no_results">No settings match “%1$s”</string>
+    <!-- Settings search: the result for the Backup page's Export and Import buttons. -->
+    <string name="settings_search_backup_label">Export or import settings</string>
     <!-- Section headers on the Settings hub. Shown in capitals; write them in normal case. -->
     <string name="settings_section_help">Help</string>
     <string name="settings_section_about">About</string>
@@ -209,6 +215,8 @@
     <string name="settings_notes_capitalize_hint">Capitalizes the first letter typed into a heading. Off leaves capitalization to your keyboard</string>
     <string name="settings_notes_highlight_line">Highlight current line</string>
     <string name="settings_notes_highlight_line_hint">Shades the whole line you\'re typing on, including where it wraps, so you can tell a long wrapped line from separate lines</string>
+    <string name="settings_notes_line_numbers">Show line numbers</string>
+    <string name="settings_notes_line_numbers_hint">Shows each line\'s number in the file beside the editor. Tap a number to select its line, or drag across numbers to select several</string>
     <string name="settings_notes_auto_archive">Auto-archive done items?</string>
     <!-- ARCHIVE is an org-mode property and keyword name; keep it as is. -->
     <string name="settings_notes_auto_archive_hint">Refiles a task the moment it\'s marked done, to its ARCHIVE property/keyword if it has one, otherwise the location below</string>
@@ -266,8 +274,8 @@
     <string name="settings_attach_folder">Attachment folder</string>
     <!-- %1$s = the Emacs variable name org-attach-id-dir, drawn in monospace. -->
     <string name="settings_attach_folder_hint">Matches %1$s in Emacs.</string>
-    <!-- data/ is the old default folder name; keep it as is. -->
-    <string name="settings_attach_folder_helper">Relative to each note\'s folder. Files already in data/ keep opening.</string>
+    <!-- %1$s = attach/, %2$s = /attach/, %3$s = data/, all drawn in monospace. Without a leading / the folder sits next to each note; with one it is a single folder at the top of the vault. data/ is the old default folder. -->
+    <string name="settings_attach_folder_helper">%1$s goes next to each note. %2$s is one folder at the vault root. Files already in %3$s keep opening.</string>
     <string name="settings_attach_tag">Attachment tag</string>
     <!-- %1$s = the Emacs variable name org-attach-auto-tag, drawn in monospace. -->
     <string name="settings_attach_tag_none_hint">No tag is added to headings you attach files to. Matches %1$s in Emacs.</string>
@@ -278,12 +286,27 @@
     <string name="settings_attach_tag_value_none">None</string>
     <!-- Attachment folder validation errors. "/" and "\\" are path separators, ".." and "." the parent and current folder, "~" the home folder. -->
     <string name="settings_attach_folder_error_empty">Enter a folder.</string>
-    <string name="settings_attach_folder_error_leading_slash">Use a folder inside each note\'s folder; remove the leading /.</string>
     <string name="settings_attach_folder_error_tilde">~ isn\'t supported.</string>
     <string name="settings_attach_folder_error_backslash">Use / between folders.</string>
-    <string name="settings_attach_folder_error_parent">Use a folder inside each note\'s folder; .. isn\'t supported.</string>
+    <string name="settings_attach_folder_error_parent">Use a folder inside the vault; .. isn\'t supported.</string>
     <string name="settings_attach_folder_error_dot">Use folder names, not \".\".</string>
     <string name="settings_attach_folder_error_space">Folder names can\'t start or end with a space.</string>
+    <!-- Sheet shown after the attachment folder changes from one next to each note (attach/) to one at the vault root (/attach/), when attachment folders next to notes were found. -->
+    <string name="settings_attach_move_title">Move existing attachments?</string>
+    <!-- %1$s = old folder (e.g. attach/), %2$s = new folder (e.g. /attach/), %3$s = "3 folders · 12 files · 4.1 MB". Flip the arrow for right-to-left languages. -->
+    <string name="settings_attach_move_subline">%1$s → %2$s · %3$s</string>
+    <!-- %1$s = the new vault-root folder, e.g. /attach/, drawn in monospace. -->
+    <string name="settings_attach_move_body">Attachment folders were found next to your notes. Move them into %1$s so their links keep working? A file whose name is already taken there by a different file stays where it is.</string>
+    <string name="settings_attach_move_keep">Keep where they are</string>
+    <string name="settings_attach_move_confirm">Move</string>
+    <!-- Toast after the move. %1$s = the new vault-root folder, e.g. /attach/. -->
+    <string name="settings_attach_move_done">Attachments moved to %1$s.</string>
+    <!-- Toast after the move when some files couldn't go. %1$d = files left behind, %2$s = the new vault-root folder. -->
+    <plurals name="settings_attach_move_partial">
+        <item quantity="one">Attachments moved to %2$s. %1$d file stayed in its old folder.</item>
+        <item quantity="other">Attachments moved to %2$s. %1$d files stayed in their old folders.</item>
+    </plurals>
+    <string name="settings_attach_move_failed">Couldn\'t move the attachments. They\'re still in their old folders.</string>
 
     <!-- Settings > Roam Features. -->
     <string name="settings_roam_experimental_note">These are experimental features and are subject to change.</string>
@@ -310,6 +333,33 @@
     <!-- Settings > Backup. -->
     <string name="settings_backup_intro">Import or export your preferences, capture templates, favorites and saved searches as a JSON file. The sync folder isn\'t included; it stays on this device.</string>
     <string name="settings_backup_import_title">Import backup</string>
+    <!-- Settings > Backup section headers. Shown in capitals; write them in normal case. -->
+    <string name="settings_backup_section_auto">Automatic backup</string>
+    <string name="settings_backup_section_manual">Manual</string>
+    <string name="settings_auto_backup_toggle">Back up automatically</string>
+    <string name="settings_auto_backup_toggle_hint">Keeps a JSON copy up to date whenever settings, templates, favorites or saved searches change.</string>
+    <string name="settings_auto_backup_folder">Backup folder</string>
+    <!-- Trailing value of the Backup folder row before a folder is picked. -->
+    <string name="settings_auto_backup_folder_none">tap to choose</string>
+    <!-- %1$s = relative time from the system, e.g. "2 minutes ago" or "yesterday". -->
+    <string name="settings_auto_backup_last">Last backed up %1$s</string>
+    <string name="settings_auto_backup_last_just_now">Last backed up just now</string>
+    <string name="settings_auto_backup_never">Not backed up yet</string>
+    <!-- Tapping this line opens the folder picker. %1$s = app name. -->
+    <string name="settings_auto_backup_error">%1$s can\'t write to this folder. Choose it again.</string>
+    <string name="settings_auto_backup_restore">Restore from automatic backup</string>
+    <!-- Backup folder row while automatic backup is off and no folder was ever picked (the row can't be tapped). -->
+    <string name="settings_auto_backup_folder_off">None</string>
+    <!-- Toast: the folder picker returned a folder, but Android refused to keep access to it. -->
+    <string name="settings_auto_backup_grant_failed">Couldn\'t keep access to that folder. Choose it again.</string>
+    <!-- Dialog when the picked backup folder already holds a backup that differs from this device. -->
+    <string name="settings_auto_backup_exists_title">A backup is already here</string>
+    <!-- %1$s = app name. -->
+    <string name="settings_auto_backup_exists_body">This folder has a %1$s settings backup that doesn\'t match this device. Restore it here, or replace it with this device\'s settings?</string>
+    <!-- Dialog button: import the existing backup onto this device. -->
+    <string name="settings_auto_backup_exists_restore">Restore</string>
+    <!-- Dialog button: overwrite the existing backup file with this device's settings. -->
+    <string name="settings_auto_backup_exists_replace">Replace</string>
     <string name="settings_backup_import_body">Each checked item replaces what\'s on this device.</string>
     <!-- Import dialog: one checkbox per part of the backup file. -->
     <string name="settings_backup_section_settings">Settings</string>

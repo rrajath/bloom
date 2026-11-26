@@ -127,7 +127,19 @@ data class EditorUiState(
      *  top bar's save icon. Tracked here (not per-screen `remember`) so both
      *  [EditorViewModel]'s own idle auto-save and an explicit save update it the same way. */
     val lastSavedAt: LocalDateTime? = null,
-)
+) {
+    /**
+     * 0-based file line of [buffer]'s first line, for the editor's line-number gutter:
+     * 0 for the whole file, the region's first line for a scoped region, and the
+     * subtree's owned span (falling back to its headline) otherwise.
+     */
+    val bufferFirstFileLine: Int
+        get() = when (region) {
+            EditRegion.WHOLE_FILE -> 0
+            null -> ownedSpan?.first ?: lineIndex
+            else -> regionRange?.takeUnless { it.isEmpty() }?.first ?: 0
+        }
+}
 
 /**
  * State for the toolbar's "insert a link" bottom sheet: a notebook drill-down
@@ -155,6 +167,8 @@ class EditorViewModel(
     private val templatesRepository: TemplatesRepository,
     private val attachFollow: AttachmentFollow = AttachmentFollow.None,
     private val attachDirMoves: AttachDirMoves = AttachDirMoves.None,
+    /** A fresh vault-unique `:ID:` ([com.rrajath.grove.org.OrgIdAllocator] in the app). */
+    private val orgIds: suspend () -> String = { newOrgId() },
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EditorUiState())
@@ -635,7 +649,12 @@ class EditorViewModel(
     }
 
     /** Metadata sheet's "Generate org-id": writes a fresh `:ID:` into the heading's PROPERTIES drawer. */
-    fun generateId() = mutateBuffer { d, h -> OrgMutations.upsertProperty(d, h, "ID", newOrgId()) }
+    fun generateId() {
+        viewModelScope.launch {
+            val id = orgIds()
+            mutateBuffer { d, h -> OrgMutations.upsertProperty(d, h, "ID", id) }
+        }
+    }
 
     /**
      * Write the buffer back into the file. Refuses (sets [EditorUiState.staleFile])
@@ -1038,7 +1057,7 @@ class EditorViewModel(
         // build it now, on the one tap that needs it, so an existing same-titled node still matches.
         val index = autoLinkIndex.value ?: fetchAutoLinkIndex()
         val result = RoamNodeCreator.createOrLink(
-            vault, sync, template, selectedTitle, index, LocalDateTime.now(),
+            vault, sync, template, selectedTitle, index, LocalDateTime.now(), orgIds,
         )
         if (result is RoamNodeResult.Created) {
             database.headingOutlines.invalidate()
@@ -1146,6 +1165,7 @@ class EditorViewModel(
                 it.templatesRepository,
                 attachFollow = it.attachmentFollow,
                 attachDirMoves = it.attachDirMoves,
+                orgIds = it.orgIdAllocator::next,
             )
         }
     }
