@@ -466,4 +466,12 @@ class OrgParserTest {
             parent.activeTimestamps.map { it.date },
         )
     }
+
+    @Test
+    fun `a blank line before the drawer means it is not the file drawer`() {
+        // Matches org-get-property-block, which skips comment lines only.
+        val doc = OrgParser.parse("# c\n\n:PROPERTIES:\n:ID: abc\n:END:\n")
+        assertEquals(null, OrgMutations.fileDrawerRange(doc))
+        assertEquals(null, doc.fileId)
+    }
 }

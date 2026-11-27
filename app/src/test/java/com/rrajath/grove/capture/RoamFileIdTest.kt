@@ -67,4 +67,35 @@ class RoamFileIdTest {
         assertFalse(RoamFileId.templateDefinesId("#+title: %?"))
         assertFalse(RoamFileId.templateDefinesId(":PROPERTIES:\n:ROAM_ALIASES: a\n:END:\n#+title: %?"))
     }
+
+    @Test
+    fun `withFileId adds the drawer below a leading comment line`() {
+        assertEquals(
+            "# -*- mode: org -*-\n:PROPERTIES:\n:ID: X1\n:END:\n#+title: Foo",
+            RoamFileId.withFileId("# -*- mode: org -*-\n#+title: Foo", "X1"),
+        )
+    }
+
+    @Test
+    fun `withFileId keeps a comment line above an existing drawer`() {
+        val text = "# -*- mode: org -*-\n:PROPERTIES:\n:CATEGORY: c\n:END:\n#+title: Foo"
+        assertEquals(
+            "# -*- mode: org -*-\n:PROPERTIES:\n:ID: X1\n:CATEGORY: c\n:END:\n#+title: Foo",
+            RoamFileId.ensureFileId(text, "X1"),
+        )
+    }
+
+    @Test
+    fun `splitDrawer and joinDrawer keep a comment line above the drawer`() {
+        val text = "# c\n:PROPERTIES:\n:ROAM_ALIASES: a\n:ID: old\n:END:\n#+title: Foo"
+        val (drawer, rest, restCursor) = RoamFileId.splitDrawer(text, text.length)
+        assertEquals(":PROPERTIES:\n:ROAM_ALIASES: a\n:END:", drawer)
+        assertEquals("# c\n#+title: Foo", rest)
+        assertEquals(rest.length, restCursor)
+        assertEquals(1, RoamFileId.splitDrawer(text, 1).third)
+        assertEquals(
+            "# c\n:PROPERTIES:\n:ROAM_ALIASES: a\n:END:\n#+title: Foo",
+            RoamFileId.joinDrawer(drawer, rest),
+        )
+    }
 }

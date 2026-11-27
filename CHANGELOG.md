@@ -77,7 +77,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Typing with line numbers on is smoother: the editor no longer redraws its whole field per keystroke.
 
 ### Fixed
-- Notebook titles now appear when comment lines like Emacs file-local variables precede `#+TITLE:` (#127).
+- Titles and file IDs now work when comment lines like Emacs `# -*- … -*-` headers start the file (#127).
 - Agenda widget: DONE keywords now get a green pill like in the app, and pills align with task text (#125).
 - Saving a capture template no longer risks being lost when the editor closes before the write finishes.
 - A newly saved capture template now always appears on the templates list right away, without reopening it.

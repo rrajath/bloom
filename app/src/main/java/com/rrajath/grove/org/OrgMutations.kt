@@ -1280,8 +1280,9 @@ object OrgMutations {
     /**
      * Set [key] to [value] in the file-level `:PROPERTIES:` drawer (the one
      * [OrgDocument.filePropertyDrawer] reads), replacing an existing entry for
-     * that key or adding one before `:END:`. Creates the drawer on line 0, above
-     * any `#+TITLE:` lines, when the file has none.
+     * that key or adding one before `:END:`. Creates the drawer above any
+     * `#+TITLE:` lines when the file has none: on line 0, or below leading
+     * comment lines such as an Emacs `# -*- … -*-` header ([OrgDocument.fileDrawerSlot]).
      */
     fun upsertFileProperty(doc: OrgDocument, key: String, value: String): String {
         val lines = doc.lines.toMutableList()
@@ -1295,10 +1296,7 @@ object OrgMutations {
                 lines.add(range.last, newLine)
             }
         } else {
-            val insertAt = (0 until doc.preambleEnd)
-                .takeWhile { OrgParser.isCommentLine(lines[it]) }
-                .count()
-            lines.addAll(insertAt, listOf(":PROPERTIES:", newLine, ":END:"))
+            lines.addAll(doc.fileDrawerSlot, listOf(":PROPERTIES:", newLine, ":END:"))
         }
         return lines.joinToString("\n")
     }

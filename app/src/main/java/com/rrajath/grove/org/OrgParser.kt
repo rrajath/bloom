@@ -142,17 +142,27 @@ class OrgDocument(
     }
 
     /**
+     * Line index of the first line that isn't a `# ` comment line (such as an
+     * Emacs `# -*- ... -*-` file-local variable header): where the file-level
+     * property drawer must start, and where a new one is inserted. Mirrors
+     * org-mode's `org-get-property-block` / `org-insert-property-drawer`, which
+     * skip leading comment lines only, not blank lines.
+     */
+    internal val fileDrawerSlot: Int by lazy {
+        var i = 0
+        while (i < preambleEnd && OrgParser.isCommentLine(lines[i])) i++
+        i
+    }
+
+    /**
      * Inclusive line range (drawer markers included) of the leading file-level
      * `:PROPERTIES: … :END:` drawer, or null when there is no such closed drawer
-     * at the top of the file. Allows leading blank lines and `# ` comment lines
-     * (such as Emacs `# -*- ... -*-` file-local variable headers) before the
-     * drawer, matching Org 9.4+'s file-level property drawer rule.
+     * at the top of the file. The drawer must open on [fileDrawerSlot]: the first
+     * line, or right after leading comment lines. A blank line before it means
+     * it isn't the file drawer, as in org-mode.
      */
     internal val fileDrawerLineRange: IntRange? by lazy {
-        var i = 0
-        while (i < preambleEnd && (lines[i].isBlank() || OrgParser.isCommentLine(lines[i]))) {
-            i++
-        }
+        val i = fileDrawerSlot
         if (i >= preambleEnd || !lines[i].trim().equals(":PROPERTIES:", ignoreCase = true)) {
             null
         } else {
@@ -165,8 +175,8 @@ class OrgDocument(
 
     /**
      * A leading file-level `:PROPERTIES: … :END:` drawer (before the first
-     * headline and before any `#+KEY:` lines, optionally preceded by blank or
-     * `# ` comment lines), as ordered `:KEY:` → value pairs in file order.
+     * headline and before any `#+KEY:` lines, optionally preceded by `# `
+     * comment lines), as ordered `:KEY:` → value pairs in file order.
      * Empty when the preamble has no such drawer, or when the drawer is
      * unclosed (degrades exactly like [introStart], which treats an unclosed
      * drawer as prose).
