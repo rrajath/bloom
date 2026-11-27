@@ -55,6 +55,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.rrajath.grove.R
 import com.rrajath.grove.ui.components.GroveDropdownMenu
+import com.rrajath.grove.ui.screens.ai.AiCaptureAction
+import com.rrajath.grove.ui.screens.ai.AiCaptureSheet
+import com.rrajath.grove.ui.screens.ai.rememberAiCapture
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -219,9 +222,12 @@ fun ReadNoteScreen(
     onPendingPersisted: () -> Unit = {},
     /** Tapping the unsaved-changes indicator: write [pendingEdit] to disk now. */
     onSavePending: () -> Unit = {},
+    /** Open the AI model settings (top-bar AI capture entry). */
+    onOpenAiSettings: () -> Unit = {},
     viewModel: DocumentViewModel = viewModel(factory = DocumentViewModel.Factory),
 ) {
     val c = MaterialTheme.grove
+    val aiCapture = rememberAiCapture()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val allTags by viewModel.allTags.collectAsStateWithLifecycle()
     val refileState by viewModel.refile.collectAsStateWithLifecycle()
@@ -316,6 +322,7 @@ fun ReadNoteScreen(
                     }
                 },
                 actions = {
+                    AiCaptureAction(aiCapture)
                     ReadEditToggle(isEditing = false, onToggle = { onEdit(null) })
                 },
                 subtitle = {
@@ -479,6 +486,15 @@ fun ReadNoteScreen(
                 .align(Alignment.BottomCenter)
                 .padding(padding)
                 .padding(bottom = 16.dp),
+        )
+        AiCaptureSheet(
+            controller = aiCapture,
+            targetFile = noteRef.fileName,
+            onOpenSettings = onOpenAiSettings,
+            // A note's pending edit is a subtree; appending a top-level TODO at
+            // the file end cannot be overwritten by a later subtree save. Reload
+            // so the new heading shows up in read mode.
+            afterWrite = { viewModel.load(noteRef.fileName) },
         )
         }
     }

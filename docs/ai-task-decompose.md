@@ -1,0 +1,206 @@
+# AI 加持第一期：自然语言捕获与任务分解
+
+> 范围：主界面一句话 AI 捕获（默认）+ 可选四步任务分解向导 + 仓库侧 `org-decompose` 技能文档
+> 标签规范：[design-tag-system.md](design-tag-system.md)
+
+## 1. 目标
+
+Bloom 提供两个 AI 入口，共用同一套端点配置、密钥存储与写入链路：
+
+1. **主界面一句话捕获（默认）**：点顶部栏的星芒按钮弹出底部抽屉，在输入框写一段
+   自然语言，例如「下周五 3 点和张三在 302 会议室评审 Q4 规划，高优先级」，一次请求
+   转成一条 Org TODO（或一条带 N 个子任务的树），自动抽取地点、截止日期、
+   SCHEDULED 日期与优先级，预览可编辑后写入当前上下文对应的文件。
+  同样的星芒按钮也出现在四个文件页面（笔记阅读/编辑、大纲、整文件阅读/编辑），
+  保存目标按页面固定：**列表页 → `inbox.org`，文件页 → 当前打开的文件**，不可在抽屉内切换。
+2. **四步任务分解向导（可选）**：对复杂任务，从「设置 → AI task breakdown」
+   进入，按「澄清 → 对比 → 分段设计 → 生成清单」四步产出子任务树。
+
+这是「AI 加持」的第一期，但代码结构按可扩展设计：`ai/` 包只依赖一个
+`AiClient` 接口，后续摘要、改写、周报、智能分类等能力可以复用同一套配置、
+密钥存储与会话编排，不需要再碰设置页和网络层。
+
+## 2. 明确的边界
+
+| 项目 | 决策 |
+| --- | --- |
+| 模型 | 用户自填 OpenAI 兼容 `base URL` + `model` + `API Key`；不绑定任何厂商，不内置 Key |
+| 密钥 | AES-256/GCM + Android Keystore，存 `filesDir/ai/secret.bin`；不进 DataStore、不进备份、不进设置导出 |
+| 网络 | 复用 `libs.okhttp` (4.12.0) + `libs.kotlinx.serialization.json` (1.7.3)；HTTPS（仅回环地址允许 HTTP，便于本地模型） |
+| 交互 | 主界面一句话捕获为默认（单轮）；复杂任务可选用四步向导。两者最后都是可编辑的 Org 预览 |
+| 同步 | 写入后由既有 `SyncManager` / WebDAV 链路接管；本设计与技能文档不包含仓库操作步骤 |
+| 写入目标 | 列表页 → `inbox.org`；文件页 → 当前文件；`archive/` 不写；文件不存在则创建 |
+
+## 3. 分层
+
+```
+com.rrajath.grove.ai                         纯 Kotlin（无 android.* 导入，可直接 JVM 单测）
+├── AiConfig.kt            AiConfig / AiEndpoint.normalize / AiConfigProblem
+├── AiClient.kt           AiMessage / AiClient / AiException
+├── OpenAiCompatibleClient.kt   OkHttp + kotlinx.serialization 实现
+├── AiSecretStore.kt       密钥读写接口（实现放在 Android 层同包）
+├── AiKeystoreSecretStore.kt   AndroidKeyStore AES/GCM 实现（本目录唯一的 Android 文件）
+├── DecomposeModels.kt     Stage / Qa / Approach / DecomposeTask / DecomposePlan
+├── DecomposePrompts.kt   四步 system/user prompt 构造
+├── AiTagPolicy.kt        标签 / 优先级 / DEADLINE 推断与注入
+├── OrgTaskParser.kt      模型输出的 Org 文本 → DecomposePlan（1..N 棵顶层树）
+├── OrgTaskRenderer.kt    DecomposePlan → Org 文本 + InboxAppender
+├── DecomposeEngine.kt    四步向导编排（每次调用 = 一次 LLM 请求）
+├── QuickCapturePrompts.kt  一句话捕获的 system/user prompt
+└── QuickCaptureEngine.kt   单轮捕获编排（粒度切换 = 再次单轮请求）
+
+ui/screens/settings/      AiSettingsViewModel / SettingsAiScreen
+ui/screens/ai/            DecomposeViewModel / DecomposeScreen（向导）
+                          QuickCaptureViewModel / QuickCaptureBar（捕获抽屉内容）
+ui/screens/NotebooksScreen.kt  顶部星芒按钮 + ModalBottomSheet 挂载 QuickCaptureBar
+settings/                 GroveSettings 增加 aiBaseUrl / aiModel 两个字段
+```
+
+`AiClient` 是唯一的外部依赖边界：单测用内存 fake 驱动两个引擎，不需要网络。
+
+### 主界面一句话捕获：数据流
+
+```
+输入自然语言（可多行多条）+ 选粒度（自动 / 单条 / 拆解）
+  → QuickCaptureEngine.capture(text, granularity)      // 一次 LLM 请求，返回 1..N 棵顶层树
+  → OrgTaskParser.parseMany(..., allowSingle = true)   // 每条独立事情一棵 * TODO，不再只剩最后一条
+  → AiTagPolicy.enrichQuick                            // 每棵树只补标签 + 明确紧急时的 [#A]
+  → OrgTaskRenderer.render(plans)                      // 相邻顶层树之间空一行
+  → 可编辑预览 → InboxAppender → Vault.save → requestReindex
+```
+
+一条输入可以描述多件事（一行一件，或用句号、分号分开）：prompt 要求每件独立事情
+输出一棵顶层 `* TODO`，顺序与输入一致；只有同一件事的步骤才拆成 `**` 子任务。
+解析侧用 `parseMany` 保留全部顶层树，渲染时树与树之间空一行，因此插入 `inbox.org`
+后是并列的兄弟树，而不是互相嵌套。多棵树时紧急程度按各自标题判断，避免一条
+「高优先级」把整批任务都标成 `[#A]`。
+
+`enrichQuick` 与向导的 `enrich` 刻意不同：**不编造**原文没说的 DEADLINE /
+SCHEDULED / 检查点。粒度切换（单条 ↔ 拆解）会用同一段自然语言重新请求，
+因此原文始终是唯一事实来源，切换不会丢失内容。
+
+顶部星芒按钮只在有 vault 的主界面 `Loaded` 状态显示；点按弹出 `ModalBottomSheet`，
+抽屉内复用同一个 `QuickCaptureViewModel`，草稿在旋转时保留。**插入成功后抽屉不关闭**：
+清空输入与预览，状态行保留「已插入 …」的确认，方便连续捕获下一条；需要关闭时
+用抽屉自带的 handle、下滑或点击外部。未完成草稿在关闭后保留。配置端点/模型/Key
+通过抽屉内的「AI settings」进入设置页，复用向导相同的校验与 Keystore 存储。
+
+底部 dock 的 Capture 选择面板同样新增「AI capture」行，点按后进入同一个捕获抽屉；
+为保证该入口始终可见，面板不再因为只有一个 org 模板而自动跳过。
+
+### 生成的 Org 形状（对齐 Bloom 自己的 OrgParser）
+
+```
+* TODO [#A] 和张三评审 Q4 规划 :meeting:@office:
+SCHEDULED: <2026-11-27 Fri 15:00> DEADLINE: <2026-11-28 Sat>
+:PROPERTIES:
+:LOCATION: 302 会议室
+:END:
+** TODO 收集数据 :coding:@computer:
+*** 拉取上季度报表
+```
+
+- SCHEDULED 与 DEADLINE **共用一行**（Bloom 的 `parsePlanning` 只读标题下第一行）；
+- 地点写进 `:PROPERTIES:` 抽屉的 `:LOCATION:`，Bloom 解析为 headline property；
+- 相对日期（下周五等）由模型按当天日期换算为绝对日期，星期缩写用英文；
+- 标签仍是一个连续尾部组 `:meeting:@office:`（见 design-tag-system.md）。
+
+## 4. 四步向导状态机（可选入口）
+
+主界面一句话捕获是单轮请求，不走下面的状态机；下表仅适用于从设置页进入的向导。
+
+| 阶段 | 输入 | LLM 输出 | App 解析 | 用户动作 |
+| --- | --- | --- | --- | --- |
+| `TITLE` | 任务标题 | — | — | 输入标题，点「开始分解」 |
+| `CLARIFY` | 标题 | 3–5 个关键问题，每行一条 | 去编号/去项目符号，取 3–5 行 | 逐个回答后确认 |
+| `COMPARE` | 标题 + 问答 | 2–3 条实现路径，每条含 trade-off | 按编号切块，丢弃空块 | 单选一条路径 |
+| `DESIGN` | 上述 + 选中路径 | 若干设计块，每块 200–300 字，用 `<<<BLOCK>>>` 分隔 | 按分隔符切块 | **逐块确认**，最后一块确认后进入生成 |
+| `GENERATE` | 上述 + 全部设计块 | **纯 Org 文本，无解释** | `OrgTaskParser` → `AiTagPolicy` 注入 → `OrgTaskRenderer` | 可编辑预览，点「插入 inbox.org」 |
+| `DONE` | — | — | — | 可再分解一个 |
+
+任何一步失败都保留当前阶段与已填内容，只显示错误状态，允许「重试本步」；
+不会丢失用户已经确认过的澄清答案与方案选择。
+
+## 5. 写入链路
+
+沿用 capture 的既有路径，不引入新的文件 I/O：
+
+```
+targetFile = 列表页 ? "inbox.org" : 当前文件名      // QuickCaptureViewModel.insert(targetFile)
+  → beforeWrite()                                 // 编辑页先在其 saveMutex 内 flush 未保存 buffer
+  → InboxAppender.append(existingText, orgSubtree) // 末尾补一个空行后追加
+  → Vault.save(targetFile, newText)                // 文件不存在则先 createNotebook
+  → SyncManager.requestReindex(targetFile, newText, "ai quick capture")
+  → afterWrite(newText)                            // 编辑页 reload buffer / 读页 reload 文档
+  → （既有）WebDAV afterLocalWrite 去抖上传 / Room 增量索引 / widget 刷新
+```
+
+`beforeWrite` 返回 false（flush 被拒，例如文件已陈旧）时中止插入并提示先保存，
+避免稍后一次保存用旧 buffer 覆盖刚追加的块。子树编辑的未保存内容只写回该子树范围，
+与文件末尾的追加不冲突；整文件编辑（buffer 即整个文件）必须 flush + reload。
+
+`InboxAppender` 只做纯文本拼接，不解析 Org，未触碰的行保持原样。
+`LineEndingFileStore` 负责按目标文件既有约定还原 CRLF；新建文件默认 LF，
+UTF-8 无 BOM。
+
+## 6. 与示例的偏差（有意为之）
+
+1. **标签写法**：示例的 `:planning: @computer` 不是合法的 Org 尾部标签组，
+   Bloom 解析不到。统一改为 `:planning:@computer:`，语义不变。详见
+   [design-tag-system.md](design-tag-system.md)。
+2. **Tag 注入位置**：模型负责任务语义与拆解，标签/优先级/DEADLINE 由
+   `AiTagPolicy` 用确定性规则补齐与校正，避免模型输出格式漂移导致清单不可用。
+3. **换行**：App 侧跟随目标文件既有 CRLF/LF，技能文档按 Windows CRLF。
+4. **纯文本输出**：只有 `GENERATE` 阶段强制纯 Org 文本；前三步需要结构化展示，
+   用轻量分隔符解析而不是 JSON（对本地小模型更稳）。
+
+## 7. 验证
+
+- `app/src/test/java/com/rrajath/grove/ai/` 下的 JVM 单测覆盖端点归一化、
+  标签推断、Org 解析/渲染、追加器、四步引擎、HTTP 错误映射。
+- `:app:testDebugUnitTest --tests "com.rrajath.grove.ai.*"` +
+  `NoHardcodedUiStringsTest`（UI 文本全部走 `stringResource`）。
+- `:app:assembleDebug` 确认 Compose / Manifest / R.string 接线。
+- 所有新增 Kotlin 文件中出现的英文说明性字面量，均用文件头
+  `// i18n:` 标记为「非 UI 文本」（模型 prompt、Org 语法、内部错误原因）。
+
+### 实测结果（2026-11-25）
+
+**首版（四步向导）**
+- AI 包 + i18n / 应用名 / 翻译 / 设置序列化 ratchet：69 tests，0 failures / 0 errors / 0 skipped。
+- `:app:assembleDebug` 成功；APK `bloom-ai-decompose-debug-v1.apk`（36,150,581 bytes，SHA-256 `dfd69f11…551f`）。
+
+**第二版（主界面一句话捕获）**
+- `:app:testDebugUnitTest`（AI 包全部用例 + 三个 ratchet + 设置序列化）：**76 tests，0 failures / 0 errors / 0 skipped**。
+- 新增 `QuickCaptureEngineTest`（单条全元数据 / 多子任务 / 粒度 prompt / 不编造日期）、
+  `OrgTaskParserMetadataTest`（组合 planning 行、属性抽屉、子任务元数据隔离、allowSingle 门控）。
+- `:app:assembleDebug` **BUILD SUCCESSFUL**；APK `bloom-ai-quick-capture-debug-v2.apk`
+  （SHA-256 `244b6fbee2cce77b91fbcf475721c541fa3d5f8db0abca79a324a551f4fe4f8f`）。
+
+**第三版（入口改为顶部按钮 + 底部抽屉）**
+- 主界面不再常驻捕获条；顶部栏星芒按钮弹出 `ModalBottomSheet`，抽屉内复用 `QuickCaptureBar(embedded = true)`。
+- 草稿旋转时保留、插入完成后关闭清空；APK `bloom-ai-capture-sheet-debug-v3.apk`
+  （SHA-256 `2d412b8bf8202015176c8abb685329266a730ae9a7479b4466055b88d59dc03f`）。
+
+**第四版（上下文感知的保存目标，本次）**
+- 星芒按钮扩展到全部文件页面：笔记阅读/编辑、大纲、整文件阅读/编辑；共享 `AiCaptureLauncher.kt`
+  （`AiCaptureAction` + `AiCaptureSheet` + `AiCaptureController`）收敛五个页面的样板代码。
+- 保存目标按页面固定：列表页 → `inbox.org`，文件页 → 当前文件名（`QuickCaptureViewModel.insert(targetFile)`）。
+- 编辑页安全性：`EditorViewModel.flushForExternalWrite()` 在其 saveMutex 内 flush 未保存 buffer，
+  返回 false 则中止插入并提示先保存；整文件编辑在写入后 reload buffer，避免旧 buffer 覆盖追加块。
+- `:app:testDebugUnitTest`：**77 tests，0 failures / 0 errors / 0 skipped**（新增 InboxAppender 对当前文件追加用例）。
+- `:app:assembleDebug` **BUILD SUCCESSFUL**；APK `bloom-ai-context-target-debug-v4.apk`
+  （SHA-256 `e36ca9e1dda74e8b208f4a382603f2cb631f74dc7ffb17e5fb23e05f6054747a`）。
+- 新增/改动文本统一 UTF-8 无 BOM + CRLF；本机 `gradle-daemon-jvm.properties` 的临时构建改动已还原。
+
+**第五版（连续捕获 + 多条输入，本次）**
+- 底部 Capture 面板新增「AI capture」行，进入独立 `ai/capture` 抽屉；单一 org 模板时也不再跳过面板。
+- 插入成功后不再关闭抽屉：清空输入与预览、保留「已插入 …」状态，用 handle / 下滑 / 点外部关闭，
+  便于连续捕获多条。
+- 一次输入多条事情：prompt 要求每件独立事情一棵 `* TODO`，`OrgTaskParser.parseMany` 保留全部顶层树，
+  `OrgTaskRenderer.render(plans)` 用空行分隔；修复此前只保留最后一条的问题。
+- 多棵树时每棵按自身标题判断紧急程度（避免一条「高优先级」污染整批）；健康类标签补充
+  疫苗 / 挂号 / 就诊 / 打针。
+- `:app:testDebugUnitTest`（AI 包 + i18n / 翻译 ratchet）：**41 tests，0 failures / 0 errors / 0 skipped**；
+  `:app:assembleDebug` **BUILD SUCCESSFUL**，APK `bloom-ai-multi-capture-debug-v5.apk`
+  （SHA-256 `eb457c0dc2b5dc209155291f9427c1741256d9dc528befeb4a991a82983ba73d`）。

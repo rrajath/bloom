@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -46,6 +47,7 @@ fun CapturePickerSheet(
     onDismiss: () -> Unit,
     onPickTemplate: (CaptureTemplate) -> Unit,
     onManage: () -> Unit,
+    onOpenAiCapture: () -> Unit = {},
     viewModel: CaptureViewModel = viewModel(factory = CaptureViewModel.Factory),
 ) {
     val templates by viewModel.pickerTemplates.collectAsStateWithLifecycle()
@@ -61,13 +63,8 @@ fun CapturePickerSheet(
     // content.
     if (templates.isEmpty()) return
 
-    // PRD §7.2: with a single template the picker is skipped entirely.
-    if (templates.size == 1) {
-        androidx.compose.runtime.LaunchedEffect(templates) {
-            onPickTemplate(templates.first())
-        }
-        return
-    }
+    // The AI row is always present, so the picker is never a pass-through even
+    // when there is only one org template.
 
     val c = MaterialTheme.grove
     val sheetState = rememberModalBottomSheetState()
@@ -104,10 +101,50 @@ fun CapturePickerSheet(
                         .padding(6.dp),
                 )
             }
+            AiCaptureRow(onClick = onOpenAiCapture)
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp),
+                color = c.line,
+            )
             templates.forEach { template ->
                 TemplateRow(template, onClick = { onPickTemplate(template) })
             }
         }
+    }
+}
+
+@Composable
+private fun AiCaptureRow(onClick: () -> Unit) {
+    val c = MaterialTheme.grove
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .testTag("capture_ai_row")
+            .padding(horizontal = 22.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MonogramTile(
+            letter = "✦",
+            colorKey = "ai-capture",
+            size = 44.dp,
+            cornerRadius = 13.dp,
+            dashedBorder = true,
+            addBadge = true,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.ai_quick_open),
+                fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                fontSize = 15.5.sp, color = c.ink,
+            )
+            Text(
+                stringResource(R.string.ai_quick_sheet_subtitle),
+                fontFamily = PlexMono, fontSize = 12.5.sp, color = c.ink2,
+            )
+        }
+        Text("›", fontFamily = PlexMono, fontSize = 16.sp, color = c.ink3)
     }
 }
 

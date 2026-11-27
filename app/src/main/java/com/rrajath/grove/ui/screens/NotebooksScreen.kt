@@ -112,6 +112,11 @@ import com.rrajath.grove.ui.components.monogramPalette
 import com.rrajath.grove.ui.components.nameHashPaletteKey
 import com.rrajath.grove.ui.components.searchIcon
 import com.rrajath.grove.ui.components.SyncedCheckIcon
+import com.rrajath.grove.ai.InboxAppender
+import com.rrajath.grove.ui.screens.ai.AiCaptureAction
+import com.rrajath.grove.ui.screens.ai.AiCaptureSheet
+import com.rrajath.grove.ui.screens.ai.QuickCaptureViewModel
+import com.rrajath.grove.ui.screens.ai.rememberAiCapture
 import com.rrajath.grove.ui.newbadge.NewAnchors
 import com.rrajath.grove.ui.newbadge.NewDotBadge
 import com.rrajath.grove.ui.theme.PlexMono
@@ -146,10 +151,13 @@ fun NotebooksScreen(
     onOpenCapture: () -> Unit,
     onOpenNotebook: (String) -> Unit,
     onOpenConflict: (String) -> Unit,
+    onOpenAiSettings: () -> Unit = {},
     viewModel: NotebooksViewModel = viewModel(factory = NotebooksViewModel.Factory),
+    quickCaptureViewModel: QuickCaptureViewModel = viewModel(factory = QuickCaptureViewModel.Factory),
 ) {
     val c = MaterialTheme.grove
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val aiCapture = rememberAiCapture(quickCaptureViewModel)
     val context = LocalContext.current
 
     // Macrobenchmark's timeToFullDisplayMs: signal Activity.reportFullyDrawn()
@@ -268,6 +276,7 @@ fun NotebooksScreen(
                                 modifier = Modifier.padding(end = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
+                                AiCaptureAction(aiCapture)
                                 if (loadedState.hasFolders) {
                                     IconGlyph(
                                         if (loadedState.allFoldersCollapsed) Icons.Default.UnfoldMore
@@ -618,6 +627,12 @@ fun NotebooksScreen(
         }
         }
     }
+
+    AiCaptureSheet(
+        controller = aiCapture,
+        targetFile = InboxAppender.TARGET_FILE,
+        onOpenSettings = onOpenAiSettings,
+    )
 
     createInDir?.let { dir ->
         NameDialog(

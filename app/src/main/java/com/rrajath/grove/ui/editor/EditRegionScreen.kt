@@ -66,6 +66,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rrajath.grove.R
+import com.rrajath.grove.ui.screens.ai.AiCaptureAction
+import com.rrajath.grove.ui.screens.ai.AiCaptureSheet
+import com.rrajath.grove.ui.screens.ai.rememberAiCapture
 import com.rrajath.grove.capture.CaptureTemplate
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
@@ -244,11 +247,14 @@ fun EditRegionScreen(
     roamSuggestionsEnabled: Boolean = false,
     /** [EditRegion.WHOLE_FILE] only: the Backlinks sheet's "open" action. */
     onOpenNote: (NoteRef) -> Unit = {},
+    /** Open the AI model settings (top-bar AI capture entry, WHOLE_FILE only). */
+    onOpenAiSettings: () -> Unit = {},
     viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory),
 ) {
     val c = MaterialTheme.grove
     val context = LocalContext.current
     val resources = LocalResources.current
+    val aiCapture = rememberAiCapture()
     val clipboard = LocalClipboard.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val strings = regionStrings(region)
@@ -452,6 +458,7 @@ fun EditRegionScreen(
                     }
                 },
                 actions = {
+                    if (region == EditRegion.WHOLE_FILE) AiCaptureAction(aiCapture)
                     if (onSwitchToRead != null) {
                         // Never saves: the FILE route's Read view renders this buffer
                         // from memory (PendingEdit), as note Read mode does.
@@ -525,6 +532,19 @@ fun EditRegionScreen(
                 createOrLinkRoamNode = viewModel::createOrLinkRoamNode,
             )
         }
+    }
+
+    if (region == EditRegion.WHOLE_FILE) {
+        AiCaptureSheet(
+            controller = aiCapture,
+            targetFile = fileName,
+            onOpenSettings = onOpenAiSettings,
+            // The whole-file buffer *is* the file: flush it before appending,
+            // then reload it so the appended block joins the buffer and is not
+            // lost on the next keystroke-triggered save.
+            beforeWrite = { viewModel.flushForExternalWrite() },
+            afterWrite = { viewModel.loadRegion(fileName, noteId, EditRegion.WHOLE_FILE) },
+        )
     }
 
     if (confirmLeave) {

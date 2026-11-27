@@ -20,6 +20,9 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.res.stringResource
 import com.rrajath.grove.R
+import com.rrajath.grove.ui.screens.ai.AiCaptureAction
+import com.rrajath.grove.ui.screens.ai.AiCaptureSheet
+import com.rrajath.grove.ui.screens.ai.rememberAiCapture
 import com.rrajath.grove.ui.components.GroveDropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -128,9 +131,14 @@ fun ReadFileScreen(
     onPendingPersisted: () -> Unit = {},
     /** Tapping the unsaved-changes indicator: write [pendingEdit] to disk now. */
     onSavePending: () -> Unit = {},
+    /** Open the AI model settings (top-bar AI capture entry). */
+    onOpenAiSettings: () -> Unit = {},
+    /** Flush the whole-file editor buffer under its save lock before AI appends to this file. */
+    beforeCaptureWrite: suspend () -> Boolean = { true },
     viewModel: DocumentViewModel = viewModel(factory = DocumentViewModel.Factory),
 ) {
     val c = MaterialTheme.grove
+    val aiCapture = rememberAiCapture()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val toast by viewModel.toast.collectAsStateWithLifecycle()
     val loadedDoc = (state as? DocumentUiState.Loaded)?.document
@@ -205,6 +213,7 @@ fun ReadFileScreen(
                     }
                 },
                 actions = {
+                    AiCaptureAction(aiCapture)
                     ReadEditToggle(isEditing = false, onToggle = onEdit)
                 },
                 subtitle = {
@@ -294,6 +303,13 @@ fun ReadFileScreen(
                     .align(Alignment.BottomCenter)
                     .padding(padding)
                     .padding(bottom = 16.dp),
+            )
+            AiCaptureSheet(
+                controller = aiCapture,
+                targetFile = fileName,
+                onOpenSettings = onOpenAiSettings,
+                beforeWrite = beforeCaptureWrite,
+                afterWrite = { viewModel.load(fileName) },
             )
         }
     }

@@ -691,6 +691,16 @@ class EditorViewModel(
         }
     }
 
+    /**
+     * Flush any unsaved buffer to disk under the same lock as [save], so an
+     * external writer (AI capture appending to this file) can safely write next.
+     * Returns false when the write was refused (e.g. a stale file), in which case
+     * the caller must abort rather than let a later save overwrite the append.
+     */
+    suspend fun flushForExternalWrite(): Boolean = saveMutex.withLock {
+        writeBuffer(force = false, explicit = false)
+    }
+
     /** A fresh session: [buffer] is what's on disk, nothing auto-saved yet. */
     private fun startExplicitBaseline(buffer: String?) {
         lastExplicitBuffer = buffer

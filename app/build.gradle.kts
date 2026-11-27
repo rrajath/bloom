@@ -193,10 +193,13 @@ android {
 
     buildTypes {
         debug {
-            // Distinct applicationId so a debug build from Android Studio can be
-            // installed side-by-side with the CI-signed release build on the same device.
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            // Local WebDAV test build: a fully distinct applicationId so it can be
+            // installed side-by-side with any existing "Bloom Debug" build on the
+            // device. Reusing ".debug" collides with upstream debug builds signed
+            // by a different key (INSTALL_FAILED_UPDATE_INCOMPATIBLE).
+            applicationIdSuffix = ".webdav"
+            // Make the installed app obvious in the launcher and Settings > About.
+            versionNameSuffix = "-webdav-debug"
             // en-XA (accented, ~30% longer) and ar-XB (mirrored RTL) under
             // Developer options: finds hardcoded strings and truncation.
             isPseudoLocalesEnabled = true
@@ -389,6 +392,8 @@ dependencies {
     implementation(libs.coil.gif)
     implementation(libs.telephoto.zoomable.image.coil3)
     implementation(libs.androidx.exifinterface)
+    // WebDAV sync: HTTPS + Basic auth, PROPFIND/MKCOL/GET/PUT/DELETE.
+    implementation(libs.okhttp)
 
     // Producer of the baseline profile packaged above (see the androidx.baselineprofile
     // plugin). `./gradlew :app:generateBaselineProfile` runs the generator on a

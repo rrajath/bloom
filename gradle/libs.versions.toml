@@ -45,6 +45,10 @@ baselineprofile = "1.5.0-rc02"
 coil = "3.4.0"
 telephoto = "0.19.0"
 exifinterface = "1.4.2"
+# WebDAV: OkHttp supports arbitrary HTTP methods (PROPFIND/MKCOL), which
+# HttpURLConnection forbids. 4.12.0 is the last Java 8 / Kotlin 1.8 line and
+# works on the app's minSdk 23.
+okhttp = "4.12.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -99,6 +103,7 @@ coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref 
 coil-gif = { group = "io.coil-kt.coil3", name = "coil-gif", version.ref = "coil" }
 telephoto-zoomable-image-coil3 = { group = "me.saket.telephoto", name = "zoomable-image-coil3", version.ref = "telephoto" }
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

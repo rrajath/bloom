@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings hub > AI task breakdown -->
+    <string name="settings_page_ai_title">AI task breakdown</string>
+    <string name="settings_page_ai_summary">Turn a task title into an org checklist with a language model</string>
+
+    <!-- Settings > AI task breakdown: provider form -->
+    <string name="ai_section_connection">Model endpoint</string>
+    <string name="ai_section_about">How it works</string>
+    <string name="ai_base_url">Base URL</string>
+    <string name="ai_base_url_hint">https://api.openai.com/v1</string>
+    <string name="ai_model">Model</string>
+    <string name="ai_model_hint">gpt-4o-mini</string>
+    <string name="ai_api_key">API key</string>
+    <string name="ai_key_stored">An API key is saved on this device.</string>
+    <string name="ai_start">Start a breakdown</string>
+    <string name="ai_test">Test connection</string>
+    <string name="ai_help">Any OpenAI-compatible chat completions endpoint works, including a model hosted on your own machine. Your task text is sent to that endpoint to generate the checklist. The app writes the result to inbox.org only; version control stays outside the app.</string>
+    <string name="ai_https_only">HTTPS is required except for loopback addresses. The API key is encrypted with Android Keystore and is never included in settings backups.</string>
+
+    <!-- Settings > AI task breakdown: status and errors -->
+    <string name="ai_status_saving">Saving settings…</string>
+    <string name="ai_status_saved">Saved.</string>
+    <string name="ai_status_testing">Testing the connection…</string>
+    <string name="ai_status_test_ok">Connected. The model replied: %1$s</string>
+    <string name="ai_error_url">Enter a valid base URL, for example https://api.openai.com/v1.</string>
+    <string name="ai_error_https">Only HTTPS endpoints are allowed. Plain HTTP is allowed for a local model on this device only.</string>
+    <string name="ai_error_model">Enter a model name.</string>
+    <string name="ai_error_key">Enter an API key.</string>
+    <string name="ai_error_auth">The provider rejected the API key. Check the key and its permissions. %1$s</string>
+    <string name="ai_error_timeout">The model took too long to answer. Check your network and try again. %1$s</string>
+    <string name="ai_error_network">Could not reach the provider. Switch networks or turn off VPN/proxy, then try again. %1$s</string>
+    <string name="ai_error_http">The provider returned HTTP %1$d. %2$s</string>
+    <string name="ai_error_unknown">The model request failed. %1$s</string>
+
+    <!-- AI breakdown wizard -->
+    <string name="ai_wizard_title">AI task breakdown</string>
+    <string name="ai_wizard_title_label">Task title</string>
+    <string name="ai_wizard_title_hint">For example: Set up CI</string>
+    <string name="ai_wizard_title_required">Enter a task title first.</string>
+    <string name="ai_wizard_start">Ask clarifying questions</string>
+    <string name="ai_wizard_clarify_section">Clarify the request</string>
+    <string name="ai_wizard_answer_hint">Your answer</string>
+    <string name="ai_wizard_confirm_answers">Confirm answers</string>
+    <string name="ai_wizard_compare_section">Compare approaches</string>
+    <string name="ai_wizard_approach_label">Path %1$d</string>
+    <string name="ai_wizard_confirm_approach">Use this approach</string>
+    <string name="ai_wizard_design_section">Design</string>
+    <string name="ai_wizard_block_label">Block %1$d of %2$d</string>
+    <string name="ai_wizard_confirm_block">Confirm this block</string>
+    <string name="ai_wizard_confirm_last_block">Confirm and generate checklist</string>
+    <string name="ai_wizard_preview_section">Org checklist preview</string>
+    <string name="ai_wizard_preview_hint">Edit the org text before inserting</string>
+    <string name="ai_wizard_insert">Insert into inbox.org</string>
+    <string name="ai_wizard_retry">Retry this step</string>
+    <string name="ai_wizard_again">Break down another task</string>
+    <string name="ai_wizard_busy">Waiting for the model…</string>
+    <string name="ai_wizard_done">Inserted into %1$s. The note index and sync have been updated.</string>
+    <string name="ai_wizard_no_vault">No sync folder configured. Pick a folder in Notebooks first.</string>
+    <string name="ai_wizard_no_key">Set a base URL, model and API key first.</string>
+    <string name="ai_open_settings">AI settings</string>
+
+    <!-- Home screen: one-shot natural-language capture (top-bar button + sheet) -->
+    <string name="ai_quick_open">AI capture</string>
+    <string name="ai_quick_sheet_title">✦ AI capture</string>
+    <string name="ai_quick_sheet_subtitle">Describe a task in your own words and turn it into an org TODO.</string>
+    <string name="ai_quick_label">✦ AI capture</string>
+    <string name="ai_quick_hint">Describe a task in your own words — e.g. “review Q4 plan with Alex next Friday 3pm in room 302, high priority”</string>
+    <string name="ai_quick_generate">Generate</string>
+    <string name="ai_quick_mode_auto">Auto</string>
+    <string name="ai_quick_mode_single">One TODO</string>
+    <string name="ai_quick_mode_multi">With subtasks</string>
+    <string name="ai_quick_preview">Org preview — edit before inserting</string>
+    <string name="ai_quick_insert">Insert into inbox.org</string>
+    <string name="ai_quick_clear">Clear</string>
+    <string name="ai_quick_busy">Writing the task…</string>
+    <string name="ai_quick_required">Describe the task first.</string>
+    <string name="ai_quick_generated">Draft ready. Review it below.</string>
+    <string name="ai_quick_done">Inserted into %1$s. Type the next one, or drag the sheet down to close.</string>
+    <string name="ai_quick_pending_unsaved">Save your unsaved edits first, then try again.</string>
+</resources>

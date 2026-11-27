@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paths WebDavFileProvider may serve: only the on-device mirror of the vault. -->
+<paths>
+    <files-path name="webdav_mirror" path="webdav/mirror/" />
+</paths>

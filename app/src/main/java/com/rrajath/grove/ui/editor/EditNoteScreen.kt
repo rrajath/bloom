@@ -71,6 +71,9 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rrajath.grove.R
+import com.rrajath.grove.ui.screens.ai.AiCaptureAction
+import com.rrajath.grove.ui.screens.ai.AiCaptureSheet
+import com.rrajath.grove.ui.screens.ai.rememberAiCapture
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.formatLink
 import com.rrajath.grove.org.LineEditing
@@ -146,11 +149,14 @@ fun EditNoteScreen(
      * a parameter so a test can supply one wired to fakes.
      */
     refileViewModel: DocumentViewModel = viewModel(factory = DocumentViewModel.Factory),
+    /** Open the AI model settings (top-bar AI capture entry). */
+    onOpenAiSettings: () -> Unit = {},
 ) {
     val c = MaterialTheme.grove
     val context = LocalContext.current
     val resources = LocalResources.current
     val clipboard = LocalClipboard.current
+    val aiCapture = rememberAiCapture()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snack by viewModel.snack.collectAsStateWithLifecycle()
     val textState = rememberTextFieldState()
@@ -465,6 +471,7 @@ fun EditNoteScreen(
                 },
                 title = {},
                 actions = {
+                    AiCaptureAction(aiCapture)
                     // Switching to read mode never writes and never validates:
                     // read mode renders this buffer as-is (see PendingEdit). The
                     // note route's own leave path (back from read) is what checks
@@ -725,6 +732,16 @@ fun EditNoteScreen(
             )
         }
     }
+
+    AiCaptureSheet(
+        controller = aiCapture,
+        targetFile = state.fileName.ifEmpty { noteRef.fileName },
+        onOpenSettings = onOpenAiSettings,
+        // Flush this note's unsaved subtree under the editor's save lock before
+        // appending, then reload so the editor picks up the appended block.
+        beforeWrite = { viewModel.flushForExternalWrite() },
+        afterWrite = { viewModel.load(noteRef) },
+    )
 
     linkPicker?.let { r ->
         LinkPickerSheet(

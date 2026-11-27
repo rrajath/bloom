@@ -57,12 +57,14 @@ class CaptureScreenTest {
     private fun picker(
         onPickTemplate: (CaptureTemplate) -> Unit = {},
         onDismiss: () -> Unit = {},
+        onOpenAiCapture: () -> Unit = {},
     ) {
         composeRule.setGroveContent {
             CapturePickerSheet(
                 onDismiss = onDismiss,
                 onPickTemplate = onPickTemplate,
                 onManage = {},
+                onOpenAiCapture = onOpenAiCapture,
                 viewModel = vm,
             )
         }
@@ -105,6 +107,19 @@ class CaptureScreenTest {
 
         composeRule.waitUntil(timeoutMillis = 3_000) { picked != null }
         assertEquals("Quick Note", picked?.name)
+    }
+
+    @Test
+    fun tappingAiRowRequestsAiCapture() {
+        var opened = false
+        picker(onOpenAiCapture = { opened = true })
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("capture_ai_row").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("capture_ai_row").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 3_000) { opened }
     }
 
     @Test

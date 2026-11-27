@@ -81,7 +81,12 @@ import com.rrajath.grove.ui.screens.ReadNoteScreen
 import com.rrajath.grove.ui.screens.RefileSheet
 import com.rrajath.grove.ui.search.SearchScreen
 import com.rrajath.grove.ui.screens.SettingsScreen
+import com.rrajath.grove.ui.screens.ai.AiCaptureSheetRoute
+import com.rrajath.grove.ui.screens.ai.DecomposeScreen
+import com.rrajath.grove.ui.screens.ai.DecomposeViewModel
+import com.rrajath.grove.ui.screens.settings.AiSettingsViewModel
 import com.rrajath.grove.ui.screens.settings.SettingsAgendaScreen
+import com.rrajath.grove.ui.screens.settings.SettingsAiScreen
 import com.rrajath.grove.ui.screens.settings.SettingsAppearanceScreen
 import com.rrajath.grove.ui.screens.settings.SettingsBackupScreen
 import com.rrajath.grove.ui.screens.settings.SettingsBugReportScreen
@@ -95,6 +100,8 @@ import com.rrajath.grove.ui.screens.settings.SettingsAttachmentsScreen
 import com.rrajath.grove.ui.screens.settings.SettingsRoamScreen
 import com.rrajath.grove.ui.screens.settings.SettingsSharingScreen
 import com.rrajath.grove.ui.screens.settings.SettingsSyncScreen
+import com.rrajath.grove.ui.screens.settings.SettingsWebDavScreen
+import com.rrajath.grove.ui.screens.settings.WebDavViewModel
 import com.rrajath.grove.ui.screens.settings.SettingsTipsScreen
 import com.rrajath.grove.ui.screens.settings.SettingsWhatsNewScreen
 import com.rrajath.grove.ui.screens.settings.SettingsWidgetScreen
@@ -223,7 +230,9 @@ private fun externalOrgFileName(context: android.content.Context, uri: android.n
  * e.g. "primary:Documents/org" → "~/Documents/org".
  */
 @Composable
-private fun vaultDisplayPath(treeUri: String?): String {
+private fun vaultDisplayPath(treeUri: String?, webdavEnabled: Boolean): String {
+    // The WebDAV mirror has no SAF tree URI; the drawer shows the backend instead.
+    if (webdavEnabled) return stringResource(R.string.nav_vault_webdav)
     if (treeUri == null) return stringResource(R.string.nav_vault_no_folder)
     val storageRoot = stringResource(R.string.nav_vault_storage_root)
     val docId = runCatching {
@@ -387,7 +396,7 @@ private fun GroveNavigation(
             ) {
                 GroveDrawerContent(
                     currentRoute = currentRoute,
-                    vaultPath = vaultDisplayPath(settings.vaultTreeUri),
+                    vaultPath = vaultDisplayPath(settings.vaultTreeUri, settings.webdavEnabled),
                     savedSearches = viewModel.savedSearches.collectAsStateWithLifecycle().value,
                     favorites = favorites,
                     logoFollowsTheme = settings.syncAppIconWithTheme,
@@ -445,6 +454,7 @@ private fun GroveNavigation(
                     // file under the line limit lands on the whole-file view instead.
                     onOpenNotebook = { id -> navController.navigate(Routes.outline(id, autoOpen = true)) },
                     onOpenConflict = { id -> navController.navigate(Routes.conflict(id)) },
+                    onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                 )
             }
             screen(Routes.OUTLINE) { entry ->
@@ -507,6 +517,7 @@ private fun GroveNavigation(
                     onOpenFileProperties = { fileName ->
                         navController.navigate(Routes.drawer(fileName, "fileProps"))
                     },
+                    onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                 )
             }
             screen(Routes.PREFACE) { entry ->
@@ -611,6 +622,7 @@ private fun GroveNavigation(
                         showBacklinks = settings.roamFeaturesEnabled && settings.roamShowBacklinks,
                         roamSuggestionsEnabled = settings.roamSuggestionsActive,
                         onOpenNote = { target -> navController.navigate(Routes.note(target.encode())) },
+                        onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                         viewModel = editorViewModel,
                     )
                 } else {
@@ -648,6 +660,8 @@ private fun GroveNavigation(
                         onPendingBufferChanged = editorViewModel::onBufferChangedExternally,
                         onPendingPersisted = editorViewModel::onBufferPersistedElsewhere,
                         onSavePending = { editorViewModel.save() },
+                        onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
+                        beforeCaptureWrite = { editorViewModel.flushForExternalWrite() },
                     )
                 }
             }
@@ -822,6 +836,7 @@ private fun GroveNavigation(
                             roamSuggestionsEnabled = settings.roamSuggestionsActive,
                             onBack = leaveNote,
                             onSwitchToRead = { editTargetLine = null; mode = "read" },
+                            onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                             viewModel = editorViewModel,
                         )
                     } else {
@@ -877,6 +892,7 @@ private fun GroveNavigation(
                                     popUpTo(entry.destination.route ?: Routes.NOTE) { inclusive = true }
                                 }
                             },
+                            onOpenAiSettings = { navController.navigate(Routes.SETTINGS_AI) },
                         )
                     }
                 }
@@ -929,6 +945,25 @@ private fun GroveNavigation(
                         closeActivityOnExit = false
                         navController.navigate(Routes.SETTINGS_CAPTURE_TEMPLATES) {
                             popUpTo(Routes.CAPTURE) { inclusive = true }
+                        }
+                    },
+                    onOpenAiCapture = {
+                        closeActivityOnExit = false
+                        navController.navigate(Routes.AI_CAPTURE) {
+                            popUpTo(Routes.CAPTURE) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            screen(Routes.AI_CAPTURE) { entry ->
+                AiCaptureSheetRoute(
+                    onClosed = {
+                        if (entry.isResumed()) navController.popBackStack()
+                    },
+                    onOpenSettings = {
+                        closeActivityOnExit = false
+                        navController.navigate(Routes.SETTINGS_AI) {
+                            popUpTo(Routes.AI_CAPTURE) { inclusive = true }
                         }
                     },
                 )
@@ -1007,6 +1042,8 @@ private fun GroveNavigation(
                     onOpenNotebooks = { navController.navigate(Routes.SETTINGS_NOTEBOOKS) },
                     onOpenCaptureTemplates = { navController.navigate(Routes.SETTINGS_CAPTURE_TEMPLATES) },
                     onOpenSync = { navController.navigate(Routes.SETTINGS_SYNC) },
+                    onOpenWebDav = { navController.navigate(Routes.SETTINGS_WEBDAV) },
+                    onOpenAi = { navController.navigate(Routes.SETTINGS_AI) },
                     onOpenNotes = { navController.navigate(Routes.SETTINGS_NOTES) },
                     onOpenAgenda = { navController.navigate(Routes.SETTINGS_AGENDA) },
                     onOpenWidget = { navController.navigate(Routes.SETTINGS_WIDGET) },
@@ -1069,6 +1106,55 @@ private fun GroveNavigation(
                     onSetPeriodicMinutes = viewModel::setPeriodicSyncMinutes,
                     onOpenSyncLog = { navController.navigate(Routes.SYNC_LOG) },
                     onSetVaultUri = viewModel::setVaultTreeUri,
+                )
+            }
+            settingsScreen(Routes.SETTINGS_WEBDAV) {
+                val webDavViewModel: WebDavViewModel = viewModel(factory = WebDavViewModel.Factory)
+                val webDavState by webDavViewModel.ui.collectAsStateWithLifecycle()
+                SettingsWebDavScreen(
+                    state = webDavState,
+                    onBack = { navController.popBackStack() },
+                    onEnabledChange = webDavViewModel::setEnabled,
+                    onUrlChange = webDavViewModel::onUrlChange,
+                    onUsernameChange = webDavViewModel::onUsernameChange,
+                    onPasswordChange = webDavViewModel::onPasswordChange,
+                    onSave = webDavViewModel::save,
+                    onTest = webDavViewModel::test,
+                    onSyncNow = webDavViewModel::syncNow,
+                )
+            }
+            settingsScreen(Routes.SETTINGS_AI) {
+                val aiViewModel: AiSettingsViewModel = viewModel(factory = AiSettingsViewModel.Factory)
+                val aiState by aiViewModel.ui.collectAsStateWithLifecycle()
+                SettingsAiScreen(
+                    state = aiState,
+                    onBack = { navController.popBackStack() },
+                    onBaseUrlChange = aiViewModel::onBaseUrlChange,
+                    onModelChange = aiViewModel::onModelChange,
+                    onApiKeyChange = aiViewModel::onApiKeyChange,
+                    onSave = aiViewModel::save,
+                    onTest = aiViewModel::test,
+                    onOpenDecompose = { navController.navigate(Routes.AI_DECOMPOSE) },
+                )
+            }
+            screen(Routes.AI_DECOMPOSE) {
+                val decomposeViewModel: DecomposeViewModel = viewModel(factory = DecomposeViewModel.Factory)
+                val decomposeState by decomposeViewModel.ui.collectAsStateWithLifecycle()
+                DecomposeScreen(
+                    state = decomposeState,
+                    onBack = { navController.popBackStack() },
+                    onTitleChange = decomposeViewModel::onTitleChange,
+                    onStart = decomposeViewModel::start,
+                    onAnswerChange = decomposeViewModel::onAnswerChange,
+                    onConfirmAnswers = decomposeViewModel::confirmAnswers,
+                    onSelectApproach = decomposeViewModel::onSelectApproach,
+                    onConfirmApproach = decomposeViewModel::confirmApproach,
+                    onConfirmDesignBlock = decomposeViewModel::confirmDesignBlock,
+                    onOrgTextChange = decomposeViewModel::onOrgTextChange,
+                    onInsert = decomposeViewModel::insert,
+                    onRetry = decomposeViewModel::retry,
+                    onReset = decomposeViewModel::reset,
+                    onOpenSettings = { navController.navigate(Routes.SETTINGS_AI) },
                 )
             }
             settingsScreen(Routes.SETTINGS_NOTES) {

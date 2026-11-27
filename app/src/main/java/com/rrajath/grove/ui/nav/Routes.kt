@@ -46,6 +46,14 @@ object Routes {
     const val SETTINGS_NOTEBOOKS = "settings/notebooks"
     const val SETTINGS_CAPTURE_TEMPLATES = "settings/templates"
     const val SETTINGS_SYNC = "settings/sync"
+    /** Two-way sync with a WebDAV collection (server, credentials, manual pass). */
+    const val SETTINGS_WEBDAV = "settings/webdav"
+    /** Provider settings for AI features (endpoint, model, encrypted API key). */
+    const val SETTINGS_AI = "settings/ai"
+    /** One-shot natural-language capture sheet, opened from the capture picker. */
+    const val AI_CAPTURE = "ai/capture"
+    /** Four-step AI task breakdown wizard, ending in an inbox.org insertion. */
+    const val AI_DECOMPOSE = "ai/decompose"
     const val SETTINGS_NOTES = "settings/notes"
     const val SETTINGS_AGENDA = "settings/agenda"
     const val SETTINGS_WIDGET = "settings/widget"

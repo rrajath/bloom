@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Fetch the page title for shared URLs so notes read better than a bare link. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Read the active network's Wi-Fi proxy so WebDAV follows system proxy settings. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- SCHEDULED/DEADLINE reminder notifications (see the `reminders` package). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -508,6 +510,18 @@
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/attachment_paths" />
+        </provider>
+
+        <!-- WebDAV mirror: attachment files live in an app-private directory,
+             so they need a provider to be viewable/shareable as content URIs. -->
+        <provider
+            android:name=".webdav.WebDavFileProvider"
+            android:authorities="${applicationId}.webdav.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/webdav_paths" />
         </provider>
 
 </application>
