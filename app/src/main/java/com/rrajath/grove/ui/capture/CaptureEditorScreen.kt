@@ -1277,7 +1277,7 @@ fun CaptureEditorScreen(
             onIdCopied = {
                 Toast.makeText(
                     toastContext,
-                    toastContext.getString(R.string.metadata_toast_org_id_copied),
+                    R.string.metadata_toast_org_id_copied,
                     Toast.LENGTH_SHORT,
                 ).show()
             },
