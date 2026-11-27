@@ -351,7 +351,6 @@ fun EditRegionScreen(
         if (!resumedDirty) viewModel.loadRegion(fileName, noteId, region, blockLine)
     }
     LaunchedEffect(Unit) { if (region == EditRegion.WHOLE_FILE) viewModel.loadAutoLinkIndex() }
-    LaunchedEffect(Unit) { viewModel.loadPropertyKeyCounts() }
     // Recomputed on every text/selection change so it tracks whatever word is
     // being typed right now; see EditNoteScreen's identical wiring.
     LaunchedEffect(roamSuggestionsEnabled, region) {
@@ -522,6 +521,7 @@ fun EditRegionScreen(
                 roamNodeTemplates = roamNodeTemplates,
                 autoLinkIndex = autoLinkIndex,
                 propertyKeyCounts = propertyKeyCounts,
+                loadPropertyKeyCounts = viewModel::loadPropertyKeyCounts,
                 createOrLinkRoamNode = viewModel::createOrLinkRoamNode,
             )
         }
@@ -638,6 +638,8 @@ internal fun WholeFileEditorBody(
     /** Vault-wide drawer-key usage counts for the property-key chips ([PropertyKeySuggestionStrip]);
      *  only takes effect with [suggestionSlotEnabled]. */
     propertyKeyCounts: Map<String, Int> = emptyMap(),
+    /** Loads [propertyKeyCounts]; called the first time a property key is typed. */
+    loadPropertyKeyCounts: () -> Unit = {},
     createOrLinkRoamNode: suspend (CaptureTemplate, String) -> RoamNodeResult? = { _, _ -> null },
     /** Whether the suggestion slot is on screen; Dailies hides its floating date pills
      *  while it is, since with the keyboard down they'd sit on top of the strip. */
@@ -679,7 +681,9 @@ internal fun WholeFileEditorBody(
     // `<q` / `<e` / `<s` block-template chip: on wherever the slot is, no setting gate.
     val blockTrigger by rememberBlockTrigger(textState)
     val propertyKeyTrigger by rememberPropertyKeyTrigger(textState)
-    val propertyKeySuggestions = rememberPropertyKeySuggestions(textState, propertyKeyTrigger, propertyKeyCounts)
+    val propertyKeySuggestions = rememberPropertyKeySuggestions(
+        textState, propertyKeyTrigger, propertyKeyCounts, loadPropertyKeyCounts,
+    )
     // Reserved while typing (so the text never jumps as link chips come and go), and
     // also shown for a selection with the keyboard down: entering Edit doesn't raise
     // the keyboard, so a long-press selection is often made without it, and the

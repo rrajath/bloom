@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
@@ -23,13 +24,20 @@ internal fun rememberPropertyKeyTrigger(textState: TextFieldState): State<Proper
  * The chips for [trigger] ([rankPropertyKeys]). The open buffer's own drawer keys
  * are gathered once per typed key (when [trigger] first appears on a line), not on
  * every keystroke; filtering the small key list per keystroke is trivial.
+ *
+ * [loadVaultCounts] runs each time a trigger appears, so the vault-wide counts are
+ * only aggregated once the user actually types a key, not on every editor open.
+ * Until they arrive, the ranking uses the built-in and buffer keys alone.
  */
 @Composable
 internal fun rememberPropertyKeySuggestions(
     textState: TextFieldState,
     trigger: PropertyKeyTrigger?,
     vaultCounts: Map<String, Int>,
+    loadVaultCounts: () -> Unit,
 ): List<String> {
+    val triggered = trigger != null
+    LaunchedEffect(triggered) { if (triggered) loadVaultCounts() }
     val anchor = trigger?.range?.start
     val bufferKeys = remember(textState, anchor) {
         if (anchor == null) emptySet() else propertyKeysIn(textState.text)

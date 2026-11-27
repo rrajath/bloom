@@ -79,4 +79,21 @@ class HeadingOutlineCacheTest {
 
         assertNotSame(before, db.headingOutlines.snapshot())
     }
+
+    @Test
+    fun `property key counts are cached and dropped by an index write`() = runTest {
+        store.write("work.org", "* A\n:PROPERTIES:\n:ID: a\n:EFFORT: 1\n:END:\n* B\n:PROPERTIES:\n:id: b\n:END:\n")
+        TestVaultSeeder.index(db, store)
+        advanceUntilIdle()
+
+        val first = db.headingOutlines.propertyKeyCounts()
+        assertEquals(mapOf("ID" to 2, "EFFORT" to 1), first)
+        assertSame(first, db.headingOutlines.propertyKeyCounts())
+
+        store.write("work.org", "* A\n:PROPERTIES:\n:ID: a\n:END:\n")
+        TestVaultSeeder.index(db, store)
+        advanceUntilIdle()
+
+        assertEquals(mapOf("ID" to 1), db.headingOutlines.propertyKeyCounts())
+    }
 }

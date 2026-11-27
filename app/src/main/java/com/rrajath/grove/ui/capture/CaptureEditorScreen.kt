@@ -544,7 +544,6 @@ fun CaptureEditorScreen(
     // gated on the Roam capture flow only.
     val roamSuggestionsActive = roamSuggestionsEnabled && template.kind == TemplateKind.ROAM_NODE
     LaunchedEffect(Unit) { if (roamSuggestionsActive) viewModel.loadAutoLinkIndex() }
-    LaunchedEffect(Unit) { viewModel.loadPropertyKeyCounts() }
     val autoLinkIndex by viewModel.autoLinkIndex.collectAsStateWithLifecycle()
     var autoLinkTrigger by remember { mutableStateOf<WordAtCursor?>(null) }
     var expandedChipKeys by remember(autoLinkTrigger?.range) { mutableStateOf(emptySet<String>()) }
@@ -593,7 +592,9 @@ fun CaptureEditorScreen(
     val blockTrigger by rememberBlockTrigger(textState)
     val propertyKeyCounts by viewModel.propertyKeyCounts.collectAsStateWithLifecycle()
     val propertyKeyTrigger by rememberPropertyKeyTrigger(textState)
-    val propertyKeySuggestions = rememberPropertyKeySuggestions(textState, propertyKeyTrigger, propertyKeyCounts)
+    val propertyKeySuggestions = rememberPropertyKeySuggestions(
+        textState, propertyKeyTrigger, propertyKeyCounts, viewModel::loadPropertyKeyCounts,
+    )
 
     // Outside a body-only capture the draft is a single heading (the template
     // or withHeadingStars above supplies its "* " line), so this is what the

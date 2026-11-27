@@ -327,10 +327,7 @@ fun EditNoteScreen(
     }
 
     LaunchedEffect(noteRef) { if (!resumedDirty) viewModel.load(noteRef) }
-    LaunchedEffect(Unit) {
-        viewModel.loadAutoLinkIndex()
-        viewModel.loadPropertyKeyCounts()
-    }
+    LaunchedEffect(Unit) { viewModel.loadAutoLinkIndex() }
     LaunchedEffect(state.loading) {
         if (!state.loading && state.error == null) {
             if (isNewNote && !resumedDirty) {
@@ -415,7 +412,9 @@ fun EditNoteScreen(
     val blockTrigger by rememberBlockTrigger(textState)
     val propertyKeyCounts by viewModel.propertyKeyCounts.collectAsStateWithLifecycle()
     val propertyKeyTrigger by rememberPropertyKeyTrigger(textState)
-    val propertyKeySuggestions = rememberPropertyKeySuggestions(textState, propertyKeyTrigger, propertyKeyCounts)
+    val propertyKeySuggestions = rememberPropertyKeySuggestions(
+        textState, propertyKeyTrigger, propertyKeyCounts, viewModel::loadPropertyKeyCounts,
+    )
     val highlight = remember(c, state.keywords) {
         OrgSyntaxHighlight(c, state.keywords, trailingBlankLines = EditorBottomMarginLines)
     }
