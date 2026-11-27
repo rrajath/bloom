@@ -129,6 +129,16 @@ data class CaptureTemplate(
     val newFileTemplate: String = "#+title: %?",
 )
 
+/**
+ * How many vault-unique org IDs one capture with this template needs: one per
+ * `%id` / `%(id)` in the body it expands, and always at least one for a Roam node
+ * (its file `:ID:`). Zero means the capture editor can open without querying the
+ * index for IDs.
+ */
+fun CaptureTemplate.captureIdCount(): Int =
+    if (kind == TemplateKind.ROAM_NODE) maxOf(1, PlaceholderExpander.idCount(newFileTemplate))
+    else PlaceholderExpander.idCount(template)
+
 object TemplateSerializer {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 

@@ -8,6 +8,31 @@ import org.junit.Test
 
 class CaptureTemplateTest {
 
+    private fun template(body: String, kind: TemplateKind = TemplateKind.PLAIN, newFile: String = "#+title: %?") =
+        CaptureTemplate(
+            id = "t", name = "T", targetFile = "inbox.org", location = TargetLocation.TopOfFile,
+            template = body, kind = kind, newFileTemplate = newFile,
+        )
+
+    @Test
+    fun `a plain template without id placeholders needs no org ids`() {
+        // The capture editor then renders on its first frame, without the allocator.
+        assertEquals(0, template("* TODO %?\n%U").captureIdCount())
+    }
+
+    @Test
+    fun `a plain template needs one org id per id placeholder`() {
+        assertEquals(2, template("* %?\n:PROPERTIES:\n:ID: %id\n:REF: %(id)\n:END:").captureIdCount())
+    }
+
+    @Test
+    fun `a roam node always needs its file id, plus any placeholders in its new-file template`() {
+        assertEquals(1, template("", TemplateKind.ROAM_NODE).captureIdCount())
+        // Only the new-file template is expanded for a Roam node, not template.
+        assertEquals(1, template("%id %id", TemplateKind.ROAM_NODE).captureIdCount())
+        assertEquals(2, template("", TemplateKind.ROAM_NODE, "#+title: %?\n* %id\n%(id)").captureIdCount())
+    }
+
     @Test
     fun `templates round-trip through json`() {
         val templates = DefaultTemplates.all +

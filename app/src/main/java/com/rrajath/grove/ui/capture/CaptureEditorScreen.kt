@@ -97,6 +97,7 @@ import com.rrajath.grove.capture.RoamFileId
 import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplateKind
+import com.rrajath.grove.capture.captureIdCount
 import com.rrajath.grove.capture.formatLink
 import com.rrajath.grove.capture.templateSlug
 import com.rrajath.grove.attach.AttachDirChange
@@ -265,12 +266,15 @@ fun CaptureEditorScreen(
     if (template == null) return
 
     val now = remember { LocalDateTime.now() }
-    // Vault-unique IDs for the capture: one per %id / %(id), and always at least
-    // one (a Roam node's file :ID:). Allocated off the main thread, which takes a
-    // few ms against the index, so the editor holds its first frame until then.
-    val captureIds by androidx.compose.runtime.produceState<List<String>?>(null, template) {
-        val body = if (template.kind == TemplateKind.ROAM_NODE) template.newFileTemplate else template.template
-        value = app.orgIdAllocator.allocate(maxOf(1, PlaceholderExpander.idCount(body)))
+    // Vault-unique IDs for the capture: one per %id / %(id), and always one for a
+    // Roam node's file :ID: (captureIdCount). Allocating queries the index, which
+    // on a cold share or widget launch can be the first Room access, so the editor
+    // holds its first frame only for a template that needs IDs. Every other
+    // template renders on the first frame with none.
+    val idCount = remember(template) { template.captureIdCount() }
+    var captureIds by remember(template) { mutableStateOf(if (idCount == 0) emptyList<String>() else null) }
+    LaunchedEffect(template) {
+        if (idCount > 0) captureIds = app.orgIdAllocator.allocate(idCount)
     }
     val prompts = remember(template) {
         val body = if (template.kind == TemplateKind.ROAM_NODE) template.newFileTemplate else template.template
@@ -314,7 +318,7 @@ fun CaptureEditorScreen(
             sharedUrl = share?.url ?: "",
             promptValues = promptValues ?: emptyMap(),
             // Allocated once per capture, not regenerated on every expand() call.
-            id = ids.first(),
+            id = ids.firstOrNull().orEmpty(),
             extraIds = ids.drop(1),
         )
     }
