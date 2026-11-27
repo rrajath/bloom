@@ -38,7 +38,7 @@ object BenchmarkVault {
     const val NOTEBOOKS_LIST = "notebooks_list"
     const val NOTEBOOK_ROW = "notebook_row"
     const val OUTLINE_LIST = "outline_list"
-    const val AGENDA_SCREEN = "agenda_screen"
+    const val AGENDA_LIST = "agenda_list"
     const val READ_FILE_SCROLL = "read_file_scroll"
     const val READ_NOTE_SCROLL = "read_note_scroll"
     const val SEARCH_FIELD = "search_field"

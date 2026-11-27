@@ -135,7 +135,7 @@ class BaselineProfileGenerator {
         device.awaitSelector(By.text("Agenda"), "Agenda drawer item").click()
         // waitForIdle can return mid drawer-close/nav transition; a Back sent
         // before Agenda is on screen lands on Notebooks and exits the app.
-        device.awaitObject(BenchmarkVault.AGENDA_SCREEN, "Agenda screen")
+        device.awaitObject(BenchmarkVault.AGENDA_LIST, "Agenda list")
         device.waitForIdle()
         device.pressBack()
         device.awaitNotebooks()
