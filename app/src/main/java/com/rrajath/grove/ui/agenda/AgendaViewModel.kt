@@ -458,8 +458,9 @@ class AgendaViewModel(
      * row for that day, so an event of the same heading on that day is dropped.
      *
      * On Today, [carried] (past SCHEDULED, see [AgendaBuckets.carriedOver])
-     * follows the day's own time-sorted rows, already oldest first; a carried
-     * heading also suppresses its own event occurrence today.
+     * gets its own "Carried over" section below the day's own time-sorted rows,
+     * already oldest first; a carried heading also suppresses its own event
+     * occurrence today.
      */
     private fun dateGroups(
         visible: List<NoteMeta>,
@@ -504,15 +505,19 @@ class AgendaViewModel(
         if (isTodayTab) {
             val events = eventsNotAlreadyPlanned(AgendaBuckets.activeEventsOn(visible, today), planned + carried)
             val entries = planned.map { DayEntry.Planned(it) } + events.map { DayEntry.Event(it.first, it.second) }
-            return if (entries.isEmpty() && carried.isEmpty()) emptyList() else listOf(
+            val todaySection = if (entries.isEmpty()) emptyList() else listOf(
                 bucket(
                     AgendaBuckets.SCHEDULED_TODAY_KEY,
                     UiText.res(R.string.agenda_section_scheduled_today),
                     today,
                     entries,
-                    trailing = carried,
                 ),
             )
+            // Past SCHEDULED, still open, deadline not missed: its own section below the day's rows.
+            val carriedSection = if (carried.isEmpty()) emptyList() else listOf(
+                bucket(CARRIED_OVER_KEY, UiText.res(R.string.agenda_section_carried_over), today, emptyList(), trailing = carried),
+            )
+            return todaySection + carriedSection
         }
 
         val horizon = today.plusDays((windowDays - 1).coerceAtLeast(0).toLong())
@@ -724,6 +729,9 @@ class AgendaViewModel(
 
         /** Today's prewarned-deadline section, shown above the day's own rows. */
         const val DUE_SOON_KEY = "due-soon"
+
+        /** Today's past-SCHEDULED, still-open headings, shown below the day's own rows (Date grouping only). */
+        const val CARRIED_OVER_KEY = "carried-over"
 
         private const val INITIAL_WINDOW_DAYS = 14
         private const val PAGE_SIZE = 14

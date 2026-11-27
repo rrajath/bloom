@@ -21,7 +21,7 @@ Agenda pulls every SCHEDULED and DEADLINE item across your whole vault into a si
 
 ## Today / Upcoming tabs
 
-- **Today**: everything scheduled or due today, plus an **Overdue** card for tasks whose deadline has passed. A task whose SCHEDULED date has passed (but whose deadline hasn't) stays on Today's list, after today's own items, with a "3d ago" chip. Events only ever appear on their own day, never in the Overdue card
+- **Today**: everything scheduled or due today, plus an **Overdue** card for tasks whose deadline has passed. A task whose SCHEDULED date has passed (but whose deadline hasn't) stays on Today in its own **Carried over** section, below today's own items, with a "3d ago" chip. Events only ever appear on their own day, never in the Overdue card
 - **Upcoming**: an infinite-scroll timeline of future days, grouped under day headers like "Tuesday, Jul 28 · Today"
 
 A recurring task (`SCHEDULED: <2026-10-21 Wed +1w>`) also shows on each of its future repeats in Upcoming, the way the Emacs agenda previews them. The date written in the file stays the one that counts: if it has passed, the task stays on Today (or in the Overdue card, for a missed deadline), and marking any of its rows done advances the task itself. A repeating DEADLINE previews the same way, and a heading never shows twice on one day. Done tasks don't preview, and previews appear only under the Date grouping.
@@ -38,7 +38,7 @@ Swipe left on the list's empty space to go from Today to Upcoming, and right to 
 
 Org-mode treats the two planning dates differently: SCHEDULED is when you plan to start a task, DEADLINE is when it must be finished. Only a missed DEADLINE makes a task overdue. The card is collapsible and lists each one as "⚑ Nov 20 · 3d late", oldest deadline first, with its SCHEDULED date (if any) as a quieter chip beside it. A missed deadline wins even when the task is scheduled for today or later.
 
-A task whose SCHEDULED date has passed is not overdue: it rolls onto Today like the Emacs agenda's `Sched. 3x:` lines, with a blue "3d ago" chip and, when it has a deadline still ahead, how far off that is ("⚑ Nov 26 · in 3d").
+A task whose SCHEDULED date has passed is not overdue: it rolls onto Today's **Carried over** section like the Emacs agenda's `Sched. 3x:` lines (oldest first; under Priority, Tag, or File grouping it stays mixed into those groups), with a blue "3d ago" chip and, when it has a deadline still ahead, how far off that is ("⚑ Nov 26 · in 3d").
 
 To reschedule a missed deadline, swipe its row and pick a new date, or mark it done.
 

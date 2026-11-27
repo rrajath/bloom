@@ -71,6 +71,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Settings › Agenda › Start of week now names your region's first weekday in your device language.
 - Agenda: only missed deadlines are overdue; past scheduled tasks stay on Today with "3d ago" (#116).
 - Agenda's Overdue card drops "Move to today"; reschedule missed deadlines one at a time instead.
+- Agenda: past scheduled tasks get their own "Carried over" section on Today, below today's own items.
 
 ### Fixed
 - Agenda widget: DONE keywords now get a green pill like in the app, and pills align with task text (#125).
