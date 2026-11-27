@@ -133,6 +133,9 @@ class BaselineProfileGenerator {
     private fun MacrobenchmarkScope.agendaJourney() {
         device.awaitSelector(By.text("☰"), "Drawer button").click()
         device.awaitSelector(By.text("Agenda"), "Agenda drawer item").click()
+        // waitForIdle can return mid drawer-close/nav transition; a Back sent
+        // before Agenda is on screen lands on Notebooks and exits the app.
+        device.awaitObject(BenchmarkVault.AGENDA_SCREEN, "Agenda screen")
         device.waitForIdle()
         device.pressBack()
         device.awaitNotebooks()

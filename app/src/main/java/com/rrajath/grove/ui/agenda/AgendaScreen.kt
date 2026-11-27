@@ -155,7 +155,7 @@ fun AgendaScreen(
     }
 
     Scaffold(containerColor = c.bg) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).testTag("agenda_screen")) {
             AgendaHeader(
                 day = state.headerDay,
                 date = state.headerDate,
