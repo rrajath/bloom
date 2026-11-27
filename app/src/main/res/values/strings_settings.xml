@@ -73,6 +73,8 @@
     <string name="settings_page_capture_templates_summary">Quick-capture targets and shortcuts</string>
     <string name="settings_page_sync_title">Sync</string>
     <string name="settings_page_sync_summary">Folder, auto-sync, sync log</string>
+    <string name="settings_page_webdav_title">WebDAV</string>
+    <string name="settings_page_webdav_summary">Sync an org folder with a WebDAV server</string>
     <string name="settings_page_notes_title">Notes</string>
     <!-- TODO is an org-mode keyword; keep it as is. -->
     <string name="settings_page_notes_summary">TODO keywords, priorities, note display</string>
@@ -396,6 +398,44 @@
     <!-- Interval options. %1$d = minutes. Very short: three share one segmented control. -->
     <string name="settings_sync_interval_minutes">%1$dm</string>
     <string name="settings_sync_view_log">View sync log</string>
+
+    <!-- Settings > WebDAV. HTTPS only; credentials never leave this device. -->
+    <string name="webdav_section_server">Server</string>
+    <string name="webdav_section_how">How it works</string>
+    <string name="webdav_enable">Use WebDAV</string>
+    <string name="webdav_enable_desc">Use a synced copy from your server instead of the picked folder. The old folder is left untouched.</string>
+    <string name="webdav_url">Server URL</string>
+    <!-- Example URL for the URL field. Keep the example host untranslated. -->
+    <string name="webdav_url_hint">https://cloud.example.com/remote.php/dav/files/you/Notes/</string>
+    <string name="webdav_username">Username</string>
+    <string name="webdav_password">Password / app password</string>
+    <string name="webdav_password_stored">A password is saved on this device.</string>
+    <string name="webdav_test">Test connection</string>
+    <string name="webdav_sync_now">Sync now</string>
+    <string name="webdav_status_saved">Saved. Sync runs on the next trigger.</string>
+    <string name="webdav_status_saving">Saving settings…</string>
+    <string name="webdav_status_testing">Testing connection…</string>
+    <string name="webdav_status_syncing">Syncing with the server…</string>
+    <string name="webdav_status_disabled">WebDAV is off. Notes now come from the previously picked folder; any last changes are being uploaded.</string>
+    <!-- %1$d = number of files found on the server. -->
+    <string name="webdav_status_test_ok">Connected — %1$d files found.</string>
+    <!-- %1$d = pulled, %2$d = pushed, %3$d = conflicts. -->
+    <string name="webdav_status_sync_ok">Sync complete: %1$d pulled, %2$d pushed, %3$d conflicts.</string>
+    <string name="webdav_error_url">Enter a valid WebDAV folder URL.</string>
+    <string name="webdav_error_https">Only HTTPS WebDAV URLs are supported.</string>
+    <string name="webdav_error_credentials">Enter a username and password.</string>
+    <string name="webdav_error_disabled">Turn on WebDAV before syncing.</string>
+    <string name="webdav_error_unknown">WebDAV request failed.</string>
+    <!-- %1$s = low-level exception detail, e.g. an OkHttp connect error. -->
+    <string name="webdav_error_auth">Authentication failed. Use a third-party app password, not your login password. %1$s</string>
+    <string name="webdav_error_dns">Couldn\'t resolve the server address. Check your network or DNS. %1$s</string>
+    <string name="webdav_error_tls">TLS certificate error. Check the URL and your device date/time. %1$s</string>
+    <string name="webdav_error_timeout">Connection timed out. Switch Wi-Fi/mobile data or turn off VPN/proxy and try again. %1$s</string>
+    <string name="webdav_error_network">Couldn\'t reach the server. Switch networks or turn off VPN/proxy, then try again. %1$s</string>
+    <string name="webdav_error_http">The server returned an error. %1$s</string>
+    <string name="webdav_error_rate_limited">The WebDAV server is busy or rate-limiting (HTTP %1$d). Requests are paused for about %2$d seconds. Wait a moment, switch Sync to Manual only, and pause other heavy cloud syncs. %3$s</string>
+    <string name="webdav_help">Notes are mirrored into app-private storage, so they stay available offline. Changes on the phone and on the server both sync. If both sides edit the same file, the server version wins and your local edit is kept as a .sync-conflict copy you can resolve from the notebook.</string>
+    <string name="webdav_https_only">HTTPS only. The password is encrypted with Android Keystore and is never included in settings backups.</string>
 
     <!-- Settings > Sharing. -->
     <string name="settings_share_target">Shared content target</string>

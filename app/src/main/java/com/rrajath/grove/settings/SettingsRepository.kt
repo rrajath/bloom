@@ -129,6 +129,15 @@ data class GroveSettings(
      * rewrite unchanged content. Device-specific: not exported.
      */
     val autoBackupLastHash: String? = null,
+    /**
+     * Device-local WebDAV settings. The password is NOT here: it lives in the
+     * Keystore-backed `webdav.WebDavSecretStore`. Like [vaultTreeUri], these are
+     * deliberately left out of SettingsSerialization — a server URL, an account
+     * name and credentials must not travel in a settings backup.
+     */
+    val webdavEnabled: Boolean = false,
+    val webdavUrl: String = "",
+    val webdavUsername: String = "",
     val syncMode: SyncMode = SyncMode.ON_OPEN_CLOSE,
     val periodicSyncMinutes: Int = 30,
     /** Org TODO keyword config, `|` splits done-type ("TODO IN-PROGRESS | DONE CANCELLED"). */
@@ -414,6 +423,9 @@ class SettingsRepository(
         val autoBackupLastSuccessAt = longPreferencesKey("auto_backup_last_success_at")
         val autoBackupLastError = booleanPreferencesKey("auto_backup_last_error")
         val autoBackupLastHash = stringPreferencesKey("auto_backup_last_hash")
+        val webdavEnabled = booleanPreferencesKey("webdav_enabled")
+        val webdavUrl = stringPreferencesKey("webdav_url")
+        val webdavUsername = stringPreferencesKey("webdav_username")
         val syncMode = stringPreferencesKey("sync_mode")
         val periodicSyncMinutes = intPreferencesKey("periodic_sync_minutes")
         val todoKeywords = stringPreferencesKey("todo_keywords")
@@ -560,6 +572,9 @@ class SettingsRepository(
             autoBackupLastSuccessAt = prefs[Keys.autoBackupLastSuccessAt],
             autoBackupLastError = prefs[Keys.autoBackupLastError] ?: false,
             autoBackupLastHash = prefs[Keys.autoBackupLastHash],
+            webdavEnabled = prefs[Keys.webdavEnabled] ?: false,
+            webdavUrl = prefs[Keys.webdavUrl] ?: "",
+            webdavUsername = prefs[Keys.webdavUsername] ?: "",
             syncMode = SyncMode.fromStorage(prefs[Keys.syncMode]),
             periodicSyncMinutes = prefs[Keys.periodicSyncMinutes] ?: 30,
             todoKeywords = prefs[Keys.todoKeywords] ?: GroveSettings.DEFAULT_TODO_KEYWORDS,
@@ -966,6 +981,19 @@ class SettingsRepository(
             if (prefs[Keys.autoBackupTreeUri] != treeUri) return@editSettings
             prefs[Keys.autoBackupLastError] = true
             prefs.remove(Keys.autoBackupLastHash)
+        }
+    }
+
+    /** Enable/disable the WebDAV mirror. The SAF folder stays stored for switching back. */
+    suspend fun setWebDavEnabled(enabled: Boolean) {
+        editSettings { it[Keys.webdavEnabled] = enabled }
+    }
+
+    /** Store the normalized collection URL and account name (never the password). */
+    suspend fun setWebDavConfig(url: String, username: String) {
+        editSettings {
+            it[Keys.webdavUrl] = url
+            it[Keys.webdavUsername] = username
         }
     }
 

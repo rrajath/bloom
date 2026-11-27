@@ -19,6 +19,8 @@
 
     <!-- Drawer header, under the app name, in place of the notes folder path. -->
     <string name="nav_vault_no_folder">no folder selected</string>
+    <!-- Drawer header while the WebDAV mirror is the active vault. -->
+    <string name="nav_vault_webdav">WebDAV</string>
     <!-- Drawer header: the notes folder is the top level of a storage volume. -->
     <string name="nav_vault_storage_root">(storage root)</string>
 

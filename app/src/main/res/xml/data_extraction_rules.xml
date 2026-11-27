@@ -5,15 +5,10 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- Encrypted WebDAV password + the local mirror of the notes stay on device. -->
+        <exclude domain="file" path="webdav/" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="file" path="webdav/" />
     </device-transfer>
-    -->
 </data-extraction-rules>

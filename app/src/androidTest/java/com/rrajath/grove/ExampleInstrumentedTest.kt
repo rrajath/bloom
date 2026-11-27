@@ -19,11 +19,11 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test. The debug variant carries an
         // applicationIdSuffix so it can sit beside a release install, so the
-        // package name is the base id plus an optional variant suffix.
+        // package name is the base id plus the variant suffix.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         assertTrue(
             "unexpected package ${appContext.packageName}",
-            appContext.packageName.removeSuffix(".debug") == "com.rrajath.grove",
+            appContext.packageName.removeSuffix(".webdav") == "com.rrajath.grove",
         )
     }
 }

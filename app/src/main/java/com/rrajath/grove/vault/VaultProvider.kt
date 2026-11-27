@@ -27,12 +27,15 @@ object VaultProvider {
 
     /** The one-time dialog: after onboarding, for a non-local vault not yet answered. */
     fun shouldShowWarningDialog(settings: GroveSettings): Boolean {
+        // WebDAV uses an app-private mirror, not the picked SAF folder.
+        if (settings.webdavEnabled) return false
         val uri = settings.vaultTreeUri ?: return false
         return settings.onboardingDone && isNonLocal(uri) && settings.providerWarningAckedUri != uri
     }
 
     /** The Notebooks banner: a non-local vault whose banner wasn't dismissed. */
     fun shouldShowBanner(settings: GroveSettings): Boolean {
+        if (settings.webdavEnabled) return false
         val uri = settings.vaultTreeUri ?: return false
         return isNonLocal(uri) && settings.providerBannerDismissedUri != uri
     }
