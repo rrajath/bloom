@@ -57,6 +57,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-27
+
 ### Added
 - Settings › Backup › Automatic backup keeps a settings JSON file up to date in a folder you choose.
 - Search settings from the top of the Settings hub, matches highlighted; flip switches right in the results.
