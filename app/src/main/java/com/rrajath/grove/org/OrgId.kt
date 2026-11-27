@@ -34,18 +34,40 @@ class OrgIdAllocator(
     /** [count] fresh IDs, unique in the vault and among themselves. */
     suspend fun allocate(count: Int): List<String> {
         if (count <= 0) return emptyList()
+        return mutex.withLock { List(count) { drawLocked() } }
+    }
+
+    /**
+     * [candidates] made vault-unique: each is kept when no `:ID:`/`:CUSTOM_ID:` in the
+     * vault and no ID issued earlier (or earlier in [candidates]) uses it, and replaced
+     * by a fresh ID otherwise. Lets a caller show unchecked [newOrgId]s straight away and
+     * confirm them once the index answers; with random UUIDs the result is, in
+     * practice, always [candidates] itself.
+     */
+    suspend fun claim(candidates: List<String>): List<String> {
+        if (candidates.isEmpty()) return emptyList()
         return mutex.withLock {
-            List(count) {
-                var attempts = 0
-                var candidate: String
-                do {
-                    check(attempts++ < MAX_ATTEMPTS) { "No unused org ID after $MAX_ATTEMPTS attempts" } // i18n: log
-                    candidate = generate()
-                } while (candidate.uppercase() in issued || taken(candidate))
-                issued += candidate.uppercase()
-                candidate
+            candidates.map { candidate ->
+                if (candidate.uppercase() !in issued && !taken(candidate)) {
+                    issued += candidate.uppercase()
+                    candidate
+                } else {
+                    drawLocked()
+                }
             }
         }
+    }
+
+    /** One fresh ID, recorded as issued. Caller holds [mutex]. */
+    private suspend fun drawLocked(): String {
+        var attempts = 0
+        var candidate: String
+        do {
+            check(attempts++ < MAX_ATTEMPTS) { "No unused org ID after $MAX_ATTEMPTS attempts" } // i18n: log
+            candidate = generate()
+        } while (candidate.uppercase() in issued || taken(candidate))
+        issued += candidate.uppercase()
+        return candidate
     }
 
     private companion object {

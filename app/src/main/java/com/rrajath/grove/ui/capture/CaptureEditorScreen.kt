@@ -98,6 +98,9 @@ import com.rrajath.grove.capture.RoamNodeResult
 import com.rrajath.grove.capture.TargetLocation
 import com.rrajath.grove.capture.TemplateKind
 import com.rrajath.grove.capture.captureIdCount
+import com.rrajath.grove.capture.idSwaps
+import com.rrajath.grove.capture.swapIdsKeepingSelection
+import com.rrajath.grove.capture.withIdSwaps
 import com.rrajath.grove.capture.formatLink
 import com.rrajath.grove.capture.templateSlug
 import com.rrajath.grove.attach.AttachDirChange
@@ -110,6 +113,7 @@ import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgMutations
 import com.rrajath.grove.org.OrgParser
 import com.rrajath.grove.org.OrgTimestamp
+import com.rrajath.grove.org.newOrgId
 import com.rrajath.grove.org.orgLocale
 import com.rrajath.grove.ui.components.EditorFabMorphMillis
 import com.rrajath.grove.ui.components.ReadEditToggle
@@ -149,6 +153,7 @@ import com.rrajath.grove.ui.editor.isInPreface
 import com.rrajath.grove.ui.editor.wordAtCursor
 import com.rrajath.grove.ui.util.asString
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import com.rrajath.grove.ui.editor.orgInputTransformation
@@ -266,15 +271,21 @@ fun CaptureEditorScreen(
     if (template == null) return
 
     val now = remember { LocalDateTime.now() }
-    // Vault-unique IDs for the capture: one per %id / %(id), and always one for a
-    // Roam node's file :ID: (captureIdCount). Allocating queries the index, which
-    // on a cold share or widget launch can be the first Room access, so the editor
-    // holds its first frame only for a template that needs IDs. Every other
-    // template renders on the first frame with none.
+    // The capture's org IDs: one per %id / %(id), and always one for a Roam node's
+    // file :ID: (captureIdCount). Checking an ID against the vault queries the index,
+    // which on a cold share or widget launch can be the first Room access, so the
+    // editor doesn't wait for it: it renders on its first frame with provisional IDs
+    // (unchecked newOrgId()s), and the allocator confirms them afterwards (claim). A
+    // provisional ID the vault already uses (with random UUIDs, practically never)
+    // maps to its replacement in idSwaps, which is applied to the buffer below and to
+    // everything a save writes. Null until confirmed; saves wait for it (awaitIds).
     val idCount = remember(template) { template.captureIdCount() }
-    var captureIds by remember(template) { mutableStateOf(if (idCount == 0) emptyList<String>() else null) }
+    val provisionalIds = remember(template) { List(idCount) { newOrgId() } }
+    var confirmedIdSwaps by remember(template) {
+        mutableStateOf(if (idCount == 0) emptyMap<String, String>() else null)
+    }
     LaunchedEffect(template) {
-        if (idCount > 0) captureIds = app.orgIdAllocator.allocate(idCount)
+        if (idCount > 0) confirmedIdSwaps = idSwaps(provisionalIds, app.orgIdAllocator.claim(provisionalIds))
     }
     val prompts = remember(template) {
         val body = if (template.kind == TemplateKind.ROAM_NODE) template.newFileTemplate else template.template
@@ -290,7 +301,7 @@ fun CaptureEditorScreen(
         )
         return
     }
-    val ids = captureIds ?: return
+    val ids = provisionalIds
 
     val context = remember(template, promptValues, ids) {
         val share = app.pendingShare.value
@@ -322,6 +333,9 @@ fun CaptureEditorScreen(
             extraIds = ids.drop(1),
         )
     }
+    // The file :ID: a new Roam node is saved with, for what needs it before Save
+    // (attachment dirs, the Read-mode preview): the provisional one until confirmed.
+    val roamFileId = confirmedIdSwaps?.get(context.id) ?: context.id
     // The share payload is one-shot: consumed by this capture.
     androidx.compose.runtime.DisposableEffect(Unit) {
         onDispose { app.pendingShare.value = null }
@@ -472,12 +486,16 @@ fun CaptureEditorScreen(
         fileContext = if (template.kind == TemplateKind.ROAM_NODE) {
             null
         } else {
-            { viewModel.attachFileContext(template, textState.text.toString(), context, bodyOnly) }
+            {
+                viewModel.attachFileContext(
+                    template, textState.text.toString(), context.withIdSwaps(confirmedIdSwaps.orEmpty()), bodyOnly,
+                )
+            }
         },
         markDiskHeading = if (template.kind == TemplateKind.ROAM_NODE) null else viewModel::markAttachHeading,
         // The new node's :ID: is added on save (RoamFileId.withFileId), not shown in
         // the field, so attach must use that same ID rather than mint another one.
-        pendingFileId = if (roamNewFile) context.id else null,
+        pendingFileId = if (roamNewFile) roamFileId else null,
         onOwnerAttached = { owner ->
             if (owner !is AttachOwner.File || roamNewFile) attachBaseline = withAttachedOwner(attachBaseline, owner)
         },
@@ -493,7 +511,7 @@ fun CaptureEditorScreen(
             // A new Roam node gets its file :ID: on save, not in the field.
             val file = doc.fileOwner()
             if (roamNewFile && file.id == null && file.dirProperty == null) {
-                doc = OrgParser.parse(OrgMutations.upsertFileProperty(doc, "ID", context.id))
+                doc = OrgParser.parse(OrgMutations.upsertFileProperty(doc, "ID", roamFileId))
             }
             app.attachDirMoves.detect(attachTarget, attachBaseline, doc)
         }.getOrDefault(emptyList())
@@ -647,6 +665,19 @@ fun CaptureEditorScreen(
             if (lastAutoSavedText == before) lastAutoSavedText = after
         }
     }
+    // A provisional ID the allocator replaced: swap it in the field (keeping the
+    // cursor) and in the dirty/discard baselines, so the swap reads as no edit.
+    // Keyed on textState too: a Roam capture's Checking -> New/ExistingFile
+    // transition rebuilds the field from the provisional expansion.
+    LaunchedEffect(confirmedIdSwaps, textState) {
+        val swaps = confirmedIdSwaps ?: return@LaunchedEffect
+        if (swaps.isEmpty()) return@LaunchedEffect
+        textState.applyEdit { tfv ->
+            swapIdsKeepingSelection(tfv.text, tfv.selection, swaps)?.let { (text, selection) -> TextFieldValue(text, selection) }
+        }
+        initialText = initialText.withIdSwaps(swaps)
+        lastAutoSavedText = lastAutoSavedText.withIdSwaps(swaps)
+    }
     val toastContext = LocalContext.current
     val resources = LocalResources.current
 
@@ -658,11 +689,27 @@ fun CaptureEditorScreen(
      * filename pattern doesn't drift while the user is still typing). Null
      * when the title is blank/missing, or the existence check hasn't landed yet.
      */
+    /** Runs [save] once the provisional IDs are confirmed: at once, nearly always. */
+    fun awaitIds(save: () -> Unit) {
+        if (confirmedIdSwaps != null) save()
+        else coroutineScope.launch {
+            snapshotFlow { confirmedIdSwaps }.first { it != null }
+            save()
+        }
+    }
+
+    /** [text] with confirmed IDs, in case the buffer swap above hasn't run yet. */
+    fun savedText(text: String): String = text.withIdSwaps(confirmedIdSwaps.orEmpty())
+
+    /** [context] with confirmed IDs: a Roam node's file :ID: comes from it at save. */
+    fun savedContext(): CaptureContext = context.withIdSwaps(confirmedIdSwaps.orEmpty())
+
     /** What the view model writes for a Roam capture: a new file's draft with the
      *  template's hidden non-ID drawer properties back on top, or just the body. */
-    fun roamSaveText(): String =
+    fun roamSaveText(): String = savedText(
         if (roamAppendState is RoamAppendState.ExistingFile) draftText
-        else RoamFileId.joinDrawer(roamSplit?.first.orEmpty(), draftText)
+        else RoamFileId.joinDrawer(roamSplit?.first.orEmpty(), draftText),
+    )
 
     fun resolvedRoamPath(): String? = when (val appendState = roamAppendState) {
         is RoamAppendState.ExistingFile -> appendState.path
@@ -671,21 +718,21 @@ fun CaptureEditorScreen(
     }
 
     /** Immediate autosave, used by the idle timer and by tapping the dirty save icon. */
-    fun saveNow() {
+    fun saveNow() = awaitIds {
         if (template.kind == TemplateKind.ROAM_NODE) {
             resolvedRoamPath()?.let { path ->
-                viewModel.autosaveRoam(path, roamSaveText(), context)
+                viewModel.autosaveRoam(path, roamSaveText(), savedContext())
                 lastAutoSavedAt = LocalTime.now()
                 lastAutoSavedText = draftText
             }
         } else if (bodyOnly) {
             if (draftText.isNotBlank()) {
-                viewModel.autosave(template, draftText, context, bodyOnly = true)
+                viewModel.autosave(template, savedText(draftText), savedContext(), bodyOnly = true)
                 lastAutoSavedAt = LocalTime.now()
                 lastAutoSavedText = draftText
             }
         } else if (!CaptureInserter.hasBlankHeading(draftText)) {
-            viewModel.autosave(template, draftText, context)
+            viewModel.autosave(template, savedText(draftText), savedContext())
             lastAutoSavedAt = LocalTime.now()
             lastAutoSavedText = draftText
         }
@@ -727,21 +774,21 @@ fun CaptureEditorScreen(
         if (dirty && savedEvent == null) saveNow()
     }
 
-    fun trySave() {
+    fun trySave() = awaitIds {
         if (template.kind == TemplateKind.ROAM_NODE) {
             val resolvedPath = resolvedRoamPath()
             if (resolvedPath == null) {
                 showEmptyTitleAlert = true
             } else {
-                viewModel.saveRoam(resolvedPath, roamSaveText(), context)
+                viewModel.saveRoam(resolvedPath, roamSaveText(), savedContext())
             }
         } else if (bodyOnly) {
             // A blank body is refused by the view model ("Nothing to save").
-            viewModel.save(template, draftText, context, bodyOnly = true)
+            viewModel.save(template, savedText(draftText), savedContext(), bodyOnly = true)
         } else if (CaptureInserter.hasBlankHeading(draftText)) {
             showEmptyHeadingAlert = true
         } else {
-            viewModel.save(template, draftText, context)
+            viewModel.save(template, savedText(draftText), savedContext())
         }
     }
 
@@ -875,7 +922,7 @@ fun CaptureEditorScreen(
                   // Inline images and attachment chips, resolved against the target file.
                   // A new Roam node's :ID: only lands on save, so the preview sees it added.
                   val previewDoc = remember(draftDoc, roamNewFile) {
-                      if (roamNewFile) OrgParser.parse(RoamFileId.withFileId(draftText, context.id), keywords) else draftDoc
+                      if (roamNewFile) OrgParser.parse(RoamFileId.withFileId(draftText, roamFileId), keywords) else draftDoc
                   }
                   val previewHeadline = previewDoc.headlines.firstOrNull()
                   ProvideAttachmentRendering(
