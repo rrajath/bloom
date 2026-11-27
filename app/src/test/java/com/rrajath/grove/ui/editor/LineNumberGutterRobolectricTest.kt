@@ -10,6 +10,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.rrajath.grove.testing.TestGroveApplication
 import com.rrajath.grove.ui.theme.GroveTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -51,6 +53,7 @@ class LineNumberGutterRobolectricTest {
     private lateinit var scrollState: ScrollState
     private var layout: TextLayoutResult? = null
     private var gutterWidthPx = 0f
+    private var compositions = 0
 
     private fun setUp(direction: LayoutDirection = LayoutDirection.Ltr) {
         composeRule.setContent {
@@ -61,6 +64,7 @@ class LineNumberGutterRobolectricTest {
                     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
                     val gutter = rememberLineNumberGutter(true, state, scrollState, { textLayout }, 41, focusRequester)!!
                     with(androidx.compose.ui.platform.LocalDensity.current) { gutterWidthPx = gutter.startPadding.toPx() }
+                    SideEffect { compositions++ }
                     Box(Modifier.height(400.dp)) {
                         BasicTextField(
                             state = state,
@@ -125,6 +129,23 @@ class LineNumberGutterRobolectricTest {
         composeRule.onNodeWithTag("field").performTouchInput { click(Offset(40f, rowCenter(2))) }
         composeRule.waitForIdle()
         assertTrue(state.selection.collapsed)
+    }
+
+    @Test
+    fun `typing recomposes the host only when the gutter gains a digit`() {
+        setUp()
+        // Lines 41..50: two digits.
+        val twoDigitWidth = gutterWidthPx
+        val before = compositions
+        composeRule.runOnIdle { state.edit { append("x") } }
+        composeRule.waitForIdle()
+        assertEquals("a keystroke must not recompose the host", before, compositions)
+
+        // Lines 41..100: the last number needs a third digit, so the gutter widens.
+        composeRule.runOnIdle { state.edit { append("\nmore".repeat(50)) } }
+        composeRule.waitForIdle()
+        assertNotEquals(twoDigitWidth, gutterWidthPx)
+        assertTrue(gutterWidthPx > twoDigitWidth)
     }
 
     @Test

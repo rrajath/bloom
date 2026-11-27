@@ -99,16 +99,24 @@ fun rememberLineNumberGutter(
     val c = MaterialTheme.grove
     val density = LocalDensity.current
     val ltr by rememberUpdatedState(LocalLayoutDirection.current == LayoutDirection.Ltr)
+    // The modifiers below are remembered, so they read the caller's latest lambda and
+    // requester through these rather than capturing the first composition's.
+    val currentLayout by rememberUpdatedState(layout)
+    val currentFocusRequester by rememberUpdatedState(focusRequester)
     val measurer = rememberTextMeasurer(cacheSize = 0)
     val style = TextStyle(fontFamily = PlexMono, fontSize = 11.5.sp)
     // PlexMono has one advance for every digit, so each number is drawn digit by digit
     // from ten pre-measured glyphs instead of measuring a string per row per frame.
     val digits = remember(measurer, density) { (0..9).map { measurer.measure(it.toString(), style) } }
     val digitWidth = digits[0].size.width
+    // Read only by the draw and gesture phases, never composition: an IntArray's equality
+    // is identity, so every edit counts as a change and would recompose the caller (and
+    // its BasicTextField) on each keystroke.
     val lineStarts by remember(textState) { derivedStateOf { lineStartOffsets(textState.text) } }
     val firstLine by rememberUpdatedState(firstLineNumber)
-    val lastNumber = firstLineNumber + lineStarts.size - 1
-    val columns = maxOf(MinGutterDigits, lastNumber.toString().length)
+    // What composition reads instead: an Int that changes only when the last number gains
+    // or loses a digit (9 to 10 lines, 99 to 100).
+    val columns by remember(textState) { derivedStateOf { gutterColumns(firstLine, lineStarts.size) } }
     val numbersWidth = with(density) { (digitWidth * columns).toDp() }
     val startPadding = GutterEdgeMargin + numbersWidth + GutterTextGap
 
@@ -122,105 +130,109 @@ fun rememberLineNumberGutter(
     // it sits under the current-line band.
     val stripColor = Color.Black.copy(alpha = if (c.isDark) GutterShadeDark else GutterShadeLight)
     val stripWidth = startPadding - GutterTextGap / 2
-    val inputModifier = Modifier
-        .onPlaced { coords.outer = it }
-        .drawBehind {
-            val w = stripWidth.toPx()
-            drawRect(
-                color = stripColor,
-                topLeft = Offset(if (ltr) 0f else size.width - w, 0f),
-                size = Size(w, size.height),
-            )
-        }
-        .pointerInput(textState, scrollState) {
-            coroutineScope {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val outer = coords.outer ?: return@awaitEachGesture
-                    val inner = coords.text ?: return@awaitEachGesture
-                    val inText = inner.localPositionOf(outer, down.position)
-                    val inGutter = if (ltr) inText.x < 0f else inText.x > inner.size.width
-                    if (!inGutter || inText.y !in 0f..inner.size.height.toFloat()) return@awaitEachGesture
-                    val anchor = lineAtY(inText.y, scrollState, layout(), lineStarts) ?: return@awaitEachGesture
-                    down.consume()
-                    textState.edit { selection = lineRangeSelection(anchor, anchor, lineStarts, length) }
-                    focusRequester.requestFocus()
-                    var pointerY = inText.y
-                    var dragging = true
-                    // Past the top/bottom edge, scroll each frame by how far past it the finger is.
-                    val autoScroll = launch {
-                        while (dragging) {
-                            withFrameNanos { }
-                            val height = inner.size.height.toFloat()
-                            val over = when {
-                                pointerY < 0f -> pointerY
-                                pointerY > height -> pointerY - height
-                                else -> 0f
-                            }
-                            if (over == 0f) continue
-                            scrollState.scrollBy(over.coerceIn(-height / 8, height / 8))
-                            selectDrag(anchor, pointerY.coerceIn(0f, height), textState, scrollState, layout(), lineStarts)
-                        }
-                    }
-                    try {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            if (!change.pressed) break
-                            if (change.positionChange() != Offset.Zero) {
-                                change.consume()
-                                pointerY = inner.localPositionOf(outer, change.position).y
-                                selectDrag(
-                                    anchor, pointerY.coerceIn(0f, inner.size.height.toFloat()),
-                                    textState, scrollState, layout(), lineStarts,
-                                )
+    val inputModifier = remember(textState, scrollState, stripWidth, stripColor) {
+        Modifier
+            .onPlaced { coords.outer = it }
+            .drawBehind {
+                val w = stripWidth.toPx()
+                drawRect(
+                    color = stripColor,
+                    topLeft = Offset(if (ltr) 0f else size.width - w, 0f),
+                    size = Size(w, size.height),
+                )
+            }
+            .pointerInput(textState, scrollState) {
+                coroutineScope {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val outer = coords.outer ?: return@awaitEachGesture
+                        val inner = coords.text ?: return@awaitEachGesture
+                        val inText = inner.localPositionOf(outer, down.position)
+                        val inGutter = if (ltr) inText.x < 0f else inText.x > inner.size.width
+                        if (!inGutter || inText.y !in 0f..inner.size.height.toFloat()) return@awaitEachGesture
+                        val anchor = lineAtY(inText.y, scrollState, currentLayout(), lineStarts) ?: return@awaitEachGesture
+                        down.consume()
+                        textState.edit { selection = lineRangeSelection(anchor, anchor, lineStarts, length) }
+                        currentFocusRequester.requestFocus()
+                        var pointerY = inText.y
+                        var dragging = true
+                        // Past the top/bottom edge, scroll each frame by how far past it the finger is.
+                        val autoScroll = launch {
+                            while (dragging) {
+                                withFrameNanos { }
+                                val height = inner.size.height.toFloat()
+                                val over = when {
+                                    pointerY < 0f -> pointerY
+                                    pointerY > height -> pointerY - height
+                                    else -> 0f
+                                }
+                                if (over == 0f) continue
+                                scrollState.scrollBy(over.coerceIn(-height / 8, height / 8))
+                                selectDrag(anchor, pointerY.coerceIn(0f, height), textState, scrollState, currentLayout(), lineStarts)
                             }
                         }
-                    } finally {
-                        dragging = false
-                        autoScroll.cancel()
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                if (change.positionChange() != Offset.Zero) {
+                                    change.consume()
+                                    pointerY = inner.localPositionOf(outer, change.position).y
+                                    selectDrag(
+                                        anchor, pointerY.coerceIn(0f, inner.size.height.toFloat()),
+                                        textState, scrollState, currentLayout(), lineStarts,
+                                    )
+                                }
+                            }
+                        } finally {
+                            dragging = false
+                            autoScroll.cancel()
+                        }
                     }
                 }
             }
-        }
+    }
 
-    val drawModifier = Modifier
-        .onPlaced { coords.text = it }
-        .onFocusChanged { focused = it.isFocused }
-        .drawBehind {
-            val result = layout() ?: return@drawBehind
-            val text = textState.text
-            val selection = textState.selection
-            val starts = lineStarts
-            val scroll = scrollState.value.toFloat()
-            val edgePx = startPadding.toPx()
-            val gapPx = GutterTextGap.toPx()
-            val (activeFirst, activeLast) = if (focused) {
-                val lastOffset = if (selection.collapsed) selection.max else maxOf(selection.min, selection.max - 1)
-                lineIndexForOffset(starts, selection.min) to lineIndexForOffset(starts, lastOffset)
-            } else {
-                -1 to -1
-            }
-            val firstRow = result.getLineForVerticalPosition(scroll)
-            val lastRow = result.getLineForVerticalPosition(scroll + size.height)
-            clipRect(left = -edgePx, top = 0f, right = size.width + edgePx, bottom = size.height) {
-                for (row in firstRow..lastRow) {
-                    val rowStart = result.getLineStart(row)
-                    if (rowStart > text.length) break
-                    val index = starts.binarySearch(rowStart)
-                    if (index < 0) continue // a soft-wrapped continuation row
-                    val label = (firstLine + index).toString()
-                    val color = if (index in activeFirst..activeLast) c.ink2 else c.ink3
-                    val width = digitWidth * label.length
-                    var x = if (ltr) -gapPx - width else size.width + gapPx
-                    val top = result.getLineBaseline(row) - scroll - digits[0].firstBaseline
-                    for (ch in label) {
-                        drawText(digits[ch - '0'], color = color, topLeft = Offset(x, top))
-                        x += digitWidth
+    val drawModifier = remember(textState, scrollState, startPadding, digits, c) {
+        Modifier
+            .onPlaced { coords.text = it }
+            .onFocusChanged { focused = it.isFocused }
+            .drawBehind {
+                val result = currentLayout() ?: return@drawBehind
+                val text = textState.text
+                val selection = textState.selection
+                val starts = lineStarts
+                val scroll = scrollState.value.toFloat()
+                val edgePx = startPadding.toPx()
+                val gapPx = GutterTextGap.toPx()
+                val (activeFirst, activeLast) = if (focused) {
+                    val lastOffset = if (selection.collapsed) selection.max else maxOf(selection.min, selection.max - 1)
+                    lineIndexForOffset(starts, selection.min) to lineIndexForOffset(starts, lastOffset)
+                } else {
+                    -1 to -1
+                }
+                val firstRow = result.getLineForVerticalPosition(scroll)
+                val lastRow = result.getLineForVerticalPosition(scroll + size.height)
+                clipRect(left = -edgePx, top = 0f, right = size.width + edgePx, bottom = size.height) {
+                    for (row in firstRow..lastRow) {
+                        val rowStart = result.getLineStart(row)
+                        if (rowStart > text.length) break
+                        val index = starts.binarySearch(rowStart)
+                        if (index < 0) continue // a soft-wrapped continuation row
+                        val label = (firstLine + index).toString()
+                        val color = if (index in activeFirst..activeLast) c.ink2 else c.ink3
+                        val width = digitWidth * label.length
+                        var x = if (ltr) -gapPx - width else size.width + gapPx
+                        val top = result.getLineBaseline(row) - scroll - digits[0].firstBaseline
+                        for (ch in label) {
+                            drawText(digits[ch - '0'], color = color, topLeft = Offset(x, top))
+                            x += digitWidth
+                        }
                     }
                 }
             }
-        }
+    }
 
     return LineNumberGutter(startPadding, inputModifier, drawModifier)
 }
@@ -250,6 +262,10 @@ private fun lineAtY(y: Float, scrollState: ScrollState, layout: TextLayoutResult
     val row = layout.getLineForVerticalPosition(y + scrollState.value)
     return lineIndexForOffset(lineStarts, layout.getLineStart(row))
 }
+
+/** Digit columns the gutter reserves for a buffer of [lineCount] lines numbered from [firstLineNumber]. */
+internal fun gutterColumns(firstLineNumber: Int, lineCount: Int): Int =
+    maxOf(MinGutterDigits, (firstLineNumber + lineCount - 1).toString().length)
 
 /** Char offset where each logical line of [text] starts; always holds at least 0. */
 internal fun lineStartOffsets(text: CharSequence): IntArray {

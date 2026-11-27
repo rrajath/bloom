@@ -74,6 +74,7 @@ re-uploads the APKs to the existing release instead of failing.
 - Agenda: past scheduled tasks get their own "Carried over" section on Today, below today's own items.
 - Editors open more smoothly in large vaults: property-key suggestions load only once you type a key.
 - Capture opens faster from the share sheet and widgets when its template doesn't use `%id`.
+- Typing with line numbers on is smoother: the editor no longer redraws its whole field per keystroke.
 
 ### Fixed
 - Agenda widget: DONE keywords now get a green pill like in the app, and pills align with task text (#125).
