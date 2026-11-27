@@ -43,9 +43,7 @@ internal fun resolveLinkPick(
     val desc = selectedText ?: if (heading != null) {
         heading.title
     } else {
-        doc.preambleKeywords
-            .firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-            ?.second?.takeIf { it.isNotBlank() }
+        doc.fileTitle?.takeIf { it.isNotBlank() }
             ?: file.substringAfterLast('/').removeSuffix(".org")
     }
     if (heading == null) {

@@ -81,6 +81,52 @@ class OrgParserTest {
     }
 
     @Test
+    fun `preambleKeywords and fileTitle skip leading Emacs file-local comment lines`() {
+        val doc = OrgParser.parse(
+            "# -*- before-save-hook: (time-stamp); -*-\n#+title: My Title\n\n* Heading\nbody\n",
+        )
+        assertEquals(listOf("#+title:" to "My Title"), doc.preambleKeywords)
+        assertEquals("My Title", doc.fileTitle)
+        assertTrue(!doc.hasIntro)
+        assertEquals(doc.preambleEnd, doc.introStart)
+    }
+
+    @Test
+    fun `leading comment lines can precede a file-level property drawer and keywords`() {
+        val doc = OrgParser.parse(
+            "# -*- mode: org; -*-\n:PROPERTIES:\n:ID: 1a2b3c\n:END:\n# comment between\n#+title: My Title\n\nIntro prose.\n\n* Heading\n",
+        )
+        assertEquals(listOf(":ID:" to "1a2b3c"), doc.filePropertyDrawer)
+        assertEquals("1a2b3c", doc.fileId)
+        assertEquals(listOf("#+title:" to "My Title"), doc.preambleKeywords)
+        assertEquals("My Title", doc.fileTitle)
+        assertTrue(doc.hasIntro)
+        assertEquals("Intro prose.", doc.introTitle)
+    }
+
+    @Test
+    fun `comment-only preamble does not create a bogus intro note`() {
+        val doc = OrgParser.parse("# -*- mode: org; -*-\n# just a comment\n\n* Heading\nbody\n")
+        assertTrue(doc.preambleKeywords.isEmpty())
+        assertNull(doc.fileTitle)
+        assertTrue(!doc.hasIntro)
+    }
+
+    @Test
+    fun `fileTitle finds TITLE anywhere in the preamble outside blocks`() {
+        val afterProse = OrgParser.parse("Intro line.\n#+TITLE: Late Title\n\n* Heading\n")
+        assertEquals("Late Title", afterProse.fileTitle)
+
+        val insideSrc = OrgParser.parse(
+            "Intro line.\n#+BEGIN_SRC org\n#+TITLE: Fake Title\n#+END_SRC\n* Heading\n",
+        )
+        assertNull(insideSrc.fileTitle)
+
+        val afterHeading = OrgParser.parse("* Heading\n#+TITLE: Not File Title\n")
+        assertNull(afterHeading.fileTitle)
+    }
+
+    @Test
     fun `intro helpers see real content before the first heading`() {
         val doc = OrgParser.parse(
             ":PROPERTIES:\n:ID: x\n:END:\n#+title: Roam note\n\nOriginally proposed by Hegel.\nMore prose.\n",

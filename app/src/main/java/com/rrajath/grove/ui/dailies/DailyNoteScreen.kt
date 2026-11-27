@@ -250,8 +250,7 @@ fun DailyNoteScreen(
     val loadedDaily = docState as? DocumentUiState.Loaded
     val dailyFileId = loadedDaily?.document?.fileId
     val dailyTitle = loadedDaily?.let { loaded ->
-        loaded.document.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-            ?.second ?: loaded.fileName.removeSuffix(".org")
+        loaded.document.fileTitle ?: loaded.fileName.removeSuffix(".org")
     }
     LaunchedEffect(loadedDaily?.fileName, dailyFileId, dailyTitle) {
         val fileName = loadedDaily?.fileName ?: return@LaunchedEffect
@@ -768,8 +767,7 @@ fun DailyNoteScreen(
 
     if (linkedRefsOpen) {
         val title = (docState as? DocumentUiState.Loaded)?.document
-            ?.preambleKeywords?.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-            ?.second ?: nav?.fileName?.removeSuffix(".org") ?: ""
+            ?.fileTitle ?: nav?.fileName?.removeSuffix(".org") ?: ""
         LinkedReferencesSheet(
             title = title,
             result = linkedReferences,

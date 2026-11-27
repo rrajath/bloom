@@ -368,8 +368,7 @@ fun EditRegionScreen(
             fieldLoaded = true
             if (region == EditRegion.WHOLE_FILE) {
                 val doc = OrgParser.parse(state.buffer, state.keywords)
-                val title = doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-                    ?.second ?: fileName.removeSuffix(".org")
+                val title = doc.fileTitle ?: fileName.removeSuffix(".org")
                 wholeFileMeta = doc.fileId to title
                 // No file :ID: means no bar, so no scan.
                 if (doc.fileId != null) {

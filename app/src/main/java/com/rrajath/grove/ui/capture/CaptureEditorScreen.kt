@@ -1379,7 +1379,7 @@ private fun DraftPreview(doc: OrgDocument, headline: OrgHeadline, modifier: Modi
 @Composable
 private fun DraftIntroPreview(doc: OrgDocument, modifier: Modifier = Modifier, showTitle: Boolean = true) {
     val c = MaterialTheme.grove
-    val title = doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }?.second
+    val title = doc.fileTitle
     Column(
         modifier
             .verticalScroll(rememberScrollState())

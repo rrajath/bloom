@@ -141,8 +141,7 @@ fun ReadFileScreen(
     // Keyed on (fileId, title), not the document: edits re-parse the file but can't
     // change what links here. No file :ID: means no bar, so no scan.
     val fileTitle = loadedDoc?.let { doc ->
-        doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-            ?.second ?: fileName.removeSuffix(".org")
+        doc.fileTitle ?: fileName.removeSuffix(".org")
     }
     LaunchedEffect(fileName, loadedDoc?.fileId, fileTitle) {
         val title = fileTitle ?: return@LaunchedEffect
@@ -302,8 +301,7 @@ fun ReadFileScreen(
 
     if (linkedRefsOpen) {
         val doc = loadedDoc
-        val title = doc?.preambleKeywords?.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-            ?.second ?: fileName.removeSuffix(".org")
+        val title = doc?.fileTitle ?: fileName.removeSuffix(".org")
         LinkedReferencesSheet(
             title = title,
             result = linkedReferences,

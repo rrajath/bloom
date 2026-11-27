@@ -281,8 +281,7 @@ fun OutlineScreen(
     // Keyed on (fileId, title), not the document: edits re-parse the file but can't
     // change what links here. No file :ID: means no bar, so no scan.
     val fileTitle = loadedDoc?.let { doc ->
-        doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-            ?.second ?: notebookId.removeSuffix(".org")
+        doc.fileTitle ?: notebookId.removeSuffix(".org")
     }
     LaunchedEffect(notebookId, loadedDoc?.fileId, fileTitle) {
         val title = fileTitle ?: return@LaunchedEffect
@@ -1117,8 +1116,7 @@ fun OutlineScreen(
                 }
 
                 if (linkedRefsOpen) {
-                    val title = doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-                        ?.second ?: notebookId.removeSuffix(".org")
+                    val title = doc.fileTitle ?: notebookId.removeSuffix(".org")
                     LinkedReferencesSheet(
                         title = title,
                         result = linkedReferences,

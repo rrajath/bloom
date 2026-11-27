@@ -839,6 +839,27 @@ class OrgMutationsTest {
         )
     }
 
+    @Test
+    fun `prefaceRange handles leading Emacs comment lines with and without a drawer`() {
+        val withComment = OrgParser.parse("# -*- mode: org; -*-\n#+TITLE: Test\n\n* First\n")
+        assertEquals(
+            "# -*- mode: org; -*-\n#+TITLE: Test",
+            OrgMutations.regionText(withComment, OrgMutations.prefaceRange(withComment)!!),
+        )
+
+        val withDrawer = OrgParser.parse(
+            "# -*- mode: org; -*-\n:PROPERTIES:\n:ID: x\n:END:\n#+TITLE: Test\n\n* First\n",
+        )
+        assertEquals(1..3, OrgMutations.fileDrawerRange(withDrawer))
+        assertEquals(
+            "#+TITLE: Test",
+            OrgMutations.regionText(withDrawer, OrgMutations.prefaceRange(withDrawer)!!),
+        )
+
+        val commentOnly = OrgParser.parse("# -*- mode: org; -*-\n\n* First\n")
+        assertNull(OrgMutations.prefaceRange(commentOnly))
+    }
+
     // --- scoped drawer editors (fileDrawerRange / headingDrawerRange / replaceLines) ---
 
     private val drawerDoc = OrgParser.parse(
@@ -1742,5 +1763,18 @@ class OrgMutationsTest {
         val out = OrgMutations.upsertFileProperty(d, "ID", "FILE")
         assertEquals(":PROPERTIES:\n:ID: FILE\n:END:\n* H\n:PROPERTIES:\n:ID: HEADING\n:END:\n", out)
         assertEquals("FILE", OrgParser.parse(out).fileId)
+    }
+
+    @Test
+    fun `upsertFileProperty inserts drawer after leading comment lines`() {
+        val d = OrgParser.parse("# -*- before-save-hook: (time-stamp); -*-\n#+title: My Title\n* H\n")
+        val out = OrgMutations.upsertFileProperty(d, "ID", "FILE")
+        assertEquals(
+            "# -*- before-save-hook: (time-stamp); -*-\n:PROPERTIES:\n:ID: FILE\n:END:\n#+title: My Title\n* H\n",
+            out,
+        )
+        val reparsed = OrgParser.parse(out)
+        assertEquals("FILE", reparsed.fileId)
+        assertEquals("My Title", reparsed.fileTitle)
     }
 }
