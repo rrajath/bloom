@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Saved searches created on first run (drawer shortcuts). "TODO" is the org-mode keyword. -->
+    <string name="search_default_scheduled_today"></string>
+    <string name="search_default_all_todo"></string>
+    <string name="search_default_this_week"></string>
+    <!-- Result summary under the search field. Example: "12 results · 3 notebooks". -->
+    <string name="search_result_summary"></string>
+    <plurals name="search_result_count">
+    </plurals>
+    <plurals name="search_notebook_count">
+    </plurals>
+    <!-- Star button dropdown: save the current query as a named search. -->
+    <string name="search_save_name_hint"></string>
+    <!-- %1$s is the name the user typed. -->
+    <string name="search_save_as"></string>
+    <!-- Confirm replacing a saved search. %1$s is its name. -->
+    <string name="search_overwrite_title"></string>
+    <string name="search_overwrite_body"></string>
+    <string name="search_overwrite_confirm"></string>
+    <!-- Toggle for the query-operator panel (the ⚑ glyph is added in code). -->
+    <string name="search_advanced"></string>
+    <!-- Header of the query-operator panel. -->
+    <string name="search_operators"></string>
+    <!-- Operator help list. The operator itself is shown before each line and is not translated.
+         Keep the query syntax in these lines (b.\"My Notebook\", s.today, i.none, AND, OR...) as is. -->
+    <!-- "space" means a blank between two search terms; AND is query syntax. -->
+    <string name="search_op_and_token"></string>
+    <string name="search_op_and"></string>
+    <string name="search_op_or"></string>
+    <string name="search_op_group"></string>
+    <string name="search_op_not"></string>
+    <string name="search_op_quote"></string>
+    <string name="search_op_sort"></string>
+    <string name="search_op_tag"></string>
+    <string name="search_op_state"></string>
+    <string name="search_op_state_type"></string>
+    <string name="search_op_notebook"></string>
+    <string name="search_op_id"></string>
+    <string name="search_op_priority"></string>
+    <string name="search_op_day"></string>
+    <string name="search_op_closed_event"></string>
+    <string name="search_op_compare"></string>
+    <string name="search_op_moment"></string>
+    <string name="search_op_overdue_none"></string>
+    <!-- No results for the current query and filters. -->
+    <string name="search_no_results_title"></string>
+    <string name="search_no_results_body"></string>
+    <string name="search_open_filters"></string>
+    <!-- Blank search screen. Section headers are shown in uppercase. -->
+    <string name="search_section_quick_start"></string>
+    <string name="search_section_saved"></string>
+    <!-- Quick Start card subtitles: how many items each card finds. -->
+    <plurals name="search_quick_overdue_meta">
+    </plurals>
+    <plurals name="search_quick_today_meta">
+    </plurals>
+    <!-- "TODO" is the org-mode keyword. -->
+    <plurals name="search_quick_open_meta">
+    </plurals>
+    <plurals name="search_quick_unscheduled_meta">
+    </plurals>
+    <!-- Rename a saved search. -->
+    <string name="search_rename_title"></string>
+    <string name="search_rename_hint"></string>
+    <!-- Search result swipe cells. Keep short. -->
+    <!-- Pick a TODO state for the heading. -->
+    <string name="search_swipe_state"></string>
+    <!-- Set the heading's SCHEDULED date. -->
+    <string name="search_swipe_schedule"></string>
+    <!-- Result group header under a notebook's name. -->
+    <!-- The notebook's file name matched, but none of its headings did. -->
+    <string name="search_file_match"></string>
+    <plurals name="search_match_count">
+    </plurals>
+    <!-- A notebook result: its name matched the query. -->
+    <string name="search_notebook_name_match"></string>
+    <!-- A notebook result: it matched a filter (such as its file tags), not its name. -->
+    <string name="search_notebook_level_match"></string>
+</resources>
