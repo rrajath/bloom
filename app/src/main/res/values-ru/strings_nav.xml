@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Navigation drawer (ui/screens/DrawerContent.kt). -->
+    <string name="nav_search"></string>
+    <!-- The list of .org files in the notes folder. -->
+    <string name="nav_notebooks"></string>
+    <string name="nav_agenda"></string>
+    <string name="nav_settings"></string>
+    <!-- One note per day (org-roam dailies). -->
+    <string name="nav_dailies"></string>
+    <!-- Drawer section headers for saved searches and favorite notes. Written in normal case;
+         the app shows them in capitals. -->
+    <string name="nav_section_searches"></string>
+    <string name="nav_section_favorites"></string>
+    <string name="nav_rename_search_title"></string>
+    <string name="nav_rename_favorite_title"></string>
+    <!-- Placeholder in the rename dialog's text field. -->
+    <string name="nav_rename_name_hint"></string>
+    <!-- Drawer header, under the app name, in place of the notes folder path. -->
+    <string name="nav_vault_no_folder"></string>
+    <!-- Drawer header: the notes folder is the top level of a storage volume. -->
+    <string name="nav_vault_storage_root"></string>
+    <!-- Opening an .org file from another app (ui/GroveApp.kt). %1$s = the file's name, %2$s = the app name. -->
+    <string name="nav_open_file_not_in_vault"></string>
+    <!-- %1$s = the app name. -->
+    <string name="nav_open_file_failed"></string>
+    <!-- Leaving the whole-file view while the file has unsaved edits. -->
+    <string name="nav_whole_file_unsaved"></string>
+    <!-- Snackbar after a capture saves into a new file. %1$s = the file's name. -->
+    <string name="nav_capture_saved_file"></string>
+    <string name="nav_capture_visit_file"></string>
+    <!-- First-run onboarding (ui/screens/OnboardingScreen.kt). -->
+    <string name="onboarding_tagline"></string>
+    <!-- Small tag next to the Syncthing setup card's title. -->
+    <string name="onboarding_recommended"></string>
+    <string name="onboarding_syncthing_title"></string>
+    <string name="onboarding_step_install"></string>
+    <string name="onboarding_step_share"></string>
+    <!-- %1$s is the app name. -->
+    <string name="onboarding_step_point"></string>
+    <string name="onboarding_choose_folder"></string>
+    <string name="onboarding_later"></string>
+</resources>

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false"></string>
+    <!-- %1$s is the app name (R.string.app_name), never hardcoded. -->
+    <string name="exact_alarm_prompt_body"></string>
+    <!-- Warning for a vault folder that isn't on local storage (ui/vault/ProviderWarning.kt).
+         In the body, %1$s is the app name (R.string.app_name) and %2$s the provider app's
+         label (or provider_warning_fallback_name); the note and banner take only the label. -->
+    <string name="provider_warning_title"></string>
+    <string name="provider_warning_body"></string>
+    <string name="provider_warning_choose_another"></string>
+    <string name="provider_warning_use_anyway"></string>
+    <string name="provider_warning_settings_note"></string>
+    <string name="provider_warning_banner"></string>
+    <string name="provider_warning_learn_more"></string>
+    <string name="provider_warning_dismiss"></string>
+    <string name="provider_warning_fallback_name"></string>
+    <!-- Shared live search in the insert-link and refile pickers (ui/components/PickerSearch.kt). -->
+    <!-- Search Filters sheet -->
+    <string name="search_filters_title"></string>
+    <plurals name="search_filters_active_count">
+    </plurals>
+    <string name="search_filters_none_active"></string>
+    <string name="search_filters_reset"></string>
+    <string name="search_filters_tap_again_to_exclude"></string>
+    <string name="search_filters_section_notebook"></string>
+    <string name="search_filters_section_tags"></string>
+    <string name="search_filters_section_state"></string>
+    <string name="search_filters_section_scheduled"></string>
+    <string name="search_filters_section_deadline"></string>
+    <string name="search_filters_section_active"></string>
+    <string name="search_filters_section_closed"></string>
+    <string name="search_filters_section_created"></string>
+    <string name="search_filters_section_priority"></string>
+    <string name="search_filters_all_notebooks"></string>
+    <!-- Chip for headings with no TODO keyword -->
+    <string name="search_filters_no_state"></string>
+    <plurals name="search_filters_load_more">
+    </plurals>
+    <plurals name="search_filters_show_results">
+    </plurals>
+    <string name="search_filters_no_matches"></string>
+    <string name="search_filters_custom_range"></string>
+    <!-- Custom date range chip, e.g. "3 Oct – 9 Oct" -->
+    <string name="search_filters_range_format"></string>
+    <string name="date_preset_any"></string>
+    <string name="date_preset_today"></string>
+    <string name="date_preset_next_7_days"></string>
+    <string name="date_preset_overdue"></string>
+    <string name="date_preset_no_date"></string>
+    <string name="action_cancel"></string>
+    <string name="action_set"></string>
+    <!-- Search Filters sheet: hint inside the notebook/tag typeahead fields (40+ items) -->
+    <string name="search_filter_notebook_hint"></string>
+    <string name="search_filter_tag_hint"></string>
+    <string name="picker_search_placeholder"></string>
+    <string name="picker_search_results_header"></string>
+    <string name="picker_search_no_matches"></string>
+    <string name="picker_search_file_crumb"></string>
+    <string name="picker_search_heading_meta"></string>
+    <string name="picker_search_headings_placeholder"></string>
+    <string name="picker_search_headings_header"></string>
+    <string name="heading_id_tag"></string>
+    <string name="refile_search_stale_heading"></string>
+    <!-- Search's Quick Start cards (ui/search/QuickStarts.kt), also offered as Agenda widget views.
+         Keep in step with QuickStartOverrides.idForName, which matches these exact names. -->
+    <string name="quick_start_overdue"></string>
+    <string name="quick_start_today"></string>
+    <string name="quick_start_open_tasks"></string>
+    <string name="quick_start_unscheduled"></string>
+    <!-- Attachments: chooser titles (attach/AttachmentIntents.kt). -->
+    <string name="attach_open_with"></string>
+    <string name="attach_share"></string>
+    <string name="attach_empty_file_no_id"></string>
+    <!-- Outline: why a file can't open as one note (the disabled ⋮ › View file hint, and the toast
+         for a double-tap below the last heading). %1$d is the file's line count. -->
+    <plurals name="outline_whole_file_too_large">
+    </plurals>
+    <!-- Settings › Backup -->
+    <string name="backup_export"></string>
+    <string name="backup_import"></string>
+    <!-- Default file name for a settings backup; %1$s is the app name, lowercased with spaces as dashes. -->
+    <string name="backup_file_name" translatable="false"></string>
+</resources>
