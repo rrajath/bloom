@@ -1120,6 +1120,8 @@ private fun GroveNavigation(
                     onSetAgendaSwipeRightAction = viewModel::setAgendaSwipeRightAction,
                     onSetAgendaDeadlineWarningDays = viewModel::setAgendaDeadlineWarningDays,
                     onSetWeekStart = viewModel::setWeekStart,
+                    onSetAgendaCalendarShowTimes = viewModel::setAgendaCalendarShowTimes,
+                    onSetAgendaCalendarShowDone = viewModel::setAgendaCalendarShowDone,
                 )
             }
             settingsScreen(Routes.SETTINGS_WIDGET) {

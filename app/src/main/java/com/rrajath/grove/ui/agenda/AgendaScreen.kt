@@ -161,6 +161,7 @@ fun AgendaScreen(
                 date = state.headerDate,
                 todayCount = state.todayCount,
                 leversOpen = state.leversOpen,
+                showLevers = state.tab != AgendaTab.CALENDAR,
                 onBack = onBack,
                 onToggleLevers = viewModel::toggleLevers,
             )
@@ -171,7 +172,7 @@ fun AgendaScreen(
                 modifier = Modifier.padding(start = 14.dp, top = 11.dp, end = 14.dp, bottom = 14.dp),
             )
 
-            if (state.leversOpen) {
+            if (state.leversOpen && state.tab != AgendaTab.CALENDAR) {
                 LeversPanel(
                     state = state,
                     onGrouping = viewModel::setGrouping,
@@ -201,6 +202,8 @@ fun AgendaScreen(
                                 val next = when {
                                     total <= -threshold && currentTab == AgendaTab.TODAY -> AgendaTab.UPCOMING
                                     total >= threshold && currentTab == AgendaTab.UPCOMING -> AgendaTab.TODAY
+                                    total <= -threshold && currentTab == AgendaTab.UPCOMING -> AgendaTab.CALENDAR
+                                    total >= threshold && currentTab == AgendaTab.CALENDAR -> AgendaTab.UPCOMING
                                     else -> null
                                 }
                                 next?.let(viewModel::setTab)
@@ -208,7 +211,8 @@ fun AgendaScreen(
                         )
                     },
             ) {
-                AgendaList(
+                if (state.tab == AgendaTab.CALENDAR) AgendaCalendar(state, viewModel::setCalendar, onOpenNote)
+                else AgendaList(
                     listState = listState,
                     state = state,
                     onOpenNote = onOpenNote,
@@ -278,6 +282,7 @@ private fun AgendaHeader(
     date: String,
     todayCount: Int,
     leversOpen: Boolean,
+    showLevers: Boolean,
     onBack: () -> Unit,
     onToggleLevers: () -> Unit,
 ) {
@@ -306,7 +311,7 @@ private fun AgendaHeader(
             )
         }
         Spacer(Modifier.width(8.dp))
-        Box(
+        if (showLevers) Box(
             Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(11.dp))
@@ -348,6 +353,7 @@ private fun AgendaTabs(
         listOf(
             AgendaTab.TODAY to stringResource(R.string.agenda_tab_today),
             AgendaTab.UPCOMING to stringResource(R.string.agenda_tab_upcoming),
+            AgendaTab.CALENDAR to stringResource(R.string.agenda_tab_calendar),
         ).forEach { (value, label) ->
             val active = value == tab
             Box(

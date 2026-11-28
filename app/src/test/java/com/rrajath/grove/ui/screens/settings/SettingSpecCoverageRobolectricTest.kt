@@ -73,7 +73,7 @@ class SettingSpecCoverageRobolectricTest {
 
     @Test
     fun agenda() = assertPageTagsItsSpecs(SettingsPageId.AGENDA) {
-        SettingsAgendaScreen(settings, {}, {}, {}, {}, {})
+        SettingsAgendaScreen(settings, {}, {}, {}, {}, {}, {}, {})
     }
 
     @Test

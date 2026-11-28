@@ -704,6 +704,12 @@ class AppViewModel(
     fun setWeekStart(weekStart: WeekStart) =
         viewModelScope.launch { settingsRepository.setWeekStart(weekStart) }
 
+    fun setAgendaCalendarShowTimes(show: Boolean) =
+        viewModelScope.launch { settingsRepository.setAgendaCalendarShowTimes(show) }
+
+    fun setAgendaCalendarShowDone(show: Boolean) =
+        viewModelScope.launch { settingsRepository.setAgendaCalendarShowDone(show) }
+
     fun setAgendaWidgetDaysAhead(days: Int) =
         viewModelScope.launch { settingsRepository.setAgendaWidgetDaysAhead(days) }
 

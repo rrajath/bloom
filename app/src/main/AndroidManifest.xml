@@ -449,6 +449,42 @@
                 android:resource="@xml/ledger_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.CalendarWeekWidgetReceiver"
+            android:exported="true"
+            android:label="Calendar week">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_week_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CalendarTwoWeeksWidgetReceiver"
+            android:exported="true"
+            android:label="Calendar two weeks">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_two_weeks_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CalendarMonthWidgetReceiver"
+            android:exported="true"
+            android:label="Calendar month">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_month_widget_info" />
+        </receiver>
+
         <!--
           The Ledger widget's "+" button: same one-shot-errand pattern as
           RescheduleActivity below (empty taskAffinity, transparent window,

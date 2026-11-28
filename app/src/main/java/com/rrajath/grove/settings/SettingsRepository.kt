@@ -272,6 +272,12 @@ data class GroveSettings(
      * alongside whatever DEADLINE indicators a row already always shows.
      */
     val agendaShowTimestamps: Boolean = false,
+    /** Agenda Calendar tab span; remembered from the tab's own view button, not exported. */
+    val agendaCalendarView: AgendaCalendarView = AgendaCalendarView.MONTH,
+    /** Agenda Calendar tab: show each event's start time under its title. */
+    val agendaCalendarShowTimes: Boolean = true,
+    /** Agenda Calendar tab: also list completed tasks, instead of only open ones. */
+    val agendaCalendarShowDone: Boolean = false,
     /**
      * How many days before a DEADLINE the Agenda's Today tab starts listing it
      * under "Due soon" (Emacs's `org-deadline-warning-days`). A deadline's own
@@ -481,6 +487,9 @@ class SettingsRepository(
         val agendaShowTags = booleanPreferencesKey("agenda_show_tags")
         val agendaShowFile = booleanPreferencesKey("agenda_show_file")
         val agendaShowTimestamps = booleanPreferencesKey("agenda_show_timestamps")
+        val agendaCalendarView = stringPreferencesKey("agenda_calendar_view")
+        val agendaCalendarShowTimes = booleanPreferencesKey("agenda_calendar_show_times")
+        val agendaCalendarShowDone = booleanPreferencesKey("agenda_calendar_show_done")
         val agendaDeadlineWarningDays = intPreferencesKey("agenda_deadline_warning_days")
         val weekStart = stringPreferencesKey("week_start")
         val agendaWidgetTransparency = floatPreferencesKey("agenda_widget_transparency")
@@ -617,6 +626,9 @@ class SettingsRepository(
             agendaShowTags = prefs[Keys.agendaShowTags] ?: true,
             agendaShowFile = prefs[Keys.agendaShowFile] ?: false,
             agendaShowTimestamps = prefs[Keys.agendaShowTimestamps] ?: false,
+            agendaCalendarView = AgendaCalendarView.fromStorage(prefs[Keys.agendaCalendarView]),
+            agendaCalendarShowTimes = prefs[Keys.agendaCalendarShowTimes] ?: true,
+            agendaCalendarShowDone = prefs[Keys.agendaCalendarShowDone] ?: false,
             agendaDeadlineWarningDays = prefs[Keys.agendaDeadlineWarningDays]
                 ?: GroveSettings.DEFAULT_AGENDA_DEADLINE_WARNING_DAYS,
             weekStart = WeekStart.fromStorage(prefs[Keys.weekStart]),
@@ -763,6 +775,8 @@ class SettingsRepository(
             p[Keys.agendaShowTags] = s.agendaShowTags
             p[Keys.agendaShowFile] = s.agendaShowFile
             p[Keys.agendaShowTimestamps] = s.agendaShowTimestamps
+            p[Keys.agendaCalendarShowTimes] = s.agendaCalendarShowTimes
+            p[Keys.agendaCalendarShowDone] = s.agendaCalendarShowDone
             p[Keys.agendaDeadlineWarningDays] = s.agendaDeadlineWarningDays
             p[Keys.weekStart] = s.weekStart.storageKey
             p[Keys.agendaWidgetTransparency] = s.agendaWidgetTransparency
@@ -1138,6 +1152,18 @@ class SettingsRepository(
 
     suspend fun setAgendaShowTimestamps(show: Boolean) {
         editSettings { it[Keys.agendaShowTimestamps] = show }
+    }
+
+    suspend fun setAgendaCalendarView(view: AgendaCalendarView) {
+        editSettings { it[Keys.agendaCalendarView] = view.storageKey }
+    }
+
+    suspend fun setAgendaCalendarShowTimes(show: Boolean) {
+        editSettings { it[Keys.agendaCalendarShowTimes] = show }
+    }
+
+    suspend fun setAgendaCalendarShowDone(show: Boolean) {
+        editSettings { it[Keys.agendaCalendarShowDone] = show }
     }
 
     suspend fun setAgendaDeadlineWarningDays(days: Int) {

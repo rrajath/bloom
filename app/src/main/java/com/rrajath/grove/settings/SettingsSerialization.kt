@@ -167,6 +167,8 @@ data class SettingsExport(
     val agendaShowTags: Boolean = true,
     val agendaShowFile: Boolean = false,
     val agendaShowTimestamps: Boolean = false,
+    val agendaCalendarShowTimes: Boolean = true,
+    val agendaCalendarShowDone: Boolean = false,
     val agendaDeadlineWarningDays: Int = GroveSettings.DEFAULT_AGENDA_DEADLINE_WARNING_DAYS,
     val weekStart: String = WeekStart.SYSTEM.storageKey,
     val agendaWidgetTransparency: Float = 0f,
@@ -263,6 +265,8 @@ data class SettingsExport(
         agendaShowTags = agendaShowTags,
         agendaShowFile = agendaShowFile,
         agendaShowTimestamps = agendaShowTimestamps,
+        agendaCalendarShowTimes = agendaCalendarShowTimes,
+        agendaCalendarShowDone = agendaCalendarShowDone,
         agendaDeadlineWarningDays = agendaDeadlineWarningDays.coerceIn(0, GroveSettings.MAX_AGENDA_DEADLINE_WARNING_DAYS),
         weekStart = WeekStart.fromStorage(weekStart),
         agendaWidgetTransparency = agendaWidgetTransparency.coerceIn(0f, 1f),
@@ -338,6 +342,8 @@ data class SettingsExport(
         // it and import as System default; an unknown value also imports as that.
         // v19: added showLineNumbers (Settings § Notes). Additive: older exports omit
         // it and import as off, the default.
+        // v20: added agendaCalendarShowTimes and agendaCalendarShowDone (Settings § Agenda).
+        // Additive: older exports omit them and import as times shown, completed tasks hidden.
         const val CURRENT_VERSION = 19
 
         fun fromSettings(s: GroveSettings): SettingsExport = SettingsExport(
@@ -397,6 +403,8 @@ data class SettingsExport(
             agendaShowTags = s.agendaShowTags,
             agendaShowFile = s.agendaShowFile,
             agendaShowTimestamps = s.agendaShowTimestamps,
+            agendaCalendarShowTimes = s.agendaCalendarShowTimes,
+            agendaCalendarShowDone = s.agendaCalendarShowDone,
             agendaDeadlineWarningDays = s.agendaDeadlineWarningDays,
             weekStart = s.weekStart.storageKey,
             agendaWidgetTransparency = s.agendaWidgetTransparency,
