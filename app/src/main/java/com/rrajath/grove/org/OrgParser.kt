@@ -108,31 +108,84 @@ class OrgDocument(
     }
 
     /**
-     * A leading file-level `:PROPERTIES: … :END:` drawer (before the first
-     * headline and before any `#+KEY:` lines), as ordered `:KEY:` → value
-     * pairs in file order. Empty when the preamble has no such drawer, or when
-     * the drawer is unclosed (degrades exactly like [introStart], which
-     * treats an unclosed drawer as prose). The drawer must start on the very
-     * first line of the file, matching org-mode's file-level property drawer
-     * rule and [introStart]'s own check.
+     * File-level `#+TITLE:` value from the preamble (before the first headline),
+     * or null when the file has no `#+TITLE:` line. Checks [preambleKeywords]
+     * first and falls back to scanning the rest of the preamble (outside
+     * `#+BEGIN_…`/`#+END_…` blocks) so `#+TITLE:` is still found if non-keyword
+     * lines precede it.
      */
-    val filePropertyDrawer: List<Pair<String, String>> by lazy {
-        if (preambleEnd == 0 ||
-            !lines[0].trim().equals(":PROPERTIES:", ignoreCase = true)
-        ) {
-            emptyList()
-        } else {
-            val end = (1 until preambleEnd).firstOrNull {
-                lines[it].trim().equals(":END:", ignoreCase = true)
-            }
-            if (end == null) {
-                emptyList()
-            } else {
-                (1 until end).mapNotNull { i ->
-                    OrgParser.PROPERTY_LINE.matchEntire(lines[i])?.let { m ->
-                        ":${m.groupValues[1]}:" to m.groupValues[2].trim()
+    val fileTitle: String? by lazy {
+        preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }?.second
+            ?: run {
+                var inBlock: String? = null
+                for (i in introStart until preambleEnd) {
+                    val trimmed = lines[i].trim()
+                    if (inBlock != null) {
+                        val endMatch = OrgParser.BLOCK_END.matchEntire(trimmed)
+                        if (endMatch != null && endMatch.groupValues[1].equals(inBlock, ignoreCase = true)) {
+                            inBlock = null
+                        }
+                        continue
+                    }
+                    val beginMatch = OrgParser.BLOCK_BEGIN.matchEntire(trimmed)
+                    if (beginMatch != null) {
+                        inBlock = beginMatch.groupValues[1]
+                        continue
+                    }
+                    val kw = OrgParser.PREAMBLE_KEYWORD.matchEntire(trimmed) ?: continue
+                    if (kw.groupValues[1].equals("TITLE", ignoreCase = true)) {
+                        return@run kw.groupValues[2].trim()
                     }
                 }
+                null
+            }
+    }
+
+    /**
+     * Line index of the first line that isn't a `# ` comment line (such as an
+     * Emacs `# -*- ... -*-` file-local variable header): where the file-level
+     * property drawer must start, and where a new one is inserted. Mirrors
+     * org-mode's `org-get-property-block` / `org-insert-property-drawer`, which
+     * skip leading comment lines only, not blank lines.
+     */
+    internal val fileDrawerSlot: Int by lazy {
+        var i = 0
+        while (i < preambleEnd && OrgParser.isCommentLine(lines[i])) i++
+        i
+    }
+
+    /**
+     * Inclusive line range (drawer markers included) of the leading file-level
+     * `:PROPERTIES: … :END:` drawer, or null when there is no such closed drawer
+     * at the top of the file. The drawer must open on [fileDrawerSlot]: the first
+     * line, or right after leading comment lines. A blank line before it means
+     * it isn't the file drawer, as in org-mode.
+     */
+    internal val fileDrawerLineRange: IntRange? by lazy {
+        val i = fileDrawerSlot
+        if (i >= preambleEnd || !lines[i].trim().equals(":PROPERTIES:", ignoreCase = true)) {
+            null
+        } else {
+            val end = (i + 1 until preambleEnd).firstOrNull {
+                lines[it].trim().equals(":END:", ignoreCase = true)
+            }
+            if (end == null) null else i..end
+        }
+    }
+
+    /**
+     * A leading file-level `:PROPERTIES: … :END:` drawer (before the first
+     * headline and before any `#+KEY:` lines, optionally preceded by `# `
+     * comment lines), as ordered `:KEY:` → value pairs in file order.
+     * Empty when the preamble has no such drawer, or when the drawer is
+     * unclosed (degrades exactly like [introStart], which treats an unclosed
+     * drawer as prose).
+     */
+    val filePropertyDrawer: List<Pair<String, String>> by lazy {
+        val range = fileDrawerLineRange ?: return@lazy emptyList()
+        (range.first + 1 until range.last).mapNotNull { i ->
+            OrgParser.PROPERTY_LINE.matchEntire(lines[i])?.let { m ->
+                ":${m.groupValues[1]}:" to m.groupValues[2].trim()
             }
         }
     }
@@ -149,21 +202,15 @@ class OrgDocument(
     /**
      * First line index of the intro: the real content in the preamble (the region
      * before the first headline). Skips a leading file-level `:PROPERTIES: … :END:`
-     * drawer, `#+KEY:` lines and blank lines. Equals [preambleEnd] when the preamble
-     * is only a property drawer / keywords / blank lines (the common case).
+     * drawer, `#+KEY:` lines, `# ` comment lines (including Emacs `-*-` headers),
+     * and blank lines. Equals [preambleEnd] when the preamble has no real prose.
      */
     val introStart: Int by lazy {
-        var i = 0
-        if (i < preambleEnd && lines[i].trim().equals(":PROPERTIES:", ignoreCase = true)) {
-            val end = (i + 1 until preambleEnd).firstOrNull {
-                lines[it].trim().equals(":END:", ignoreCase = true)
-            }
-            if (end != null) i = end + 1
-        }
+        var i = fileDrawerLineRange?.let { it.last + 1 } ?: 0
         while (i < preambleEnd) {
             val line = lines[i]
             val isKeyword = OrgParser.PREAMBLE_KEYWORD.matchEntire(line.trim()) != null
-            if (line.isNotBlank() && !isKeyword) break
+            if (line.isNotBlank() && !isKeyword && !OrgParser.isCommentLine(line)) break
             i++
         }
         i
@@ -303,6 +350,18 @@ object OrgParser {
     private val PLANNING_PART = Regex("""(SCHEDULED|DEADLINE|CLOSED):\s*""")
 
     internal val PREAMBLE_KEYWORD = Regex("""^#\+([A-Za-z][A-Za-z0-9_-]*):(.*)$""")
+    internal val BLOCK_BEGIN = Regex("""^#\+(?i:BEGIN_)(\S+)(?:\s.*)?$""")
+    internal val BLOCK_END = Regex("""^#\+(?i:END_)(\S+)$""")
+
+    /**
+     * Org-mode comment line: optional leading whitespace, `#`, then whitespace
+     * or end-of-line (e.g. `# -*- mode: org; -*-`, `# note`, or bare `#`).
+     * Distinct from `#+KEY:` keyword lines, where `#` is followed by `+`.
+     */
+    internal fun isCommentLine(line: String): Boolean {
+        val t = line.trimStart()
+        return t == "#" || (t.length >= 2 && t[0] == '#' && t[1].isWhitespace())
+    }
 
     fun parse(text: String, keywords: OrgKeywords = OrgKeywords.DEFAULT): OrgDocument {
         val lines = text.split("\n")

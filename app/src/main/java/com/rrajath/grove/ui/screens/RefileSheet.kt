@@ -155,7 +155,7 @@ fun RefileSheet(
             .joinToString(" › ")
     }
 
-    ModalBottomSheet(
+    com.rrajath.grove.ui.components.GroveModalBottomSheet(
         onDismissRequest = onCancel,
         containerColor = c.surface,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),

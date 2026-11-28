@@ -44,6 +44,8 @@
     <string name="agenda_section_scheduled_today">Scheduled today</string>
     <!-- Deadlines coming up within their warning period, shown on the Today tab. -->
     <string name="agenda_section_due_soon">Due soon</string>
+    <!-- Today tab: open tasks whose SCHEDULED date has passed but whose deadline (if any) hasn't. -->
+    <string name="agenda_section_carried_over">Carried over</string>
     <!-- Items whose date has passed. -->
     <string name="agenda_section_overdue">Overdue</string>
     <!-- "Group by: Priority" section for org priority A, B or C. %1$s is the letter. -->

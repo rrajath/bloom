@@ -4,11 +4,14 @@ import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Direction
+import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import com.rrajath.grove.macrobenchmark.BenchmarkVault.awaitNotebooks
 import com.rrajath.grove.macrobenchmark.BenchmarkVault.awaitObject
 import com.rrajath.grove.macrobenchmark.BenchmarkVault.awaitSelector
+import com.rrajath.grove.macrobenchmark.BenchmarkVault.backTo
 import com.rrajath.grove.macrobenchmark.BenchmarkVault.withSeededVault
 import java.util.regex.Pattern
 import org.junit.Rule
@@ -118,8 +121,7 @@ class BaselineProfileGenerator {
         device.findObject(By.res(BenchmarkVault.SEARCH_RESULT_ROW)).click()
         device.awaitObject(BenchmarkVault.READ_NOTE_SCROLL, "Read note")
         device.waitForIdle()
-        device.pressBack()
-        device.awaitObject(BenchmarkVault.SEARCH_RESULTS_LIST, "Search results")
+        device.backTo(BenchmarkVault.READ_NOTE_SCROLL, BenchmarkVault.SEARCH_RESULTS_LIST, "Search results")
         // Search spends Back in stages: hide the keyboard (the field refocuses on
         // return from Read), clear the query, then leave.
         repeat(MAX_BACKS_OUT_OF_SEARCH) {
@@ -131,16 +133,42 @@ class BaselineProfileGenerator {
 
     /** Agenda from the drawer. */
     private fun MacrobenchmarkScope.agendaJourney() {
-        device.awaitSelector(By.text("☰"), "Drawer button").click()
-        device.awaitSelector(By.text("Agenda"), "Agenda drawer item").click()
+        // The drawer item exists as soon as the open animation starts; a tap while it
+        // is still sliding in doesn't navigate. Tap once its bounds settle, and retry.
+        for (attempt in 1..MAX_DRAWER_ATTEMPTS) {
+            if (!device.hasObject(By.text("Agenda"))) {
+                device.awaitSelector(By.text("☰"), "Drawer button").click()
+            }
+            awaitSettled(By.text("Agenda"), "Agenda drawer item").click()
+            if (device.wait(Until.hasObject(By.res(BenchmarkVault.AGENDA_LIST)), DRAWER_NAV_MS)) break
+        }
+        // waitForIdle can return mid drawer-close/nav transition; a Back sent
+        // before Agenda is on screen lands on Notebooks and exits the app.
+        device.awaitObject(BenchmarkVault.AGENDA_LIST, "Agenda list")
         device.waitForIdle()
         device.pressBack()
         device.awaitNotebooks()
     }
 
+    /** Wait for [selector], then until its on-screen bounds stop moving (an animation ended). */
+    private fun MacrobenchmarkScope.awaitSettled(selector: BySelector, what: String): UiObject2 {
+        var last = device.awaitSelector(selector, what).visibleBounds
+        repeat(MAX_SETTLE_POLLS) {
+            Thread.sleep(SETTLE_POLL_MS)
+            val now = device.awaitSelector(selector, what).visibleBounds
+            if (now == last) return device.awaitSelector(selector, what)
+            last = now
+        }
+        return device.awaitSelector(selector, what)
+    }
+
     private companion object {
         const val LONG_PRESS_MS = 800L
         const val MAX_BACKS_OUT_OF_SEARCH = 4
+        const val MAX_DRAWER_ATTEMPTS = 3
+        const val DRAWER_NAV_MS = 5_000L
+        const val MAX_SETTLE_POLLS = 20
+        const val SETTLE_POLL_MS = 100L
 
         /** The row reads its `#+TITLE:` ("Projects") once indexed, the file name before. */
         val PROJECTS_ROW: Pattern = Pattern.compile("(?i)projects(\\.org)?")

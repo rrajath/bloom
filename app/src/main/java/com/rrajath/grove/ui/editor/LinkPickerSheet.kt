@@ -107,7 +107,7 @@ fun LinkPickerSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    com.rrajath.grove.ui.components.GroveModalBottomSheet(
         onDismissRequest = onCancel,
         sheetState = sheetState,
         containerColor = c.surface,

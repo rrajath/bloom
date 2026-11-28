@@ -41,6 +41,7 @@ import com.rrajath.grove.ui.vault.allFolderDirs
 import com.rrajath.grove.vault.TestVaultHook
 import com.rrajath.grove.vault.Vault
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -124,13 +125,18 @@ class CaptureViewModel(
         database.headingOutlines.snapshot().autoLinkIndex()
 
     // Property-key suggestions: how often the vault uses each drawer key, loaded
-    // once when an editor opens (cached vault-wide in HeadingOutlineCache, so this
-    // is a map lookup unless the index changed). Not settings-gated.
+    // when a property key is first typed (rememberPropertyKeySuggestions), not on
+    // open. Cached vault-wide in HeadingOutlineCache, so a reload is a map lookup
+    // unless the index changed. Not settings-gated.
     private val _propertyKeyCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
     val propertyKeyCounts: StateFlow<Map<String, Int>> = _propertyKeyCounts
+    private var propertyKeyCountsJob: Job? = null
 
     fun loadPropertyKeyCounts() {
-        viewModelScope.launch { _propertyKeyCounts.value = database.headingOutlines.propertyKeyCounts() }
+        if (propertyKeyCountsJob?.isActive == true) return
+        propertyKeyCountsJob = viewModelScope.launch {
+            _propertyKeyCounts.value = database.headingOutlines.propertyKeyCounts()
+        }
     }
 
     // Selection-triggered roam-node suggestions inside a Roam-kind capture

@@ -1396,7 +1396,7 @@ private fun MoveToFolderSheet(
         drillLevel(notebooks, pickerDir).childFolders
     }
 
-    ModalBottomSheet(
+    com.rrajath.grove.ui.components.GroveModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = c.surface,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),

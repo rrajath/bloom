@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,17 +18,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -46,17 +58,94 @@ import com.rrajath.grove.ui.vault.OutlineSnack
 import com.rrajath.grove.ui.vault.OutlineToast
 
 /**
+ * Coordinates [GroveToast] between a screen's main window and any open
+ * [GroveModalBottomSheet] dialog window. While at least one sheet is open,
+ * screen-level [GroveToast]s hide themselves and the sheet renders the active
+ * toast above its own content so it never sits behind the scrim.
+ */
+class SheetToastState {
+    var toast by mutableStateOf<OutlineToast?>(null)
+    var openSheets by mutableIntStateOf(0)
+}
+
+val LocalSheetToast = compositionLocalOf<SheetToastState?> { null }
+
+/**
+ * Registers [toast] so any [GroveModalBottomSheet] opened within [content]
+ * automatically renders it above the sheet and suppresses the underlying
+ * screen's [GroveToast] while the sheet is open.
+ */
+@Composable
+fun ProvideSheetToast(toast: OutlineToast?, content: @Composable () -> Unit) {
+    val state = remember { SheetToastState() }
+    state.toast = toast
+    CompositionLocalProvider(LocalSheetToast provides state, content = content)
+}
+
+/**
+ * Bloom's shared [ModalBottomSheet] wrapper: applies the standard `surface`
+ * fill and 24dp top corners, and automatically renders the active [GroveToast]
+ * (from [toast] or [LocalSheetToast]) inside the sheet's own dialog window so
+ * toasts triggered while any sheet is open always appear above it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GroveModalBottomSheet(
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    sheetState: SheetState = rememberModalBottomSheetState(),
+    shape: Shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    containerColor: Color = MaterialTheme.grove.surface,
+    scrimColor: Color = BottomSheetDefaults.ScrimColor,
+    dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
+    toast: OutlineToast? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val sheetToast = LocalSheetToast.current
+    DisposableEffect(sheetToast) {
+        sheetToast?.let { it.openSheets += 1 }
+        onDispose { sheetToast?.let { it.openSheets = (it.openSheets - 1).coerceAtLeast(0) } }
+    }
+    val activeToast = toast ?: sheetToast?.toast
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        sheetState = sheetState,
+        shape = shape,
+        containerColor = containerColor,
+        scrimColor = scrimColor,
+        dragHandle = dragHandle,
+    ) {
+        Box {
+            Column(Modifier.fillMaxWidth(), content = content)
+            GroveToast(
+                toast = activeToast,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp),
+                inSheet = true,
+            )
+        }
+    }
+}
+
+/**
  * Bottom-center dark pill toast (design spec: ink bg, bg-color text, ~1.9s;
  * the ViewModel owns the timer). Render inside a full-size Box.
  */
 @Composable
-fun GroveToast(toast: OutlineToast?, modifier: Modifier = Modifier) {
+fun GroveToast(
+    toast: OutlineToast?,
+    modifier: Modifier = Modifier,
+    inSheet: Boolean = false,
+) {
     val c = MaterialTheme.grove
+    val hiddenBySheet = !inSheet && (LocalSheetToast.current?.openSheets ?: 0) > 0
     // Keep the last message so the exit animation doesn't show an empty pill.
     var lastMessage by remember { mutableStateOf<UiText>(UiText.raw("")) }
     toast?.let { lastMessage = it.message }
     AnimatedVisibility(
-        visible = toast != null,
+        visible = toast != null && !hiddenBySheet,
         enter = fadeIn() + slideInVertically { it / 2 },
         exit = fadeOut() + slideOutVertically { it / 2 },
         modifier = modifier,

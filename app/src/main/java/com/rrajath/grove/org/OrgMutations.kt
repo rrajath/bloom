@@ -429,6 +429,7 @@ object OrgMutations {
      * scopes itself to.
      */
     fun prefaceRange(doc: OrgDocument): IntRange? {
+        if (doc.preambleKeywords.isEmpty()) return null
         val start = fileDrawerRange(doc)?.let { it.last + 1 } ?: 0
         val end = (start until doc.introStart).lastOrNull { doc.lines[it].isNotBlank() }
             ?: return null
@@ -450,20 +451,10 @@ object OrgMutations {
     /**
      * Inclusive line range (drawer markers included) of the leading file-level
      * `:PROPERTIES: … :END:` drawer, or null when there is no such closed drawer
-     * on the very first line. Mirrors [OrgDocument.filePropertyDrawer]'s rules;
+     * at the top of the file. Mirrors [OrgDocument.filePropertyDrawer]'s rules;
      * this is the raw region a drawer editor scopes itself to.
      */
-    fun fileDrawerRange(doc: OrgDocument): IntRange? {
-        if (doc.preambleEnd == 0 ||
-            !doc.lines[0].trim().equals(":PROPERTIES:", ignoreCase = true)
-        ) {
-            return null
-        }
-        val end = (1 until doc.preambleEnd).firstOrNull {
-            doc.lines[it].trim().equals(":END:", ignoreCase = true)
-        } ?: return null
-        return 0..end
-    }
+    fun fileDrawerRange(doc: OrgDocument): IntRange? = doc.fileDrawerLineRange
 
     /**
      * Inclusive line range (drawer markers included) of [h]'s `:PROPERTIES:` or
@@ -1289,8 +1280,9 @@ object OrgMutations {
     /**
      * Set [key] to [value] in the file-level `:PROPERTIES:` drawer (the one
      * [OrgDocument.filePropertyDrawer] reads), replacing an existing entry for
-     * that key or adding one before `:END:`. Creates the drawer on line 0, above
-     * any `#+TITLE:` lines, when the file has none.
+     * that key or adding one before `:END:`. Creates the drawer above any
+     * `#+TITLE:` lines when the file has none: on line 0, or below leading
+     * comment lines such as an Emacs `# -*- … -*-` header ([OrgDocument.fileDrawerSlot]).
      */
     fun upsertFileProperty(doc: OrgDocument, key: String, value: String): String {
         val lines = doc.lines.toMutableList()
@@ -1304,7 +1296,7 @@ object OrgMutations {
                 lines.add(range.last, newLine)
             }
         } else {
-            lines.addAll(0, listOf(":PROPERTIES:", newLine, ":END:"))
+            lines.addAll(doc.fileDrawerSlot, listOf(":PROPERTIES:", newLine, ":END:"))
         }
         return lines.joinToString("\n")
     }

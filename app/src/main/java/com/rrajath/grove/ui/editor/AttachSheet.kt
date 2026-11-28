@@ -85,6 +85,7 @@ import com.rrajath.grove.attach.badgeFor
 import com.rrajath.grove.attach.categoryOf
 import com.rrajath.grove.attach.formatCopyBytes
 import com.rrajath.grove.ui.attach.attachmentMemoryCacheKey
+import com.rrajath.grove.ui.components.GroveModalBottomSheet
 import com.rrajath.grove.ui.components.GroveProgressSnackbar
 import com.rrajath.grove.ui.components.GroveToast
 import com.rrajath.grove.ui.components.SegmentedControl
@@ -197,7 +198,7 @@ internal fun AttachSheet(
 ) {
     val c = MaterialTheme.grove
     MarkNewFeatureSeen(NewAnchors.EDITOR_ATTACH_SHEET)
-    ModalBottomSheet(
+    GroveModalBottomSheet(
         onDismissRequest = onDismiss,
         // Keep the sheet below the status bar. M3 pads the content by however much of the
         // status bar the sheet's current offset overlaps, so a sheet nearly as tall as the
@@ -218,12 +219,9 @@ internal fun AttachSheet(
                     .background(c.line2),
             )
         },
+        toast = toast,
     ) {
-        Box {
-            AttachSheetContent(model, cameraAvailable, onPick, onInsert, onOpen, onDelete, onSelectScope, onLoadMore, thumbnailUri, onHint)
-            // The sheet is its own window, so list-action toasts are drawn inside it.
-            GroveToast(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
-        }
+        AttachSheetContent(model, cameraAvailable, onPick, onInsert, onOpen, onDelete, onSelectScope, onLoadMore, thumbnailUri, onHint)
     }
 }
 

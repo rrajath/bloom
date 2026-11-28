@@ -79,7 +79,9 @@ import com.rrajath.grove.org.OrgHeadline
 import com.rrajath.grove.org.OrgTimestamp
 import com.rrajath.grove.settings.FontSizePreference
 import com.rrajath.grove.settings.NewNoteCursor
+import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.ui.attach.AttachDirNoticeDialog
+import com.rrajath.grove.ui.attach.HeadingDeleteAttachmentsSheet
 import com.rrajath.grove.ui.components.EditorFabCompactWidth
 import com.rrajath.grove.ui.components.EditorFabMorphMillis
 import com.rrajath.grove.ui.components.ReadEditToggle
@@ -160,6 +162,9 @@ fun EditNoteScreen(
     var confirmDiscardBlankHeading by remember { mutableStateOf(false) }
     var showEmptyHeadingAlert by remember { mutableStateOf(false) }
     var confirmRefile by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var deleteInventory by remember { mutableStateOf<AttachmentInventory?>(null) }
+    val deleteScope = rememberCoroutineScope()
     // Timestamp of the most recent save (auto or manual), shown as a tappable
     // save (floppy) icon in the top bar: green + tap-to-save-now while dirty,
     // grey + tap-for-last-saved-toast once clean. Tracked in the ViewModel
@@ -322,10 +327,7 @@ fun EditNoteScreen(
     }
 
     LaunchedEffect(noteRef) { if (!resumedDirty) viewModel.load(noteRef) }
-    LaunchedEffect(Unit) {
-        viewModel.loadAutoLinkIndex()
-        viewModel.loadPropertyKeyCounts()
-    }
+    LaunchedEffect(Unit) { viewModel.loadAutoLinkIndex() }
     LaunchedEffect(state.loading) {
         if (!state.loading && state.error == null) {
             if (isNewNote && !resumedDirty) {
@@ -410,7 +412,9 @@ fun EditNoteScreen(
     val blockTrigger by rememberBlockTrigger(textState)
     val propertyKeyCounts by viewModel.propertyKeyCounts.collectAsStateWithLifecycle()
     val propertyKeyTrigger by rememberPropertyKeyTrigger(textState)
-    val propertyKeySuggestions = rememberPropertyKeySuggestions(textState, propertyKeyTrigger, propertyKeyCounts)
+    val propertyKeySuggestions = rememberPropertyKeySuggestions(
+        textState, propertyKeyTrigger, propertyKeyCounts, viewModel::loadPropertyKeyCounts,
+    )
     val highlight = remember(c, state.keywords) {
         OrgSyntaxHighlight(c, state.keywords, trailingBlankLines = EditorBottomMarginLines)
     }
@@ -771,7 +775,66 @@ fun EditNoteScreen(
                 metadataOpen = false
                 confirmRefile = true
             },
+            onIdCopied = {
+                android.widget.Toast.makeText(
+                    context,
+                    resources.getString(R.string.metadata_toast_org_id_copied),
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            },
+            onDelete = {
+                metadataOpen = false
+                deleteScope.launch {
+                    val inv = viewModel.headingDeleteAttachments()
+                    if (inv.isEmpty) confirmDelete = true else deleteInventory = inv
+                }
+            },
             onDismiss = { metadataOpen = false },
+        )
+    }
+
+    deleteInventory?.let { inv ->
+        val title = remember(state.buffer, state.keywords) { viewModel.currentHeadline?.title }
+        HeadingDeleteAttachmentsSheet(
+            title = title,
+            count = 1,
+            inventory = inv,
+            onDelete = { deleteAttachments ->
+                deleteInventory = null
+                viewModel.deleteSubtree(attachments = inv.takeIf { deleteAttachments }, onDeleted = onBack)
+            },
+            onDismiss = { deleteInventory = null },
+        )
+    }
+
+    if (confirmDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = c.surface,
+            title = {
+                Text(
+                    stringResource(R.string.outline_delete_one_title),
+                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp, color = c.ink,
+                )
+            },
+            text = {
+                Text(
+                    stringResource(R.string.outline_delete_one_body),
+                    fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmDelete = false
+                    viewModel.deleteSubtree(onDeleted = onBack)
+                }) { Text(stringResource(R.string.action_delete), color = c.red, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.action_cancel), color = c.ink2)
+                }
+            },
         )
     }
 

@@ -721,6 +721,10 @@ interface ReminderDao {
         NotebookEntity::class, NoteEntity::class, FtsMapEntity::class,
         SyncLogEntity::class, ReminderEntity::class,
     ],
+    // v22: parser now skips `# ` comment lines (e.g. Emacs `-*-` headers) in the
+    // preamble and scans `#+TITLE:` across the whole preamble. No column change;
+    // destructive migration drops the rebuildable index so already-indexed files
+    // pick up their title and drop any bogus comment-line intro row.
     // v21: added NoteEntity.propertyKeys / NotebookEntity.propertyKeys (the
     // keys of each heading's or file's property drawer, so the editor can
     // suggest property keys ranked by how often the vault uses them).
@@ -787,7 +791,7 @@ interface ReminderDao {
     // v5: added NotebookEntity.isIndexed (stub vs fully-parsed notebook rows);
     // v4: added NotebookEntity.title (cached #+TITLE: preamble value). Destructive
     // migration drops the index so the next sync rebuilds it from the .org files.
-    version = 21,
+    version = 22,
     exportSchema = false,
 )
 abstract class GroveDatabase : RoomDatabase() {

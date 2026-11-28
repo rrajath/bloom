@@ -131,13 +131,15 @@
     <!-- %1$s = the typed tag name. -->
     <string name="metadata_tag_create">Create tag “%1$s”</string>
     <string name="metadata_tag_remove_hint">tap an existing tag to remove it</string>
-    <!-- Actions under the dates. Keep the leading symbol. -->
-    <string name="metadata_add_note">+ Add note</string>
+    <!-- Action tiles under the dates (short labels for a 3-column icon-above-label grid). -->
+    <string name="metadata_add_note">Add note</string>
     <string name="metadata_refile">Refile</string>
-    <string name="metadata_favorite">★ Favorite</string>
-    <string name="metadata_unfavorite">★ Unfavorite</string>
+    <string name="metadata_favorite">Favorite</string>
+    <string name="metadata_unfavorite">Favorited</string>
     <!-- org-id is the org-mode ID property; keep the term. -->
-    <string name="metadata_generate_id">+ Generate org-id</string>
+    <string name="metadata_generate_id">Generate org-id</string>
+    <string name="metadata_copy_id">Copy ID</string>
+    <string name="metadata_toast_org_id_copied">Org-ID copied</string>
     <!-- Placeholder when a heading has no dates. -->
     <string name="metadata_set_date">set date…</string>
     <!-- After SCHEDULED / DEADLINE when several headings are selected and their dates differ. -->

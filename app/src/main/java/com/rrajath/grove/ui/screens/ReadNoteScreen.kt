@@ -55,7 +55,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.rrajath.grove.R
 import com.rrajath.grove.ui.components.GroveDropdownMenu
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -113,12 +115,15 @@ import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.components.CollapsibleLogSection
 import com.rrajath.grove.ui.components.FavoriteStar
 import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.components.ProvideSheetToast
+import com.rrajath.grove.attach.AttachmentInventory
 import com.rrajath.grove.attach.ParagraphSegment
 import com.rrajath.grove.attach.attrOrgWidth
 import com.rrajath.grove.attach.hasImageLink
 import com.rrajath.grove.attach.isAttrOnlyRun
 import com.rrajath.grove.attach.splitParagraphAtImages
 import com.rrajath.grove.ui.attach.AttachmentImage
+import com.rrajath.grove.ui.attach.HeadingDeleteAttachmentsSheet
 import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
 import com.rrajath.grove.ui.attach.LocalAttachmentRender
 import com.rrajath.grove.ui.attach.chipLinksIn
@@ -241,7 +246,11 @@ fun ReadNoteScreen(
         { target -> viewModel.openOrgLink(target, noteRef.fileName, onOpenNote, onOpenOutline, scopeNote = noteRef) }
     }
     val showToast: (String) -> Unit = remember(viewModel) { { message -> viewModel.showToast(message) } }
+    val resources = LocalResources.current
+    val deleteScope = rememberCoroutineScope()
     var metadataOpen by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var deleteInventory by remember { mutableStateOf<AttachmentInventory?>(null) }
     // Set on a completed move (refileConfirm/refileToArchive/refileToLastUsed), not a plain
     // cancel/back-out. The move itself (file write + the "Refiled to X" snack) runs async in
     // viewModel.viewModelScope *after* `refile` is already nulled out to close the sheet, so
@@ -295,6 +304,7 @@ fun ReadNoteScreen(
     // document.
     LaunchedEffect(noteRef.fileName, pendingEdit) { viewModel.load(noteRef.fileName) }
 
+    ProvideSheetToast(toast) {
     Scaffold(
         containerColor = c.bg,
         topBar = {
@@ -560,9 +570,66 @@ fun ReadNoteScreen(
                 showFavorite = true,
                 isFavorite = favorites.any { it.matches(headline) },
                 onToggleFavorite = { viewModel.toggleFavorite(headline) },
+                onIdCopied = { viewModel.showToast(resources.getString(R.string.metadata_toast_org_id_copied)) },
+                onDelete = {
+                    metadataOpen = false
+                    deleteScope.launch {
+                        val inv = viewModel.headingDeleteAttachments(setOf(headline.lineIndex))
+                        if (inv.isEmpty) confirmDelete = true else deleteInventory = inv
+                    }
+                },
                 onDismiss = { metadataOpen = false },
             )
         }
+    }
+
+    val deleteHeadline = currentHeadline
+    deleteInventory?.let { inv ->
+        if (deleteHeadline != null) {
+            HeadingDeleteAttachmentsSheet(
+                title = deleteHeadline.title,
+                count = 1,
+                inventory = inv,
+                onDelete = { deleteAttachments ->
+                    refileAwaitingLeave = true
+                    viewModel.deleteNotes(setOf(deleteHeadline.lineIndex), inv.takeIf { deleteAttachments })
+                    deleteInventory = null
+                },
+                onDismiss = { deleteInventory = null },
+            )
+        }
+    }
+
+    if (confirmDelete && deleteHeadline != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = c.surface,
+            title = {
+                Text(
+                    stringResource(R.string.outline_delete_one_title),
+                    fontFamily = PlexSans, fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp, color = c.ink,
+                )
+            },
+            text = {
+                Text(
+                    stringResource(R.string.outline_delete_one_body),
+                    fontFamily = PlexSans, fontSize = 14.sp, color = c.ink2,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    refileAwaitingLeave = true
+                    viewModel.deleteNotes(setOf(deleteHeadline.lineIndex))
+                    confirmDelete = false
+                }) { Text(stringResource(R.string.action_delete), color = c.red, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.action_cancel), color = c.ink2)
+                }
+            },
+        )
     }
 
     refileState?.let { refile ->
@@ -580,6 +647,7 @@ fun ReadNoteScreen(
             onPickLastUsed = { refileAwaitingLeave = true; viewModel.refileToLastUsed() },
             onSelectSearchResult = viewModel::refileSelectSearchResult,
         )
+    }
     }
 }
 

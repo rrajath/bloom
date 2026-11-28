@@ -57,6 +57,7 @@ import com.rrajath.grove.ui.components.ReadEditToggle
 import com.rrajath.grove.ui.components.CollapsibleKvSection
 import com.rrajath.grove.ui.attach.ProvideAttachmentRendering
 import com.rrajath.grove.ui.components.GroveToast
+import com.rrajath.grove.ui.components.ProvideSheetToast
 import com.rrajath.grove.ui.components.GroveTopBar
 import com.rrajath.grove.ui.components.LinkedReferencesBar
 import com.rrajath.grove.ui.components.LinkedReferencesSheet
@@ -140,8 +141,7 @@ fun ReadFileScreen(
     // Keyed on (fileId, title), not the document: edits re-parse the file but can't
     // change what links here. No file :ID: means no bar, so no scan.
     val fileTitle = loadedDoc?.let { doc ->
-        doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-            ?.second ?: fileName.removeSuffix(".org")
+        doc.fileTitle ?: fileName.removeSuffix(".org")
     }
     LaunchedEffect(fileName, loadedDoc?.fileId, fileTitle) {
         val title = fileTitle ?: return@LaunchedEffect
@@ -185,6 +185,7 @@ fun ReadFileScreen(
     // Reaching this screen retires the NEW badge on the Outline's "View file" item.
     MarkNewFeatureSeen(NewAnchors.OUTLINE_VIEW_FILE)
 
+    ProvideSheetToast(toast) {
     Scaffold(
         containerColor = c.bg,
         topBar = {
@@ -300,8 +301,7 @@ fun ReadFileScreen(
 
     if (linkedRefsOpen) {
         val doc = loadedDoc
-        val title = doc?.preambleKeywords?.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }
-            ?.second ?: fileName.removeSuffix(".org")
+        val title = doc?.fileTitle ?: fileName.removeSuffix(".org")
         LinkedReferencesSheet(
             title = title,
             result = linkedReferences,
@@ -311,6 +311,7 @@ fun ReadFileScreen(
             },
             onDismiss = { linkedRefsOpen = false },
         )
+    }
     }
 }
 

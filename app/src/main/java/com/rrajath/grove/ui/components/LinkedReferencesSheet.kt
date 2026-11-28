@@ -72,7 +72,7 @@ fun LinkedReferencesSheet(
     var tab by rememberSaveable { mutableIntStateOf(0) } // 0 = Linked, 1 = Unlinked
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    GroveModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = c.surface,

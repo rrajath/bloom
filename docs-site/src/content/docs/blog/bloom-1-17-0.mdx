@@ -1,0 +1,147 @@
+---
+title: 'Bloom 1.17.0: automatic backups, settings search and a fairer Overdue'
+# Noon UTC: a bare date is UTC midnight and renders as the previous day when built west of UTC.
+date: 2026-11-27T12:00:00Z
+authors: rrajath
+tags:
+  - release
+excerpt: Version 1.17.0 backs up your settings automatically, lets you search Settings, adds editor line numbers and %id in capture templates, and stops counting late starts as overdue.
+---
+
+import ThemeShot from '../../../components/ThemeShot.astro';
+import autoBackupShot from '../../../assets/blog/bloom-1-17-0/auto-backup.png';
+import settingsSearchShot from '../../../assets/blog/bloom-1-17-0/settings-search.png';
+import lineNumbersShot from '../../../assets/blog/bloom-1-17-0/line-numbers.png';
+import attachFolderShot from '../../../assets/blog/bloom-1-17-0/attach-folder.png';
+import agendaShot from '../../../assets/blog/bloom-1-17-0/agenda.png';
+import metadataSheetShot from '../../../assets/blog/bloom-1-17-0/metadata-sheet.png';
+
+1.17.0 is about keeping things safe and easy to find. Your settings can now back themselves up to a folder you choose, and you can search Settings instead of digging through pages. Editors can show real file line numbers, capture templates gain `%id`, and attachments can live in one folder at the root of your vault. The Agenda gets a rethink of what "overdue" means: only a missed deadline counts, and tasks you meant to start earlier get their own place on Today. Editors and capture also open faster in large vaults.
+
+## Settings
+
+### Automatic backup
+
+<ThemeShot
+  light={autoBackupShot}
+  alt='Settings › Backup. Under Automatic backup, "Back up automatically" is switched on, the backup folder is Download/Backups, a status line reads "Last backed up just now", and a "Restore from automatic backup" button sits below. The Manual group with Export and Import follows'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+Settings › Backup has a new **Automatic backup** group above the manual Export and Import buttons. Turn it on and pick a folder, and Bloom keeps a single `bloom-settings.json` file there up to date by itself. About 2 seconds after you change a setting, a capture template, a favorite or a saved search, the file is rewritten with the same sections a manual export holds. If nothing actually changed, the file isn't touched. A status line shows when the last backup was written, or warns in red when Bloom can't write to the folder, and tapping the warning lets you pick a folder again. **Restore from automatic backup** reads the file through the same section checklist as Import. If you pick a folder that already holds a different backup, Bloom asks whether to restore it, replace it or cancel, instead of quietly overwriting it.
+
+See [Backup, Export & Import](/features/backup-export-import#automatic-backup) for the details.
+
+### Search settings
+
+<ThemeShot
+  light={settingsSearchShot}
+  alt='The Settings hub with "line" typed in the search field. Results from several pages are listed, each captioned with its page (Notebooks, Notes, Agenda, Reminders), with "line" highlighted in every label and description. "Highlight current line" and "Show line numbers" have their switches right in the results, both on'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+A **Search settings** field now sits at the top of the Settings hub. As you type, the page list is replaced by every setting whose name, description or page name matches, each captioned with its page and with the matching text highlighted. Tap a result to open its page scrolled to that setting, which flashes briefly so you can spot it. Switches and segmented controls work right in the results, so you can flip several settings without leaving the hub. Your search stays in place when you come back from a result.
+
+See [Settings Overview](/features/settings-overview#searching-settings).
+
+### Start of week names the day
+
+Settings › Agenda › Start of week used to offer a bare "System default". It now names the day your region starts the week on, for example "System default (Monday)", in your device language, so you know what you're picking.
+
+## Editing
+
+### Show line numbers
+
+<ThemeShot
+  light={lineNumbersShot}
+  alt='The editor on the "Japan: Spring 2027" heading from travel.org, with a shaded column of line numbers down the left. Numbering starts at 4, where the heading sits in the file, and runs to 25; wrapped lines are numbered only on their first row'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+Settings › Notes has a new **Show line numbers** switch, off by default. With it on, editors show a narrow, muted column of line numbers beside the text. They're the lines' real positions in the `.org` file, not a count from 1, so editing a heading that starts on line 120 shows 120 next to it, and you can match what you see with Emacs or a diff. Tap a number to select that whole line, or drag along the numbers to select every line you pass; dragging past the edge scrolls the editor. It works in every editor tied to a file: notes, whole files, the preface and other scoped editors, and Dailies. In right-to-left languages the column moves to the other side.
+
+See [Notes Behavior](/features/notes-behavior#show-line-numbers).
+
+## Capture templates
+
+### `%id` and IDs that never collide
+
+Capture templates accept a new `%id` placeholder, which works the same as org-roam's `%(id)`. Put it in a template's `:PROPERTIES:` drawer and every captured heading gets its own `:ID:`, ready to link to with `[[id:...]]`. Each `%id` in a template gets a different ID, so a template that creates two headings never gives them the same one.
+
+Behind that, every ID Bloom generates is now checked against your vault first, whether it comes from a capture, **Generate org-id**, attachments or a new note. If any `:ID:` or `:CUSTOM_ID:` already uses it, Bloom picks another.
+
+See [Placeholders](/features/placeholders#ids).
+
+## Attachments
+
+### One attachment folder for the whole vault
+
+<ThemeShot
+  light={attachFolderShot}
+  alt='The Attachment folder dialog over Settings › Attachments, with /attach/ typed in. The helper text below reads: attach/ goes next to each note. /attach/ is one folder at the vault root. Files already in data/ keep opening'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+Settings › Attachments › Attachment folder now accepts a leading `/`. Without one, attachments live next to each note, as before. With one, for example `/attach/`, every attachment goes into a single folder at the top of your vault, matching an absolute `org-attach-id-dir` in Emacs. Attachments in that folder stay put when you move or refile notes.
+
+When you switch from a per-note folder to a vault-root one and Bloom finds existing attachments, it offers to move them into the new folder. Identical files are merged, and a file whose name is already taken by different content stays where it is so its link keeps working.
+
+See [Attachments](/features/attachments#one-folder-for-the-whole-vault).
+
+## Agenda
+
+### Only missed deadlines are overdue
+
+<ThemeShot
+  light={agendaShot}
+  alt='Agenda on Friday, 27 November. The expanded red "1 overdue" card holds "Renew passport", flagged "24 Nov · 3d late". Below, Scheduled today lists three items, and a separate Carried over section lists "Book Kyoto ryokan" (2d ago) and "Call the dentist to reschedule" (1d ago) with blue chips'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+In org-mode, SCHEDULED is when you meant to start something and DEADLINE is when it's due. Bloom used to put a task in the red Overdue card as soon as either date passed. Now only a missed deadline is overdue, and it shows how late it is, like "⚑ 24 Nov · 3d late". A task whose scheduled date has passed stays on Today with a calm blue "3d ago" chip, along with its deadline if it has one. The home-screen widget, Search's day view and date pills, the Overdue quick-start search and the daily digest count all follow the same rule. This addresses [#116](https://github.com/rrajath/bloom/issues/116).
+
+### A "Carried over" section on Today
+
+Those late starts now have their own **Carried over** section on Today, below the day's own items, oldest first, so what's actually planned for today stays at the top. This applies to the Date grouping; the Priority, Tag and File groupings keep them mixed in.
+
+### No more "Move to today"
+
+The Overdue card no longer has a **Move to today** button. Moving a scheduled date can't clear a missed deadline, and moving every deadline at once rewrites promises you made to other people. Reschedule missed deadlines one at a time instead.
+
+## Metadata sheet
+
+### Actions as icon tiles
+
+<ThemeShot
+  light={metadataSheetShot}
+  alt='The metadata sheet for "Renew passport", open over Read mode. Below the State, Priority, Tags and Dates sections, a grid of rounded icon tiles reads Add note, Refile and Favorite on the first row, and Generate org-id and a red-tinted Delete on the second'
+  widths={[340, 680]}
+  sizes="340px"
+/>
+
+The heading actions in the metadata sheet are now a 3-column grid of icon tiles instead of a row of text links: **Add note**, **Refile**, **Favorite**, **Generate org-id** and **Delete**. Once a heading has an `:ID:`, **Generate org-id** turns into **Copy ID**, which copies it to the clipboard. **Delete** asks for confirmation and offers to clean up the heading's attachments, the same as deleting from elsewhere. Messages like "Org-ID copied" now appear above the sheet instead of hidden behind it.
+
+See [Metadata Sheet](/features/metadata-sheet).
+
+## Performance improvements
+
+- Editors open more smoothly in large vaults: property-key suggestions are only loaded once you start typing a key, and the counting happens off the main thread.
+- Capture opens faster from the share sheet and widgets. Templates that use no ID no longer wait on the vault index, and templates with `%id` show up straight away while their IDs are checked in the background.
+- Typing with line numbers on is smoother: the editor no longer redraws its whole text field on every keystroke.
+
+## Fixes
+
+- Files that start with comment lines, such as an Emacs `# -*- … -*-` header, now show their `#+TITLE:` and keep their file-level `:ID:` drawer working ([#127](https://github.com/rrajath/bloom/issues/127)).
+- In the Agenda widget, DONE keywords get a green pill like in the app, and pills line up with the task text at larger font sizes ([#125](https://github.com/rrajath/bloom/issues/125)).
+- Saving a capture template no longer risks being lost when the editor closes before the write finishes.
+- A newly saved capture template now shows up in the templates list right away, without leaving and reopening it.
+- In right-to-left languages, the sync conflict diff shows file lines in their own direction, so punctuation stays where it belongs.
+
+## Full changelog
+
+The complete list of changes is in the [1.17.0 release on GitHub](https://github.com/rrajath/bloom/releases/tag/v1.17.0).

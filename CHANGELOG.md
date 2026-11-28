@@ -57,6 +57,8 @@ re-uploads the APKs to the existing release instead of failing.
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-27
+
 ### Added
 - Settings › Backup › Automatic backup keeps a settings JSON file up to date in a folder you choose.
 - Search settings from the top of the Settings hub, matches highlighted; flip switches right in the results.
@@ -66,12 +68,18 @@ re-uploads the APKs to the existing release instead of failing.
 - Switching to a vault-root attachment folder offers to move attachments found next to notes into it.
 
 ### Changed
+- Metadata sheet actions now use a 3-column icon-tile grid with Copy ID and Delete.
 - Every new org ID Bloom generates is checked against your vault so it never duplicates an existing one.
 - Settings › Agenda › Start of week now names your region's first weekday in your device language.
 - Agenda: only missed deadlines are overdue; past scheduled tasks stay on Today with "3d ago" (#116).
 - Agenda's Overdue card drops "Move to today"; reschedule missed deadlines one at a time instead.
+- Agenda: past scheduled tasks get their own "Carried over" section on Today, below today's own items.
+- Editors open more smoothly in large vaults: property-key suggestions load only once you type a key.
+- Capture opens faster from the share sheet and widgets, without waiting to check new IDs against your vault.
+- Typing with line numbers on is smoother: the editor no longer redraws its whole field per keystroke.
 
 ### Fixed
+- Titles and file IDs now work when comment lines like Emacs `# -*- … -*-` headers start the file (#127).
 - Agenda widget: DONE keywords now get a green pill like in the app, and pills align with task text (#125).
 - Saving a capture template no longer risks being lost when the editor closes before the write finishes.
 - A newly saved capture template now always appears on the templates list right away, without reopening it.

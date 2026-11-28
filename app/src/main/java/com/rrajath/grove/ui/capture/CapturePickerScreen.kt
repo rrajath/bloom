@@ -72,7 +72,7 @@ fun CapturePickerSheet(
     val c = MaterialTheme.grove
     val sheetState = rememberModalBottomSheetState()
 
-    ModalBottomSheet(
+    com.rrajath.grove.ui.components.GroveModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = c.surface,

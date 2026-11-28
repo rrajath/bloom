@@ -35,6 +35,21 @@ class OrgIdAllocatorTest {
     }
 
     @Test
+    fun `claim keeps free candidates and replaces only a taken one`() = runTest {
+        val allocator = OrgIdAllocator(taken = { it == "TAKEN" }, generate = scripted("FRESH"))
+        assertEquals(listOf("P1", "FRESH", "P2"), allocator.claim(listOf("P1", "TAKEN", "P2")))
+        assertEquals(emptyList<String>(), allocator.claim(emptyList()))
+    }
+
+    @Test
+    fun `claim treats an already issued or repeated candidate as taken`() = runTest {
+        val allocator = OrgIdAllocator(taken = { false }, generate = scripted("A", "X", "Y"))
+        assertEquals("A", allocator.next())
+        // "a" matches the issued "A" case-insensitively; the second "P" repeats the first.
+        assertEquals(listOf("X", "P", "Y"), allocator.claim(listOf("a", "P", "P")))
+    }
+
+    @Test
     fun `gives up instead of spinning when every candidate is taken`() = runTest {
         val allocator = OrgIdAllocator(taken = { true }, generate = { "SAME" })
         assertThrows(IllegalStateException::class.java) { kotlinx.coroutines.runBlocking { allocator.next() } }

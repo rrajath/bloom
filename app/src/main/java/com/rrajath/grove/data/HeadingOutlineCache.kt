@@ -3,8 +3,10 @@ package com.rrajath.grove.data
 import androidx.room.InvalidationTracker
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Process-wide cache of every notebook row plus every heading outline row:
@@ -64,12 +66,15 @@ class HeadingOutlineCache(private val dao: IndexDao) {
      * How many property drawers across the vault use each key, for the editor's
      * property-key suggestions ([countPropertyKeys]).
      * Cached alongside [snapshot] and dropped by the same invalidation, but loaded
-     * separately: most snapshot readers never need it.
+     * separately: most snapshot readers never need it. Counting is CPU work over
+     * one row per drawer (10k+ in a roam vault), so it runs on Default, never on
+     * the caller's (usually Main) thread.
      */
     suspend fun propertyKeyCounts(): Map<String, Int> {
         cachedKeyCounts?.let { return it }
         val gen = generation.get()
-        val loaded = countPropertyKeys(dao.allPropertyKeys())
+        val rows = dao.allPropertyKeys()
+        val loaded = withContext(Dispatchers.Default) { countPropertyKeys(rows) }
         if (generation.get() == gen) cachedKeyCounts = loaded
         return loaded
     }

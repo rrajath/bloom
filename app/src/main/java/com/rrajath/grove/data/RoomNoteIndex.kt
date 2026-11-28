@@ -90,7 +90,7 @@ class RoomNoteIndex(
                     (if (doc.hasIntro) 1 else 0),
                 lastModified = lastModified,
                 conflictFileName = conflictFileName,
-                title = doc.preambleKeywords.firstOrNull { it.first.equals("#+TITLE:", ignoreCase = true) }?.second,
+                title = doc.fileTitle,
                 orgId = doc.filePropertyDrawer.firstOrNull { it.first.equals(":ID:", ignoreCase = true) }?.second,
                 dirProperty = doc.fileAttachDirProperty(),
                 propertyKeys = joinPropertyKeys(doc.filePropertyDrawer.map { it.first.trim(':') }),

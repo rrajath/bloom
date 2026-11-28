@@ -18,9 +18,15 @@ The top of the sheet names the heading your changes apply to, led by its org sta
 
 When both a SCHEDULED and a DEADLINE date are set, the pill shows them stacked on two lines (`SCHED ...` above `DUE ...`) rather than crammed onto one, so both stay legible.
 
-## Add note
+## Actions
 
-**+ Add note** opens the same timestamped-note dialog available from Outline View's swipe action; it appends an entry to the heading's `:LOGBOOK:` drawer without leaving the current screen.
+Below **Dates**, a 3-column grid of icon tiles groups heading actions:
+
+- **Add note**: opens the same timestamped-note dialog available from Outline View's swipe action; it appends an entry to the heading's `:LOGBOOK:` drawer without leaving the current screen.
+- **Refile**: moves the heading (and its sub-headings) to another notebook or heading.
+- **Favorite / Favorited**: pins or unpins the heading in the navigation drawer (Read mode and single-heading Outline selection).
+- **Generate org-id / Copy ID**: generates a vault-unique `:ID:` property when the heading has none, and switches to **Copy ID** (copies the existing `:ID:` to the clipboard) once one is set.
+- **Delete**: deletes the heading (and its sub-headings) after confirmation, offering attachment cleanup when the heading owns attachment folders.
 
 ## Related
 

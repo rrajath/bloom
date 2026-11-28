@@ -17,6 +17,18 @@ class LineNumberGutterTest {
     }
 
     @Test
+    fun `gutter columns grow only when the last line number gains a digit`() {
+        assertEquals(2, gutterColumns(1, 1)) // never fewer than two
+        assertEquals(2, gutterColumns(1, 99))
+        assertEquals(3, gutterColumns(1, 100))
+        assertEquals(3, gutterColumns(1, 999))
+        assertEquals(4, gutterColumns(1, 1000))
+        // Numbered from the buffer's real first file line, not from 1.
+        assertEquals(2, gutterColumns(91, 9))
+        assertEquals(3, gutterColumns(91, 10))
+    }
+
+    @Test
     fun `an offset maps to the line holding it`() {
         val starts = lineStartOffsets("ab\ncd\nef")
         assertEquals(0, lineIndexForOffset(starts, 0))

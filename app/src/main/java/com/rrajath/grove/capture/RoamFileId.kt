@@ -23,36 +23,50 @@ object RoamFileId {
     /**
      * Splits [text]'s leading file-level drawer off: the drawer (its `:ID:`
      * lines dropped; "" when nothing else is left in it) and the rest of the
-     * text. [cursorOffset] is re-based into the rest (clamped to its start
-     * when it sat inside the drawer).
+     * text. Comment lines above the drawer (e.g. an Emacs `# -*- … -*-` header)
+     * stay in the rest. [cursorOffset] is re-based into the rest (clamped to
+     * the drawer's old position when it sat inside the drawer).
      */
     fun splitDrawer(text: String, cursorOffset: Int): Triple<String, String, Int> {
         val doc = OrgParser.parse(text)
         val range = OrgMutations.fileDrawerRange(doc) ?: return Triple("", text, cursorOffset)
-        val drawerLines = doc.lines.subList(range.first, range.last + 1)
-        val rest = doc.lines.drop(range.last + 1).joinToString("\n")
+        val lines = doc.lines
+        val drawerLines = lines.subList(range.first, range.last + 1)
+        val rest = (lines.take(range.first) + lines.drop(range.last + 1)).joinToString("\n")
+        val drawerOffset = lines.take(range.first).sumOf { it.length + 1 }
         val removed = drawerLines.sumOf { it.length + 1 }
+        val cursor = if (cursorOffset <= drawerOffset) cursorOffset else maxOf(drawerOffset, cursorOffset - removed)
         val props = drawerLines.subList(1, drawerLines.size - 1).filterNot { ID_LINE.matches(it) }
         val drawer = if (props.isEmpty()) "" else (listOf(drawerLines.first()) + props + drawerLines.last()).joinToString("\n")
-        return Triple(drawer, rest, (cursorOffset - removed).coerceIn(0, rest.length))
+        return Triple(drawer, rest, cursor.coerceIn(0, rest.length))
     }
 
-    /** [drawer] (from [splitDrawer]) back on top of [rest]. */
-    fun joinDrawer(drawer: String, rest: String): String = if (drawer.isEmpty()) rest else "$drawer\n$rest"
+    /**
+     * [drawer] (from [splitDrawer]) back into [rest]: on top, or below any
+     * leading comment lines so an Emacs `# -*- … -*-` header stays on line 1.
+     */
+    fun joinDrawer(drawer: String, rest: String): String {
+        if (drawer.isEmpty()) return rest
+        val lines = rest.split("\n")
+        val slot = lines.indexOfFirst { !OrgParser.isCommentLine(it) }.let { if (it < 0) lines.size else it }
+        if (slot == 0) return "$drawer\n$rest"
+        return (lines.take(slot) + drawer + lines.drop(slot)).joinToString("\n")
+    }
 
     /**
      * [text] with its file-level `:ID:` set to [id]: any existing `:ID:` lines
      * in the leading drawer are replaced by one right after `:PROPERTIES:`, or
-     * a new drawer holding just the `:ID:` is prepended when there is none.
+     * a new drawer holding just the `:ID:` is added on top (below any leading
+     * comment lines) when there is none. Lines above the drawer are kept.
      */
     fun withFileId(text: String, id: String): String {
         val doc = OrgParser.parse(text)
         val range = OrgMutations.fileDrawerRange(doc)
-            ?: return ":PROPERTIES:\n:ID: $id\n:END:\n$text"
+            ?: return joinDrawer(":PROPERTIES:\n:ID: $id\n:END:", text)
         val lines = doc.lines
         val props = lines.subList(range.first + 1, range.last).filterNot { ID_LINE.matches(it) }
         val drawer = listOf(lines[range.first], ":ID: $id") + props + lines[range.last]
-        return (drawer + lines.drop(range.last + 1)).joinToString("\n")
+        return (lines.take(range.first) + drawer + lines.drop(range.last + 1)).joinToString("\n")
     }
 
     /** [text] unchanged when it already has a file-level `:ID:`, else [withFileId]. */

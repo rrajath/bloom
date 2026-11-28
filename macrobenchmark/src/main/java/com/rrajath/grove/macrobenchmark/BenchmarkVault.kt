@@ -38,6 +38,7 @@ object BenchmarkVault {
     const val NOTEBOOKS_LIST = "notebooks_list"
     const val NOTEBOOK_ROW = "notebook_row"
     const val OUTLINE_LIST = "outline_list"
+    const val AGENDA_LIST = "agenda_list"
     const val READ_FILE_SCROLL = "read_file_scroll"
     const val READ_NOTE_SCROLL = "read_note_scroll"
     const val SEARCH_FIELD = "search_field"
@@ -52,6 +53,8 @@ object BenchmarkVault {
      * COLD iteration actually waits this long; the rest resolve near-instantly.
      */
     const val LAUNCH_TIMEOUT_MS = 40_000L
+    private const val BACK_SETTLE_MS = 5_000L
+    private const val MAX_BACK_RETRIES = 3
 
     /**
      * Adds the extras that make MainActivity seed and open a directory vault.
@@ -76,6 +79,20 @@ object BenchmarkVault {
         check(wait(Until.hasObject(By.res(res)), LAUNCH_TIMEOUT_MS)) {
             "$what ($res) never appeared within ${LAUNCH_TIMEOUT_MS}ms."
         }
+    }
+
+    /**
+     * Press Back to leave [fromRes] for [toRes]. A Back sent while the keyboard is
+     * dismissing or a nav transition is settling can be swallowed, leaving [fromRes]
+     * on screen; re-press only while it is still there, so we never overshoot [toRes].
+     */
+    fun UiDevice.backTo(fromRes: String, toRes: String, what: String) {
+        repeat(MAX_BACK_RETRIES) {
+            pressBack()
+            if (wait(Until.hasObject(By.res(toRes)), BACK_SETTLE_MS)) return
+            if (!hasObject(By.res(fromRes))) return awaitObject(toRes, what)
+        }
+        awaitObject(toRes, what)
     }
 
     /** Wait for [selector] and return the match; fail loudly with [what] if it never shows. */

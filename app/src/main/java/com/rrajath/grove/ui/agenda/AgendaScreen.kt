@@ -518,7 +518,9 @@ private fun AgendaList(
     )
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize(),
+        // The benchmark waits on this tag. It sits on the list, not the screen Column: a
+        // node carrying only a testTag isn't exposed to UiAutomator, a scrollable one is.
+        modifier = Modifier.fillMaxSize().testTag("agenda_list"),
         contentPadding = PaddingValues(start = 14.dp, top = 12.dp, end = 14.dp, bottom = 20.dp),
     ) {
         if (state.isEmpty) {

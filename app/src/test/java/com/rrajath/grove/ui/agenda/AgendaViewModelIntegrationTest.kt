@@ -133,9 +133,11 @@ class AgendaViewModelIntegrationTest {
 
         val overdueTitles = vm.state.value.overdue.map { it.title }
         assertEquals(listOf("Renew the domain"), overdueTitles)
-        val todayTitles = vm.state.value.groups.flatMap { it.rows }.map { it.title }
-        assertTrue("expected 'Clean out the garage' carried onto today, was $todayTitles",
-            todayTitles.contains("Clean out the garage"))
+        val carried = vm.state.value.groups.single { it.key == AgendaViewModel.CARRIED_OVER_KEY }
+        assertEquals(listOf("Clean out the garage"), carried.rows.map { it.title })
+        assertEquals(AgendaViewModel.CARRIED_OVER_KEY, vm.state.value.groups.last().key)
+        assertTrue(vm.state.value.groups.filter { it.key != AgendaViewModel.CARRIED_OVER_KEY }
+            .flatMap { it.rows }.none { it.title == "Clean out the garage" })
         assertEquals(1, vm.state.value.todayCount)
         // The undated heading is excluded by the plannedNotes SQL narrowing.
         val everyTitle = (vm.state.value.overdue + vm.state.value.groups.flatMap { it.rows })
