@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Daily notes (ui/dailies/). -->
+    <!-- Screen reader labels for the month arrows in the date picker sheet. -->
+    <string name="dailies_previous_month"></string>
+    <string name="dailies_next_month"></string>
+    <!-- Screen reader label for the save-state dot in the top bar. -->
+    <string name="dailies_unsaved_tap_to_save"></string>
+    <string name="dailies_saved"></string>
+    <!-- Screen reader label for the button that jumps to today's daily note. -->
+    <string name="dailies_today"></string>
+    <string name="dailies_no_sync_folder"></string>
+    <!-- Leaving the screen with unsaved edits. -->
+    <string name="dailies_unsaved_title"></string>
+    <string name="dailies_unsaved_body"></string>
+    <!-- Empty day. %1$s = the file name that will be created, e.g. 2026-11-23.org. -->
+    <string name="dailies_empty_state"></string>
+</resources>

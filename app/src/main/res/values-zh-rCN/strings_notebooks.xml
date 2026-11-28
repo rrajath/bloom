@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notebooks screen (ui/screens/NotebooksScreen.kt). A notebook is one .org file;
+         folders are directories inside the notes folder. -->
+
+    <!-- Top bar button that opens or closes every folder in the tree (screen reader). -->
+    <string name="notebooks_expand_all"></string>
+    <string name="notebooks_collapse_all"></string>
+    <!-- Empty states. "The bar below" is the floating Search / Capture / New notebook dock. -->
+    <string name="notebooks_empty_title"></string>
+    <string name="notebooks_empty_body"></string>
+    <string name="notebooks_folder_empty"></string>
+    <!-- Shown before a notes folder is picked. Syncthing is a file sync app; keep its name. -->
+    <string name="notebooks_no_vault_title"></string>
+    <string name="notebooks_no_vault_body"></string>
+    <string name="notebooks_no_vault_button"></string>
+    <!-- New notebook dialog title and dock button (screen reader). -->
+    <string name="notebooks_new_notebook"></string>
+    <!-- Under the new notebook dialog title. %1$s = the folder it is created in, e.g. "work/". -->
+    <string name="notebooks_new_in_folder"></string>
+    <!-- Rename dialog title. %1$s = current notebook or folder name. -->
+    <string name="notebooks_rename_title"></string>
+    <string name="notebooks_folder_name_placeholder"></string>
+    <!-- Big button in the bottom dock: write a new note. -->
+    <string name="notebooks_dock_capture"></string>
+    <!-- Change icon color dialog hints: what the icon's letter or color is based on. -->
+    <string name="notebooks_color_hint_file_name"></string>
+    <!-- The notebook's #+TITLE. -->
+    <string name="notebooks_color_hint_title"></string>
+    <string name="notebooks_color_hint_folder"></string>
+    <!-- Long-press menu on a notebook or folder. -->
+    <string name="notebooks_menu_pin"></string>
+    <string name="notebooks_menu_unpin"></string>
+    <string name="notebooks_menu_move"></string>
+    <string name="notebooks_menu_icon_color"></string>
+    <!-- Re-read the file from disk, dropping the cached copy. -->
+    <string name="notebooks_menu_force_reload"></string>
+    <string name="notebooks_menu_resolve_conflict"></string>
+    <!-- Small tag on a notebook that has a sync conflict. Keep it short. -->
+    <string name="notebooks_conflict_pill"></string>
+    <!-- Warning icon on a folder (screen reader). -->
+    <string name="notebooks_folder_has_conflict"></string>
+    <!-- Delete dialogs. %1$s = notebook or folder name. -->
+    <string name="notebooks_delete_title"></string>
+    <!-- The words drawn in red inside the delete dialog texts below. Must appear exactly
+         as written in those texts, or the red emphasis is dropped. -->
+    <string name="notebooks_delete_emphasis"></string>
+    <!-- Deleting a folder; %d = notebooks inside it, counting sub-folders. -->
+    <plurals name="notebooks_delete_folder_body">
+    </plurals>
+    <string name="notebooks_delete_folder_attachments"></string>
+    <!-- Deleting a notebook; %d = notes (headings) in it. -->
+    <plurals name="notebooks_delete_body">
+    </plurals>
+    <!-- Same, before the notebook's notes have been counted. -->
+    <string name="notebooks_delete_body_unindexed"></string>
+    <!-- Sync status icon in the top bar: screen reader labels, and the toast shown on tap. -->
+    <string name="notebooks_sync_issue"></string>
+    <!-- %1$s = the error message from the sync engine. -->
+    <string name="notebooks_sync_issue_detail"></string>
+    <string name="notebooks_sync_checking"></string>
+    <string name="notebooks_sync_checking_detail"></string>
+    <string name="notebooks_sync_pulling"></string>
+    <!-- %1$s = file being read. -->
+    <string name="notebooks_sync_pulling_detail"></string>
+    <string name="notebooks_sync_conflicts"></string>
+    <string name="notebooks_synced"></string>
+    <plurals name="notebooks_synced_minutes_ago">
+    </plurals>
+    <string name="notebooks_not_synced_yet"></string>
+    <!-- Joined to the synced text with " · ". -->
+    <plurals name="notebooks_conflict_files">
+    </plurals>
+    <!-- Move to folder sheet. %1$s = notebook name. -->
+    <string name="notebooks_move_title"></string>
+    <!-- %1$s = the notebook's current folder (or the notes folder's name). -->
+    <string name="notebooks_move_currently_in"></string>
+    <string name="notebooks_move_no_subfolders"></string>
+    <string name="notebooks_move_new_folder"></string>
+    <string name="notebooks_move_create_here"></string>
+    <!-- %1$s = the folder picked in the sheet. -->
+    <string name="notebooks_move_confirm"></string>
+    <!-- Toasts from notebook and folder edits (ui/vault/VaultViewModels.kt). -->
+    <string name="notebooks_folder_exists"></string>
+    <!-- %1$s = notebook file name, %2$s = the attachment folder, e.g. "data/". -->
+    <string name="notebooks_moved_attachments_stayed"></string>
+    <string name="notebooks_deleted_with_attachments"></string>
+    <string name="notebooks_deleted_attachments_kept"></string>
+    <!-- %1$s = notebook file name, %2$d = attachment folders that couldn't be removed. -->
+    <plurals name="notebooks_deleted_attachments_failed">
+    </plurals>
+    <plurals name="notebooks_folder_renamed_attachments_failed">
+    </plurals>
+    <!-- Sync conflict notification (sync/SyncManager.kt). The channel name shows in Android's
+         notification settings for the app. -->
+    <string name="sync_conflict_channel"></string>
+    <string name="sync_conflict_notification_title"></string>
+    <plurals name="sync_conflict_notification_text">
+    </plurals>
+    <!-- Sync error with no details from the system; shown by the Notebooks sync warning icon. -->
+    <string name="sync_failed"></string>
+    <!-- Resolve conflict screen (ui/screens/ConflictScreen.kt). The top bar title reuses
+         notebooks_menu_resolve_conflict. -->
+    <string name="conflict_none"></string>
+    <string name="conflict_explanation"></string>
+    <!-- CONFLICT is the org heading the merged copy goes under; keep it in English and capitals. -->
+    <string name="conflict_keep_both"></string>
+    <string name="conflict_keep_current"></string>
+    <string name="conflict_keep_copy"></string>
+    <!-- .sync-conflict is part of the copy's file name; keep it as-is. -->
+    <string name="conflict_copy_removed"></string>
+    <!-- Diff header labels, shown in capitals: "CURRENT VERSION → CONFLICT COPY · <date>". -->
+    <string name="conflict_current_version"></string>
+    <string name="conflict_conflict_copy"></string>
+    <!-- Separator above a block of changed lines. %1$d is the line number in the current file. -->
+    <string name="conflict_hunk_line"></string>
+    <string name="conflict_no_differences"></string>
+</resources>

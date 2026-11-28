@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Agenda row swipe action, picked in Settings > Agenda (AgendaSwipeAction). -->
+    <!-- Add or change the task's SCHEDULED date. -->
+    <string name="agenda_swipe_action_schedule"></string>
+    <!-- Add or change the task's DEADLINE date. -->
+    <string name="agenda_swipe_action_deadline"></string>
+    <string name="agenda_swipe_action_done"></string>
+    <!-- Agenda "Group by" chips (AgendaGrouping). Short chips in one row. -->
+    <string name="agenda_group_by_date"></string>
+    <!-- Group by org priority (#A, #B, #C). -->
+    <string name="agenda_group_by_priority"></string>
+    <!-- Group by org tag. -->
+    <string name="agenda_group_by_tag"></string>
+    <!-- Group by the .org file the item is in. -->
+    <string name="agenda_group_by_file"></string>
+    <!-- Agenda screen tabs. -->
+    <string name="agenda_tab_today"></string>
+    <string name="agenda_tab_upcoming"></string>
+    <!-- Relative day names: agenda section headers and row date chips. Other days show the weekday name. -->
+    <string name="agenda_day_today"></string>
+    <string name="agenda_day_tomorrow"></string>
+    <string name="agenda_day_yesterday"></string>
+    <!-- Search's agenda view section header: a near day's name, then its short date. Example: "Tomorrow, Jun 12". -->
+    <string name="agenda_day_with_date"></string>
+    <!-- Agenda section headers (shown in uppercase). -->
+    <string name="agenda_section_scheduled_today"></string>
+    <!-- Deadlines coming up within their warning period, shown on the Today tab. -->
+    <string name="agenda_section_due_soon"></string>
+    <!-- Items whose date has passed. -->
+    <string name="agenda_section_overdue"></string>
+    <!-- "Group by: Priority" section for org priority A, B or C. %1$s is the letter. -->
+    <string name="agenda_section_priority"></string>
+    <string name="agenda_section_no_priority"></string>
+    <!-- "Group by: Tag" section for headings without tags. Tags are written :like-this: in org files. -->
+    <string name="agenda_section_untagged"></string>
+    <!-- Agenda options panel (the ⇅ button). Labels are shown in uppercase. -->
+    <string name="agenda_lever_group_by"></string>
+    <!-- Label above the chips that filter rows by TODO state. -->
+    <string name="agenda_lever_show"></string>
+    <!-- State filter chip: anything not done. -->
+    <string name="agenda_filter_open"></string>
+    <!-- State filter chip: every row, done ones included. -->
+    <string name="agenda_filter_everything"></string>
+    <string name="agenda_toggle_tags"></string>
+    <string name="agenda_toggle_source_file"></string>
+    <string name="agenda_toggle_timestamps"></string>
+    <!-- Agenda with nothing to show. -->
+    <string name="agenda_empty_title"></string>
+    <string name="agenda_empty_today"></string>
+    <string name="agenda_empty_upcoming"></string>
+    <!-- Red card above the Today list: tasks whose DEADLINE has passed. -->
+    <plurals name="agenda_overdue_count">
+    </plurals>
+    <!-- Agenda row swipe cells. The cells are narrow: keep these very short. -->
+    <!-- Add a note to the heading's logbook. -->
+    <string name="agenda_swipe_note"></string>
+    <!-- Short for "Schedule". -->
+    <string name="agenda_swipe_scheduled"></string>
+    <!-- Short for "Deadline". -->
+    <string name="agenda_swipe_deadline"></string>
+    <!-- Agenda snackbars. -->
+    <!-- A done task was set back to an open state. -->
+    <string name="agenda_snack_reopened"></string>
+    <string name="agenda_snack_note_added"></string>
+    <!-- Agenda row chips. -->
+    <!-- A deadline chip: the flag glyph before the date or text. -->
+    <string name="agenda_meta_flagged" translatable="false"></string>
+    <!-- A deadline-only row: the deadline is its date. -->
+    <string name="agenda_meta_due"></string>
+    <!-- Overdue row: %1$s is the short date, %2$s how late. Example: "Jun 9 · 2d late". -->
+    <string name="agenda_meta_late"></string>
+    <!-- Days past the date, abbreviated. Example: "2d late". -->
+    <plurals name="agenda_meta_days_late">
+    </plurals>
+    <!-- A task whose SCHEDULED date has passed, carried onto today: days since it was meant to start, abbreviated. Example: "2d ago". -->
+    <plurals name="agenda_meta_days_ago">
+    </plurals>
+    <!-- Deadline coming up: %1$s is the short date, %2$s how far off. Example: "Jun 14 · in 3d". -->
+    <string name="agenda_meta_due_soon"></string>
+    <!-- Days until the deadline, abbreviated. Example: "in 3d". -->
+    <plurals name="agenda_meta_in_days">
+    </plurals>
+</resources>
